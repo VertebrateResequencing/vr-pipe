@@ -649,17 +649,9 @@ sub start_server {
         '/' => sub {
             foo => { pat => qr/beginner/, repl => 'hacker' }, $backend->psgi_file_response(200, 'html', file($dist_dir, 'web_interface.html')->stringify, shift, [[qr/\%\%cypherURI\%\%/, $cypherURI], [qr/\%\%deploymentLabel\%\%/, $deploymentLabel]]);
         },
-        '/js/knockstrap.min.js' => sub {
-            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', 'knockstrap.min.js')->stringify, shift);
-        },
-        '/js/simrou.min.js' => sub {
-            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', 'simrou.min.js')->stringify, shift);
-        },
-        '/js/arbor.js' => sub {
-            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', 'arbor.js')->stringify, shift);
-        },
-        '/js/cytoscape.min.js' => sub {
-            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', 'cytoscape.min.js')->stringify, shift);
+        '/js/(.+\.js)$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', $basename)->stringify, $env);
         },
         '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
         '/dsn'    => sub {

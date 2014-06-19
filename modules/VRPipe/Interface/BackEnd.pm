@@ -607,12 +607,29 @@ XSL
         my $app = sub {
             my $env = shift; # PSGI env
             
-            my $req  = Plack::Request->new($env);
-            my $page = $req->path_info;
-            my $sub  = $pages{$page} || sub { $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $env); };
+            my $req      = Plack::Request->new($env);
+            my $path     = $req->path_info;
+            my @sub_args = ($env);
+            my $sub      = $pages{$path};
+            
+            unless ($sub) {
+                # see if the path matches any of the pages as a regex
+                while (my ($regex, $this_sub) = each %pages) {
+                    next unless $regex;
+                    next if $regex eq '/';
+                    if ($path =~ qr{$regex}) {
+                        $sub = $this_sub;
+                        push(@sub_args, "$1");
+                        last;
+                    }
+                }
+                keys %pages;
+            }
+            
+            $sub ||= sub { $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $env); };
             
             my $return;
-            eval { $return = &{$sub}($env); };
+            eval { $return = &{$sub}(@sub_args); };
             if ($@) {
                 my $err = $@;
                 chomp($err);
@@ -635,7 +652,7 @@ XSL
             else {
                 $res = $req->new_response(500);
                 $res->content_type('text/plain');
-                my $message = "page $page unexpectedly returned a non-reference";
+                my $message = "page $path unexpectedly returned a non-reference";
                 $self->log($message);
                 $res->body('500: ' . $message);
             }
