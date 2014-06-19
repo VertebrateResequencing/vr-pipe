@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 34;
+    use Test::Most tests => 39;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -32,8 +32,11 @@ my $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', proper
 is $graph->node_id($sanger1), $orig_node_id, 'calling add_node twice with the same args returns the same node';
 throws_ok { $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'public2' }) } qr/already exists with label vdt.+\|VRTrack\|Sample/, 'add_node throws when used twice with the same unique arg but different other arg';
 ok $graph->delete_node($sanger1), 'delete_node() worked';
+undef $sanger1;
+($sanger1) = $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1' });
+ok !$sanger1, 'the node really is gone';
 $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', uuid => 'uuuuu', public_name => 'public1' });
-is $graph->node_id($sanger1), $orig_node_id, 'calling add_node again with the same args after deleting returns a new node';
+isnt $graph->node_id($sanger1), $orig_node_id, 'calling add_node again with the same args after deleting returns a new node';
 throws_ok { $graph->add_node(namespace => 'VRTrack', label => 'Sampl', properties => { sanger_id => 'sanger1', uuid => 'uuuuu', public_name => 'public1' }) } qr/You must first create a schema for namespace/, 'add_node throws when supplied with a label for which there is no schema';
 
 # get nodes by their properties (first add some more for testing purposes)
@@ -87,16 +90,28 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Lane1', 'La
 @nodes = $graph->related_nodes($sanger2);
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Library2)], 'related_nodes defaults to giving all nodes 1 step away';
 
-# add some more nodes to test the visualisation
+# add some more nodes to test the visualisation and add_nodes() bulk creation
+# with relationships at the same time
 $study = $graph->add_node(namespace => 'VRTrack', label => 'Study', properties => { name => 'Study of Disease_abc' });
 $graph->relate($study, $jane, type => 'has_participant');
 $graph->add_schema(namespace => 'OtherNS', label => 'Workplace', unique => [qw(name)], indexed => []);
 my $workplace = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Sanger' });
 $graph->add_schema(namespace => 'OtherNS', label => 'Individual', unique => [qw(name)], indexed => []);
+my @props;
 for (1 .. 100) {
-    $node = $graph->add_node(namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person' . $_ });
-    $graph->relate($workplace, $node, type => 'has_employee');
+    push(@props, { name => 'Person' . $_ });
 }
+@nodes = $graph->add_nodes(namespace => 'OtherNS', label => 'Individual', properties => \@props, incoming => { node => $workplace, type => 'has_employee' });
+is scalar(@nodes), 100, 'add_nodes() worked and returned 100 nodes';
+my $employee = $nodes[0];
+@nodes = $graph->related_nodes($workplace);
+is scalar(@nodes), 100, 'add_nodes() incoming option worked and related all 100 nodes to another node';
+my $campus = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Genome Campus' }, outgoing => { node => $workplace, type => 'contains' });
+($node) = $graph->related_nodes($workplace, incoming => {});
+is $graph->node_property($node, 'name'), 'Genome Campus', 'add_node() outgoing option worked and created the relationship';
+my $ebi = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'EBI' }, incoming => { node => $campus, type => 'contains' }, outgoing => { node => $employee, type => 'has_employee' });
+@nodes = $graph->related_nodes($ebi);
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Genome Campus', $graph->node_property($employee, 'name')], 'add_node() worked with both incoming and outgoing specified at once';
 
 # add nodes to test display of images, and test the uuid creation helper method
 # and required schema option

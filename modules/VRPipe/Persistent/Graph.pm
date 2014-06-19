@@ -149,50 +149,52 @@ class VRPipe::Persistent::Graph {
             #*** should auto-retry when the code matches TransientError
         }
         
-        my $data = $decode->{results}->[0]->{data};
         my (%nodes, %relationships);
         my $label_regex = qr/^$global_label\|([^\|]+)\|(.+)/;
-        foreach my $hash (@$data) {
-            my $graph = $hash->{graph} || next;
-            foreach my $node_details (@{ $graph->{nodes} || [] }) {
-                my $node_id = $node_details->{id};
-                next if exists $nodes{$node_id};
-                
-                # for speed reasons we don't create objects for nodes but just
-                # return the a hash and provide methods to extract stuff from
-                # the hash
-                
-                # convert labels to namespace and label
-                my ($namespace, $label);
-                my $ok = 0;
-                foreach my $this_label (@{ $node_details->{labels} }) {
-                    if ($this_label =~ /$label_regex/) {
-                        $namespace = $1;
-                        $label     = $2;
-                        $ok        = 1;
-                        last;
+        foreach my $result (@{ $decode->{results} }) {
+            my $data = $result->{data} || next;
+            foreach my $hash (@$data) {
+                my $graph = $hash->{graph} || next;
+                foreach my $node_details (@{ $graph->{nodes} || [] }) {
+                    my $node_id = $node_details->{id};
+                    next if exists $nodes{$node_id};
+                    
+                    # for speed reasons we don't create objects for nodes but just
+                    # return the a hash and provide methods to extract stuff from
+                    # the hash
+                    
+                    # convert labels to namespace and label
+                    my ($namespace, $label);
+                    my $ok = 0;
+                    foreach my $this_label (@{ $node_details->{labels} }) {
+                        if ($this_label =~ /$label_regex/) {
+                            $namespace = $1;
+                            $label     = $2;
+                            $ok        = 1;
+                            last;
+                        }
+                        elsif ($this_label eq $global_label) {
+                            $ok = 1;
+                        }
                     }
-                    elsif ($this_label eq $global_label) {
-                        $ok = 1;
-                    }
+                    $ok || next; # only return nodes created by us
+                    
+                    my $node = { id => $node_id, properties => $node_details->{properties}, namespace => $namespace, label => $label };
+                    $nodes{$node_id} = $node;
                 }
-                $ok || next; # only return nodes created by us
                 
-                my $node = { id => $node_id, properties => $node_details->{properties}, namespace => $namespace, label => $label };
-                $nodes{$node_id} = $node;
-            }
-            
-            foreach my $rel_details (@{ $graph->{relationships} || [] }) {
-                my $rel_id = $rel_details->{id};
-                next if exists $relationships{$rel_id};
-                
-                # skip relationships if we skipped one of its nodes
-                next unless (exists $nodes{ $rel_details->{startNode} } && exists $nodes{ $rel_details->{endNode} });
-                
-                # again for speed reasons we just return the raw hash; this is
-                # more useful that applying the details to the nodes since this
-                # is the format needed for graph display
-                $relationships{$rel_id} = $rel_details;
+                foreach my $rel_details (@{ $graph->{relationships} || [] }) {
+                    my $rel_id = $rel_details->{id};
+                    next if exists $relationships{$rel_id};
+                    
+                    # skip relationships if we skipped one of its nodes
+                    next unless (exists $nodes{ $rel_details->{startNode} } && exists $nodes{ $rel_details->{endNode} });
+                    
+                    # again for speed reasons we just return the raw hash; this is
+                    # more useful that applying the details to the nodes since this
+                    # is the format needed for graph display
+                    $relationships{$rel_id} = $rel_details;
+                }
             }
         }
         
@@ -330,20 +332,47 @@ class VRPipe::Persistent::Graph {
         return ($labels, $param_map);
     }
     
-    method add_node (Str :$namespace!, Str :$label!, HashRef :$properties!) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 'param', 1);
+    # in/outgoing HashRef is { type => 'type', node => $node }
+    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, HashRef :$incoming?, HashRef :$outgoing?) {
+        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties->[0], 'param', 1);
+        
+        my $left  = '';
+        my $match = '';
+        if ($incoming) {
+            my $node_id = $self->node_id($incoming->{node});
+            $left  = "(l)-[:$incoming->{type}]->";
+            $match = "MATCH (l) WHERE id(l) = $node_id ";
+        }
+        my $right = '';
+        if ($outgoing) {
+            my $node_id = $self->node_id($outgoing->{node});
+            $right = "-[:$outgoing->{type}]->(r)";
+            $match .= "MATCH (r) WHERE id(r) = $node_id ";
+        }
+        
+        my $cypher = "${match}MERGE $left(n:$labels$param_map)$right";
+        $cypher .= ' RETURN n' if defined wantarray();
+        
+        my @to_run;
+        foreach my $prop (@$properties) {
+            push(@to_run, [$cypher, { 'param' => $prop }]);
+        }
         
         if (defined wantarray()) {
-            my ($node) = @{ $self->_run_cypher(["MERGE (n:$labels$param_map) RETURN n", { 'param' => $properties }])->{nodes} };
-            return $node;
+            return @{ $self->_run_cypher(@to_run)->{nodes} };
         }
         else {
-            $self->_run_cypher(["MERGE (:$labels$param_map)", { 'param' => $properties }]);
+            $self->_run_cypher(@to_run);
         }
     }
     
+    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, HashRef :$incoming?, HashRef :$outgoing?) {
+        my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
+        return $node;
+    }
+    
     method delete_node (HashRef $node!) {
-        $self->_run_cypher(["START n=node($node->{id}) MATCH n-[r]-() DELETE n, r"]);
+        $self->_run_cypher(["MATCH (n) OPTIONAL MATCH (n)-[r]-() WHERE id(n) = $node->{id} DELETE n, r"]);
         return 1;
     }
     
@@ -377,7 +406,7 @@ class VRPipe::Persistent::Graph {
     method relate (HashRef $start_node!, HashRef $end_node!, Str :$type!) {
         return @{
             $self->_run_cypher([
-                    "START a=node($start_node->{id}), b=node($end_node->{id}) CREATE (a)-[r:$type]->(b)
+                    "MATCH (a) WHERE id(a) = $start_node->{id} MATCH (b) WHERE id(b) = $end_node->{id} CREATE (a)-[r:$type]->(b)
 RETURN r"
                 ]
             )->{relationships}
@@ -401,7 +430,7 @@ RETURN r"
         if ($undirected) {
             my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
             my $return = $result_nodes_only ? 'u' : 'p';
-            return $self->_run_cypher(["START start=node($start_id) MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) RETURN $return", { 'param' => $properties }]);
+            return $self->_run_cypher(["MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return", { 'param' => $properties }]);
         }
         else {
             my (%all_properties, @return);
@@ -427,7 +456,7 @@ RETURN r"
             else {
                 $return = 'p';
             }
-            return $self->_run_cypher(["START start=node($start_id) MATCH p = $left(start)$right RETURN $return", keys %all_properties ? \%all_properties : ()]);
+            return $self->_run_cypher(["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]);
         }
     }
     
