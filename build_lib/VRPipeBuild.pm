@@ -94,6 +94,7 @@ sub required_modules {
         'List::MoreUtils'                => 0,
         'LWP::UserAgent'                 => 0,
         'Module::Find'                   => 0,
+        'Mojo::UserAgent'                => 0,
         'Moose'                          => 0,
         'MooseX::Aliases'                => 0,
         'MooseX::Declare'                => 0,

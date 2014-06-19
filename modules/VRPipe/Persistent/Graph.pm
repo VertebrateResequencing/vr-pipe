@@ -64,42 +64,43 @@ use VRPipe::Base;
 class VRPipe::Persistent::Graph {
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
-    use LWP::UserAgent;
+    use Mojo::UserAgent;
     use JSON::XS;
     use Data::UUID;
     
-    our $json       = JSON::XS->new->canonical->allow_nonref(1);
+    our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
     our $vrp_config = VRPipe::Config->new();
-    our ($lwp, $transaction_endpoint, $global_label, $schemas, $schema_labels);
+    our ($ua, $transaction_endpoint, $global_label, $schemas, $schema_labels);
+    our $ua_headers = { 'Accept' => 'application/json', 'Content-Type' => 'application/json', 'Charset' => 'UTF-8', 'X-Stream' => 'true' };
     
     sub BUILD {
         my $self = shift;
         
-        unless ($lwp) {
-            $lwp = LWP::UserAgent->new(
-                default_headers => HTTP::Headers->new(
-                    'Accept'       => 'application/json',
-                    'Content-Type' => 'application/json',
-                    'X-Stream'     => 'true'
-                ),
-                protocols_allowed => ['http', 'https'],
-                timeout           => 10
-            );
+        unless ($ua) {
+            # we use Mojo::UserAgent instead of LWP::UserAgent because LWP has
+            # some kind of truncation bug when we try to get very large
+            # responses from Neo4J
+            $ua = Mojo::UserAgent->new();
             
             # connect and get the transaction endpoint
-            my $url  = $vrp_config->neo4j_server_url();
-            my $resp = $lwp->get($url);
-            unless ($resp->is_success) {
-                $self->throw("Failed to connect to '$url': [" . $resp->code . "] " . $resp->message);
+            my $url = $vrp_config->neo4j_server_url();
+            my $tx  = $ua->get($url => $ua_headers);
+            my $res = $tx->success;
+            unless ($res) {
+                my $err = $tx->error;
+                $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
             }
-            my $decode = $json->decode($resp->content);
+            my $decode = $json->decode($res->body);
             my $data_endpoint = $decode->{data} || $self->throw("No data endpoint found at $url");
-            $resp = $lwp->get($data_endpoint);
-            unless ($resp->is_success) {
-                $self->throw("Failed to connect to '$data_endpoint': [" . $resp->code . "] " . $resp->message);
+            
+            $tx = $ua->get($data_endpoint => $ua_headers);
+            $res = $tx->success;
+            unless ($res) {
+                my $err = $tx->error;
+                $self->throw("Failed to connect to '$data_endpoint': [$err->{code}] $err->{message}");
             }
-            $decode = $json->decode($resp->content);
+            $decode = $json->decode($res->body);
             $transaction_endpoint = $decode->{transaction} || $self->throw("No transaction endpoint found at $data_endpoint");
             $transaction_endpoint .= '/commit';
             
@@ -131,16 +132,13 @@ class VRPipe::Persistent::Graph {
             );
         }
         
-        my $resp = $lwp->post(
-            $transaction_endpoint,
-            'Content-Type' => 'application/json',
-            'X-Stream'     => 'true',
-            Content        => $json->encode($post_content)
-        );
-        unless ($resp->is_success) {
-            $self->throw('[' . $resp->code . '] ' . $resp->message);
+        my $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content);
+        my $res = $tx->success;
+        unless ($res) {
+            my $err = $tx->error;
+            $self->throw('[' . $err->{code} . '] ' . $err->{message});
         }
-        my $decode = $json->decode($resp->content);
+        my $decode = $json->decode($res->body);
         
         my $errors = $decode->{errors};
         if (@$errors) {

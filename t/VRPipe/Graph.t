@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 39;
+    use Test::Most tests => 40;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -98,14 +98,20 @@ $graph->add_schema(namespace => 'OtherNS', label => 'Workplace', unique => [qw(n
 my $workplace = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Sanger' });
 $graph->add_schema(namespace => 'OtherNS', label => 'Individual', unique => [qw(name)], indexed => []);
 my @props;
-for (1 .. 100) {
+for (1 .. 1000) {
+    push(@props, { name => 'Person' . $_ });
+}
+@nodes = $graph->add_nodes(namespace => 'OtherNS', label => 'Individual', properties => \@props, incoming => { node => $workplace, type => 'has_employee' }); # ~9 seconds; is that good or bad?
+is scalar(@nodes), 1000, 'add_nodes() worked and returned 1000 nodes';
+@props = ();
+for (951 .. 1050) {
     push(@props, { name => 'Person' . $_ });
 }
 @nodes = $graph->add_nodes(namespace => 'OtherNS', label => 'Individual', properties => \@props, incoming => { node => $workplace, type => 'has_employee' });
-is scalar(@nodes), 100, 'add_nodes() worked and returned 100 nodes';
+is scalar(@nodes), 100, 'add_nodes() worked and returned 100 nodes when we requested to create some already existing nodes';
 my $employee = $nodes[0];
 @nodes = $graph->related_nodes($workplace);
-is scalar(@nodes), 100, 'add_nodes() incoming option worked and related all 100 nodes to another node';
+is scalar(@nodes), 1050, 'add_nodes() incoming option worked and related all 1050 nodes to another node';
 my $campus = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Genome Campus' }, outgoing => { node => $workplace, type => 'contains' });
 ($node) = $graph->related_nodes($workplace, incoming => {});
 is $graph->node_property($node, 'name'), 'Genome Campus', 'add_node() outgoing option worked and created the relationship';
