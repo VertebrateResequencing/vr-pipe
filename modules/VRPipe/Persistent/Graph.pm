@@ -5,32 +5,50 @@ VRPipe::Persistent::Graph - interface to a graph database
 
 =head1 SYNOPSIS
     
-use VRPipe::Persistent::Graph;
-
-my $graph = VRPipe::Persistent::Graph->new();
-
-$graph->add_schema(     namespace => 'QCGrind',     label => 'Sample',    
-unique => [qw(sanger_id uuid)],         indexed => [qw(public_name)] );
-
-my $node = $graph->add_node(     namespace => 'QCGrind',     label => 'Sample',
-    properties => {         sanger_id => 'sanger1',         uuid => 'uuuuu',   
-     public_name => 'public1'     } );
-
-$graph->relate($node, $other_node, 'has');
-
-($node) = $graph->get_nodes(     namespace => 'QCGrind',     label => 'Sample',
-    properties => {         public_name => 'public1'     } );
-
-my ($related_node) = $graph->related_nodes(     $node,     namespace =>
-'QCGrind',     label => 'Lane',     max_depth => 4 );
+    use VRPipe::Persistent::Graph;
+    
+    my $graph = VRPipe::Persistent::Graph->new();
+    
+    $graph->add_schema(
+        namespace => 'QCGrind',
+        label => 'Sample',    
+        unique => [qw(sanger_id uuid)],
+        indexed => [qw(public_name)]
+    );
+    
+    my $node = $graph->add_node(
+        namespace => 'QCGrind',
+        label => 'Sample',
+        properties => {
+            sanger_id => 'sanger1',
+            uuid => 'uuuuu',   
+            public_name => 'public1'
+        }
+    );
+    
+    $graph->relate($node, $other_node, 'has');
+    
+    ($node) = $graph->get_nodes(
+        namespace => 'QCGrind',
+        label => 'Sample',
+        properties => { public_name => 'public1' }
+    );
+    
+    my ($related_node) = $graph->related_nodes(
+        $node,
+        namespace => 'QCGrind',
+        label => 'Lane',
+        max_depth => 4
+    );
 
 =head1 DESCRIPTION
 
 For schema-less store of connected data we use a graph database; Neo4J in this
 case.
 
-This is essentially a wrapper around REST::Neo4p, providing functions that can
-be used to store and retrieve information about things.
+This is essentially a wrapper around some cypher queries submitted to Neo4J via
+its REST API, providing functions that can be used to store and retrieve
+information about things.
 
 Things (must) have a namespace, label and properties. A dynamically-applied
 "schema" must be in place first, providing uniqueness constraints and indexes.
