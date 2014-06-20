@@ -135,10 +135,11 @@ class VRPipe::Persistent::Graph {
     }
     
     sub _run_cypher {
-        my $self = shift;
+        my ($self, $array, $args) = @_;
+        my $return_schema_nodes = $args->{return_schema_nodes};
         
         my $post_content = { statements => [] };
-        foreach (@_) {
+        foreach (@$array) {
             my ($cypher, $params) = @$_;
             push(
                 @{ $post_content->{statements} },
@@ -189,7 +190,8 @@ class VRPipe::Persistent::Graph {
                             $ok        = 1;
                             last;
                         }
-                        elsif ($this_label eq $global_label) {
+                        elsif ($return_schema_nodes && $this_label eq $global_label) {
+                            # Schema nodes
                             $ok = 1;
                         }
                     }
@@ -224,7 +226,7 @@ class VRPipe::Persistent::Graph {
         $self->throw("drop_database() can only be used when testing") unless $global_label =~ /^vdt/;
         
         # drop all schemas (which drops all constraints and indexes)
-        my @schema_nodes = @{ $self->_run_cypher(["MATCH (n:$schema_labels) RETURN n"])->{nodes} };
+        my @schema_nodes = @{ $self->_run_cypher([["MATCH (n:$schema_labels) RETURN n"]])->{nodes} };
         foreach my $node (@schema_nodes) {
             my $schema = $self->node_property($node, 'schema');
             my (undef, $namespace, $label) = split(/\|/, $schema);
@@ -232,7 +234,7 @@ class VRPipe::Persistent::Graph {
         }
         
         # drop all nodes and relationships
-        $self->_run_cypher(["MATCH (n:`$global_label`) OPTIONAL MATCH (n:`$global_label`)-[r]-() DELETE n,r"]);
+        $self->_run_cypher([["MATCH (n:`$global_label`) OPTIONAL MATCH (n:`$global_label`)-[r]-() DELETE n,r"]]);
         
         return 1;
     }
@@ -252,7 +254,7 @@ class VRPipe::Persistent::Graph {
         
         # have we already done this?
         my $dsl = $self->_deployment_specific_label($namespace, $label);
-        my ($done) = @{ $self->_run_cypher(["MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n"])->{nodes} };
+        my ($done) = @{ $self->_run_cypher([["MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n"]], { return_schema_nodes => 1 })->{nodes} };
         unless ($done) {
             my @to_run;
             
@@ -272,7 +274,7 @@ class VRPipe::Persistent::Graph {
                 push(@to_run, ["CREATE INDEX ON :`$dsl`($field)"]);
             }
             
-            $self->_run_cypher(@to_run);
+            $self->_run_cypher(\@to_run);
             # (sadly we can't do a single transaction that does both schema
             # updates above and the node creation below)
             
@@ -280,7 +282,7 @@ class VRPipe::Persistent::Graph {
             my $unique_fields = join('|', @$unique);
             my $indexed_arg = $indexed ? q[, indexed: '] . join('|', @$indexed) . q['] : '';
             my $required_arg = $required ? q[, required: '] . join('|', @$required) . q['] : '';
-            $self->_run_cypher(["CREATE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })"]);
+            $self->_run_cypher([["CREATE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })"]]);
             
             $schemas->{$dsl} = [$unique, $indexed || [], $required || []];
             
@@ -295,7 +297,7 @@ class VRPipe::Persistent::Graph {
             return @{ $schemas->{$dsl} };
         }
         else {
-            my ($schema) = @{ $self->_run_cypher(["MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n"])->{nodes} };
+            my ($schema) = @{ $self->_run_cypher([["MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n"]], { return_schema_nodes => 1 })->{nodes} };
             if ($schema) {
                 my $uniques  = [split(/\|/, $self->node_property($schema, 'unique'))];
                 my $indexed  = [split(/\|/, $self->node_property($schema, 'indexed') || '')];
@@ -325,7 +327,7 @@ class VRPipe::Persistent::Graph {
         # remove the node storing schema details, and our cache
         push(@to_run, ["MATCH (n:$schema_labels { schema: '$dsl' })-[r]-() DELETE n, r"]);
         
-        $self->_run_cypher(@to_run);
+        $self->_run_cypher(\@to_run);
         
         delete $schemas->{$dsl};
     }
@@ -375,10 +377,10 @@ class VRPipe::Persistent::Graph {
         }
         
         if (defined wantarray()) {
-            return @{ $self->_run_cypher(@to_run)->{nodes} };
+            return @{ $self->_run_cypher(\@to_run)->{nodes} };
         }
         else {
-            $self->_run_cypher(@to_run);
+            $self->_run_cypher(\@to_run);
         }
     }
     
@@ -388,7 +390,7 @@ class VRPipe::Persistent::Graph {
     }
     
     method delete_node (HashRef $node!) {
-        $self->_run_cypher(["MATCH (n) OPTIONAL MATCH (n)-[r]-() WHERE id(n) = $node->{id} DELETE n, r"]);
+        $self->_run_cypher([["MATCH (n) OPTIONAL MATCH (n)-[r]-() WHERE id(n) = $node->{id} DELETE n, r"]]);
         return 1;
     }
     
@@ -398,7 +400,7 @@ class VRPipe::Persistent::Graph {
     
     method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties?) {
         my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 'param');
-        return @{ $self->_run_cypher(["MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties }])->{nodes} };
+        return @{ $self->_run_cypher([["MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties }]])->{nodes} };
     }
     
     method node_id (HashRef $node!) {
@@ -420,13 +422,7 @@ class VRPipe::Persistent::Graph {
     }
     
     method relate (HashRef $start_node!, HashRef $end_node!, Str :$type!) {
-        return @{
-            $self->_run_cypher([
-                    "MATCH (a) WHERE id(a) = $start_node->{id} MATCH (b) WHERE id(b) = $end_node->{id} CREATE (a)-[r:$type]->(b)
-RETURN r"
-                ]
-            )->{relationships}
-        };
+        return @{ $self->_run_cypher([["MATCH (a) WHERE id(a) = $start_node->{id} MATCH (b) WHERE id(b) = $end_node->{id} CREATE (a)-[r:$type]->(b) RETURN r"]])->{relationships} };
     }
     
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
@@ -446,7 +442,7 @@ RETURN r"
         if ($undirected) {
             my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
             my $return = $result_nodes_only ? 'u' : 'p';
-            return $self->_run_cypher(["MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return", { 'param' => $properties }]);
+            return $self->_run_cypher([["MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return", { 'param' => $properties }]]);
         }
         else {
             my (%all_properties, @return);
@@ -472,7 +468,7 @@ RETURN r"
             else {
                 $return = 'p';
             }
-            return $self->_run_cypher(["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]);
+            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]]);
         }
     }
     
@@ -491,6 +487,10 @@ RETURN r"
     
     method related_nodes (HashRef $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         return @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
+    }
+    
+    method root_nodes {
+        return @{ $self->_run_cypher([["MATCH (n:`$global_label`) OPTIONAL MATCH (n)<-[r]-() WITH n,r WHERE r IS NULL RETURN n"]])->{nodes} };
     }
 }
 

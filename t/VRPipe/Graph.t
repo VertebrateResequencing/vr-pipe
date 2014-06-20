@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 41;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -58,6 +58,7 @@ ok $graph->relate($jane, $sanger3, type => 'sampled'), 'relate() worked';
 $graph->relate($john, $sanger2, type => 'sampled');
 $graph->relate($john, $sanger1, type => 'sampled');
 my $study = $graph->add_node(namespace => 'VRTrack', label => 'Study', properties => { name => 'Study of Disease_xyz' });
+my @root_ids = ($graph->node_id($study));
 $graph->relate($study, $john, type => 'has_participant');
 $graph->relate($study, $jane, type => 'has_participant');
 my @samples = ($sanger1, $sanger2, $sanger3);
@@ -93,11 +94,13 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Libr
 # add some more nodes to test the visualisation and add_nodes() bulk creation
 # with relationships at the same time
 $study = $graph->add_node(namespace => 'VRTrack', label => 'Study', properties => { name => 'Study of Disease_abc' });
+push(@root_ids, $graph->node_id($study));
 $graph->relate($study, $jane, type => 'has_participant');
 $graph->add_schema(namespace => 'OtherNS', label => 'Workplace', unique => [qw(name)], indexed => []);
 my $workplace = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Sanger' });
 $graph->add_schema(namespace => 'OtherNS', label => 'Individual', unique => [qw(name)], indexed => []);
 my @props;
+
 for (1 .. 1000) {
     push(@props, { name => 'Person' . $_ });
 }
@@ -113,6 +116,7 @@ my $employee = $nodes[0];
 @nodes = $graph->related_nodes($workplace);
 is scalar(@nodes), 1050, 'add_nodes() incoming option worked and related all 1050 nodes to another node';
 my $campus = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Genome Campus' }, outgoing => { node => $workplace, type => 'contains' });
+push(@root_ids, $graph->node_id($campus));
 ($node) = $graph->related_nodes($workplace, incoming => {});
 is $graph->node_property($node, 'name'), 'Genome Campus', 'add_node() outgoing option worked and created the relationship';
 my $ebi = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'EBI' }, incoming => { node => $campus, type => 'contains' }, outgoing => { node => $employee, type => 'has_employee' });
@@ -124,10 +128,17 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Genome Camp
 my ($lane1) = $graph->get_nodes(namespace => 'VRTrack', label => 'Lane', properties => { name => 'Lane1' });
 $graph->add_schema(namespace => 'VRPipe', label => 'StepResult', unique => [qw(uuid)]);
 $graph->add_schema(namespace => 'VRPipe', label => 'Image', unique => [qw(path)], required => ['type']);
-my $result = $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $graph->create_uuid });
-like $graph->node_property($result, 'uuid'), qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() method worked to populate a property';
+my $step_result = $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $graph->create_uuid });
+push(@root_ids, $graph->node_id($step_result));
+like $graph->node_property($step_result, 'uuid'), qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() method worked to populate a property';
 throws_ok { $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { foo => 'bar' }) } qr/Parameter 'uuid' must be supplied/, 'add_node throws when a unique parameter is not supplied';
-my $image = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' });
+my $image = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, incoming => { node => $step_result, type => 'has_file' });
 throws_ok { $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => '/foo' }) } qr/Parameter 'type' must be supplied/, 'add_node throws when a specified required parameter is not supplied';
+
+# test root_nodes method
+@nodes = $graph->root_nodes();
+is_deeply {
+    map { $graph->node_id($_) => 1 } @nodes;
+}, { map { $_ => 1 } @root_ids }, 'root_nodes() worked as execpted';
 
 exit;
