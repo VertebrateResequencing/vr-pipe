@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 41;
+    use Test::Most tests => 42;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -18,7 +18,9 @@ ok $graph->drop_database, 'we were able to drop the test database';
 ok $graph->add_schema(namespace => 'VRTrack', label => 'Sample', unique => [qw(sanger_id)], indexed => [qw(uuid public_name)]), 'add_schema worked';
 is $graph->add_schema(namespace => 'VRTrack', label => 'Sample', unique => [qw(sanger_id)], indexed => [qw(uuid public_name)]), 0, 'add_schema a second time with same args does nothing';
 throws_ok { $graph->add_schema(namespace => 'OtherNS', label => 'Sam|ple', unique => [qw(name)]) } qr/neither namespace or label may contain the \| character/, 'add_schema throws if you try a label with the pipe character in it';
-throws_ok { $graph->add_schema(namespace => 'OtherNS', label => 'Sample', unique => ['nam|e']) } qr/parameter may not contain the \| character/, 'add_schema throws if you try a parameter with the pipe character in it';
+throws_ok { $graph->add_schema(namespace => 'OtherNS', label => 'Sample', unique => ['nam|e']) } qr/FATAL ERROR.+parameter may not contain the \| character/sm, 'add_schema throws if you try a parameter with the pipe character in it';
+$graph->throw_with_no_stacktrace(1);
+throws_ok { $graph->add_schema(namespace => 'OtherNS', label => 'Sample', unique => ['nam|e']) } qr/^parameter may not contain the \| character/, 'throw has no stacktrace if throw_with_no_stacktrace is turned on';
 ok $graph->add_schema(namespace => 'OtherNS', label => 'Sample', unique => [qw(name)]), 'add_schema worked for the same label in a different namespace';
 my ($unique, $indexed) = $graph->get_schema(namespace => 'VRTrack', label => 'Sample');
 is_deeply [$unique, $indexed], [[qw(sanger_id)], [qw(uuid public_name)]], 'get_schema returned the unique and indexed fields from its internal cache';

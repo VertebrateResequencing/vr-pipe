@@ -92,6 +92,12 @@ class VRPipe::Persistent::Graph {
     our ($ua, $transaction_endpoint, $global_label, $schemas, $schema_labels);
     our $ua_headers = { 'Accept' => 'application/json', 'Content-Type' => 'application/json', 'Charset' => 'UTF-8', 'X-Stream' => 'true' };
     
+    has 'throw_with_no_stacktrace' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     sub BUILD {
         my $self = shift;
         
@@ -131,6 +137,15 @@ class VRPipe::Persistent::Graph {
                 $global_label = "vdt$user";
             }
             $schema_labels = qq[`$global_label`:`Schema`];
+        }
+    }
+    
+    around throw (Str $msg) {
+        if ($self->throw_with_no_stacktrace) {
+            die $msg, "\n";
+        }
+        else {
+            $self->$orig($msg);
         }
     }
     
@@ -491,6 +506,16 @@ class VRPipe::Persistent::Graph {
     
     method root_nodes {
         return @{ $self->_run_cypher([["MATCH (n:`$global_label`) OPTIONAL MATCH (n)<-[r]-() WITH n,r WHERE r IS NULL RETURN n"]])->{nodes} };
+    }
+    
+    sub json_encode {
+        shift;
+        return $json->encode(shift);
+    }
+    
+    sub json_decode {
+        shift;
+        return $json->decode(shift);
     }
 }
 
