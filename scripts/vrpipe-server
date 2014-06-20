@@ -38,6 +38,7 @@ use Path::Class;
 use Cwd 'getcwd';
 use Digest::MD5;
 use VRPipe::Persistent::InMemory;
+use VRPipe::Persistent::Graph;
 use File::Share ':all';
 
 # handle options
@@ -64,6 +65,7 @@ my $debug                 = $cmdline->opts('debug');
 my $scheduler;
 my $im       = VRPipe::Persistent::InMemory->new();
 my $dist_dir = dist_dir('VRPipe');
+my $graph    = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
 
 my $command = shift;
 unless ($command) {
@@ -653,6 +655,10 @@ sub start_server {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', $basename)->stringify, $env);
         },
+        '/rest/graph/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response(\&graph, $env, $method);
+        },
         '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
         '/dsn'    => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
@@ -761,6 +767,37 @@ sub _get_steplimit {
 }
 
 # "page" subs
+sub graph {
+    my ($req, $method) = @_;
+    my $args;
+    eval { $args = $graph->json_decode($req->content || '{}'); };
+    if ($@) {
+        return $graph->json_encode({ errors => ['Unable to decode posted content'] });
+    }
+    if (ref($args) ne 'HASH') {
+        return $graph->json_encode({ errors => ['Posted content was not a hash'] });
+    }
+    
+    my $data;
+    eval {
+        if ($method eq 'get_schema') {
+            my ($uniques, $indexed, $required) = $graph->get_schema(namespace => $args->{namespace}, label => $args->{label});
+            $data = { uniques => $uniques, indexed => $indexed, required => $required };
+        }
+        elsif ($method eq 'root_nodes') {
+            $data = { nodes => [$graph->root_nodes()] };
+        }
+        else {
+            $data = { errors => ["Invalid graph method '$method'"] };
+        }
+    };
+    if ($@) {
+        $data = { errors => [$@] };
+    }
+    
+    return $graph->json_encode($data);
+}
+
 sub status {
     my $req = shift;
     

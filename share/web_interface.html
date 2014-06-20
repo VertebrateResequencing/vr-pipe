@@ -278,7 +278,6 @@
             };
             
             // ajax function to send/get json queries
-            var call = 1;
             var ajax = function(uri, method, loading, error, data) {
                 var loadingTimeout;
                 var request = {
@@ -316,6 +315,32 @@
                 return $.ajax(request);
             }
             
+            // function to call a VRPipe Graph method and do something with the
+            // json response, and its helper function to deal with errors
+            var vrpipeGraphDataErrorParser = function(data, error) {
+                if (data.hasOwnProperty('errors')) {
+                    for (var i = 0; i < data.errors.length; i++) {
+                        error.push(data.errors[i]);
+                    }
+                    return 1;
+                }
+                return 0;
+            }
+            var vrpipeGraphMethod = function(method, args, loading, error, donefunction) {
+                var promise = ajax('/rest/graph/' + method, 'POST', loading, error, args);
+                
+                if (donefunction) {
+                    promise.done(function(data) {
+                        if (! vrpipeGraphDataErrorParser(data, error)) {
+                            donefunction(data);
+                        }
+                    });
+                }
+                else {
+                    return promise;
+                }
+            }
+            
             // viewmodel for status
             function StatusViewModel() {
                 var self = this;
@@ -329,6 +354,7 @@
                 self.nodes = ko.observableArray();
                 self.relationships = ko.observableArray();
                 self.resultStrings = ko.observableArray();
+                self.startNodesOption = ko.observable();
                 self.cypherQuery = ko.observable();
                 self.cypherQueryMaxDepth = ko.observable();
                 self.layoutOption = ko.observable();
@@ -539,217 +565,145 @@
                     });
                 }
                 
-                // function to get all nodes from a cypher query, and their
-                // connecting relationships
-                self.cypherURI = '%%cypherURI%%';
-                self.cypherNodes = function(cypherJSON) {
-                    ajax(self.cypherURI, 'POST', self.graphloading, self.grapherror, cypherJSON).done(function(data) {
-                        var nodeProperties = Array();
-                        var nodeIds = Array();
-                        var labelRequests = Array();
-                        var relationshipRequests = Array();
+                // function to get the data from a vrpipeGraphMethod call and
+                // turn it in to node and relationship data for display in
+                // knockout tables and cytoscape graph
+                self.displayNodes = function(data) {
+                    // reset any existing stuff first
+                    self.grapherror.removeAll();
+                    self.nodes.removeAll();
+                    self.relationships.removeAll();
+                    self.resultStrings.removeAll();
+                    self.nameSpaces.removeAll();
+                    self.cytoscapeOptions.elements = {
+                        nodes: [ ],
+                        edges: [ ]
+                    };
+                    
+                    // relationships
+                    var nonRootNodes = { };
+                    if (data.hasOwnProperty('relationships')) {
+                        for (var i = 0; i < data.relationships.length; i++) {
+                            var reldata = data.relationships[i];
+                            var start = reldata.startNode;
+                            var end = reldata.endNode;
+                            var type = reldata.type;
+                            self.relationships.push({
+                                type: type,
+                                startNode: start,
+                                endNode: end,
+                                properties: JSON.stringify(reldata.properties),
+                                relationshipId: reldata.id
+                            });
+                            
+                            self.cytoscapeOptions.elements.edges.push({ data: { source: start, target: end, type: type } });
+                            nonRootNodes[end] = 1;
+                        }
+                    }
+                    
+                    // nodes
+                    if (data.hasOwnProperty('nodes')) {
                         var schemaRequests = Array();
                         var schemaLabelsArray = Array();
-                        var doneNeos = {};
-                        for (var i = 0; i < data.data.length; i++) {
-                            for (var j = 0; j < data.data[i].length; j++) {
-                                if (data.data[i][j] != null) {
-                                    if (typeof data.data[i][j] == "string") {
-                                        // query must be returning strings
-                                        // instead of nodes or relationships
-                                        self.resultStrings.push(data.data[i][j]);
-                                    }
-                                    else {
-                                        var neoself = data.data[i][j].self;
-                                        if (neoself) {
-                                            var neoid = neoself.match(/(\d+)$/)[0];
-                                            
-                                            if (! doneNeos.hasOwnProperty(neoself)) {
-                                                var labels = data.data[i][j].labels;
-                                                if (labels) {
-                                                    nodeIds.push(neoid);
-                                                    nodeProperties.push(data.data[i][j].data);
-                                                    labelRequests.push(ajax(labels, 'GET', self.graphloading, self.grapherror));
-                                                    relationshipRequests.push(ajax(data.data[i][j].all_relationships, 'GET', self.graphloading, self.grapherror));
-                                                }
-                                                doneNeos[neoself] = 1;
-                                            }
-                                        }
-                                    }
+                        var rootNodes = {};
+                        var tempLabelData = {};
+                        var tempNodes = Array();
+                        for (var i = 0; i < data.nodes.length; i++) {
+                            var nodedata = data.nodes[i];
+                            var label = nodedata.label;
+                            var namespace = nodedata.namespace;
+                            
+                            // for the tabular display of node data
+                            self.nodes.push({
+                                label: label,
+                                namespace: namespace,
+                                properties: JSON.stringify(nodedata.properties),
+                                nodeId: nodedata.id
+                            });
+                            
+                            // get a unique colour for each namespace and label
+                            var nameSpaceHSL;
+                            if (! self.namespaceToHSL.hasOwnProperty(namespace)) {
+                                nameSpaceHSL = self.getHSL();
+                                self.namespaceToHSL[namespace] = nameSpaceHSL;
+                            }
+                            else {
+                                nameSpaceHSL = self.namespaceToHSL[namespace];
+                            }
+                            if (! tempLabelData.hasOwnProperty(namespace)) {
+                                tempLabelData[namespace] = { hsl: nameSpaceHSL, labels: {} };
+                            }
+                            
+                            var labelHSL;
+                            if (! self.labelToHSL.hasOwnProperty(label)) {
+                                labelHSL = self.getHSL();
+                                self.labelToHSL[label] = labelHSL;
+                            }
+                            else {
+                                labelHSL = self.labelToHSL[label];
+                            }
+                            if (! tempLabelData[namespace].labels.hasOwnProperty(label)) {
+                                tempLabelData[namespace].labels[label] = labelHSL;
+                            }
+                            
+                            // we need to know the first unique parameter for
+                            // this kind of node so we know what to display on
+                            // the cytoscape node
+                            var nl = namespace + '|' + label;
+                            if (! self.schemas.hasOwnProperty(nl)) {
+                                schemaRequests.push(vrpipeGraphMethod('get_schema', { namespace: namespace, label: label }, self.graphloading, self.grapherror));
+                                schemaLabelsArray.push(nl);
+                                self.schemas[nl] = 'placeholder';
+                            }
+                            
+                            // push out the info we need later to make the
+                            // cytoscape nodes, once we have the schema
+                            tempNodes.push({
+                                label: label,
+                                namespace: namespace,
+                                properties: nodedata.properties,
+                                nodeId: nodedata.id,
+                                schemaLabels: nl,
+                                nameSpaceHSL: nameSpaceHSL,
+                                labelHSL: labelHSL,
+                            });
+                            
+                            // we need to know which nodes are root nodes and
+                            // group them by namespace
+                            if (! nonRootNodes.hasOwnProperty(nodedata.id)) {
+                                if (! rootNodes.hasOwnProperty(namespace)) {
+                                    rootNodes[namespace] = Array();
                                 }
+                                rootNodes[namespace].push(nodedata.id);
                             }
                         }
                         
-                        if (relationshipRequests.length) {
-                            var defer = $.when.apply($, relationshipRequests);
+                        // create nodes and plot
+                        if (schemaRequests.length) {
+                            // add to our hash of schemaLabel => unique parameter name
+                            var defer = $.when.apply($, schemaRequests);
                             defer.done(function() {
-                                // create all the relationships for our nodes
-                                var nonRootNodes = { };
                                 $.each(arguments, function(index, data) {
-                                    var reldata;
-                                    if (relationshipRequests.length == 1) {
-                                        reldata = data;
+                                    var schemadata;
+                                    if (schemaRequests.length == 1) {
+                                        schemadata = data;
                                     }
                                     else {
-                                        reldata = data[0];
+                                        schemadata = data[0];
                                     }
                                     
-                                    if (index < relationshipRequests.length) {
-                                        for (var i = 0; i < reldata.length; i++) {
-                                            var neoself = reldata[i].self;
-                                            var neoid = neoself.match(/(\d+)$/)[0];
-                                            
-                                            if (! doneNeos.hasOwnProperty(neoself)) {
-                                                if (doneNeos.hasOwnProperty(reldata[i].start) && doneNeos.hasOwnProperty(reldata[i].end)) {
-                                                    var start = reldata[i].start.match(/(\d+)$/)[0];
-                                                    var end = reldata[i].end.match(/(\d+)$/)[0];
-                                                    var type = reldata[i].type;
-                                                    self.relationships.push({
-                                                        type: type,
-                                                        startNode: start,
-                                                        endNode: end,
-                                                        properties: JSON.stringify(reldata[i].data),
-                                                        relationshipId: neoid
-                                                    });
-                                                    
-                                                    self.cytoscapeOptions.elements.edges.push({ data: { source: start, target: end, type: type } });
-                                                    nonRootNodes[end] = 1;
-                                                }
-                                                doneNeos[neoself] = 1;
-                                            }
-                                        }
+                                    if (index < schemaRequests.length) {
+                                        self.schemas[schemaLabelsArray[index]] = schemadata.uniques[0];
                                     }
                                 });
-                                
-                                // get the labels for our nodes and create them
-                                var defer2 = $.when.apply($, labelRequests);
-                                defer2.done(function() {
-                                    var tempNodes = Array();
-                                    var rootNodes = {};
-                                    var tempLabelData = {};
-                                    $.each(arguments, function(index, data) {
-                                        var labeldata;
-                                        if (labelRequests.length == 1) {
-                                            labeldata = data;
-                                        }
-                                        else {
-                                            labeldata = data[0];
-                                        }
-                                        
-                                        if (index < labelRequests.length) {
-                                            if ($.inArray(self.deploymentLabel, labeldata) != -1) {
-                                                var arr = labeldata[1].split('|');
-                                                var namespace = arr[1];
-                                                var label = arr[2];
-                                                if (! label) {
-                                                    arr = labeldata[0].split('|');
-                                                    namespace = arr[1];
-                                                    label = arr[2];
-                                                }
-                                                
-                                                if (label) {
-                                                    var schemaLabels = '`' + self.deploymentLabel + '`:`Schema`';
-                                                    var dsl = self.deploymentLabel + '|' + namespace + '|' + label;
-                                                    if (! self.schemas.hasOwnProperty(dsl)) {
-                                                        schemaRequests.push(ajax(self.cypherURI, 'POST', self.graphloading, self.grapherror, { query: 'MATCH (n:' + schemaLabels + ' { schema: "' + dsl + '" }) RETURN n.unique' }));
-                                                        schemaLabelsArray.push(dsl);
-                                                        self.schemas[dsl] = 'placeholder';
-                                                    }
-                                                    
-                                                    var nameSpaceHSL;
-                                                    if (! self.namespaceToHSL.hasOwnProperty(namespace)) {
-                                                        nameSpaceHSL = self.getHSL();
-                                                        self.namespaceToHSL[namespace] = nameSpaceHSL;
-                                                    }
-                                                    else {
-                                                        nameSpaceHSL = self.namespaceToHSL[namespace];
-                                                    }
-                                                    if (! tempLabelData.hasOwnProperty(namespace)) {
-                                                        tempLabelData[namespace] = { hsl: nameSpaceHSL, labels: {} };
-                                                    }
-                                                    
-                                                    var labelHSL;
-                                                    if (! self.labelToHSL.hasOwnProperty(label)) {
-                                                        labelHSL = self.getHSL();
-                                                        self.labelToHSL[label] = labelHSL;
-                                                    }
-                                                    else {
-                                                        labelHSL = self.labelToHSL[label];
-                                                    }
-                                                    if (! tempLabelData[namespace].labels.hasOwnProperty(label)) {
-                                                        tempLabelData[namespace].labels[label] = labelHSL;
-                                                    }
-                                                    
-                                                    // this is just for the tabular
-                                                    // display of node data
-                                                    self.nodes.push({
-                                                        label: label,
-                                                        namespace: namespace,
-                                                        properties: JSON.stringify(nodeProperties[index]),
-                                                        nodeId: nodeIds[index]
-                                                    });
-                                                    
-                                                    // push out the info we need
-                                                    // later to make the cytoscape
-                                                    // nodes, once we have the
-                                                    // schema data
-                                                    tempNodes.push({
-                                                        label: label,
-                                                        namespace: namespace,
-                                                        properties: nodeProperties[index],
-                                                        nodeId: nodeIds[index],
-                                                        schemaLabels: dsl,
-                                                        nameSpaceHSL: nameSpaceHSL,
-                                                        labelHSL: labelHSL,
-                                                    });
-                                                    
-                                                    if (! nonRootNodes.hasOwnProperty(nodeIds[index])) {
-                                                        if (! rootNodes.hasOwnProperty(namespace)) {
-                                                            rootNodes[namespace] = Array();
-                                                        }
-                                                        rootNodes[namespace].push(nodeIds[index]);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    });
-                                    
-                                    // create nodes and plot
-                                    if (schemaRequests.length) {
-                                        // add to our hash of schemaLabel => unique parameter name
-                                        var defer3 = $.when.apply($, schemaRequests);
-                                        defer3.done(function() {
-                                            $.each(arguments, function(index, data) {
-                                                var schemadata;
-                                                if (schemaRequests.length == 1) {
-                                                    schemadata = data;
-                                                }
-                                                else {
-                                                    schemadata = data[0];
-                                                }
-                                                
-                                                if (index < schemaRequests.length) {
-                                                    var arr = schemadata.data[0][0].split('|');
-                                                    self.schemas[schemaLabelsArray[index]] = arr[0];
-                                                }
-                                            });
-                                            self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
-                                        });
-                                    }
-                                    else {
-                                        self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
-                                    }
-                                });
+                                self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
                             });
                         }
-                    });
+                        else {
+                            self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
+                        }
+                    }
                 }
-                
-                // "start" node queries: nodes that have no relationships in a
-                // certain direction (incoming or outgoing)
-                self.noOutgoingCypher = "MATCH (n:VRPipe) OPTIONAL MATCH n-[r]->() WITH n,r WHERE r IS NULL RETURN n LIMIT 100";
-                self.noIncomingCypher = "MATCH (n:VRPipe) OPTIONAL MATCH n<-[r]-() WITH n,r WHERE r IS NULL RETURN n LIMIT 100";
-                self.startNodesOption = ko.observable();
                 
                 // operations
                 self.retrieveAndDisplayNodes = function(cypher) {
@@ -840,11 +794,10 @@
                     $('#tabsections a[href="#graph"]').tab('show');
                     self.cypherQuery(undefined);
                     self.startNodesOption(params.startNodesOption); // to update ui if url changed manually in browser
-                    if (params.startNodesOption == "leaves") {
-                        self.retrieveAndDisplayNodes(self.noOutgoingCypher);
-                    }
-                    else if (params.startNodesOption == "roots") {
-                        self.retrieveAndDisplayNodes(self.noIncomingCypher);
+                    if (params.startNodesOption == "roots") {
+                        vrpipeGraphMethod('root_nodes', { }, self.graphloading, self.grapherror, function(data) {
+                            self.displayNodes(data);
+                        });
                     }
                 });
                 route = router.addRoute('/graph/cypher=:cypherQuery');
