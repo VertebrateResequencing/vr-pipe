@@ -687,6 +687,39 @@ XSL
         return $self->psgi_text_response($code, $format, $content, $env);
     }
     
+    sub psgi_nonblocking_json_response {
+        my ($self, $sub, $env, @others) = @_;
+        my $req = Plack::Request->new($env);
+        
+        return sub {
+            my $responder = shift;
+            
+            # (we use AnyEvent::ForkManager instead of AnyEvent::Util::fork_call
+            #  because the latter doesn't seem to actually fork or do anything
+            #  async)
+            my $pm = AnyEvent::ForkManager->new(max_workers => 1);
+            
+            $pm->start(
+                cb => sub {
+                    my $json;
+                    eval { $json = &{$sub}($req, @others); };
+                    if ($@) {
+                        my $err = $@;
+                        chomp($err);
+                        $json = "{ errors: ['$err'] }";
+                        $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
+                    }
+                    
+                    my $res = $req->new_response(200);
+                    $res->content_type('application/json');
+                    $res->body($json);
+                    $responder->($res->finalize);
+                }
+            );
+            $pm->wait_all_children;
+        };
+    }
+    
     sub psgi_nonblocking_xml_response {
         my ($self, $sub, $env, @others) = @_;
         my $req = Plack::Request->new($env);
