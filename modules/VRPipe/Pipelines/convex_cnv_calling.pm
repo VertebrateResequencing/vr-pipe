@@ -18,7 +18,7 @@ Chris Joyce <cj5@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -57,6 +57,9 @@ class VRPipe::Pipelines::convex_cnv_calling with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'rd_files' },
+            { from_step => 0, to_step => 1, to_key   => 'l2r_files' },
+            { from_step => 0, to_step => 1, to_key   => 'features_file' },
+            { from_step => 0, to_step => 1, to_key   => 'breakpoints_file' },
             { from_step => 1, to_step => 2, from_key => 'gam_files', to_key => 'gam_files' }
         );
     }

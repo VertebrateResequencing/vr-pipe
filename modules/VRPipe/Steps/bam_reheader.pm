@@ -63,7 +63,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                     bases            => 'total number of base pairs',
                     reads            => 'total number of reads (sequences)',
                     paired           => '0=unpaired reads were mapped; 1=paired reads were mapped',
-                    optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
+                    optional         => ['bases', 'lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
                 }
             ),
             dict_file => VRPipe::StepIODefinition->create(
@@ -131,7 +131,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                     bases            => 'total number of base pairs',
                     reads            => 'total number of reads (sequences)',
                     paired           => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
-                    optional         => ['lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
+                    optional         => ['bases', 'lane', 'library', 'insert_size', 'mean_insert_size', 'sample', 'center_name', 'platform', 'study']
                 }
             )
         };

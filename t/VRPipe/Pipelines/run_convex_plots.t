@@ -18,7 +18,7 @@ my $output_dir = get_output_dir('convex_plot_generation_pipeline');
 ok my $pipeline1 = VRPipe::Pipeline->create(name => 'convex_plot_generation'), 'able to create the convex_plot_generation pipeline';
 
 my @s_names;
-foreach my $stepmember ($pipeline1->steps) {
+foreach my $stepmember ($pipeline1->step_members) {
     push(@s_names, $stepmember->step->name);
 }
 
@@ -42,7 +42,6 @@ my $pipelinesetup1 = VRPipe::PipelineSetup->create(
 
 my (@output_files, @final_files);
 my @output_subdirs = output_subdirs(1);
-push(@output_files, file(@output_subdirs, '1_convex_plots', 'CnvFofn.txt'));
 push(@output_files, file(@output_subdirs, '1_convex_plots', 'CNVstats_CallsperSample.png'));
 push(@output_files, file(@output_subdirs, '1_convex_plots', 'CNVstats_DelDupRatio.png'));
 
