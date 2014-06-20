@@ -139,8 +139,7 @@ throws_ok { $graph->add_node(namespace => 'VRPipe', label => 'Image', properties
 
 # test root_nodes method
 @nodes = $graph->root_nodes();
-is_deeply {
-    map { $graph->node_id($_) => 1 } @nodes;
-}, { map { $_ => 1 } @root_ids }, 'root_nodes() worked as execpted';
+my %node_ids = map { $graph->node_id($_) => 1 } @nodes;
+is_deeply \%node_ids, { map { $_ => 1 } @root_ids }, 'root_nodes() worked as execpted';
 
 exit;
