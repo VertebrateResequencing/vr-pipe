@@ -1,3 +1,5 @@
+0.196   New STAR pipeline and steps.
+        verify_bamid step now actually works.
 0.195   vrtrack_populate_from_vrpipe_metadata step now sets npg_qc_status;
         sample name now always comes from the sample metadata; public_name
         metadata is now stored in individual alias. The irods datasource also
