@@ -787,6 +787,18 @@ sub graph {
         elsif ($method eq 'root_nodes') {
             $data = { nodes => [$graph->root_nodes()] };
         }
+        elsif ($method eq 'relations_of') {
+            $data = $graph->related({ id => $args->{start_node} }, undef, { min_depth => 0, max_depth => 1 }, { min_depth => 0, max_depth => $args->{depth} });
+        }
+        elsif ($method eq 'cypher_match') {
+            my $cypher = $args->{cypher};
+            if ($cypher =~ /\b(?:create|merge|set|delete|remove)\b/i) {
+                $data = { errors => ["Writing clauses are not allowed"] };
+            }
+            else {
+                $data = $graph->_run_cypher([[$cypher]]);
+            }
+        }
         else {
             $data = { errors => ["Invalid graph method '$method'"] };
         }
