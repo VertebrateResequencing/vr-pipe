@@ -405,7 +405,7 @@ class VRPipe::Persistent::Graph {
     }
     
     method delete_node (HashRef $node!) {
-        $self->_run_cypher([["MATCH (n) OPTIONAL MATCH (n)-[r]-() WHERE id(n) = $node->{id} DELETE n, r"]]);
+        $self->_run_cypher([["MATCH (n) WHERE id(n) = $node->{id} OPTIONAL MATCH (n)-[r]-() DELETE n, r"]]);
         return 1;
     }
     

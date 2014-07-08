@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 42;
+    use Test::Most tests => 43;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -34,6 +34,9 @@ my $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', proper
 is $graph->node_id($sanger1), $orig_node_id, 'calling add_node twice with the same args returns the same node';
 throws_ok { $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'public2' }) } qr/already exists with label vdt.+\|VRTrack\|Sample/, 'add_node throws when used twice with the same unique arg but different other arg';
 ok $graph->delete_node($sanger1), 'delete_node() worked';
+$VRPipe::Persistent::Graph::schemas = {};
+($unique, $indexed) = $graph->get_schema(namespace => 'VRTrack', label => 'Sample');
+ok $unique, 'delete_node() did not delete all nodes indiscriminately';
 undef $sanger1;
 ($sanger1) = $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1' });
 ok !$sanger1, 'the node really is gone';
