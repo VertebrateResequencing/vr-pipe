@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 43;
+    use Test::Most tests => 44;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -95,6 +95,8 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Lane2)], 
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Lane1', 'Lane2', 'Study of Disease_xyz'], 'related_nodes works with both directions and min_depth';
 @nodes = $graph->related_nodes($sanger2);
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Library2)], 'related_nodes defaults to giving all nodes 1 step away';
+@nodes = $graph->related_nodes($study, incoming => { min_depth => 0 }, outgoing => { min_depth => 0 });
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Jane John)], 'related_nodes works correctly with a min_depth of 0';
 
 # add some more nodes to test the visualisation and add_nodes() bulk creation
 # with relationships at the same time

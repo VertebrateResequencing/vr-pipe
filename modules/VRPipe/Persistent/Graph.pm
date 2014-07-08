@@ -490,8 +490,8 @@ class VRPipe::Persistent::Graph {
     sub _related_nodes_hashref_parse {
         my ($self, $hashref, $param_key) = @_;
         my $type = $hashref->{type} ? ":`$hashref->{type}`" : '';
-        my $min_depth = $hashref->{min_depth} || 1;
-        my $max_depth = $hashref->{max_depth} || $min_depth;
+        my $min_depth = defined $hashref->{min_depth} ? $hashref->{min_depth} : 1;
+        my $max_depth = $hashref->{max_depth} || $min_depth || 1;
         my $result_node_spec = '';
         if ($hashref->{namespace} && $hashref->{label}) {
             my ($labels, $param_map) = $self->_labels_and_param_map($hashref->{namespace}, $hashref->{label}, $hashref->{properties}, $param_key);
@@ -501,7 +501,8 @@ class VRPipe::Persistent::Graph {
     }
     
     method related_nodes (HashRef $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
-        return @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
+        my $start_id = $start_node->{id};
+        return grep { $_->{id} != $start_id } @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
     }
     
     method root_nodes {
