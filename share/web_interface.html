@@ -295,8 +295,6 @@
                         loadingTimeout = setTimeout(function() {
                             loading.push(true);
                         }, 500);
-                        
-                        xhr.setRequestHeader("X-Stream", "true");
                     },
                     error: function(jqXHR, textStatus, errorThrown) {
                         if (textStatus) {
@@ -523,7 +521,10 @@
                         // like :selected is defined. Cytoscape doesn't
                         // support changing the cursor anyway. And we also
                         // show a popover with the node details
+                        var hideTimer;
                         cy.$('node').on('tapdragover', function(e) {
+                            if (hideTimer) { clearTimeout(hideTimer); }
+                            
                             var node = e.cyTarget;
                             $('#nodeinfo').data('bs.popover').options.title = '<div class="text-center">' + node.data('namespace') + '|' + node.data('label') + ' {node ' + node.id() + '}</div>';
                             var nodeProperties = '<table class="table table-bordered table-striped table-condensed" style="margin-bottom: 0"><tbody>';
@@ -545,7 +546,9 @@
                             var node = e.cyTarget;
                             node.css('background-color', node.data('bgColor'));
                             $('#cy').css('cursor', 'default');
-                            $('#nodeinfo').popover('hide');
+                            hideTimer = setTimeout(function() {
+                                $('#nodeinfo').popover('hide');
+                            }, 333);
                         });
                     }
                     
