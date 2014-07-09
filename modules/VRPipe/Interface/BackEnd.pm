@@ -42,7 +42,7 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Config;
-    use AnyEvent::ForkManager;
+    use AnyEvent::Util qw(fork_call);
     use Twiggy::Server;
     use Plack::Request;
     use XML::LibXSLT;
@@ -694,29 +694,24 @@ XSL
         return sub {
             my $responder = shift;
             
-            # (we use AnyEvent::ForkManager instead of AnyEvent::Util::fork_call
-            #  because the latter doesn't seem to actually fork or do anything
-            #  async)
-            my $pm = AnyEvent::ForkManager->new(max_workers => 1);
-            
-            $pm->start(
-                cb => sub {
-                    my $json;
-                    eval { $json = &{$sub}($req, @others); };
-                    if ($@) {
-                        my $err = $@;
-                        chomp($err);
-                        $json = "{ errors: ['$err'] }";
-                        $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
-                    }
-                    
-                    my $res = $req->new_response(200);
-                    $res->content_type('application/json');
-                    $res->body($json);
-                    $responder->($res->finalize);
+            fork_call {
+                my $json;
+                eval { $json = &{$sub}($req, @others); };
+                if ($@) {
+                    my $err = $@;
+                    chomp($err);
+                    $json = "{ errors: ['$err'] }";
+                    $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
                 }
-            );
-            $pm->wait_all_children;
+                return $json;
+            }
+            sub {
+                my ($json) = @_;
+                my $res = $req->new_response(200);
+                $res->content_type('application/json');
+                $res->body($json);
+                $responder->($res->finalize);
+            };
         };
     }
     
