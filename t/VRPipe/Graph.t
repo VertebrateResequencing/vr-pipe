@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 44;
+    use Test::Most tests => 46;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -146,5 +146,13 @@ throws_ok { $graph->add_node(namespace => 'VRPipe', label => 'Image', properties
 @nodes = $graph->root_nodes();
 my %node_ids = map { $graph->node_id($_) => 1 } @nodes;
 is_deeply \%node_ids, { map { $_ => 1 } @root_ids }, 'root_nodes() worked as execpted';
+
+# make sure there are no problems getting a ton of nodes back from a cypher
+# query
+my $data = $graph->_run_cypher([['match n return n']]);
+is scalar(@{ $data->{nodes} }), 1068, 'no problems returning lots of nodes';
+my $encoded = $graph->json_encode($data);
+my $decoded = $graph->json_decode($encoded);
+is scalar(@{ $decoded->{nodes} }), 1068, 'json_encode/decode successfully roundtrips on lots of nodes';
 
 exit;
