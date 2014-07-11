@@ -35,6 +35,11 @@
                 height: 11px;
                 width: 16px;
             }
+            
+            .popover_thumb {
+                max-width: 200px;
+                max-height: 200px;
+            }
         </style>
     </head>
     <body>
@@ -337,6 +342,14 @@
                 }
             }
             
+            var shorten_string = function(string) {
+                var shortened = string;
+                if (string.length > 32) {
+                    shortened = string.substring(0, 5) + '[...]' + string.slice(-15);
+                }
+                return shortened;
+            }
+            
             // viewmodel for status
             function StatusViewModel() {
                 var self = this;
@@ -525,6 +538,21 @@
                             $('#nodeinfo').data('bs.popover').options.title = '<div class="text-center">' + node.data('namespace') + '|' + node.data('label') + ' {node ' + node.id() + '}</div>';
                             var nodeProperties = '<table class="table table-bordered table-striped table-condensed" style="margin-bottom: 0"><tbody>';
                             $.each(node.data('properties'), function(key, value) {
+                                if (key == 'path' && value.substring(0,1) == '/') {
+                                    var path = value;
+                                    var ext = path.slice(-3);
+                                    
+                                    var clickable;
+                                    if (ext == 'png' || ext == 'jpg' || ext == 'gif') {
+                                        clickable = '<img src="/file' + path + '" class="popover_thumb">';
+                                        key = 'img';
+                                    }
+                                    else {
+                                        clickable = shorten_string(path);
+                                    }
+                                    
+                                    value = '<a href="/file' + path + '" target="_blank">' + clickable + '</a>';
+                                }
                                 nodeProperties = nodeProperties + '<tr><th>' + key + '</th><td>' + value + '</td></tr>';
                             });
                             nodeProperties = nodeProperties + '</tbody></table>';
@@ -566,7 +594,7 @@
                             displayName = node.properties[uniqueParam];
                         }
                         
-                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: displayName, label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
+                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: shorten_string(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
                     }
                     
                     self.cy = self.plotCytoscape();
