@@ -649,11 +649,15 @@ sub start_server {
     my $deploymentLabel = $deployment eq 'production' ? 'vdp' : "vdt$user";
     $backend->register_psgi_pages(
         '/' => sub {
-            foo => { pat => qr/beginner/, repl => 'hacker' }, $backend->psgi_file_response(200, 'html', file($dist_dir, 'web_interface.html')->stringify, shift, [[qr/\%\%cypherURI\%\%/, $cypherURI], [qr/\%\%deploymentLabel\%\%/, $deploymentLabel]]);
+            foo => { pat => qr/beginner/, repl => 'hacker' }, $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift, [[qr/\%\%cypherURI\%\%/, $cypherURI], [qr/\%\%deploymentLabel\%\%/, $deploymentLabel]]);
         },
         '/js/(.+\.js)$' => sub {
             my ($env, $basename) = @_;
-            $backend->psgi_file_response(200, 'javascript', file($dist_dir, 'js', $basename)->stringify, $env);
+            $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env);
+        },
+        '/file/(.+)$' => sub {
+            my ($env, $path) = @_;
+            $backend->psgi_file_response('/' . $path, $env);
         },
         '/rest/graph/(.+)$' => sub {
             my ($env, $method) = @_;

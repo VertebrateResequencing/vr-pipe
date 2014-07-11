@@ -52,6 +52,20 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use VRPipe::Persistent::InMemory;
     
+    my %extension_to_content_type = (
+        gif  => 'image/gif',
+        jpeg => 'image/jpeg',
+        png  => 'image/png',
+        csv  => 'text/csv',
+        html => 'text/html',
+        js   => 'text/javascript',
+        txt  => 'text/plain',
+        zip  => 'application/zip',
+        gzip => 'application/gzip',
+        pdf  => 'application/pdf',
+        bin  => 'application/octet-stream'
+    );
+    
     my $xsl_html = <<'XSL';
 <?xml version="1.0" encoding="ISO-8859-1"?>
 <xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
@@ -671,11 +685,34 @@ XSL
         return $res;
     }
     
-    method psgi_file_response (Int $code, Str $format, Str $path, HashRef $env, ArrayRef $regexes?) {
+    method psgi_file_response (Str $path, HashRef $env, ArrayRef $regexes?) {
+        my $req = Plack::Request->new($env);
+        
+        my $ok = open(my $fh, $path);
+        unless ($ok) {
+            my $res = $req->new_response(404);
+            $res->content_type('text/plain');
+            if (!-e $path) {
+                $res->body('404: ' . "$path not found");
+            }
+            else {
+                $res->body('404: ' . "$path could not be opened: $!");
+            }
+            return $res;
+        }
+        
+        my $bin_mode = -B $path;
+        my ($ext) = $path =~ /\.([^\.]+)$/;
+        my $content_type;
+        if ($ext && exists $extension_to_content_type{$ext}) {
+            $content_type = $extension_to_content_type{$ext};
+        }
+        $content_type ||= $bin_mode ? $extension_to_content_type{bin} : $extension_to_content_type{txt};
+        
         my $content = '';
         {
             local $/ = undef;
-            open(my $fh, $path) || die "Couldn't open file $path\n";
+            binmode $fh if $bin_mode;
             $content = <$fh>;
             close($fh);
             
@@ -684,7 +721,11 @@ XSL
                 $content =~ s/$search/$replace/g;
             }
         }
-        return $self->psgi_text_response($code, $format, $content, $env);
+        
+        my $res = $req->new_response(200);
+        $res->content_type($content_type);
+        $res->body($content);
+        return $res;
     }
     
     sub psgi_nonblocking_json_response {
