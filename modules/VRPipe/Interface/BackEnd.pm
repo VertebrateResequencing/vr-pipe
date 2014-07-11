@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -54,7 +54,7 @@ class VRPipe::Interface::BackEnd {
     
     my %extension_to_content_type = (
         gif  => 'image/gif',
-        jpeg => 'image/jpeg',
+        jpg  => 'image/jpeg',
         png  => 'image/png',
         csv  => 'text/csv',
         html => 'text/html',
