@@ -89,10 +89,8 @@
                         </form>
                         
                         <div class="btn-toolbar" role="toolbar" style="margin-top: 15px; margin-bottom: 20px">
-                            <div class="btn-group" data-toggle="buttons" data-bind="radio: startNodesOption">
-                                <label class="btn btn-primary">
-                                    <input type="radio" name="startNodesOptionGroup" value="roots">Roots
-                                </label>
+                            <div class="btn-group">
+                                <button class="btn btn-primary" data-bind="toggle: displayRoots">Roots</button>
                             </div>
                             
                             <div class="btn-group" data-toggle="buttons" data-bind="radio: layoutOption">
@@ -134,7 +132,7 @@
                     <div class="well">
                         <div id="nodeinfo" style="position: absolute;" data-container="body" data-toggle="popover" data-placement="right" data-html="true" data-trigger="manual"></div>
                         
-                        <div id="cy" data-bind="loadingWhen: graphloading().length"></div>
+                        <div id="cy" data-bind="loadingWhen: graphrendering().length"></div>
                     </div>
                     
                     <div data-bind="loadingWhen: graphloading().length, if: resultStrings().length">
@@ -352,8 +350,8 @@
                 self.nodes = ko.observableArray();
                 self.relationships = ko.observableArray();
                 self.resultStrings = ko.observableArray();
-                self.startNodesOption = ko.observable();
-                self.relationsOf = undefined;
+                self.displayRoots = ko.observable();
+                self.relationsOf = ko.observable();
                 self.relationsOfMaxDepth = ko.observable();
                 self.cypherQuery = ko.observable();
                 self.layoutOption = ko.observable();
@@ -365,6 +363,8 @@
                 self.schemas = {};
                 self.graphloading = ko.observableArray();
                 self.grapherror = ko.observableArray();
+                self.graphrendering = ko.observableArray();
+                self.cy = undefined;
                 
                 // while cytoscape has the ability to add and remove nodes from a
                 // graph, I can't figure out how to re-apply the breadthfirst, so
@@ -421,7 +421,7 @@
                     $(window).on('resize', function(){
                        var height = $(this).height() - $nav.outerHeight() - 135 - 100;
                        $cy.height(height);
-                       self.plotCytoscape();
+                       self.cy = self.plotCytoscape();
                     }).trigger('resize');
                 });
                 
@@ -444,15 +444,14 @@
                 
                 // functions to create cytoscape nodes and plot them
                 self.plotCytoscape = function() {
+                    self.graphrendering.push(true);
+                    
                     if (! self.layoutOption()) {
                         self.layoutOption('tree');
                     }
                     if (self.layoutOption() == 'tree') {
                         self.cytoscapeOptions.layout = {
                             name: 'breadthfirst',
-                            fit: true,
-                            ready: undefined,
-                            stop: undefined,
                             directed: true,
                             padding: 30,
                             circle: false,
@@ -463,9 +462,6 @@
                     else if (self.layoutOption() == 'circle') {
                         self.cytoscapeOptions.layout = {
                             name: 'circle',
-                            fit: true,
-                            ready: undefined,
-                            stop: undefined,
                             rStepSize: 10,
                             padding: 30,
                             startAngle: 3/2 * Math.PI,
@@ -475,21 +471,15 @@
                     else if (self.layoutOption() == 'grid') {
                         self.cytoscapeOptions.layout = {
                             name: 'grid',
-                            fit: true,
                             padding: 30,
                             rows: undefined,
                             columns: undefined,
                             position: function( node ){},
-                            ready: undefined,
-                            stop: undefined
                         };
                     }
                     else if (self.layoutOption() == 'force') {
                         self.cytoscapeOptions.layout = {
                             name: 'cose',
-                            fit: true, 
-                            ready: undefined,
-                            stop: undefined,
                             refresh: 0,
                             padding: 30,
                             randomize: true,
@@ -505,6 +495,12 @@
                             coolingFactor: 0.95,
                             minTemp: 1
                         };
+                    }
+                    
+                    self.cytoscapeOptions.layout.fit = true;
+                    self.cytoscapeOptions.layout.ready = undefined;
+                    self.cytoscapeOptions.layout.stop = function(){
+                        self.graphrendering.pop();
                     }
                     
                     self.cytoscapeOptions.ready = function(){
@@ -548,10 +544,16 @@
                             $('#cy').css('cursor', 'default');
                             hideTimer = setTimeout(function() {
                                 $('#nodeinfo').popover('hide');
-                            }, 333);
+                            }, 500);
                         });
                     }
                     
+                    if (self.cy) {
+                        // we must remove nodes before setting a new graph,
+                        // otherwise their tap targets remain invisible at
+                        // random locations
+                        self.cy.remove("node[weight > 0]");
+                    }
                     return cytoscape(self.cytoscapeOptions);
                 }
                 
@@ -564,10 +566,10 @@
                             displayName = node.properties[uniqueParam];
                         }
                         
-                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: displayName, label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL } });
+                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: displayName, label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
                     }
                     
-                    var cy = self.plotCytoscape();
+                    self.cy = self.plotCytoscape();
                     
                     $.each(labelData, function(namespace, nsObj) {
                         var result = { namespace: namespace, hsl: nsObj.hsl, labels: Array() };
@@ -607,9 +609,8 @@
                     });
                 }
                 
-                // reset all existing stuff and call vrpipeGraphMethod to get
-                // desired nodes from the database
-                self.getNodes = function(method, args) {
+                self.resetData = function() {
+                    self.graphloading.removeAll();
                     self.grapherror.removeAll();
                     self.nodes.removeAll();
                     self.relationships.removeAll();
@@ -619,7 +620,21 @@
                         nodes: [ ],
                         edges: [ ]
                     };
-                    self.plotCytoscape(); // plot the empty graph to clear it
+                    
+                    self.cy = self.plotCytoscape(); // plot the empty graph to clear it
+                }
+                
+                self.resetGraphPage = function() {
+                    self.resetData();
+                    self.displayRoots(undefined);
+                    self.relationsOf(undefined);
+                    self.cypherQuery(undefined);
+                }
+                
+                // reset all existing stuff and call vrpipeGraphMethod to get
+                // desired nodes from the database
+                self.getNodes = function(method, args) {
+                    self.resetData();
                     
                     vrpipeGraphMethod(method, args, self.graphloading, self.grapherror, function(data) {
                         // turn data in to nodes and relationships for display
@@ -753,68 +768,87 @@
                     });
                 }
                 
-                // operations
-                self.runCypherQuery = function() {
-                    if (self.cypherQuery()) {
-                        self.startNodesOption(undefined);
-                        location.hash = '/graph/cypher/' + self.cypherQuery();
-                    }
-                }
-                
-                // trigger route when choice of start node type changes
-                self.startNodesOption.subscribe(function(newValue) {
+                // respond to sub-page requests
+                self.displayRoots.subscribe(function(newValue) {
                     if (newValue) {
-                        location.hash = '/graph/start/' + newValue;
+                        location.hash = '/graph/roots';
+                        self.relationsOf(undefined);
+                        self.cypherQuery(undefined);
+                        self.layoutOption('grid');
+                        self.getNodes('root_nodes', { });
+                    }
+                    else {
+                        if (location.hash == '#/graph/roots') {
+                            self.resetData();
+                            location.hash = '/graph';
+                        }
                     }
                 });
                 
-                // update graph when choice of layout changes
-                self.layoutOption.subscribe(function(newValue) {
+                self.relationsOf.subscribe(function(newValue) {
                     if (newValue) {
-                        self.plotCytoscape();
+                        self.displayRoots(undefined);
+                        self.cypherQuery(undefined);
+                        self.layoutOption('tree');
+                        self.getNodes('relations_of', { start_node: newValue, depth: self.relationsOfMaxDepth() });
                     }
                 });
-                
-                // when choice of relations depth changes, redraw graph
                 self.relationsOfMaxDepth.subscribe(function(newValue) {
-                    if (newValue && self.relationsOf) {
-                        location.hash = '/graph/related/' + self.relationsOf + '/depth/' + newValue;
+                    // when choice of relations depth changes, redraw graph
+                    if (newValue && self.relationsOf()) {
+                        location.hash = '/graph/related/' + self.relationsOf() + '/depth/' + newValue;
                     }
                 });
                 if (! self.relationsOfMaxDepth()) {
                     self.relationsOfMaxDepth(2);
                 }
                 
-                // client-side routes
-                route = router.addRoute('/graph/start/:startNodesOption');
-                route.get(function(event, params) {
-                    $('#tabsections a[href="#graph"]').tab('show');
-                    self.cypherQuery(undefined);
-                    self.relationsOf = undefined;
-                    self.startNodesOption(params.startNodesOption); // to update ui if url changed manually in browser
-                    if (params.startNodesOption == "roots") {
-                        self.layoutOption('grid');
-                        self.getNodes('root_nodes', { });
+                self.cypherQuery.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.displayRoots(undefined);
+                        self.relationsOf(undefined);
+                        self.getNodes('cypher_match', { cypher: newValue });
                     }
+                });
+                self.runCypherQuery = function() {
+                    if (self.cypherQuery()) {
+                        location.hash = '/graph/cypher/' + self.cypherQuery();
+                    }
+                }
+                
+                // update graph when choice of layout changes
+                self.layoutOption.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.cy = self.plotCytoscape();
+                    }
+                });
+                
+                // if user clicked on graph tab button, set url to /graph, but
+                // don't do anything if user used back button to get to a sub
+                // page
+                self.updateURL = function() {
+                    if (! self.displayRoots() && ! self.relationsOf() && ! self.cypherQuery()) {
+                        location.hash = '/graph';
+                    }
+                }
+                
+                // client-side routes
+                route = router.addRoute('/graph/roots');
+                route.get(function(event, params) {
+                    self.displayRoots(true);
+                    $('#tabsections a[href="#graph"]').tab('show');
                 });
                 route = router.addRoute('/graph/related/:nodeID/depth/:maxDepth');
                 route.get(function(event, params) {
-                    $('#tabsections a[href="#graph"]').tab('show');
-                    self.startNodesOption(undefined);
-                    self.cypherQuery(undefined);
-                    self.relationsOf = undefined;
+                    self.relationsOf(undefined);
                     self.relationsOfMaxDepth(params.maxDepth);
-                    self.relationsOf = params.nodeID;
-                    self.layoutOption('tree');
-                    self.getNodes('relations_of', { start_node: self.relationsOf, depth: self.relationsOfMaxDepth() });
+                    self.relationsOf(params.nodeID);
+                    $('#tabsections a[href="#graph"]').tab('show');
                 });
                 route = router.addRoute('/graph/cypher/:cypherQuery');
                 route.get(function(event, params) {
-                    $('#tabsections a[href="#graph"]').tab('show');
-                    self.startNodesOption(undefined);
-                    self.relationsOf = undefined;
                     self.cypherQuery(decodeURIComponent(params.cypherQuery));
-                    self.getNodes('cypher_match', { cypher: self.cypherQuery() });
+                    $('#tabsections a[href="#graph"]').tab('show');
                 });
             }
             var gvm = new GraphViewModel();
@@ -823,16 +857,19 @@
             router.start('/home');
             
             // sync up url when we change section tabs using the UI
+            // (or eg. back button used)
             $('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
                 var activeTab = $(e.target).text(); // Get the name of active tab
                 if (activeTab == "Home") {
                     location.hash = '/home';
+                    gvm.resetGraphPage(); // because otherwise invisible graph nodes still cause popovers
                 }
                 else if (activeTab == "Status") {
                     location.hash = '/status';
+                    gvm.resetGraphPage();
                 }
                 else if (activeTab == "Graph") {
-                    location.hash = '/graph' + (gvm.startNodesOption() ? ('/start=' + gvm.startNodesOption()) : '');
+                    gvm.updateURL();
                 }
             });
         </script>
