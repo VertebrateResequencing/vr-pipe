@@ -614,7 +614,7 @@
                         var order = 1;
                         var roots = rootNodes[namespace];
                         for (var i = 0; i < roots.length; i++) {
-                            var done = cy.elements().dfs('#' + roots[i], function(i, depth) {
+                            var done = self.cy.elements().dfs('#' + roots[i], function(i, depth) {
                                 var thisLabel = this.data('label');
                                 if (! labelOrder.hasOwnProperty(thisLabel)) {
                                     labelOrder[thisLabel] = order++;
