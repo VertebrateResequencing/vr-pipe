@@ -729,22 +729,29 @@ XSL
     }
     
     sub psgi_nonblocking_json_response {
-        my ($self, $sub, $env, @others) = @_;
+        my ($self, $graph, $sub, $env, @others) = @_;
         my $req = Plack::Request->new($env);
         
         return sub {
             my $responder = shift;
             
             fork_call {
-                my $json;
-                eval { $json = &{$sub}($req, @others); };
+                my $args;
+                eval { $args = $graph->json_decode($req->content || '{}'); };
                 if ($@) {
-                    my $err = $@;
-                    chomp($err);
-                    $json = "{ errors: ['$err'] }";
-                    $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
+                    return $graph->json_encode({ errors => ['Unable to decode posted content'] });
                 }
-                return $json;
+                if (ref($args) ne 'HASH') {
+                    return $graph->json_encode({ errors => ['Posted content was not a hash'] });
+                }
+                
+                my $data;
+                eval { $data = &{$sub}($args, @others); };
+                if ($@) {
+                    $data = { errors => [$@] };
+                }
+                
+                return $graph->json_encode($data);
             }
             sub {
                 my ($json) = @_;
