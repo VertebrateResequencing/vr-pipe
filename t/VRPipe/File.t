@@ -6,7 +6,7 @@ use File::Spec;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 72;
+    use Test::Most tests => 74;
     use VRPipeTest;
 }
 
@@ -356,6 +356,17 @@ $vrfile->metadata({ ay => 'a', be => 'b', ce => ['c', 'c2'], de => ['d', 'd2'], 
 $vrfile->update;
 $vrfile->merge_metadata({ be => 'b2', ce => 'c3', de => ['d3', 'd4'], ee => ['e2', 'e3'], ef => 'f', ge => ['g2', 'g', 'g3'], h => 'h' });
 is_deeply $vrfile->metadata, { ay => 'a', be => ['b', 'b2'], ce => ['c', 'c2', 'c3'], de => ['c', 'c2', 'c3'], de => ['d', 'd2', 'd3', 'd4'], ee => ['e', 'e2', 'e3'], ef => 'f', ge => ['g', 'g2', 'g3'], h => 'h' }, 'merge_metadata worked';
+
+# make sure we can cope with paths that have commas in them
+my $comma_dir = dir($tmp_dir, 'dir,with,commas');
+$vrfile->make_path($comma_dir);
+my $comma_file = file($comma_dir, 'file,txt');
+open($fh, '>', $comma_file) or die "Could not write to $comma_file\n";
+print $fh "comma\n";
+close($fh);
+ok $vrfile = VRPipe::File->create(path => $comma_file), 'could create a VRPipe::File when the path has a comma';
+$fh = $vrfile->openr;
+is <$fh>, "comma\n", 'could read from that file';
 
 done_testing;
 exit;

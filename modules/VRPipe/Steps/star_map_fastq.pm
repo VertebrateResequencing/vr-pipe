@@ -51,6 +51,11 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 'STAR'
             ),
+            star_sample_name_from_metadata => VRPipe::StepOption->create(
+                description   => 'sample name from metadata to use in bam read groups',
+                optional      => 1,
+                default_value => 'sample'
+            ),
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
         };
     }
@@ -89,6 +94,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             my $star_exe      = $options->{star_exe};
             my $star_map_opts = $options->{star_map_options};
             my $star_gen_opts = $options->{star_genomeGenerate_options};
+            my $star_sample   = $options->{star_sample_name_from_metadata};
             my $ref           = file($options->{reference_fasta});
             
             if ($star_map_opts =~ /runMode|genomeDir|readFilesIn/) {
@@ -124,8 +130,8 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                     $sam_meta->{library} = $lb;
                     $rg_arg .= ' LB:' . $self->command_line_safe_string($lb);
                 }
-                if (defined $fq_meta->{sample}) {
-                    my $sm = $fq_meta->{sample};
+                if (defined $fq_meta->{$star_sample}) {
+                    my $sm = $fq_meta->{$star_sample};
                     $sam_meta->{sample} = $sm;
                     $rg_arg .= ' SM:' . $self->command_line_safe_string($sm);
                 }

@@ -6,10 +6,10 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 37;
+    use Test::Most tests => 34;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
-        required_exe => [qw(iget iquest fcr-to-vcf sort bgzip)]
+        required_exe => [qw(iget iquest fcr-to-vcf sort bgzip bcftools)]
     );
     use TestPipelines;
     
@@ -50,12 +50,13 @@ VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        vrtrack_db         => $ENV{VRPIPE_VRTRACK_TESTDB},
-        vrlane_storage_dir => $irods_dir
+        vrtrack_db                 => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrlane_storage_dir         => $irods_dir,
+        irods_download_input_files => 1
     }
 );
 
-my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/a4/77/e6/coreex_hips/20130531/coreex_hips_20130531.fcr.txt.gz'));
+my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz'));
 ok handle_pipeline(@analysis_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok and got the analysis files';
 
 # create split->vcf setup using the output gtc files from the import
@@ -92,7 +93,7 @@ my $split_convert_setup = VRPipe::PipelineSetup->create(
     }
 );
 
-my @samples    = qw(fpdk_3_qc1hip5529688 fpdr_qc1hip5529685 fpdl_3_qc1hip5533827 fpdj_1_qc1hip5533821 fpdm_3_qc1hip5533831 fpdl_2_qc1hip5533826 fpdl_1_qc1hip5533825 fpdk_2_qc1hip5529687 fpdm_2_qc1hip5533830 fpdj_qc1hip5533824 fpdl_qc1hip5533828 fpdr_3_qc1hip5533833 fpdj_3_qc1hip5533823 fpdj_2_qc1hip5533822 fpdr_1_qc1hip5529683 fpdk_qc1hip5529689 fpdk_1_qc1hip5529686 fpdm_qc1hip5533832 fpdr_2_qc1hip5529684 fpdm_1_qc1hip5533829);
+my @samples    = qw(HPSI0813i-fpdk_3_qc1hip5529688 HPSI0813i-fpdr_qc1hip5529685 HPSI0813i-fpdl_3_qc1hip5533827 HPSI0813i-fpdj_1_qc1hip5533821 HPSI0813i-fpdm_3_qc1hip5533831 HPSI0813i-fpdl_2_qc1hip5533826 HPSI0813i-fpdl_1_qc1hip5533825 HPSI0813i-fpdk_2_qc1hip5529687 HPSI0813i-fpdm_2_qc1hip5533830 HPSI0813i-fpdj_qc1hip5533824 HPSI0813i-fpdl_qc1hip5533828 fpdk_2_qc1hip5529687 HPSI0813i-fpdj_3_qc1hip5533823 HPSI0813i-fpdj_2_qc1hip5533822 HPSI0813i-fpdr_1_qc1hip5529683 fpdj_2_qc1hip5533822 HPSI0813i-fpdk_1_qc1hip5529686 HPSI0813i-fpdm_qc1hip5533832 HPSI0813i-fpdr_2_qc1hip5529684 HPSI0813i-fpdm_1_qc1hip5533829);
 my $element_id = 20;
 my @genotype_files;
 my @vcf_files;
@@ -134,17 +135,19 @@ is_deeply $meta,
     infinium_plate          => 'WG0206884-DNA',
     infinium_sample         => '283163_F01_qc1hip5529688',
     infinium_well           => 'F01',
-    irods_analysis_files    => '/archive/GAPI/gen/analysis/a4/77/e6/coreex_hips/20130531/coreex_hips_20130531.fcr.txt.gz',
+    irods_analysis_files    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
     irods_local_storage_dir => $irods_dir,
     irods_path              => '/archive/GAPI/gen/infinium/17/b7/15/9300870057_R06C01.gtc',
     md5                     => '17b7159554bca4ff4376384b385da51f',
-    public_name             => 'fpdk_3',
+    public_name             => 'HPSI0813i-fpdk_3',
     sample                  => 'qc1hip5529688',
+    sample_accession_number => 'SAMEA2398958',
     sample_cohort           => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
     sample_common_name      => 'Homo Sapien',
     sample_consent          => 1,
     sample_control          => 0,
     sample_created_date     => '2013-05-10 06:44:46',
+    sample_donor_id         => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
     sample_id               => 1625188,
     sample_supplier_name    => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
     study_id                => 2624,
@@ -153,8 +156,6 @@ is_deeply $meta,
   },
   'metadata correct for one of the genotype files';
 
-# check the VCF is correct
-is_deeply [vcf_lines($vcf_files[0])], [vcf_lines(file(qw(t data fpdk_3_qc1hip5529688.vcf.gz)))], 'VCF file produced was as expected';
 $meta = VRPipe::File->get(path => $vcf_files[0])->metadata;
 is $meta->{sample_cohort}, '27af9a9b-01b2-4cb6-acef-ea52d83e3d26', 'the VCF file has sample_cohort metadata';
 
@@ -194,20 +195,19 @@ foreach my $element_id (41 .. 45) {
     my $group = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (group => $group);
     if ($group eq '2a39941c-12b2-41bf-92f3-70b88b66a3a4|9300870166') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'fpdm_1_qc1hip5533829'];
-        #$expected{genotype_maximum_deviation} = ['>', 10, 'fpdr_3'];
+        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdm_1_qc1hip5533829'];
     }
     elsif ($group eq '27af9a9b-01b2-4cb6-acef-ea52d83e3d26|9300870057') {
-        $expected{genotype_maximum_deviation} = ['>=', 18, 'fpdk_2_qc1hip5529687'];
+        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdk_1_qc1hip5529686'];
     }
     elsif ($group eq 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2|9300870057') {
         $expected{genotype_maximum_deviation} = ['>=', 18, 'fpdj_2_qc1hip5533822'];
     }
     elsif ($group eq '647d3009-5603-4b07-bf02-6161c8662f46|9300870166') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'fpdl_qc1hip5533828'];
+        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdl_qc1hip5533828'];
     }
     elsif ($group eq '6d3d2acf-29a5-41a2-8992-1414706a527d|9300870057') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'fpdr_2_qc1hip5529684'];
+        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdr_2_qc1hip5529684'];
     }
     push(@expected_metadata, \%expected);
 }
@@ -226,21 +226,21 @@ foreach my $vcf_path (@merged_vcf_files) {
     is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
 }
 
-# we'll also take the opportunity to test bcftools cnv caller pipeline, since that
+# we'll also take the opportunity to test hipsci cnv caller pipeline, since that
 # also uses files from the genome studio import
 SKIP: {
-    my $num_tests = 5;
-    skip "hipsci bcftools cnv calling tests disabled without bcftools_cnv_caller in your path", $num_tests if 1; #unless can_execute('bcftools');
+    my $num_tests = 4;
+    skip "hipsci cnv calling tests disabled without polysomy, plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('polysomy') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
     
-    $output_dir = get_output_dir('bcftools_cnv_caller');
+    $output_dir = get_output_dir('polysomy_cnv_caller');
     
     # check pipeline has correct steps
-    ok my $cnv_pipeline = VRPipe::Pipeline->create(name => 'bcftools_cnv_caller'), 'able to get the bcftools_cnv_caller pipeline';
+    ok my $cnv_pipeline = VRPipe::Pipeline->create(name => 'polysomy_cnv_caller'), 'able to get the polysomy_cnv_caller pipeline';
     my @step_names;
     foreach my $stepmember ($cnv_pipeline->step_members) {
         push(@step_names, $stepmember->step->name);
     }
-    is_deeply \@step_names, [qw(vcf_merge_different_samples_control_aware bcftools_cnv_caller)], 'the bcftools_cnv_caller pipeline has the correct steps';
+    is_deeply \@step_names, [qw(vcf_merge_different_samples_control_aware polysomy plot_polysomy bcftools_cnv combine_bcftools_cnvs)], 'the polysomy_cnv_caller pipeline has the correct steps';
     
     my $cnv_setup = VRPipe::PipelineSetup->create(
         name        => 'cnv_calling',
@@ -256,17 +256,15 @@ SKIP: {
         my @output_subdirs = output_subdirs($element_id, $cnv_setup->id);
         push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
         if ($element_id == 41) {
-            foreach my $sub_dir (qw(fpdr-fpdr_1 fpdr-fpdr_2 fpdr-fpdr_3)) {
-                push(@summary_files, file(@output_subdirs, '2_bcftools_cnv_caller', $sub_dir, 'summary.tab'));
+            foreach my $sub_dir (qw(HPSI0813i-fpdk_1_qc1hip5529686 HPSI0813i-fpdk_2_qc1hip5529687 HPSI0813i-fpdk_3_qc1hip5529688)) {
+                push(@summary_files, file(@output_subdirs, '4_bcftools_cnv', $sub_dir, 'summary.tab'));
             }
         }
     }
     ok handle_pipeline(@merged_vcfs, @summary_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
     
-    my $results = $summary_files[0]->slurp();
-    like $results, qr/AR\t1\t145395605\t145725689\t2\t4\n/, 'the results file for fpdj-fpdj_1 had the expected lines';
     my $cnv_vrfile = VRPipe::File->get(path => $summary_files[0]);
-    is $cnv_vrfile->meta_value('sample_control'), 'fpdk_qc1hip5529689', 'sample_control metadata exists on the file';
+    is $cnv_vrfile->meta_value('sample_control'), 'fpdk_2_qc1hip5529687', 'sample_control metadata exists on the file';
 }
 
 # we'll also take the opportunity to test the loh caller pipeline, since that
@@ -300,7 +298,7 @@ SKIP: {
         push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
         
         my $result_file = file(@output_subdirs, '2_hipsci_loh_caller', 'merged.txt');
-        if ($element_id == 41 || $element_id == 45) {
+        if ($element_id == 45) {
             push(@loh_files_with_results, $result_file);
         }
         else {
@@ -313,13 +311,10 @@ SKIP: {
     foreach my $file (@loh_files_no_results) {
         $created_empty++ if (-e $file && !-s $file);
     }
-    is $created_empty, 3, 'it also produced empty result files for the good cohorts';
+    is $created_empty, 4, 'it also produced empty result files for the good cohorts';
     
-    my $results  = $loh_files_with_results[0]->slurp();
-    my $expected = file(qw(t data fpdk_loh_results.txt))->slurp();
-    is $results, $expected, 'the results file for fpdk had the expected lines';
     my $loh_vrfile = VRPipe::File->get(path => $loh_files_with_results[0]);
-    is $loh_vrfile->meta_value('sample_control'), 'fpdk_qc1hip5529689', 'sample_control metadata exists on the file';
+    is $loh_vrfile->meta_value('sample_control'), 'HPSI0813i-fpdj_qc1hip5533824', 'sample_control metadata exists on the file';
 }
 
 finish;
