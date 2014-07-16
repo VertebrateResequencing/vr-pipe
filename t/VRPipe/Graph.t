@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 46;
+    use Test::Most tests => 51;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -135,8 +135,8 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Genome Camp
 my ($lane1) = $graph->get_nodes(namespace => 'VRTrack', label => 'Lane', properties => { name => 'Lane1' });
 $graph->add_schema(namespace => 'VRPipe', label => 'StepResult', unique => [qw(uuid)]);
 $graph->add_schema(namespace => 'VRPipe', label => 'Image', unique => [qw(path)], required => ['type']);
-my $step_result = $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $graph->create_uuid });
-push(@root_ids, $graph->node_id($step_result));
+my $uuid = $graph->create_uuid;
+my $step_result = $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid }, incoming => { node => $lane1, type => 'has_result' });
 like $graph->node_property($step_result, 'uuid'), qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() method worked to populate a property';
 throws_ok { $graph->add_node(namespace => 'VRPipe', label => 'StepResult', properties => { foo => 'bar' }) } qr/Parameter 'uuid' must be supplied/, 'add_node throws when a unique parameter is not supplied';
 my $image = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, incoming => { node => $step_result, type => 'has_file' });
@@ -154,5 +154,12 @@ is scalar(@{ $data->{nodes} }), 1068, 'no problems returning lots of nodes';
 my $encoded = $graph->json_encode($data);
 my $decoded = $graph->json_decode($encoded);
 is scalar(@{ $decoded->{nodes} }), 1068, 'json_encode/decode successfully roundtrips on lots of nodes';
+
+# test the check_parents option to node_property
+is $graph->node_property($image, 'vrtrack_lane_name'), undef, 'by default, parent properties are not available';
+is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties just gives image details';
+is $graph->node_property($image, 'vrtrack_lane_name', check_parents => 1), 'Lane1', 'in check_parents mode we can access a lane detail';
+is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties still just gives image details';
+is_deeply $graph->node_properties($image, flatten_parents => 1), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png', stepresult_uuid => $uuid, vrtrack_lane_name => 'Lane1', vrtrack_library_name => 'Library1', vrtrack_sample_sanger_id => 'sanger1', vrtrack_sample_public_name => 'public1', vrtrack_sample_uuid => 'uuuuu', vrtrack_individual_name => 'John', vrtrack_study_name => 'Study of Disease_xyz' }, 'in flatten_parents mode we see all parental properties';
 
 exit;

@@ -430,10 +430,33 @@ class VRPipe::Persistent::Graph {
         }
     }
     
-    method node_property (HashRef $node!, Str $property!) {
-        if (exists $node->{properties} && defined $node->{properties}->{$property}) {
-            return $node->{properties}->{$property};
+    method node_properties (HashRef $node!, Bool :$flatten_parents = 0) {
+        if ($flatten_parents) {
+            unless (exists $node->{parent_properties}) {
+                # get all the node properties of all parent nodes
+                $node->{parent_properties} = {};
+                foreach my $parent ($self->related_nodes($node, incoming => { min_depth => 1, max_depth => 999 })) {
+                    my $prefix = $parent->{namespace} ne $node->{namespace} ? $parent->{namespace} . '_' : '';
+                    $prefix .= $parent->{label};
+                    $prefix = lc($prefix);
+                    
+                    while (my ($key, $val) = each %{ $parent->{properties} || {} }) {
+                        my $full_key = $prefix . '_' . $key;
+                        $node->{parent_properties}->{$full_key} = $val; #*** we should probably merge and keep multiple vals for same full_key
+                    }
+                }
+            }
+            
+            return { %{ $node->{parent_properties} }, %{ $node->{properties} || {} } };
         }
+        
+        return $node->{properties} || {};
+    }
+    
+    method node_property (HashRef $node!, Str $property!, Bool :$check_parents = 0) {
+        my $properties = $self->node_properties($node, flatten_parents => $check_parents);
+        return $properties->{$property} if exists $properties->{$property};
+        return;
     }
     
     method relate (HashRef $start_node!, HashRef $end_node!, Str :$type!) {
