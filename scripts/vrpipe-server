@@ -659,9 +659,13 @@ sub start_server {
             my ($env, $path) = @_;
             $backend->psgi_file_response('/' . $path, $env);
         },
+        '/rest/status/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&status, $env, $method);
+        },
         '/rest/graph/(.+)$' => sub {
             my ($env, $method) = @_;
-            $backend->psgi_nonblocking_json_response(\&graph, $env, $method);
+            $backend->psgi_nonblocking_json_response($graph, \&graph, $env, $method);
         },
         '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
         '/dsn'    => sub {
@@ -772,49 +776,110 @@ sub _get_steplimit {
 
 # "page" subs
 sub graph {
-    my ($req, $method) = @_;
-    my $args;
-    eval { $args = $graph->json_decode($req->content || '{}'); };
-    if ($@) {
-        return $graph->json_encode({ errors => ['Unable to decode posted content'] });
-    }
-    if (ref($args) ne 'HASH') {
-        return $graph->json_encode({ errors => ['Posted content was not a hash'] });
-    }
+    my ($args, $method) = @_;
     
     my $data;
-    eval {
-        if ($method eq 'get_schema') {
-            my ($uniques, $indexed, $required) = $graph->get_schema(namespace => $args->{namespace}, label => $args->{label});
-            $data = { uniques => $uniques, indexed => $indexed, required => $required };
-        }
-        elsif ($method eq 'root_nodes') {
-            $data = { nodes => [$graph->root_nodes()] };
-        }
-        elsif ($method eq 'relations_of') {
-            $data = $graph->related({ id => $args->{start_node} }, undef, { min_depth => 0, max_depth => 1 }, { min_depth => 0, max_depth => $args->{depth} });
-        }
-        elsif ($method eq 'cypher_match') {
-            my $cypher = $args->{cypher};
-            if ($cypher =~ /\b(?:create|merge|set|delete|remove)\b/i) {
-                $data = { errors => ["Writing clauses are not allowed"] };
-            }
-            else {
-                $data = $graph->_run_cypher([[$cypher]]);
-            }
+    if ($method eq 'get_schema') {
+        my ($uniques, $indexed, $required) = $graph->get_schema(namespace => $args->{namespace}, label => $args->{label});
+        $data = { uniques => $uniques, indexed => $indexed, required => $required };
+    }
+    elsif ($method eq 'root_nodes') {
+        $data = { nodes => [$graph->root_nodes()] };
+    }
+    elsif ($method eq 'relations_of') {
+        $data = $graph->related({ id => $args->{start_node} }, undef, { min_depth => 0, max_depth => 1 }, { min_depth => 0, max_depth => $args->{depth} });
+    }
+    elsif ($method eq 'cypher_match') {
+        my $cypher = $args->{cypher};
+        if ($cypher =~ /\b(?:create|merge|set|delete|remove)\b/i) {
+            $data = { errors => ["Writing clauses are not allowed"] };
         }
         else {
-            $data = { errors => ["Invalid graph method '$method'"] };
+            $data = $graph->_run_cypher([[$cypher]]);
         }
-    };
-    if ($@) {
-        $data = { errors => [$@] };
+    }
+    else {
+        $data = { errors => ["Invalid graph method '$method'"] };
     }
     
-    return $graph->json_encode($data);
+    return $data;
 }
 
 sub status {
+    my ($args, $method) = @_;
+    
+    my $data = {};
+    if ($method eq 'get_setup_ids_by_id_or_name') {
+        my $ids_or_name = $args->{ids_or_name};
+        if ($ids_or_name =~ /^[\d\s,]+$/) {
+            # it's one or more setup ids, check they're all valid
+            while ($ids_or_name =~ /(\d+)/g) {
+                my $id = $1;
+                my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
+                if ($setup) {
+                    push(@{ $data->{ids} }, $id);
+                }
+                else {
+                    push(@{ $data->{errors} }, "No setup with id $id was found.");
+                }
+            }
+        }
+        else {
+            # it's a setup name, search for matching setups
+            my @setups = VRPipe::PipelineSetup->search({ name => { like => '%' . $ids_or_name . '%' } });
+            if (@setups) {
+                $data->{ids} = [map { $_->id } @setups];
+            }
+            else {
+                $data->{errors} = ["No setups match the name '$ids_or_name'"];
+            }
+        }
+    }
+    elsif ($method eq 'get_setup_ids_by_user') {
+        my $user        = $args->{user};
+        my $incomplete  = $args->{incomplete};
+        my $deactivated = $args->{deactivated};
+        my @setups      = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $deactivated ? () : (active => 1) });
+        if ($incomplete) {
+            foreach my $setup (@setups) {
+                next if $setup->currently_complete;
+                push(@{ $data->{ids} }, $setup->id);
+            }
+        }
+        else {
+            $data->{ids} = [map { $_->id } @setups];
+        }
+        unless (defined $data->{ids} && @{ $data->{ids} }) {
+            my $complete_string = $incomplete ? ' incomplete' : '';
+            my $active_string = $deactivated ? '' : ($complete_string ? ', active' : ' active');
+            $data->{errors} = ["There are no$complete_string$active_string setups for user '$user'"];
+        }
+    }
+    elsif ($method eq 'get_setup') {
+        my $id = $args->{id};
+        my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
+        if ($setup) {
+            $data->{setup} = { id => $id };
+            foreach my $col (qw(desired_farm user pipeline name active description options output_root datasource unix_group controlling_farm)) {
+                my $val = $setup->$col();
+                if ($col eq 'output_root') {
+                    $val = $val->stringify;
+                }
+                push(@{ $data->{setup}->{parameters} }, { key => $col, val => ref($val) ? (ref($val) eq 'HASH' ? $graph->json_encode($val) : $val->id) : $val });
+            }
+        }
+        else {
+            $data->{errors} = ["No setup with id $id was found."];
+        }
+    }
+    else {
+        $data->{errors} = ["Invalid status method '$method'"];
+    }
+    
+    return $data;
+}
+
+sub status_old {
     my $req = shift;
     
     my $opts = $backend->req_to_opts($req, ['setup!PipelineSetup']);
