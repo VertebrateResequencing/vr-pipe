@@ -241,7 +241,7 @@ class VRPipe::Persistent::Graph {
         $self->throw("drop_database() can only be used when testing") unless $global_label =~ /^vdt/;
         
         # drop all schemas (which drops all constraints and indexes)
-        my @schema_nodes = @{ $self->_run_cypher([["MATCH (n:$schema_labels) RETURN n"]])->{nodes} };
+        my @schema_nodes = @{ $self->_run_cypher([["MATCH (n:$schema_labels) RETURN n"]], { return_schema_nodes => 1 })->{nodes} };
         foreach my $node (@schema_nodes) {
             my $schema = $self->node_property($node, 'schema');
             my (undef, $namespace, $label) = split(/\|/, $schema);
