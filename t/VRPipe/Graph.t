@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 53;
+    use Test::Most tests => 54;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -168,5 +168,9 @@ is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'bar', cat => 'dog
 $graph->node_add_properties($step_result, { foo => 'baz', lemur => 'llama' });
 my ($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'node_add_properties() adds and changes properties correctly, and the results are really in the database';
+
+# we can get a node by its database id
+$node = $graph->get_node_by_id($graph->node_id($step_result));
+is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'get_node_by_id() worked';
 
 exit;

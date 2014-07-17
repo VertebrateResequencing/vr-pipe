@@ -404,7 +404,7 @@ class VRPipe::Persistent::Graph {
         return $node;
     }
     
-    method delete_node (HashRef $node!) {
+    method delete_node (HashRef|Object $node!) {
         $self->_run_cypher([["MATCH (n) WHERE id(n) = $node->{id} OPTIONAL MATCH (n)-[r]-() DELETE n, r"]]);
         return 1;
     }
@@ -418,19 +418,24 @@ class VRPipe::Persistent::Graph {
         return @{ $self->_run_cypher([["MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties }]])->{nodes} };
     }
     
-    method node_id (HashRef $node!) {
+    method get_node_by_id (Int $id) {
+        my @nodes = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id RETURN n"]])->{nodes} };
+        return $nodes[0];
+    }
+    
+    method node_id (HashRef|Object $node!) {
         if (defined $node->{id}) {
             return $node->{id};
         }
     }
     
-    method node_namespace_and_label (HashRef $node!) {
+    method node_namespace_and_label (HashRef|Object $node!) {
         if (defined $node->{namespace} && defined $node->{label}) {
             return ($node->{namespace}, $node->{label});
         }
     }
     
-    method node_properties (HashRef $node!, Bool :$flatten_parents = 0) {
+    method node_properties (HashRef|Object $node!, Bool :$flatten_parents = 0) {
         if ($flatten_parents) {
             unless (exists $node->{parent_properties}) {
                 # get all the node properties of all parent nodes
@@ -453,13 +458,13 @@ class VRPipe::Persistent::Graph {
         return $node->{properties} || {};
     }
     
-    method node_property (HashRef $node!, Str $property!, Bool :$check_parents = 0) {
+    method node_property (HashRef|Object $node!, Str $property!, Bool :$check_parents = 0) {
         my $properties = $self->node_properties($node, flatten_parents => $check_parents);
         return $properties->{$property} if exists $properties->{$property};
         return;
     }
     
-    method node_add_properties (HashRef $node!, HashRef $properties!) {
+    method node_add_properties (HashRef|Object $node!, HashRef $properties!) {
         my $id = $self->node_id($node);
         my $properties_map = ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$properties) . ' }';
         # (this requires Neo4J v2.1.2 +)
@@ -468,7 +473,7 @@ class VRPipe::Persistent::Graph {
         return;
     }
     
-    method relate (HashRef $start_node!, HashRef $end_node!, Str :$type!) {
+    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!) {
         return @{ $self->_run_cypher([["MATCH (a) WHERE id(a) = $start_node->{id} MATCH (b) WHERE id(b) = $end_node->{id} CREATE (a)-[r:$type]->(b) RETURN r"]])->{relationships} };
     }
     
@@ -532,7 +537,7 @@ class VRPipe::Persistent::Graph {
         return ($result_node_spec, $hashref->{properties}, $type, $min_depth, $max_depth);
     }
     
-    method related_nodes (HashRef $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
+    method related_nodes (HashRef|Object $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         my $start_id = $start_node->{id};
         return grep { $_->{id} != $start_id } @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
     }
