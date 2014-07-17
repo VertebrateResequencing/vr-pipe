@@ -249,7 +249,7 @@ class VRPipe::Persistent::Graph {
         }
         
         # drop all nodes and relationships
-        $self->_run_cypher([["MATCH (n:`$global_label`) OPTIONAL MATCH (n:`$global_label`)-[r]-() DELETE n,r"]]);
+        $self->_run_cypher([["MATCH (n:`$global_label`) OPTIONAL MATCH (n)-[r]-() DELETE n,r"]]);
         
         return 1;
     }
@@ -456,6 +456,15 @@ class VRPipe::Persistent::Graph {
     method node_property (HashRef $node!, Str $property!, Bool :$check_parents = 0) {
         my $properties = $self->node_properties($node, flatten_parents => $check_parents);
         return $properties->{$property} if exists $properties->{$property};
+        return;
+    }
+    
+    method node_add_properties (HashRef $node!, HashRef $properties!) {
+        my $id = $self->node_id($node);
+        my $properties_map = ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$properties) . ' }';
+        # (this requires Neo4J v2.1.2 +)
+        my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id SET n += $properties_map return n", { 'param' => $properties }]])->{nodes} };
+        $node->{properties} = $updated_node->{properties};
         return;
     }
     

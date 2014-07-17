@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 51;
+    use Test::Most tests => 53;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -161,5 +161,12 @@ is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png)
 is $graph->node_property($image, 'vrtrack_lane_name', check_parents => 1), 'Lane1', 'in check_parents mode we can access a lane detail';
 is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties still just gives image details';
 is_deeply $graph->node_properties($image, flatten_parents => 1), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png', stepresult_uuid => $uuid, vrtrack_lane_name => 'Lane1', vrtrack_library_name => 'Library1', vrtrack_sample_sanger_id => 'sanger1', vrtrack_sample_public_name => 'public1', vrtrack_sample_uuid => 'uuuuu', vrtrack_individual_name => 'John', vrtrack_study_name => 'Study of Disease_xyz' }, 'in flatten_parents mode we see all parental properties';
+
+# we can change existing properties and add new ones
+$graph->node_add_properties($step_result, { foo => 'bar', cat => 'dog' });
+is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'bar', cat => 'dog' }, 'node_add_properties() adds properties correctly';
+$graph->node_add_properties($step_result, { foo => 'baz', lemur => 'llama' });
+my ($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'node_add_properties() adds and changes properties correctly, and the results are really in the database';
 
 exit;
