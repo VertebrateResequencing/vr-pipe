@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 29;
+    use Test::Most tests => 30;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -13,6 +13,9 @@ ok my $graph = $schema->graph(), 'graph() method worked';
 isa_ok($graph, 'VRPipe::Persistent::Graph');
 
 ok my $sample = $schema->add('Sample', { name => 's1' }), 'add() method worked';
+my $orig_sample_id = $sample->node_id();
+$sample = $schema->add('Sample', { name => 's1', public_name => 'public_s1' });
+is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'public_s1' }], 'add() twice on the same unique property always does an update';
 ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming => { type => 'prepared', node => $sample }), 'add() worked with incoming option, and for adding more than 1 at a time';
 
 throws_ok { $schema->add('Foo', { foo => 'bar' }) } qr/'Foo' isn't a valid label for schema VRTrack/, 'add() throws when given an invalid label';
@@ -36,7 +39,7 @@ is $lib1->name, 'libone', 'auto-generated property method worked to set';
 $lib1 = $schema->get('Library', { id => 'l1' });
 is $lib1->name, 'libone', 'the set was really in the database';
 
-is_deeply $lib1->properties(flatten_parents => 1), { id => 'l1', name => 'libone', sample_name => 's1' }, 'properties() method worked with flatten_parents';
+is_deeply $lib1->properties(flatten_parents => 1), { id => 'l1', name => 'libone', sample_name => 's1', sample_public_name => 'public_s1' }, 'properties() method worked with flatten_parents';
 $lib1->add_properties({ name => 'lib1', tag => 'ATG' });
 $lib1 = $schema->get('Library', { id => 'l1' });
 is_deeply $lib1->properties(), { id => 'l1', name => 'lib1', tag => 'ATG' }, 'add_properties() method worked';

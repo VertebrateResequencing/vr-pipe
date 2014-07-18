@@ -395,6 +395,16 @@ class VRPipe::Persistent::Graph {
         delete $schemas->{$dsl};
     }
     
+    sub _labels {
+        my ($self, $namespace, $label) = @_;
+        return "`$global_label`:`$global_label|$namespace|$label`";
+    }
+    
+    sub _param_map {
+        my ($self, $params, $param_key) = @_;
+        return $params ? ' { ' . join(', ', map { "$_: {$param_key}.$_" } sort keys %$params) . ' }' : '';
+    }
+    
     sub _labels_and_param_map {
         my ($self, $namespace, $label, $params, $param_key, $check_required) = @_;
         
@@ -408,14 +418,36 @@ class VRPipe::Persistent::Graph {
             }
         }
         
-        my $labels = "`$global_label`:`$global_label|$namespace|$label`";
-        my $param_map = $params ? ' { ' . join(', ', map { "$_: {$param_key}.$_" } sort keys %$params) . ' }' : '';
-        return ($labels, $param_map);
+        return ($self->_labels($namespace, $label), $self->_param_map($params, $param_key));
     }
     
     # in/outgoing HashRef is { type => 'type', node => $node }
-    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, HashRef :$incoming?, HashRef :$outgoing?) {
-        my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties->[0], 'param', 1);
+    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, HashRef :$incoming?, HashRef :$outgoing?) {
+        my ($labels, $param_map);
+        my $set = '';
+        if ($update) {
+            # split out unique params from the others; we'll merge on the
+            # uniques and set the remainder
+            my ($uniques) = $self->get_schema(namespace => $namespace, label => $label);
+            my %uniques = map { $_ => 1 } @$uniques;
+            my ($unique_props, $other_props);
+            while (my ($key, $val) = each %{ $properties->[0] }) {
+                if (exists $uniques{$key}) {
+                    $unique_props->{$key} = $val;
+                }
+                else {
+                    $other_props->{$key} = $val;
+                }
+            }
+            
+            if (keys %$unique_props && keys %$other_props) {
+                ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $unique_props, 'param', 1);
+                $set = ' SET n += ' . $self->_param_map($other_props, 'param');
+            }
+        }
+        unless ($labels) {
+            ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties->[0], 'param', 1);
+        }
         
         my $left  = '';
         my $match = '';
@@ -431,7 +463,7 @@ class VRPipe::Persistent::Graph {
             $match .= "MATCH (r) WHERE id(r) = $node_id ";
         }
         
-        my $cypher = "${match}MERGE $left(n:$labels$param_map)$right";
+        my $cypher = "${match}MERGE $left(n:$labels$param_map)$right$set";
         $cypher .= ' RETURN n' if defined wantarray();
         
         my @to_run;
@@ -447,8 +479,8 @@ class VRPipe::Persistent::Graph {
         }
     }
     
-    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, HashRef :$incoming?, HashRef :$outgoing?) {
-        my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
+    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, Bool :$update = 0, HashRef :$incoming?, HashRef :$outgoing?) {
+        my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], update => $update, $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
         return $node;
     }
     
@@ -514,7 +546,7 @@ class VRPipe::Persistent::Graph {
     
     method node_add_properties (HashRef|Object $node!, HashRef $properties!) {
         my $id = $self->node_id($node);
-        my $properties_map = ' { ' . join(', ', map { "$_: {param}.$_" } sort keys %$properties) . ' }';
+        my $properties_map = $self->_param_map($properties, 'param');
         # (this requires Neo4J v2.1.2 +)
         my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id SET n += $properties_map return n", { 'param' => $properties }]])->{nodes} };
         $node->{properties} = $updated_node->{properties};
@@ -528,7 +560,7 @@ class VRPipe::Persistent::Graph {
         my @cypher;
         
         if ($selfish) {
-            my ($labels) = $self->_labels_and_param_map($start_node->{namespace}, $start_node->{label});
+            my $labels = $self->_labels($start_node->{namespace}, $start_node->{label});
             push(@cypher, ["MATCH (a)<-[r:$type]-(b:$labels) WHERE id(a) = $end_node->{id} AND id(b) <> $start_node->{id} DELETE r"]);
         }
         

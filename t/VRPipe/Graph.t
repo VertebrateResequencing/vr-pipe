@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 57;
+    use Test::Most tests => 59;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -29,11 +29,13 @@ $VRPipe::Persistent::Graph::schemas = {};
 ($unique, $indexed) = $graph->get_schema(namespace => 'VRTrack', label => 'Sample');
 is_deeply [$unique, $indexed], [[qw(sanger_id)], [qw(uuid public_name supplier_name)]], 'get_schema returned the unique and indexed fields from the database';
 
-ok my $node = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', uuid => 'uuuuu', public_name => 'public1' }), 'was able to add a node';
+ok my $node = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'publicOne' }), 'was able to add a node';
 my $orig_node_id = $graph->node_id($node);
-my $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', uuid => 'uuuuu', public_name => 'public1' });
-is $graph->node_id($sanger1), $orig_node_id, 'calling add_node twice with the same args returns the same node';
+my $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'publicOne' });
+is_deeply [$sanger1->{id}, $sanger1->{properties}], [$orig_node_id, { sanger_id => 'sanger1', public_name => 'publicOne' }], 'calling add_node twice with the same args returns the same node, which has expected properties';
 throws_ok { $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'public2' }) } qr/already exists with label vdt.+\|VRTrack\|Sample/, 'add_node throws when used twice with the same unique arg but different other arg';
+ok $sanger1 = $graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'sanger1', public_name => 'public1', uuid => 'uuuuu' }, update => 1), 'add_node(update => 1) works when used twice with the same unique arg and different other args';
+is_deeply [$sanger1->{id}, $sanger1->{properties}], [$orig_node_id, { sanger_id => 'sanger1', public_name => 'public1', uuid => 'uuuuu' }], 'calling add_node in update mode twice with the different non-unique args returns the same node, which has updated properties';
 ok $graph->delete_node($sanger1), 'delete_node() worked';
 $VRPipe::Persistent::Graph::schemas = {};
 ($unique, $indexed) = $graph->get_schema(namespace => 'VRTrack', label => 'Sample');

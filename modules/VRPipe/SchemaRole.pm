@@ -161,7 +161,7 @@ role VRPipe::SchemaRole {
             }
         }
         
-        my @nodes = $graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props) : (), %{ $extra_graph_args || {} });
+        my @nodes = $graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), %{ $extra_graph_args || {} });
         
         # bless the nodes into the appropriate class
         foreach my $node (@nodes) {
