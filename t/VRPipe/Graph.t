@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 55;
+    use Test::Most tests => 57;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -173,5 +173,17 @@ is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', cat =
 # we can get a node by its database id
 $node = $graph->get_node_by_id($graph->node_id($step_result));
 is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'get_node_by_id() worked';
+
+# usually you can have node A related to an unlimited number of other nodes,
+# but sometimes you want it to only connect to a single node of a certain type,
+# and an update should remove any existing links before applying the new one
+my ($library1) = $graph->get_nodes(namespace => 'VRTrack', label => 'Library', properties => { name => "Library1" });
+my ($library2) = $graph->get_nodes(namespace => 'VRTrack', label => 'Library', properties => { name => "Library2" });
+$graph->relate($library2, $lane1, type => 'sequenced');
+@nodes = $graph->related_nodes($lane1, incoming => { namespace => 'VRTrack', label => 'Library' });
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Library1', 'Library2'], 'using standard relate(), a lane can belong to more than 1 node';
+$graph->relate($library1, $lane1, type => 'sequenced', selfish => 1);
+@nodes = $graph->related_nodes($lane1, incoming => { namespace => 'VRTrack', label => 'Library' });
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Library1'], 'using relate(selfish => 1), a lane only belongs to 1 library';
 
 exit;

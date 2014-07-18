@@ -342,7 +342,7 @@ class VRPipe::Persistent::Graph {
             my $unique_fields = join('|', @$unique);
             my $indexed_arg = $indexed ? q[, indexed: '] . join('|', @$indexed) . q['] : '';
             my $required_arg = $required ? q[, required: '] . join('|', @$required) . q['] : '';
-            $self->_run_cypher([["CREATE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })"]]);
+            $self->_run_cypher([["MERGE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })"]]);
             
             $schemas->{$dsl} = [$unique, $indexed || [], $required || []];
             $im->unlock($lock_key);
@@ -521,8 +521,20 @@ class VRPipe::Persistent::Graph {
         return;
     }
     
-    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!) {
-        return @{ $self->_run_cypher([["MATCH (a) WHERE id(a) = $start_node->{id} MATCH (b) WHERE id(b) = $end_node->{id} CREATE (a)-[r:$type]->(b) RETURN r"]])->{relationships} };
+    # selfish => 1 means that the start node can be related to unlimited
+    # end_nodes, but the end_node can only be related to a single node with the
+    # same label (and relationship type) as the start node
+    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, Bool :$selfish = 0) {
+        my @cypher;
+        
+        if ($selfish) {
+            my ($labels) = $self->_labels_and_param_map($start_node->{namespace}, $start_node->{label});
+            push(@cypher, ["MATCH (a)<-[r:$type]-(b:$labels) WHERE id(a) = $end_node->{id} AND id(b) <> $start_node->{id} DELETE r"]);
+        }
+        
+        push(@cypher, ["MATCH (a),(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} MERGE (a)-[r:$type]->(b) RETURN r"]);
+        
+        return @{ $self->_run_cypher(\@cypher)->{relationships} };
     }
     
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
