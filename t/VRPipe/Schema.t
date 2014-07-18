@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 27;
+    use Test::Most tests => 29;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -63,5 +63,12 @@ $sample->relate_to($lib3, 'prepared');
 @related = $lib3->related();
 is_deeply [sort map { $_->node_id } @related], [$sample->node_id], 'relate_to() worked';
 is $related[0]->name, 's1', 'related() returns working objects';
+my $lane1 = $schema->add('Lane', { name => 'lane1' });
+$lib3->relate_to($lane1, 'sequenced');
+@related = $lane1->related(incoming => {});
+is_deeply [sort map { $_->node_id } @related], [$lib3->node_id], 'related() worked with incoming specified';
+$lib1->relate_to($lane1, 'sequenced', selfish => 1);
+@related = $lane1->related(incoming => {});
+is_deeply [sort map { $_->node_id } @related], [$lib1->node_id], 'relate_to(selfish => 1) worked';
 
 exit;

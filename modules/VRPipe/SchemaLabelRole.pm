@@ -85,8 +85,8 @@ role VRPipe::SchemaLabelRole {
         return @nodes;
     }
     
-    method relate_to (HashRef|Object $node!, $type!) {
-        $graph->relate($self, $node, type => $type);
+    method relate_to (HashRef|Object $node!, $type!, Bool :$selfish = 0) {
+        $graph->relate($self, $node, type => $type, selfish => $selfish);
     }
 }
 
