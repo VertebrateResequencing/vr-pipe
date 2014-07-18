@@ -82,6 +82,7 @@ use VRPipe::Base;
 class VRPipe::Persistent::Graph {
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
+    use VRPipe::Persistent::InMemory;
     use Mojo::UserAgent;
     use JSON::XS;
     use Data::UUID;
@@ -191,9 +192,9 @@ class VRPipe::Persistent::Graph {
                     my $node_id = $node_details->{id};
                     next if exists $nodes{$node_id};
                     
-                    # for speed reasons we don't create objects for nodes but just
-                    # return the a hash and provide methods to extract stuff from
-                    # the hash
+                    # for speed reasons we don't create objects for nodes but
+                    # just return the hash and provide methods to extract stuff
+                    # from the hash
                     
                     # convert labels to namespace and label
                     my ($namespace, $label);
@@ -267,13 +268,57 @@ class VRPipe::Persistent::Graph {
             }
         }
         
-        # have we already done this?
-        my $dsl = $self->_deployment_specific_label($namespace, $label);
-        my ($done) = @{ $self->_run_cypher([["MATCH (n:$schema_labels { schema: '$dsl' }) RETURN n"]], { return_schema_nodes => 1 })->{nodes} };
-        unless ($done) {
+        # have we already done this? block until locked so multiple processes
+        # don't end up corrupting a possible update
+        my $im       = VRPipe::Persistent::InMemory->new();
+        my $lock_key = 'graph.' . $namespace . '.' . $label . '.schema_update';
+        $im->block_until_locked($lock_key);
+        my ($current_unique, $current_indexed, $current_required) = $self->get_schema(namespace => $namespace, label => $label);
+        
+        if ($current_unique) {
+            # see if it's changed and we need to update
+            my $changed = 0;
+            CMP: foreach my $cmp ([$unique, $current_unique], [$indexed, $current_indexed], [$required, $current_required]) {
+                my ($new, $current) = @$cmp;
+                if ($new && !@$new) {
+                    undef $new;
+                }
+                if ($current && !@$current) {
+                    undef $current;
+                }
+                
+                if (($new && !$current) || (!$new && $current)) {
+                    $changed = 1;
+                    last;
+                }
+                next unless $new;
+                
+                my %current = map { $_ => 1 } @$current;
+                foreach my $param (@$new) {
+                    unless (exists $current{$param}) {
+                        $changed = 1;
+                        last CMP;
+                    }
+                    delete $current{$param};
+                }
+                
+                if (keys %current) {
+                    $changed = 1;
+                    last;
+                }
+            }
+            
+            if ($changed) {
+                $self->drop_schema(namespace => $namespace, label => $label);
+                undef $current_unique;
+            }
+        }
+        
+        unless ($current_unique) {
             my @to_run;
             
             # set constraints (which also adds an index on the constraint)
+            my $dsl = $self->_deployment_specific_label($namespace, $label);
             foreach my $field (@$unique) {
                 if (index($field, '|') != -1) {
                     $self->throw("parameter may not contain the | character");
@@ -300,9 +345,11 @@ class VRPipe::Persistent::Graph {
             $self->_run_cypher([["CREATE (:$schema_labels { schema: '$dsl', unique: '$unique_fields'$indexed_arg$required_arg })"]]);
             
             $schemas->{$dsl} = [$unique, $indexed || [], $required || []];
-            
+            $im->unlock($lock_key);
             return 1;
         }
+        
+        $im->unlock($lock_key);
         return 0;
     }
     
@@ -339,10 +386,11 @@ class VRPipe::Persistent::Graph {
             push(@to_run, ["DROP INDEX ON :`$dsl`($field)"]);
         }
         
-        # remove the node storing schema details, and our cache
-        push(@to_run, ["MATCH (n:$schema_labels { schema: '$dsl' })-[r]-() DELETE n, r"]);
-        
+        # (these need to be run separately from the following)
         $self->_run_cypher(\@to_run);
+        
+        # remove the node storing schema details, and our cache
+        $self->_run_cypher([["MATCH (n:$schema_labels { schema: '$dsl' }) OPTIONAL MATCH (n)-[r]-() DELETE n, r"]]);
         
         delete $schemas->{$dsl};
     }
