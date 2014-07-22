@@ -42,6 +42,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
     use File::Spec::Functions;
     use Path::Class;
     use VRPipe::Persistent::InMemory;
+    use VRPipe::Schema;
     use VRPipe::Steps::irods;
     
     has '_irods_files_and_metadata_cache' => (
@@ -64,7 +65,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         return '';
     }
@@ -106,7 +107,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata});
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata}, $options->{vrtrack_group});
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -126,7 +127,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?, Maybe[Str] $required_metadata?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?, Maybe[Str] $required_metadata?, Maybe[Str] $vrtrack_group?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
         my @required_keys;
         if ($required_metadata) {
@@ -135,6 +136,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         
         my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created);
         my ($study_sth, $study_title);
+        my $vrtrack;
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
             my $dbh = DBI->connect(
                 "DBI:mysql:host=$ENV{WAREHOUSE_HOST}:port=$ENV{WAREHOUSE_PORT};database=$ENV{WAREHOUSE_DATABASE}",
@@ -182,6 +184,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             $study_sth = $dbh->prepare($sql);
             $study_sth->execute;
             $study_sth->bind_col(1, \$study_title);
+            
+            $vrtrack = VRPipe::Schema->create('VRTrack');
+            $vrtrack_group ||= 'all_studies';
         }
         
         my %files;
@@ -371,6 +376,66 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         next QU unless defined $meta->{$key};
                     }
                     
+                    # represent lab tracking metadata in the graph database
+                    if ($vrtrack) {
+                        # 'analysis_uuid'           => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
+                        # 'sample_created_date'     => '2013-05-10 06:45:32',
+                        # 'beadchip_section'        => 'E',
+                        # 'sample_consent'          => '1',
+                        # 'irods_path'              => '/archive/GAPI/exp/infinium/41/b6/f3/9252616016_E_Grn.idat',
+                        # 'sample_control'          => '1',
+                        # 'beadchip'                => '9252616016',
+                        # 'sample_id'               => '1625281',
+                        # 'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
+                        # 'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
+                        # 'irods_analysis_files'    => [qw(/archrofile.txt)],
+                        # 'irods_local_storage_dir' => $output_root
+                        
+                        # 'infinium_well'           => 'F01',
+                        # 'infinium_plate'          => 'WG0206884-DNA',
+                        # 'infinium_sample'         => '283163_F01_qc1hip5529688',
+                        # 'sample_accession_number' => 'SAMEA2398958',
+                        # 'beadchip_design'         => 'HumanCoreExome-12v1-0',
+                        # 'beadchip_section'        => 'R06C01',
+                        # 'sample_id'               => '1625188',
+                        
+                        # 'is_paired_read'          => '1',
+                        # 'library_id'              => '6784051',
+                        # 'ebi_sub_acc'             => 'ERA214806',
+                        # 'library'                 => 'MEK_res_1 6784051',
+                        # 'study_title'             => 'De novo and acquired resistance to MEK inhibitors ',
+                        # 'target'                  => '1',
+                        # 'reference'               => '/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa',
+                        # 'alignment'               => '1',
+                        # 'tag'                     => 'AACGTGAT',
+                        # 'lane'                    => '9417_4#1',
+                        # 'ebi_sub_md5'             => '675b0b2b2f5991aa5a4695bb1914c0c7',
+                        # 'ebi_run_acc'             => 'ERR274701',
+                        # 'ebi_sub_date'            => '2013-05-26',
+                        # 'total_reads'             => '70486376',
+                        # 'id_run'                  => '9417',
+                        # 'manual_qc'               => '1',
+                        
+                        my $group = $vrtrack->add('Group', { name => $vrtrack_group });
+                        my $study = $vrtrack->add('Study', { id => $meta->{study_id}, name => $meta->{study_title} || $meta->{study}, accession => $meta->{study_accession_number} }, incoming => { type => 'has', node => $group });
+                        
+                        my $taxon;
+                        if (defined $meta->{taxon_id}) {
+                            $taxon = $vrtrack->add('Taxon', { id => $meta->{taxon_id}, name => $meta->{sample_common_name} });
+                        }
+                        my $donor;
+                        if (defined $meta->{sample_cohort}) {
+                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                        }
+                        
+                        my $sample_created_date;
+                        if (defined $meta->{sample_created_date}) {
+                            $sample_created_date = # convert to epoch seconds
+                        }
+                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name} });
+                        # indexed => [qw(id supplier_name accession created_date consent control)
+                    }
+                    
                     $files{$path} = $meta;
                 }
             }
@@ -388,21 +453,21 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         return $self->_all_files(%args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?) {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?) {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : ());
+        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ());
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?) {
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata);
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group);
         $self->_clear_cache;
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
