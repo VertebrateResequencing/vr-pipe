@@ -51,6 +51,7 @@ use warnings;
 use base 'Test::DBIx::Class';
 use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::InMemory;
+use VRPipe::Persistent::Graph;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
@@ -124,8 +125,10 @@ sub _initialize_schema {
     
     my $im = VRPipe::Persistent::InMemory->new;
     $im->_redis->flushdb;
-    
-    return $class->SUPER::_initialize_schema($config);
+    my $graph = VRPipe::Persistent::Graph->new;
+    $graph->drop_database,
+      
+      return $class->SUPER::_initialize_schema($config);
 }
 
 # following methods were stolen and slightly modified from
