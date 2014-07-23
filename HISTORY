@@ -1,3 +1,10 @@
+0.198   Fixes the vcf_merge_different_samples* steps to cope with hundreds of
+        input VCFs (requires latest bcftools).
+        vrpipe-submissions has new --partial_reset option which is useful when
+        a step produces many submissions per data element, some of which worked,
+        but the failures need a new command line; --partial_reset will only
+        deleted the failed submissions instead of also restarting the ones that
+        worked (as --full_reset does). If updgrading, read IMPORTANT_NOTES.
 0.197   Fixed inability to cope with file paths with commas in them.
         New polysomy_cnv_caller pipeline and related steps.
 0.196   New STAR pipeline and steps.
