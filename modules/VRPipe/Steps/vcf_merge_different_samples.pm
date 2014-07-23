@@ -60,16 +60,6 @@ class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools
         return 0;
     }
     
-    method _determine_memory (Int $num_vcfs) {
-        # bcftools indexes and buffers all the input files in memory, amounting
-        # to about 13.3MB memory usage each (including overhead), so we can get
-        # a better memory estimate than VRPipe can guess. We turn off
-        # _build_smaller_recommended_requirements_override to prevent VRPipe
-        # ignoring our better estimate
-        my $memory = int($num_vcfs * 13.3);
-        return $memory;
-    }
-    
     method body_sub {
         return sub {
             my $self = shift;
@@ -84,38 +74,9 @@ class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools
                 $self->throw("-O b or u are not supported - this step can only output vcfs");
             }
             
-            my @input_set;
-            foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
-                push @input_set, $vcf_file->path;
-            }
             my $merged_basename = 'merged.vcf.gz';
-            
-            my $merged_meta = $self->common_metadata($self->inputs->{vcf_files});
-            my $merged_vcf  = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
-            my $output_path = $merged_vcf->path;
-            my $index       = $self->output_file(output_key => 'vcf_index', basename => $merged_basename . '.csi', type => 'bin');
-            
-            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
-            if (@input_set == 1) {
-                # merge doesn't work on 1 input file; just symlink the input to
-                # output and index it
-                my $source = $self->inputs->{vcf_files}->[0];
-                $source->symlink($merged_vcf);
-                $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
-            }
-            else {
-                my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path && $bcftools_exe index $output_path];
-                
-                $self->set_cmd_summary(
-                    VRPipe::StepCmdSummary->create(
-                        exe     => 'bcftools',
-                        version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
-                        summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path && bcftools index \$output_path"
-                    )
-                );
-                
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf, $index] }]);
-            }
+            my $merged_meta     = $self->combined_metadata($self->inputs->{vcf_files});
+            $self->_merge($bcftools_exe, $bcfopts, $self->inputs->{vcf_files}, $merged_basename, 'merged_vcf', 'vcf', $merged_meta, 'vcf_index');
         };
     }
     
@@ -147,24 +108,86 @@ class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools
     }
     
     method merge_vcf (ClassName|Object $self: Str $cmd_line) {
-        my ($first_input_path, $output_path) = $cmd_line =~ /^.+ (\S+?\.gz) .* (\S+)$/;
+        my ($last_input_path, $output_path) = $cmd_line =~ /(\S+) > (\S+)/;
         
-        my $first_input_file = VRPipe::File->get(path => $first_input_path);
-        my $first_input_lines = $first_input_file->lines;
+        my $last_input_file = VRPipe::File->get(path => $last_input_path);
+        if ($last_input_file->type eq 'txt') {
+            # it's a fofn, get the path of the first vcf in it
+            my $fh   = $last_input_file->openr;
+            my $line = <$fh>;
+            $last_input_file->close;
+            chomp($line);
+            $last_input_file = VRPipe::File->get(path => $line);
+        }
+        my $input_lines = $last_input_file->lines;
         
-        $first_input_file->disconnect;
+        $last_input_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
         my $output_lines = $output_file->lines;
         
-        if ($output_lines < $first_input_lines) {
+        if ($output_lines < $input_lines) {
             $output_file->unlink;
-            $self->throw("Output VCF has $output_lines, fewer than first input $first_input_lines");
+            $self->throw("Output VCF has $output_lines, fewer than last input $input_lines");
         }
         else {
             return 1;
+        }
+    }
+    
+    method _merge (Str $bcftools_exe, Str $bcfopts, ArrayRef $input_vcfs, Str $output_basename, Str $output_key, Str $output_type, HashRef $output_metadata, Str $output_index_key) {
+        # bcftools indexes and buffers all the input files in memory, amounting
+        # to about 13.3MB memory usage each (including overhead), so we can get
+        # a better memory estimate than VRPipe can guess.
+        my $num_vcfs = scalar(@$input_vcfs);
+        my $memory   = int($num_vcfs * 13.3);
+        my $req      = $self->new_requirements(memory => $memory, time => 1);
+        
+        my $merged_vcf  = $self->output_file(output_key => $output_key, basename => $output_basename, type => $output_type, metadata => $output_metadata);
+        my $output_path = $merged_vcf->path;
+        my $index       = $self->output_file(output_key => $output_index_key, basename => $output_basename . '.csi', type => 'bin');
+        
+        my ($cmd_input, $summary_input);
+        if ($num_vcfs == 1) {
+            # merge doesn't work on 1 input file; just copy the file over.
+            # (we don't symlink since it needs its own metadata, and we redo
+            #  the metadata since copy adds source metadata to destination)
+            my $source = $input_vcfs->[0];
+            $source->copy($merged_vcf);
+            $merged_vcf->add_metadata($output_metadata);
+            $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
+        }
+        else {
+            my ($cmd_input, $summary_input);
+            my @input_paths = map { $_->path } @$input_vcfs;
+            if ($num_vcfs < 27) {
+                $cmd_input     = "@input_paths";
+                $summary_input = '\@input_vcfs';
+            }
+            else {
+                my $l_file = $self->output_file(temporary => 1, basename => $output_basename . '.l', type => 'txt');
+                my $ofh = $l_file->openw;
+                foreach my $path (@input_paths) {
+                    print $ofh $path, "\n";
+                }
+                $l_file->close;
+                $cmd_input     = '-l ' . $l_file->path;
+                $summary_input = '-l $input_vcfs_fofn';
+            }
+            
+            my $cmd = qq[$bcftools_exe merge $bcfopts $cmd_input > $output_path && $bcftools_exe index $output_path];
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'bcftools',
+                    version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
+                    summary => "bcftools merge $bcfopts $summary_input > \$output_path && bcftools index \$output_path"
+                )
+            );
+            
+            $self->dispatch_wrapped_cmd(ref($self), 'merge_vcf', [$cmd, $req, { output_files => [$merged_vcf, $index] }]);
         }
     }
 }
