@@ -33,7 +33,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -100,6 +100,13 @@ class VRPipe::StepState extends VRPipe::Persistent {
     );
     
     has 'complete' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        traits  => ['VRPipe::Persistent::Attributes'],
+        default => 0
+    );
+    
+    has 'dispatched' => (
         is      => 'rw',
         isa     => 'Bool',
         traits  => ['VRPipe::Persistent::Attributes'],
@@ -264,19 +271,23 @@ class VRPipe::StepState extends VRPipe::Persistent {
         }
     }
     
-    method start_over {
-        $self->pipelinesetup->log_event("StepState->start_over was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
+    method start_over (Bool :$only_failed = 0) {
+        my $log_self = 'StepState->start_over';
+        $log_self .= '(only_failed => 1)' if $only_failed;
+        $self->pipelinesetup->log_event("$log_self was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
+        
+        $self->block_until_locked;
+        $self->maintain_lock;
         
         # before doing anything, record which output files we'll need to delete,
         # but don't actually delete anything until we've done all the db
         # updates
         my @files_to_unlink;
-        foreach my $file ($self->output_files_list(only_unique_to_us => 1)) {
-            push(@files_to_unlink, $file);
+        unless ($only_failed) {
+            foreach my $file ($self->output_files_list(only_unique_to_us => 1)) {
+                push(@files_to_unlink, $file);
+            }
         }
-        
-        $self->block_until_locked;
-        $self->maintain_lock;
         
         # we need to be in a transaction or we risk leaving our selves in a
         # partial invalid state with eg. no submissions, no output files, but
@@ -287,14 +298,20 @@ class VRPipe::StepState extends VRPipe::Persistent {
             # while another process is parsing this, sees no subs and does a
             # parse and creates new sofs immediately before we then delete
             # them
-            foreach my $sof ($self->_output_files) {
-                $self->pipelinesetup->log_event("StepState->start_over call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
-                $sof->delete;
+            unless ($only_failed) {
+                foreach my $sof ($self->_output_files) {
+                    $self->pipelinesetup->log_event("$log_self call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
+                    $sof->delete;
+                }
             }
             
             # reset all associated submissions in order to reset their jobs
             foreach my $sub ($self->submissions) {
-                $self->pipelinesetup->log_event("Calling Submission->start_over during a StepState->start_over", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
+                if ($only_failed) {
+                    next unless $sub->_failed();
+                }
+                
+                $self->pipelinesetup->log_event("Calling Submission->start_over during a $log_self", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                 $sub->start_over;
                 
                 # delete any stepstats there might be for us
@@ -302,7 +319,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                     $ss->delete;
                 }
                 
-                $self->pipelinesetup->log_event("StepState->start_over call deleting Submission", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
+                $self->pipelinesetup->log_event("$log_self call deleting Submission", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                 $sub->delete;
             }
             
@@ -312,9 +329,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
             
             # now reset self
             $self->complete(0);
+            $self->dispatched(0);
             $self->update;
         };
-        $self->do_transaction($transaction, "StepState start_over for " . $self->id . " failed");
+        $self->do_transaction($transaction, "$log_self for " . $self->id . " failed");
         
         # now unlink the output files
         foreach my $file (@files_to_unlink) {
@@ -323,7 +341,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         
         $self->unlock;
         
-        $self->pipelinesetup->log_event("StepState->start_over call returning, complete() is " . $self->complete, stepstate => $self->id, dataelement => $self->dataelement->id);
+        $self->pipelinesetup->log_event("$log_self call returning", stepstate => $self->id, dataelement => $self->dataelement->id);
     }
 }
 
