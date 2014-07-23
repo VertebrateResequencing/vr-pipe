@@ -101,6 +101,12 @@ class VRPipe::FrontEnd {
         default => 0
     );
     
+    has '_can_ask_questions' => (
+        is      => 'ro',
+        isa     => 'Bool',
+        default => sub { -t *STDOUT ? 1 : 0 }
+    );
+    
     method _default_opt_spec {
         return [['deployment=s', 'Use the production or testing database', { default => 'production' }], ['env|e=s', 'Use options stored in an environment variable'], ['help|h', 'Print this usage message and exit']];
     }
@@ -400,7 +406,11 @@ class VRPipe::FrontEnd {
         return;
     }
     
-    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?, Bool :$strip_leading_trailing_whitespace = 1) {
+    method ask_question (Str :$question!, ArrayRef :$possibles?, Str :$allow_multiple?, Str :$default?, Bool :$required?, CodeRef :$not_allowed?, ArrayRef :$na_args?, Str :$non_interactive?, Bool :$strip_leading_trailing_whitespace = 1) {
+        if (defined $non_interactive && !$self->_can_ask_questions) {
+            return $non_interactive;
+        }
+        
         undef $possibles unless $possibles && @$possibles;
         if (defined $default && length($default) == 0) {
             undef $default;
