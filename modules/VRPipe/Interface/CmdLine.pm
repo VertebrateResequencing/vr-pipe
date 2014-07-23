@@ -505,7 +505,7 @@ class VRPipe::Interface::CmdLine {
     method vrpipe_script_command (ClassName|Object $self: Str $script, Str $deployment) {
         my $command = $self->vrpipe_perl_command($deployment) . ' ';
         
-        my $local_script = file('scripts', $script)->absolute;
+        my $local_script = file('blib', 'script', $script)->absolute;
         if ($deployment eq 'testing' && -x $local_script) {
             $command .= $local_script;
         }
@@ -540,8 +540,8 @@ class VRPipe::Interface::CmdLine {
             $command .= $Config{_exe} unless $command =~ m/$Config{_exe}$/i;
         }
         
-        if ($deployment eq 'testing' && -d 'modules' && -d 't') {
-            $command .= ' -I' . dir('modules')->absolute . ' -I' . dir('t')->absolute;
+        if ($deployment eq 'testing' && -d dir(qw(blib lib)) && -d 't') {
+            $command .= ' -I' . dir(qw(blib lib))->absolute . ' -I' . dir('t')->absolute;
         }
         
         return $command;
