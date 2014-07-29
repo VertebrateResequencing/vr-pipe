@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 59;
+    use Test::Most tests => 61;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -171,10 +171,14 @@ is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'bar', cat => 'dog
 $graph->node_add_properties($step_result, { foo => 'baz', lemur => 'llama' });
 my ($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'node_add_properties() adds and changes properties correctly, and the results are really in the database';
+$graph->node_set_properties($fresh_step_result, { uuid => $uuid, foo => 'baz', lemur => 'lamella' });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() updates properties correctly and removes unspecified ones';
+($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() had its effect in the database';
 
 # we can get a node by its database id
 $node = $graph->get_node_by_id($graph->node_id($step_result));
-is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', cat => 'dog', lemur => 'llama' }, 'get_node_by_id() worked';
+is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'get_node_by_id() worked';
 
 # usually you can have node A related to an unlimited number of other nodes,
 # but sometimes you want it to only connect to a single node of a certain type,
