@@ -563,13 +563,23 @@ class VRPipe::Persistent::Graph {
     
     # selfish => 1 means that the start node can be related to unlimited
     # end_nodes, but the end_node can only be related to a single node with the
-    # same label (and relationship type) as the start node
-    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, Bool :$selfish = 0) {
+    # same label (and relationship type) as the start node.
+    # replace => 1 means that the end node can be related to unlimited
+    # start_nodes, but the start_node can only be related to a single end_node
+    # with the same label (and relationship type) as the end_node.
+    # selfish => 1, replace => 1 gives you a 1:1 relationship between nodes of
+    # the relevant labels and with the given relationship type.
+    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, Bool :$selfish = 0, Bool :$replace = 0) {
         my @cypher;
         
         if ($selfish) {
             my $labels = $self->_labels($start_node->{namespace}, $start_node->{label});
             push(@cypher, ["MATCH (a)<-[r:$type]-(b:$labels) WHERE id(a) = $end_node->{id} AND id(b) <> $start_node->{id} DELETE r"]);
+        }
+        
+        if ($replace) {
+            my $labels = $self->_labels($end_node->{namespace}, $end_node->{label});
+            push(@cypher, ["MATCH (a)-[r:$type]->(b:$labels) WHERE id(a) = $start_node->{id} AND id(b) <> $end_node->{id} DELETE r"]);
         }
         
         push(@cypher, ["MATCH (a),(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} MERGE (a)-[r:$type]->(b) RETURN r"]);
