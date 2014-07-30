@@ -93,6 +93,17 @@ role VRPipe::SchemaRole {
         },
     );
     
+    has '_historical_labels' => (
+        traits  => ['Hash'],
+        is      => 'ro',
+        isa     => 'HashRef[Bool]',
+        default => sub { {} },
+        handles => {
+            _set_historical => 'set',
+            _is_historical  => 'exists'
+        },
+    );
+    
     method _build_namespace {
         my ($namespace) = ref($self) =~ /::([^:]+)$/;
         return $namespace;
@@ -102,18 +113,17 @@ role VRPipe::SchemaRole {
         my $graph     = VRPipe::Persistent::Graph->new();
         my $namespace = $self->namespace;
         
-        my $get_setter = sub {
-        };
-        
         foreach my $def (@{ $self->schemas }) {
             # create constraints and indexes in the database
-            my $optional = delete $def->{optional};
+            my $optional   = delete $def->{optional};
+            my $historical = delete $def->{keep_history};
             $graph->add_schema(%$def, namespace => $namespace);
             
             # store on ourselves what's valid according to this definition
             my $label = $def->{label};
             my @label_properties = (@{ $def->{unique} || [] }, @{ $def->{indexed} || [] }, @{ $def->{required} || [] }, @{ $optional || [] });
             $self->_add_label($label => \@label_properties);
+            $self->_set_historical($label => 1);
             
             # create a class for this label
             my $methods = {};
@@ -124,9 +134,37 @@ role VRPipe::SchemaRole {
                 $methods->{ lc($property) } = $sub;
             }
             
+            $methods->{unique_properties} = sub {
+                @{ $def->{unique} || [] };
+            };
+            
+            $methods->{required_properties} = sub {
+                @{ $def->{required} || [] };
+            };
+            
+            $methods->{other_properties} = sub {
+                (@{ $def->{indexed} || [] }, @{ $optional || [] });
+            };
+            
+            $methods->{_keep_history} = sub {
+                return $historical;
+            };
+            
+            $methods->{namespace} = sub {
+                return $namespace;
+            };
+            
+            $methods->{label} = sub {
+                return $label;
+            };
+            
+            $methods->{class} = sub {
+                return $namespace . '::' . $label;
+            };
+            
             my $class = Moose::Meta::Class->create(
                 'VRPipe::Schema::' . $namespace . '::' . $label,
-                roles   => ['VRPipe::SchemaLabelRole'],
+                roles   => ['VRPipe::SchemaLabelRole', 'VRPipe::Base::Debuggable'],
                 methods => $methods
             );
         }
@@ -177,7 +215,21 @@ role VRPipe::SchemaRole {
     }
     
     method add (Str $label!, HashRef[Str]|ArrayRef[HashRef[Str]] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
-        return $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
+        my $history_props;
+        my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
+        
+        if ($self->_is_historical($label)) {
+            foreach my $node (@nodes) {
+                $node->_maintain_property_history(0);
+            }
+        }
+        
+        if (wantarray()) {
+            return @nodes;
+        }
+        else {
+            return $nodes[0];
+        }
     }
     
     method get (Str $label!, HashRef $properties?) {

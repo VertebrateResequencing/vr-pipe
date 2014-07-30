@@ -46,9 +46,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique => [qw(name)]
             },
             {
-                label   => 'Study',
-                unique  => [qw(id)],
-                indexed => [qw(name accession)]
+                label        => 'Study',
+                unique       => [qw(id)],
+                indexed      => [qw(name accession)],
+                keep_history => 1
             },
             {
                 label   => 'Taxon',
@@ -60,30 +61,34 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique => [qw(id)]
             },
             {
-                label   => 'Sample',
-                unique  => [qw(name)],
-                indexed => [qw(id public_name supplier_name accession created_date consent control)]
+                label        => 'Sample',
+                unique       => [qw(name)],
+                indexed      => [qw(id public_name supplier_name accession created_date consent control)],
+                keep_history => 1
             },
             
             # bams
             {
-                label   => 'Library',
-                unique  => [qw(id)],
-                indexed => [qw(name tag)]
+                label        => 'Library',
+                unique       => [qw(id)],
+                indexed      => [qw(name tag)],
+                keep_history => 1
             },
             {
-                label   => 'Lane',
-                unique  => [qw(name)],
-                indexed => [qw(run rotal_reads)]
+                label        => 'Lane',
+                unique       => [qw(name)],
+                indexed      => [qw(run rotal_reads)],
+                keep_history => 1
             },
             {
                 label  => 'Alignment',
                 unique => [qw(reference)]
             },
             {
-                label   => 'File',
-                unique  => [qw(path)],
-                indexed => [qw(type manual_qc target md5)]
+                label        => 'File',
+                unique       => [qw(path)],
+                indexed      => [qw(type manual_qc target md5)],
+                keep_history => 1
             },
             {
                 label   => 'EBI_Submission',
