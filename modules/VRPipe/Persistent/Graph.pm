@@ -457,21 +457,21 @@ class VRPipe::Persistent::Graph {
             ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties->[0], 'param', 1);
         }
         
-        my $left  = '';
-        my $match = '';
+        my $incoming_merge = '';
+        my $match          = '';
         if ($incoming) {
             my $node_id = $self->node_id($incoming->{node});
-            $left  = "(l)-[:$incoming->{type}]->";
-            $match = "MATCH (l) WHERE id(l) = $node_id ";
+            $incoming_merge = " MERGE (l)-[:$incoming->{type}]->(n)";
+            $match          = "MATCH (l) WHERE id(l) = $node_id ";
         }
-        my $right = '';
+        my $outgoing_merge = '';
         if ($outgoing) {
             my $node_id = $self->node_id($outgoing->{node});
-            $right = "-[:$outgoing->{type}]->(r)";
+            $outgoing_merge = " MERGE (n)-[:$outgoing->{type}]->(r)";
             $match .= "MATCH (r) WHERE id(r) = $node_id ";
         }
         
-        my $cypher = "${match}MERGE $left(n:$labels$param_map)$right$set";
+        my $cypher = "${match}MERGE (n:$labels$param_map)$set$incoming_merge$outgoing_merge";
         $cypher .= ' RETURN n' if defined wantarray();
         
         my @to_run;
