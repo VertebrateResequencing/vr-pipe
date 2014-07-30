@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 63;
+    use Test::Most tests => 64;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -201,5 +201,10 @@ $graph->relate($image, $image2, type => 'sub_image', replace => 1);
 is_deeply [sort map { $graph->node_property($_, 'path') } @nodes], ['img2'], 'using relate(replace => 1) we end up with only 1 outgoing node';
 $graph->delete_node($image2);
 $graph->delete_node($image3);
+
+# make sure we can add_node(update) when we have required props
+$graph->add_schema(namespace => 'Foo', label => 'Bar', unique => [qw(id)], required => [qw(name)]);
+ok $sanger1 = $graph->add_node(namespace => 'Foo', label => 'Bar', properties => { id => 'f1', name => 'name1' }, update => 1), 'add_node(update => 1) works when used on a schema with required properties';
+$graph->drop_schema(namespace => 'Foo', label => 'Bar');
 
 exit;

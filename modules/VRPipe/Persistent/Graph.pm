@@ -428,8 +428,9 @@ class VRPipe::Persistent::Graph {
         if ($update) {
             # split out unique params from the others; we'll merge on the
             # uniques and set the remainder
-            my ($uniques) = $self->get_schema(namespace => $namespace, label => $label);
-            my %uniques = map { $_ => 1 } @$uniques;
+            my ($uniques, $indexed, $required) = $self->get_schema(namespace => $namespace, label => $label);
+            my %uniques  = map { $_ => 1 } @$uniques;
+            my %required = map { $_ => 1 } @$required;
             my ($unique_props, $other_props);
             while (my ($key, $val) = each %{ $properties->[0] }) {
                 if (exists $uniques{$key}) {
@@ -438,10 +439,17 @@ class VRPipe::Persistent::Graph {
                 else {
                     $other_props->{$key} = $val;
                 }
+                
+                delete $uniques{$key};
+                delete $required{$key};
+            }
+            
+            foreach my $param (keys %uniques, keys %required) {
+                $self->throw("Parameter '$param' must be supplied");
             }
             
             if (keys %$unique_props && keys %$other_props) {
-                ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $unique_props, 'param', 1);
+                ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $unique_props, 'param', 0);
                 $set = ' SET n += ' . $self->_param_map($other_props, 'param');
             }
         }
