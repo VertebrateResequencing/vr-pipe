@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 64;
+    use Test::Most tests => 65;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -206,5 +206,8 @@ $graph->delete_node($image3);
 $graph->add_schema(namespace => 'Foo', label => 'Bar', unique => [qw(id)], required => [qw(name)]);
 ok $sanger1 = $graph->add_node(namespace => 'Foo', label => 'Bar', properties => { id => 'f1', name => 'name1' }, update => 1), 'add_node(update => 1) works when used on a schema with required properties';
 $graph->drop_schema(namespace => 'Foo', label => 'Bar');
+
+# test the date_to_epoch utility method
+is $graph->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
 exit;

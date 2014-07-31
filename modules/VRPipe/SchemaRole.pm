@@ -269,6 +269,14 @@ role VRPipe::SchemaRole {
             $im->unlock($lock_key);
         }
     }
+    
+    method create_uuid {
+        return $graph->create_uuid();
+    }
+    
+    method date_to_epoch (Str $date) {
+        return $graph->date_to_epoch($date);
+    }
 }
 
 1;

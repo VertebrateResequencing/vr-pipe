@@ -86,6 +86,7 @@ class VRPipe::Persistent::Graph {
     use Mojo::UserAgent;
     use JSON::XS;
     use Data::UUID;
+    use DateTime::Format::Natural;
     
     our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
@@ -672,6 +673,20 @@ class VRPipe::Persistent::Graph {
     sub json_decode {
         shift;
         return $json->decode(shift);
+    }
+    
+    method date_to_epoch (Str $dstr) {
+        # allow copy/pastes of stringified DateTimes
+        $dstr =~ s/(\d)T(\d)/$1 $2/;
+        
+        my $parser = DateTime::Format::Natural->new;
+        my $dt     = $parser->parse_datetime($dstr);
+        if ($parser->success) {
+            return $dt->epoch;
+        }
+        else {
+            $self->throw($parser->error);
+        }
     }
 }
 

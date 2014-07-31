@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 45;
+    use Test::Most tests => 47;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -132,5 +132,10 @@ foreach my $node (@related) {
     $still_exist++ if $graph->get_node_by_id($node->{id});
 }
 is $still_exist, 1, 'after deleting lib3, all the history nodes were also deleted, except for one used by another node';
+
+# test Graph pass-through methods create_uuid() and date_to_epoch()
+my $uuid = $graph->create_uuid();
+like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
+is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
 exit;
