@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 41;
+    use Test::Most tests => 43;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -112,5 +112,17 @@ is_deeply [sort map { $_->node_id } @related], [$lib3->node_id], 'related() work
 $lib1->relate_to($lane1, 'sequenced', selfish => 1);
 @related = $lane1->related(incoming => {});
 is_deeply [sort map { $_->node_id } @related], [$lib1->node_id], 'relate_to(selfish => 1) worked';
+
+# make sure we delete history nodes when we delete a schema node
+$lib3->tag('A');
+$lib3->tag('ATGC');
+@related = $graph->related_nodes($lib3, outgoing => { max_depth => 500 });
+is scalar(@related), 4, 'lib3 has 4 history nodes';
+$schema->delete($lib3);
+my $still_exist = 0;
+foreach my $node (@related) {
+    $still_exist++ if $graph->get_node_by_id($node->{id});
+}
+is $still_exist, 1, 'after deleting lib3, all the history nodes were also deleted, except for one used by another node';
 
 exit;

@@ -14,6 +14,8 @@ history. Internal-use only by VRPipe::SchemaRole.
 
 
 
+
+
 =head1 AUTHOR
 
 Sendu Bala <sb10@sanger.ac.uk>.
@@ -42,6 +44,7 @@ use VRPipe::Base;
 
 class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
     use Digest::MD5 qw(md5_hex);
+    use VRPipe::Persistent::InMemory;
     
     method schema_definitions {
         return [{
@@ -152,7 +155,15 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         my $new_property_group = $self->add('PropertyGroup', { uuid => $uuid, timestamp => $time }, $current_property_group ? (outgoing => { node => $current_property_group, type => 'previous_properties' }) : ());
         $node->relate_to($new_property_group, 'current_properties', replace => 1);
         
+        # lock before possibly creating properties to avoid another process
+        # deleting them because it is deleting some other node that shares a
+        # some properties; this should be a very rare event so its ok to lock on
+        # a very general key
+        my $im       = VRPipe::Persistent::InMemory->new();
+        my $lock_key = 'graph.propertieswithhistory.updating';
+        $im->block_until_locked($lock_key);
         $self->add('Property', \@final_group, incoming => { node => $new_property_group, type => 'property' });
+        $im->unlock($lock_key);
         
         $node->unlock unless $locked_by_me;
         return $changed;

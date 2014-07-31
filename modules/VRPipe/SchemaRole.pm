@@ -64,6 +64,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::SchemaRole {
+    use VRPipe::Persistent::InMemory;
     use VRPipe::Persistent::Graph;
     my $graph = VRPipe::Persistent::Graph->new();
     
@@ -237,7 +238,31 @@ role VRPipe::SchemaRole {
     }
     
     method delete ($node) {
+        my ($history_data, $im, $lock_key);
+        if ($node->_keep_history) {
+            # also delete any PropertyGroup nodes attached which hold our history
+            # (and any Property nodes which are not used by something else - we lock
+            #  to ensure we don't delete these during an update elsewhere)
+            $im       = VRPipe::Persistent::InMemory->new();
+            $lock_key = 'graph.propertieswithhistory.updating';
+            $im->block_until_locked($lock_key);
+            
+            my $node_id        = $node->node_id();
+            my $group_label    = $graph->_labels('PropertiesWithHistory', 'PropertyGroup');
+            my $property_label = $graph->_labels('PropertiesWithHistory', 'Property');
+            # (I can't figure out how to do this in a single cypher query)
+            $history_data = $graph->_run_cypher([["MATCH (n)-[*1..500]->(g:$group_label) where id(n) = $node_id RETURN g"], ["MATCH (n)-[*1..500]->(g:$group_label)-->(p:$property_label) where id(n) = $node_id MATCH (p)<-[r]-() with p,count(r) as rs where rs = 1 RETURN p"]]);
+        }
+        
         $graph->delete_node($node);
+        
+        if ($lock_key) {
+            foreach my $child (@{ $history_data->{nodes} }) {
+                $graph->delete_node($child);
+            }
+            
+            $im->unlock($lock_key);
+        }
     }
 }
 
