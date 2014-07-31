@@ -175,7 +175,7 @@ role VRPipe::SchemaRole {
         return $graph;
     }
     
-    method _get_and_bless_nodes (Str $label!, Str $graph_method!, HashRef[Str]|ArrayRef[HashRef[Str]] $properties?, HashRef $extra_graph_args?) {
+    method _get_and_bless_nodes (Str $label!, Str $graph_method!, HashRef|ArrayRef[HashRef] $properties?, HashRef $extra_graph_args?) {
         my $namespace = $self->namespace;
         unless ($self->valid_label($label)) {
             $self->throw("'$label' isn't a valid label for schema $namespace");
@@ -189,6 +189,11 @@ role VRPipe::SchemaRole {
             $props = ref($properties) eq 'HASH' ? [$properties] : $properties;
             foreach my $prop_hash (@$props) {
                 foreach my $prop (keys %$prop_hash) {
+                    unless (defined $prop_hash->{$prop}) {
+                        delete $prop_hash->{$prop};
+                        next;
+                    }
+                    
                     unless (exists $valid_props{$prop}) {
                         $self->throw("Property '$prop' supplied, but that isn't defined in the schema for ${namespace}::$label");
                     }
@@ -215,7 +220,7 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method add (Str $label!, HashRef[Str]|ArrayRef[HashRef[Str]] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
+    method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
         my $history_props;
         my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
         

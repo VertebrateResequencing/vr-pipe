@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 43;
+    use Test::Most tests => 45;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -67,12 +67,13 @@ throws_ok { $sample->name('bar') } qr/Property 'name' is unique for schema VRTra
 is $sample->name(), 's1', 'but name() to get works fine';
 $sample->supplier_name('supn1');
 is_deeply [$sample->supplier_name(), $sample->properties(), $sample->changed()], ['supn1', { name => 's1', public_name => 'pn1', supplier_name => 'supn1' }, { supplier_name => ['sup1', 'supn1'] }], 'setting a property with the dynamically created method works and can tell us what we changed';
+
+# test history
 $sample = $schema->get('Sample', { name => 's1' });
 my @history        = $sample->property_history();
 my $timestamps_ok  = 0;
 my $prev_timestamp = time();
 my @history_properties;
-
 foreach my $hist (@history) {
     my $timestamp = $hist->{timestamp};
     if ($timestamp <= $prev_timestamp) {
@@ -83,6 +84,13 @@ foreach my $hist (@history) {
     push(@history_properties, $hist->{properties});
 }
 is_deeply [$timestamps_ok, @history_properties], [5, { public_name => 'pn1', supplier_name => 'supn1' }, { public_name => 'pn1', supplier_name => 'sup1' }, { public_name => 'pn1', supplier_name => 'sn1', accession => 'acc1' }, { public_name => 'public_s1' }, { public_name => 'public_sone' }], 'sample_property_history() gives us the complete history of properties over time';
+
+# test its ok to set null values
+$sample = $schema->add('Sample', { name => 's1', created_date => undef });
+is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'pn1', supplier_name => 'supn1' }], 'add() with null values for properties does not add those properties';
+$sample = $schema->add('Sample', { name => 's1', created_date => 12 });
+$sample = $schema->add('Sample', { name => 's1', created_date => undef });
+is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'pn1', supplier_name => 'supn1', created_date => 12 }], 'add() with null values for properties does not unset previously set properties';
 
 # test that we can get the latest data if another process updates a property
 is $lib1->tag, 'ATG', 'tag starts out as ATG';
