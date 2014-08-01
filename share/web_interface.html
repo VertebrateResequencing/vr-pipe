@@ -439,10 +439,18 @@
             
             var shorten_string = function(string) {
                 var shortened = string;
-                if (string.length > 32) {
+                if (string.length > 25) {
                     shortened = string.substring(0, 5) + '[...]' + string.slice(-15);
                 }
                 return shortened;
+            }
+            
+            var wbr = function(string) {
+                var wbrd = string;
+                if (string.length > 25) {
+                    wbrd = wbrd.replace(/(.{24})/g, "$1<wbr>");
+                }
+                return wbrd;
             }
             
             // viewmodel for status
@@ -879,10 +887,13 @@
                                         key = 'img';
                                     }
                                     else {
-                                        clickable = shorten_string(path);
+                                        clickable = wbr(path);
                                     }
                                     
                                     value = '<a href="/file' + path + '" target="_blank">' + clickable + '</a>';
+                                }
+                                else {
+                                    value = wbr(value);
                                 }
                                 nodeProperties = nodeProperties + '<tr><th>' + key + '</th><td>' + value + '</td></tr>';
                             });
