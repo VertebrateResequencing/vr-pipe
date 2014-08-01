@@ -206,7 +206,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             @queries = ($raw_query);
         }
         
-        my (%analysis_to_cols, %col_dates, %analysis_files);
+        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections);
         my $order = 1;
         foreach my $query (@queries) {
             my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
@@ -310,6 +310,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                     }
                                 }
                                 else {
+                                    my $vrtrack_analysis = $vrtrack->add('Analysis', { uuid => $uuid });
+                                    $analyses{$uuid} = $vrtrack_analysis;
                                     my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -C analysis_uuid = $uuid");
                                     
                                     my @these_cols;
@@ -330,6 +332,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                                 }
                                                 $date ||= '2013-01-01T12:00:00';
                                                 $col_dates{$this_col} = $date;
+                                                
+                                                my $vrtrack_col = $vrtrack->add('Collection', { path => $this_col, date => $vrtrack->date_to_epoch($date) }, incoming => { type => 'directory', node => $vrtrack_analysis });
+                                                $collections{$this_col} = $vrtrack_col;
                                             }
                                         }
                                     }
@@ -358,7 +363,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                             # start with special chars like ~$,
                                             # but it's too awkward to bother
                                             # supporting them - they are ignored!
-                                            push(@files, file($dir, $1)->stringify);
+                                            my $path = file($dir, $1)->stringify;
+                                            push(@files, $path);
+                                            
+                                            my $vrtrack_file = $vrtrack->add('File', { path => $path }, incoming => { type => 'contains', node => $collections{$analysis_collection} });
                                         }
                                     }
                                     
@@ -378,62 +386,106 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     
                     # represent lab tracking metadata in the graph database
                     if ($vrtrack) {
-                        # 'analysis_uuid'           => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
-                        # 'sample_created_date'     => '2013-05-10 06:45:32',
-                        # 'beadchip_section'        => 'E',
-                        # 'sample_consent'          => '1',
-                        # 'irods_path'              => '/archive/GAPI/exp/infinium/41/b6/f3/9252616016_E_Grn.idat',
-                        # 'sample_control'          => '1',
-                        # 'beadchip'                => '9252616016',
-                        # 'sample_id'               => '1625281',
-                        # 'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
-                        # 'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
-                        # 'irods_analysis_files'    => [qw(/archrofile.txt)],
-                        # 'irods_local_storage_dir' => $output_root
-                        
-                        # 'infinium_well'           => 'F01',
-                        # 'infinium_plate'          => 'WG0206884-DNA',
-                        # 'infinium_sample'         => '283163_F01_qc1hip5529688',
-                        # 'sample_accession_number' => 'SAMEA2398958',
-                        # 'beadchip_design'         => 'HumanCoreExome-12v1-0',
-                        # 'beadchip_section'        => 'R06C01',
-                        # 'sample_id'               => '1625188',
-                        
-                        # 'is_paired_read'          => '1',
-                        # 'library_id'              => '6784051',
-                        # 'ebi_sub_acc'             => 'ERA214806',
-                        # 'library'                 => 'MEK_res_1 6784051',
-                        # 'study_title'             => 'De novo and acquired resistance to MEK inhibitors ',
-                        # 'target'                  => '1',
-                        # 'reference'               => '/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa',
-                        # 'alignment'               => '1',
-                        # 'tag'                     => 'AACGTGAT',
-                        # 'lane'                    => '9417_4#1',
-                        # 'ebi_sub_md5'             => '675b0b2b2f5991aa5a4695bb1914c0c7',
-                        # 'ebi_run_acc'             => 'ERR274701',
-                        # 'ebi_sub_date'            => '2013-05-26',
-                        # 'total_reads'             => '70486376',
-                        # 'id_run'                  => '9417',
-                        # 'manual_qc'               => '1',
-                        
+                        # general
                         my $group = $vrtrack->add('Group', { name => $vrtrack_group });
                         my $study = $vrtrack->add('Study', { id => $meta->{study_id}, name => $meta->{study_title} || $meta->{study}, accession => $meta->{study_accession_number} }, incoming => { type => 'has', node => $group });
                         
-                        my $taxon;
-                        if (defined $meta->{taxon_id}) {
-                            $taxon = $vrtrack->add('Taxon', { id => $meta->{taxon_id}, name => $meta->{sample_common_name} });
-                        }
                         my $donor;
                         if (defined $meta->{sample_cohort}) {
-                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} }, incoming => { type => 'member', node => $study });
                         }
                         
                         my $sample_created_date;
                         if (defined $meta->{sample_created_date}) {
-                            $sample_created_date = # convert to epoch seconds
+                            # convert '2013-05-10 06:45:32' to epoch seconds
+                            $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
                         }
-                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name} });
-                        # indexed => [qw(id supplier_name accession created_date consent control)
+                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} }, incoming => { type => 'member', node => $study });
+                        
+                        if ($donor) {
+                            #*** we don't have a way of tracking changes to
+                            # relationships, so won't have a record if we swap
+                            # to a different donor here
+                            $donor->relate_to($sample, 'sample', selfish => 1);
+                        }
+                        
+                        if (defined $meta->{taxon_id}) {
+                            my $taxon = $vrtrack->add('Taxon', { id => $meta->{taxon_id}, common_name => $meta->{sample_common_name} });
+                            $taxon->relate_to($sample, 'member', selfish => 1);
+                        }
+                        
+                        my $file           = $vrtrack->add('File', { path => $path, manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
+                        my $file_connected = 0;
+                        my $unique         = file($path)->basename;
+                        $unique =~ s/\.gz$//;
+                        $unique =~ s/\.[^\.]+$//;
+                        
+                        if (defined $meta->{analysis_uuid}) {
+                            foreach my $uuid (ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid})) {
+                                $file->relate_to($analyses{$uuid}, 'analysed');
+                            }
+                        }
+                        
+                        # bams
+                        my $library;
+                        if (defined $meta->{library_id}) {
+                            $library = $vrtrack->add('Library', { id => $meta->{library_id}, name => $meta->{library}, tag => $meta->{tag} });
+                            $sample->relate_to($library, 'prepared', selfish => 1);
+                        }
+                        
+                        my $lane;
+                        if (defined $meta->{lane}) {
+                            $lane = $vrtrack->add('Lane', { unique => $unique, lane => $meta->{lane}, run => $meta->{id_run}, total_reads => $meta->{total_reads}, is_paired_read => $meta->{is_paired_read} });
+                            
+                            $lane->relate_to($file, 'aligned', selfish => 1);
+                            $file_connected = 1;
+                            
+                            if ($library) {
+                                $library->relate_to($lane, 'sequenced', selfish => 1);
+                            }
+                        }
+                        
+                        if ($meta->{alignment} && defined $meta->{reference}) {
+                            my $aln = $vrtrack->add('Alignment', { reference => $meta->{reference} });
+                            $aln->relate_to($file, 'reference', selfish => 1);
+                        }
+                        
+                        if (defined $meta->{ebi_sub_acc} && $meta->{ebi_run_acc}) {
+                            my $sub = $vrtrack->add('EBI_Submission', { acc => $meta->{ebi_sub_acc}, defined $meta->{ebi_sub_date} ? (sub_date => $vrtrack->date_to_epoch($meta->{ebi_sub_date})) : () });
+                            
+                            my $run = $vrtrack->add('EBI_Run', { acc => $meta->{ebi_run_acc}, md5 => $meta->{ebi_sub_md5} }, incoming => { type => 'submitted', node => $file }, outgoing => { type => 'submitted', node => $sub });
+                        }
+                        
+                        # infinium idats and gtc
+                        if (defined $meta->{beadchip}) {
+                            my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} }, incoming => { type => 'has', node => $study });
+                            
+                            if (defined $meta->{beadchip_section}) {
+                                my $section = $vrtrack->add('Section', { unique => $unique, section => $meta->{beadchip_section} }, incoming => { type => 'placed', node => $sample });
+                                $beadchip->relate_to($section, 'section', selfish => 1);
+                                $section->relate_to($file, 'processed', selfish => 1);
+                                $file_connected = 1;
+                            }
+                        }
+                        
+                        my $isample;
+                        if (defined $meta->{infinium_sample}) {
+                            $isample = $vrtrack->add('Infinium_Sample', { id => $meta->{infinium_sample} });
+                            $sample->relate_to($isample, 'infinium', selfish => 1);
+                        }
+                        
+                        if (defined $meta->{infinium_plate}) {
+                            my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} }, incoming => { type => 'has', node => $study });
+                            
+                            if (defined $meta->{infinium_well}) {
+                                my $well = $vrtrack->add('Well', { unique => $meta->{infinium_plate} . '.' . $meta->{infinium_well}, well => $meta->{infinium_well} }, incoming => { type => 'placed', node => $isample || $sample });
+                                $plate->relate_to($well, 'well', selfish => 1);
+                            }
+                        }
+                        
+                        unless ($file_connected) {
+                            $sample->relate_to($file, 'processed');
+                        }
                     }
                     
                     $files{$path} = $meta;
