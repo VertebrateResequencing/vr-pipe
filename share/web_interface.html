@@ -446,9 +446,12 @@
             }
             
             var wbr = function(string) {
-                var wbrd = string;
-                if (string.length > 25) {
-                    wbrd = wbrd.replace(/(.{24})/g, "$1<wbr>");
+                var wbrd = '' + string;
+                if (string.length > 21) {
+                    wbrd = wbrd.replace(/(.{21})/g, "$1<wbr>");
+                }
+                else {
+                    wbrd = wbrd.replace(/([_\-,\.\(\)])/g, "$1<wbr>");
                 }
                 return wbrd;
             }
@@ -895,7 +898,7 @@
                                 else {
                                     value = wbr(value);
                                 }
-                                nodeProperties = nodeProperties + '<tr><th>' + key + '</th><td>' + value + '</td></tr>';
+                                nodeProperties = nodeProperties + '<tr><th>' + wbr(key) + '</th><td>' + value + '</td></tr>';
                             });
                             nodeProperties = nodeProperties + '</tbody></table>';
                             $('#nodeinfo').data('bs.popover').options.content = nodeProperties;
