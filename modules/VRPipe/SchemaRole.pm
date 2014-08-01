@@ -205,7 +205,7 @@ role VRPipe::SchemaRole {
             }
         }
         
-        my @nodes = $graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), %{ $extra_graph_args || {} });
+        my @nodes = $graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), $namespace eq 'PropertiesWithHistory' ? (return_history_nodes => 1) : (), %{ $extra_graph_args || {} });
         
         # bless the nodes into the appropriate class
         foreach my $node (@nodes) {
@@ -256,7 +256,7 @@ role VRPipe::SchemaRole {
             my $group_label    = $graph->_labels('PropertiesWithHistory', 'PropertyGroup');
             my $property_label = $graph->_labels('PropertiesWithHistory', 'Property');
             # (I can't figure out how to do this in a single cypher query)
-            $history_data = $graph->_run_cypher([["MATCH (n)-[*1..500]->(g:$group_label) where id(n) = $node_id RETURN g"], ["MATCH (n)-[*1..500]->(g:$group_label)-->(p:$property_label) where id(n) = $node_id MATCH (p)<-[r]-() with p,count(r) as rs where rs = 1 RETURN p"]]);
+            $history_data = $graph->_run_cypher([["MATCH (n)-[*1..500]->(g:$group_label) where id(n) = $node_id RETURN g"], ["MATCH (n)-[*1..500]->(g:$group_label)-->(p:$property_label) where id(n) = $node_id MATCH (p)<-[r]-() with p,count(r) as rs where rs = 1 RETURN p"]], { return_history_nodes => 1 });
         }
         
         $graph->delete_node($node);

@@ -12,10 +12,6 @@ VRPipe::Schema::PropertiesWithHistory - schemas for storing node properties
 This simple Schema lets VRPipe store node properties while keeping their
 history. Internal-use only by VRPipe::SchemaRole.
 
-
-
-
-
 =head1 AUTHOR
 
 Sendu Bala <sb10@sanger.ac.uk>.
@@ -101,7 +97,7 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         
         # get the current property group and nodes (if any)
         my $node_id = $node->node_id();
-        my $data    = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[:property*1]->(p) WHERE id(n) = $node_id RETURN c,p"]]);
+        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[:property*1]->(p) WHERE id(n) = $node_id RETURN c,p"]], { return_history_nodes => 1 });
         my ($current_property_group, $current_property_node_details, $current_props) = $self->_nodes_to_properties($data->{nodes});
         
         # calculate the property node details we'll need for the new properties
@@ -174,7 +170,7 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         #*** arbitrarily limited depth of history to 500; we should do paging or
         #    make it an option or something
         my $property_where = $property ? " AND p.key = '$property'" : '';
-        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[r:property*1]->(p) WHERE id(n) = $node_id$property_where OPTIONAL MATCH (c)-[:previous_properties*1..500]->()-[s:property*1]->(q) RETURN c,r,p,s,q"]]);
+        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[r:property*1]->(p) WHERE id(n) = $node_id$property_where OPTIONAL MATCH (c)-[:previous_properties*1..500]->()-[s:property*1]->(q) RETURN c,r,p,s,q"]], { return_history_nodes => 1 });
         
         # based on the relationships we can group the properties with their
         # propertygroup (properties may belong to more than 1 group)

@@ -182,16 +182,12 @@ role VRPipe::SchemaLabelRole {
     method related (HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         my @nodes = $graph->related_nodes($self, $outgoing ? (outgoing => $outgoing) : (), $incoming ? (incoming => $incoming) : (), $undirected ? (undirected => $undirected) : ());
         
-        # bless them into the correct classes and skip history nodes
-        my @blessed;
+        # bless them into the correct classes
         foreach my $node (@nodes) {
-            my $namespace = $node->{namespace};
-            next if $namespace eq 'PropertiesWithHistory';
-            bless $node, 'VRPipe::Schema::' . $namespace . '::' . $node->{label};
-            push(@blessed, $node);
+            bless $node, 'VRPipe::Schema::' . $node->{namespace} . '::' . $node->{label};
         }
         
-        return @blessed;
+        return @nodes;
     }
     
     method relate_to (HashRef|Object $node!, $type!, Bool :$selfish = 0, Bool :$replace = 0) {

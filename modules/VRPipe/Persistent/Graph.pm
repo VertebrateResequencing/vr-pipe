@@ -153,7 +153,8 @@ class VRPipe::Persistent::Graph {
     
     sub _run_cypher {
         my ($self, $array, $args) = @_;
-        my $return_schema_nodes = $args->{return_schema_nodes};
+        my $return_schema_nodes  = $args->{return_schema_nodes};
+        my $return_history_nodes = $args->{return_history_nodes};
         
         my $post_content = { statements => [] };
         foreach (@$array) {
@@ -203,8 +204,15 @@ class VRPipe::Persistent::Graph {
                     foreach my $this_label (@{ $node_details->{labels} }) {
                         if ($this_label =~ /$label_regex/) {
                             $namespace = $1;
-                            $label     = $2;
-                            $ok        = 1;
+                            
+                            unless ($return_history_nodes) {
+                                if ($namespace eq 'PropertiesWithHistory') {
+                                    last;
+                                }
+                            }
+                            
+                            $label = $2;
+                            $ok    = 1;
                             last;
                         }
                         elsif ($return_schema_nodes && $this_label eq $global_label) {
@@ -423,7 +431,7 @@ class VRPipe::Persistent::Graph {
     }
     
     # in/outgoing HashRef is { type => 'type', node => $node }
-    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, HashRef :$incoming?, HashRef :$outgoing?) {
+    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, Bool :$return_history_nodes = 0, HashRef :$incoming?, HashRef :$outgoing?) {
         my ($labels, $param_map);
         my $set = '';
         if ($update) {
@@ -481,7 +489,7 @@ class VRPipe::Persistent::Graph {
         }
         
         if (defined wantarray()) {
-            return @{ $self->_run_cypher(\@to_run)->{nodes} };
+            return @{ $self->_run_cypher(\@to_run, { return_history_nodes => $return_history_nodes })->{nodes} };
         }
         else {
             $self->_run_cypher(\@to_run);
@@ -502,13 +510,13 @@ class VRPipe::Persistent::Graph {
         return $data_uuid->create_str();
     }
     
-    method get_nodes (Str :$namespace!, Str :$label!, HashRef :$properties?) {
+    method get_nodes (Str :$namespace!, Str :$label!, Bool :$return_history_nodes = 0, HashRef :$properties?) {
         my ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties, 'param');
-        return @{ $self->_run_cypher([["MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties }]])->{nodes} };
+        return @{ $self->_run_cypher([["MATCH (n:$labels$param_map) RETURN n", { 'param' => $properties }]], { return_history_nodes => $return_history_nodes })->{nodes} };
     }
     
     method get_node_by_id (Int $id) {
-        my @nodes = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id RETURN n"]])->{nodes} };
+        my @nodes = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id RETURN n"]], { return_history_nodes => 1 })->{nodes} };
         return $nodes[0];
     }
     
@@ -603,7 +611,7 @@ class VRPipe::Persistent::Graph {
     # This returns hash of nodes and relationships for use by frontends;
     # related_nodes() calls this and returns just a list of nodes
     sub related {
-        my ($self, $start_node, $undirected, $incoming, $outgoing, $result_nodes_only) = @_;
+        my ($self, $start_node, $undirected, $incoming, $outgoing, $result_nodes_only, $return_history_nodes) = @_;
         $self->throw("undirected is mutually exclusive of in/outgoing") if $undirected && ($outgoing || $incoming);
         if (!$outgoing && !$incoming && !$undirected) {
             $undirected = { min_depth => 1, max_depth => 1 };
@@ -639,7 +647,7 @@ class VRPipe::Persistent::Graph {
             else {
                 $return = 'p';
             }
-            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]]);
+            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
         }
     }
     
@@ -656,9 +664,9 @@ class VRPipe::Persistent::Graph {
         return ($result_node_spec, $hashref->{properties}, $type, $min_depth, $max_depth);
     }
     
-    method related_nodes (HashRef|Object $start_node!, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
+    method related_nodes (HashRef|Object $start_node!, Bool :$return_history_nodes = 0, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         my $start_id = $start_node->{id};
-        return grep { $_->{id} != $start_id } @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1)->{nodes} };
+        return grep { $_->{id} != $start_id } @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1, $return_history_nodes)->{nodes} };
     }
     
     method root_nodes {

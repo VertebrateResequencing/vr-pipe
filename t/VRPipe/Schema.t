@@ -124,7 +124,7 @@ is_deeply [sort map { $_->node_id } @related], [$lib1->node_id], 'relate_to(self
 # make sure we delete history nodes when we delete a schema node
 $lib3->tag('A');
 $lib3->tag('ATGC');
-@related = $graph->related_nodes($lib3, outgoing => { max_depth => 500 });
+@related = $graph->related_nodes($lib3, outgoing => { max_depth => 500 }, return_history_nodes => 1);
 is scalar(@related), 4, 'lib3 has 4 history nodes';
 $schema->delete($lib3);
 my $still_exist = 0;
