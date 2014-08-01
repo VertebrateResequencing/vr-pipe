@@ -76,8 +76,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             },
             {
                 label        => 'Lane',
-                unique       => [qw(name)],
-                indexed      => [qw(run rotal_reads)],
+                unique       => [qw(unique)],                             # to be unique but still have correct relationships, this will need to be based on file basename
+                required     => [qw(lane)],
+                indexed      => [qw(lane run total_reads is_paired_read)],
                 keep_history => 1
             },
             {
@@ -91,9 +92,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 keep_history => 1
             },
             {
+                label   => 'EBI_Run',
+                unique  => [qw(acc)],
+                indexed => [qw(md5)]
+            },
+            {
                 label   => 'EBI_Submission',
                 unique  => [qw(acc)],
-                indexed => [qw(md5 run_acc sub_date)]
+                indexed => [qw(sub_date)]
             },
             
             # infinium idats
@@ -103,12 +109,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed => [qw(design)]
             },
             {
-                label  => 'Section',
-                unique => [qw(id)]  # to be unique but still have correct relationships, this will need to be prefixed with beadchip id
-            },
-            {
-                label  => 'Analysis',
-                unique => [qw(uuid)]
+                label    => 'Section',
+                unique   => [qw(unique)], # as per Lane
+                required => [qw(section)]
             },
             
             # infinium gtc
@@ -121,8 +124,20 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique => [qw(id)]
             },
             {
-                label  => 'Well',
-                unique => [qw(id)] # as per Section, prefix with plate id
+                label    => 'Well',
+                unique   => [qw(unique)], # as per Lane, but prefix with plate id
+                required => [qw(well)]
+            },
+            
+            # analysis files
+            {
+                label  => 'Analysis',
+                unique => [qw(uuid)]
+            },
+            {
+                label    => 'Collection',
+                unique   => [qw(path)],
+                required => [qw(date)]
             },
         ];
     }

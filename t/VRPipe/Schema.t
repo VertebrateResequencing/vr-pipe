@@ -21,10 +21,10 @@ is_deeply [$sample->{id}, $sample->{properties}, $sample->changed()], [$orig_sam
 
 # Sample is marked to store history but EBI_Submission is not, so repeat some of
 # the above tests to cover both code paths
-my $ebisub = $schema->add('EBI_Submission', { acc => 'ebi1', md5 => 'xyz' });
+my $ebisub = $schema->add('EBI_Submission', { acc => 'ebi1', sub_date => 12345 });
 my $orig_ebi_id = $ebisub->node_id();
-$ebisub = $schema->add('EBI_Submission', { acc => 'ebi1', md5 => 'zyx', run_acc => 'ebione' });
-is_deeply [$ebisub->{id}, $ebisub->{properties}, $ebisub->changed()], [$orig_ebi_id, { acc => 'ebi1', md5 => 'zyx', run_acc => 'ebione' }], 'add() twice on the same unique property with different other properties does an update on a history-less label';
+$ebisub = $schema->add('EBI_Submission', { acc => 'ebi1', sub_date => 67890 });
+is_deeply [$ebisub->{id}, $ebisub->{properties}, $ebisub->changed()], [$orig_ebi_id, { acc => 'ebi1', sub_date => 67890 }], 'add() twice on the same unique property with different other properties does an update on a history-less label';
 
 ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming => { type => 'prepared', node => $sample }), 'add() worked with incoming option, and for adding more than 1 at a time';
 
@@ -113,7 +113,7 @@ $sample->relate_to($lib3, 'prepared');
 @related = $lib3->related();
 is_deeply [sort map { $_->node_id } @related], [$sample->node_id], 'relate_to() worked';
 is $related[0]->name, 's1', 'related() returns working objects';
-my $lane1 = $schema->add('Lane', { name => 'lane1' });
+my $lane1 = $schema->add('Lane', { unique => 'lane1', lane => 1 });
 $lib3->relate_to($lane1, 'sequenced');
 @related = $lane1->related(incoming => {});
 is_deeply [sort map { $_->node_id } @related], [$lib3->node_id], 'related() worked with incoming specified';
@@ -134,7 +134,7 @@ foreach my $node (@related) {
 is $still_exist, 1, 'after deleting lib3, all the history nodes were also deleted, except for one used by another node';
 
 # test Graph pass-through methods create_uuid() and date_to_epoch()
-my $uuid = $graph->create_uuid();
+my $uuid = $schema->create_uuid();
 like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
 is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
