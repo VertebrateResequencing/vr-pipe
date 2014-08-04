@@ -456,6 +456,10 @@
                 return wbrd;
             }
             
+            var zeropad = function(num) {
+                return (num < 10) ? ("0" + num) : num;
+            }
+            
             // viewmodel for status
             function StatusViewModel() {
                 var self = this;
@@ -894,6 +898,11 @@
                                     }
                                     
                                     value = '<a href="/file' + path + '" target="_blank">' + clickable + '</a>';
+                                }
+                                else if (key.indexOf("date") > -1 && !isNaN(parseFloat(value)) && isFinite(value)) {
+                                    // convert epoch seconds to friendly date
+                                    var date = new Date(value * 1000);
+                                    value = date.getFullYear() + "/" + zeropad(date.getMonth() + 1) + "/" + zeropad(date.getDate()) + " " + zeropad(date.getHours()) + ":" + zeropad(date.getMinutes()) + ":" + zeropad(date.getSeconds());
                                 }
                                 else {
                                     value = wbr(value);
