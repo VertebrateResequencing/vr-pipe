@@ -116,6 +116,17 @@ role VRPipe::SchemaRole {
         },
     );
     
+    has '_labels_with_autofill_uuids' => (
+        traits  => ['Hash'],
+        is      => 'ro',
+        isa     => 'HashRef[Bool]',
+        default => sub { {} },
+        handles => {
+            _set_autofill_uuid => 'set',
+            _autofill_uuid     => 'exists'
+        },
+    );
+    
     method _build_namespace {
         my ($namespace) = ref($self) =~ /::([^:]+)$/;
         return $namespace;
@@ -138,6 +149,8 @@ role VRPipe::SchemaRole {
             $self->_add_label($label => \@label_properties);
             $self->_set_historical($label => 1) if $historical;
             $self->_set_anything_allowed($label => 1) if $allow_anything;
+            my %uniques = map { $_ => 1 } @{ $def->{unique} || [] };
+            $self->_set_autofill_uuid($label => 1) if exists $uniques{uuid};
             
             # create a class for this label
             my $methods = {};
@@ -222,6 +235,12 @@ role VRPipe::SchemaRole {
             
             if ($graph_method eq 'get_nodes') {
                 $props = $properties;
+            }
+            elsif ($self->_autofill_uuid($label)) {
+                foreach my $prop_hash (@$props) {
+                    next if defined $prop_hash->{uuid};
+                    $prop_hash->{uuid} = $self->create_uuid();
+                }
             }
         }
         

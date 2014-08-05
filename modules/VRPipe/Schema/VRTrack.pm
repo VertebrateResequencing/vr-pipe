@@ -140,6 +140,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique   => [qw(path)],
                 required => [qw(date)]
             },
+            
+            # QC bam stats
+            {
+                label    => 'Bam_Stats',
+                unique   => [qw(uuid)],
+                required => [qw(reads bases)],
+                optional => [qw(mean_coverage)]
+            },
         ];
     }
 }

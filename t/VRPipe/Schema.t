@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 50;
+    use Test::Most tests => 52;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -140,5 +140,9 @@ is $still_exist, 1, 'after deleting lib3, all the history nodes were also delete
 my $uuid = $schema->create_uuid();
 like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
 is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
+
+# unique uuid properties auto-fill if not supplied
+ok my $bam_stats = $schema->add('Bam_Stats', { reads => 1, bases => 75 }), 'could add a new node without supplying its unique value when the unique is a uuid';
+like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
 
 exit;
