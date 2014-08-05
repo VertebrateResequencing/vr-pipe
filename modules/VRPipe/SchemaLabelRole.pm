@@ -111,11 +111,12 @@ role VRPipe::SchemaLabelRole {
     }
     
     method add_properties (HashRef $properties!, Bool :$replace = 0) {
-        my $valid_props = $self->valid_properties();
-        my %uniques     = map { $_ => 1 } $self->unique_properties();
-        my $class       = $self->class();
+        my $allows_anything = $self->allows_anything();
+        my $valid_props     = $self->valid_properties();
+        my %uniques         = map { $_ => 1 } $self->unique_properties();
+        my $class           = $self->class();
         foreach my $prop (keys %$properties) {
-            unless (exists $valid_props->{$prop}) {
+            unless ($allows_anything || exists $valid_props->{$prop}) {
                 $self->throw("Property '$prop' supplied, but that isn't defined in the schema for $class");
             }
             if (exists $uniques{$prop}) {

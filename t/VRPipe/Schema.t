@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 47;
+    use Test::Most tests => 50;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -31,6 +31,9 @@ ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming
 throws_ok { $schema->add('Foo', { foo => 'bar' }) } qr/'Foo' isn't a valid label for schema VRTrack/, 'add() throws when given an invalid label';
 throws_ok { $schema->add('Sample', { id => '1' }) } qr/Parameter 'name' must be supplied/, 'add() throws when not given a required parameter';
 throws_ok { $schema->add('Sample', { name => 's2', foo => 'bar' }) } qr/Property 'foo' supplied, but that isn't defined in the schema for VRTrack::Sample/, 'add() throws when given an invalid parameter';
+ok my $file = $schema->add('File', { path => '/path', foo => 'bar' }), 'arbitrary parameters can be supplied to a label defined with allow_anything => 1';
+ok $file->add_properties({ cat => 'banana' }), 'add_properties() also worked with an arbitrary parameter';
+is_deeply $file->{properties}, { path => '/path', foo => 'bar', cat => 'banana' }, 'We really do store whatever on a allow_anything label';
 
 ok my $lib1 = $schema->get('Library', { id => 'l1' }), 'get() method worked';
 ok @libs = $schema->get('Library'), 'get() method worked with no properties arg';

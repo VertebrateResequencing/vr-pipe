@@ -105,6 +105,17 @@ role VRPipe::SchemaRole {
         },
     );
     
+    has '_labels_that_allow_anything' => (
+        traits  => ['Hash'],
+        is      => 'ro',
+        isa     => 'HashRef[Bool]',
+        default => sub { {} },
+        handles => {
+            _set_anything_allowed => 'set',
+            _allows_anything      => 'exists'
+        },
+    );
+    
     method _build_namespace {
         my ($namespace) = ref($self) =~ /::([^:]+)$/;
         return $namespace;
@@ -116,15 +127,17 @@ role VRPipe::SchemaRole {
         
         foreach my $def (@{ $self->schemas }) {
             # create constraints and indexes in the database
-            my $optional   = delete $def->{optional};
-            my $historical = delete $def->{keep_history};
+            my $optional       = delete $def->{optional};
+            my $historical     = delete $def->{keep_history};
+            my $allow_anything = delete $def->{allow_anything};
             $graph->add_schema(%$def, namespace => $namespace);
             
             # store on ourselves what's valid according to this definition
             my $label = $def->{label};
             my @label_properties = (@{ $def->{unique} || [] }, @{ $def->{indexed} || [] }, @{ $def->{required} || [] }, @{ $optional || [] });
             $self->_add_label($label => \@label_properties);
-            $self->_set_historical($label => 1);
+            $self->_set_historical($label => 1) if $historical;
+            $self->_set_anything_allowed($label => 1) if $allow_anything;
             
             # create a class for this label
             my $methods = {};
@@ -149,6 +162,10 @@ role VRPipe::SchemaRole {
             
             $methods->{_keep_history} = sub {
                 return $historical;
+            };
+            
+            $methods->{allows_anything} = sub {
+                return $allow_anything;
             };
             
             $methods->{namespace} = sub {
@@ -183,19 +200,22 @@ role VRPipe::SchemaRole {
         
         my $props;
         if ($properties) {
-            # check the supplied properties are allowed ($graph checks that required
-            # ones are supplied)
-            my %valid_props = map { $_ => 1 } @{ $self->label_properties($label) };
             $props = ref($properties) eq 'HASH' ? [$properties] : $properties;
-            foreach my $prop_hash (@$props) {
-                foreach my $prop (keys %$prop_hash) {
-                    unless (defined $prop_hash->{$prop}) {
-                        delete $prop_hash->{$prop};
-                        next;
-                    }
-                    
-                    unless (exists $valid_props{$prop}) {
-                        $self->throw("Property '$prop' supplied, but that isn't defined in the schema for ${namespace}::$label");
+            
+            unless ($self->_allows_anything($label)) {
+                # check the supplied properties are allowed ($graph checks that required
+                # ones are supplied)
+                my %valid_props = map { $_ => 1 } @{ $self->label_properties($label) };
+                foreach my $prop_hash (@$props) {
+                    foreach my $prop (keys %$prop_hash) {
+                        unless (defined $prop_hash->{$prop}) {
+                            delete $prop_hash->{$prop};
+                            next;
+                        }
+                        
+                        unless (exists $valid_props{$prop}) {
+                            $self->throw("Property '$prop' supplied, but that isn't defined in the schema for ${namespace}::$label");
+                        }
                     }
                 }
             }

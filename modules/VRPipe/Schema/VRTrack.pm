@@ -41,7 +41,9 @@ use VRPipe::Base;
 
 class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     method schema_definitions {
-        return [{
+        return [
+            # general
+            {
                 label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analysis the same way
                 unique => [qw(name)]
             },
@@ -66,6 +68,13 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed      => [qw(id public_name supplier_name accession created_date consent control)],
                 keep_history => 1
             },
+            {
+                label          => 'File',
+                unique         => [qw(path)],
+                indexed        => [qw(type manual_qc target md5)],
+                keep_history   => 1,
+                allow_anything => 1
+            },
             
             # bams
             {
@@ -86,12 +95,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique => [qw(reference)]
             },
             {
-                label        => 'File',
-                unique       => [qw(path)],
-                indexed      => [qw(type manual_qc target md5)],
-                keep_history => 1
-            },
-            {
                 label   => 'EBI_Run',
                 unique  => [qw(acc)],
                 indexed => [qw(md5)]
@@ -102,7 +105,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed => [qw(sub_date)]
             },
             
-            # infinium idats
+            # infinium
             {
                 label   => 'Beadchip',
                 unique  => [qw(id)],
@@ -113,8 +116,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique   => [qw(unique)], # as per Lane
                 required => [qw(section)]
             },
-            
-            # infinium gtc
             {
                 label  => 'Infinium_Sample',
                 unique => [qw(id)]
