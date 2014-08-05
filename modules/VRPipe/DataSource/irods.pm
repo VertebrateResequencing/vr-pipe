@@ -563,7 +563,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             
             # if there was no metadata this will add metadata to the file.
             $vrfile->add_metadata($new_metadata, replace_data => 0);
-            $vrfile->add_metadata({ irods_path => $path });
+            $vrfile->add_metadata({ irods_path => $path, defined $new_metadata->{md5} ? (expected_md5 => $new_metadata->{md5}) : () });
             
             my $result_hash = { paths => [$file_abs_path], irods_path => $path };
             if ($changed) {
