@@ -145,10 +145,89 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label    => 'Bam_Stats',
                 unique   => [qw(uuid)],
-                required => [qw(reads bases)],
-                optional => [qw(mean_coverage)]
+                required => [qw(mode options reads filtered_reads reads_mapped bases bases_mapped bases_mapped_c bases_trimmed reads_paired paired error_rate forward_reads reverse_reads avg_read_length mean_insert_size sd_insert_size)],
+                optional => [qw(rmdup_reads rmdup_reads_mapped rmdup_bases rmdup_bases_mapped mean_coverage bases_of_1X_coverage bases_of_2X_coverage bases_of_5X_coverage bases_of_10X_coverage bases_of_20X_coverage bases_of_50X_coverage bases_of_100X_coverage)]
             },
         ];
+    }
+    
+    # without enforce => 1, if the hierarchy already exists but is different,
+    # no changes are made to the database and only nodes up to the difference
+    # are returned
+    method ensure_sequencing_hierarchy (Str :$lane!, Str :$library!, Str :$sample!, Bool :$enforce = 0, Str :$study?, Str :$taxon?, Str :$group?) {
+        # get and only then try adding Lane, because we don't want to override
+        # an existing lane property
+        my $vrlane = $self->get('Lane', { unique => $lane });
+        $vrlane ||= $self->add('Lane', { unique => $lane, lane => $lane });
+        my %return = (lane => $vrlane);
+        
+        my ($vrlib) = $vrlane->related(incoming => { namespace => 'VRTrack', label => 'Library' });
+        if ($vrlib) {
+            if ($vrlib->id ne $library) {
+                if ($enforce) {
+                    $vrlib = $self->add('Library', { id => $library });
+                    $vrlib->relate_to($vrlane, 'sequenced', selfish => 1);
+                }
+                else {
+                    return \%return;
+                }
+            }
+        }
+        else {
+            $vrlib = $self->add('Library', { id => $library }, outgoing => { type => 'sequenced', node => $vrlane });
+        }
+        $return{library} = $vrlib;
+        
+        my ($vrsam) = $vrlib->related(incoming => { namespace => 'VRTrack', label => 'Sample' });
+        if ($vrsam) {
+            if ($vrsam->name ne $sample) {
+                if ($enforce) {
+                    $vrsam = $self->add('Sample', { name => $sample });
+                    $vrsam->relate_to($vrlib, 'prepared', selfish => 1);
+                }
+                else {
+                    return \%return;
+                }
+            }
+        }
+        else {
+            $vrsam = $self->add('Sample', { name => $sample }, outgoing => { type => 'prepared', node => $vrlib });
+        }
+        $return{sample} = $vrsam;
+        
+        # because a sample can be associated with more than 1 study, and study
+        # is optional, we just set it if provided and don't return existing
+        # studies otherwise
+        if ($study) {
+            $return{study} = $self->add('Study', { id => $study }, outgoing => { type => 'member', node => $vrsam });
+            
+            # and since a study can be in more than 1 group, we ignore group
+            # if they didn't supply the study to attach it to
+            if ($group) {
+                $return{group} = $self->add('Group', { name => $group }, outgoing => { type => 'has', node => $return{study} });
+            }
+        }
+        
+        if ($taxon) {
+            my ($vrtax) = $vrsam->related(incoming => { namespace => 'VRTrack', label => 'Taxon' });
+            if ($vrtax) {
+                if ($vrtax->id ne $taxon) {
+                    if ($enforce) {
+                        $vrtax = $self->add('Taxon', { id => $taxon });
+                        $vrtax->relate_to($vrsam, 'member', selfish => 1);
+                    }
+                    else {
+                        return \%return;
+                    }
+                }
+            }
+            else {
+                $vrtax = $self->add('Taxon', { id => $taxon }, outgoing => { type => 'member', node => $vrsam });
+            }
+            $return{taxon} = $vrtax;
+        }
+        
+        return \%return;
     }
 }
 

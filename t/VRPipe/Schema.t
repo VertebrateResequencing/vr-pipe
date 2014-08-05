@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 BEGIN {
-    use Test::Most tests => 52;
+    use Test::Most tests => 58;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -142,7 +142,25 @@ like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
 is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
 # unique uuid properties auto-fill if not supplied
-ok my $bam_stats = $schema->add('Bam_Stats', { reads => 1, bases => 75 }), 'could add a new node without supplying its unique value when the unique is a uuid';
+ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', reads => 1, filtered_reads => 1, reads_mapped => 1, bases => 1, bases_mapped => 1, bases_mapped_c => 1, bases_trimmed => 1, reads_paired => 1, paired => 1, error_rate => 1, forward_reads => 1, reverse_reads => 1, avg_read_length => 1, mean_insert_size => 1, sd_insert_size => 1 }), 'could add a new node without supplying its unique value when the unique is a uuid';
 like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
+
+# test the VRTrack-specific ensure_sequencing_hierarchy method
+ok my $hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample1', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1'), 'ensure_sequencing_hierarchy() worked';
+ok my $eshlane = $schema->get('Lane', { unique => 'esh_lane1' }), 'ensure_sequencing_hierarchy() created a Lane';
+my $eshlib = $schema->get('Library', { id   => 'esh_library1' });
+my $eshsam = $schema->get('Sample',  { name => 'esh_sample1' });
+my $eshstu = $schema->get('Study',   { id   => 'esh_study1' });
+my $eshgro = $schema->get('Group',   { name => 'esh_group1' });
+my $eshtax = $schema->get('Taxon',   { id   => 'esh_taxon1' });
+my %hierarchy_props = map { $_ => $hierarchy->{$_}->properties } keys %{$hierarchy};
+is_deeply [\%hierarchy_props, [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => { max_depth => 10 })]], [{ lane => { unique => 'esh_lane1', lane => 'esh_lane1' }, library => { id => 'esh_library1' }, sample => { name => 'esh_sample1' }, study => { id => 'esh_study1' }, group => { name => 'esh_group1' }, taxon => { id => 'esh_taxon1' } }, [$eshlib->node_id, $eshsam->node_id, $eshstu->node_id, $eshgro->node_id, $eshtax->node_id]], 'ensure_sequencing_hierarchy() created the whole hierarchy correctly with expected properties';
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample2', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1');
+is_deeply [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => { max_depth => 10 })], [$eshlib->node_id, $eshsam->node_id, $eshstu->node_id, $eshgro->node_id, $eshtax->node_id], 'ensure_sequencing_hierarchy() did not change anything when a different sample was supplied';
+my $eshsam2 = $schema->get('Sample', { name => 'esh_sample2' });
+is $eshsam2, undef, 'and the new sample was not created';
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample2', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1', enforce => 1);
+$eshsam2 = $schema->get('Sample', { name => 'esh_sample2' });
+is_deeply [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => { max_depth => 10 })], [$eshlib->node_id, $eshstu->node_id, $eshgro->node_id, $eshtax->node_id, $eshsam2->node_id], 'ensure_sequencing_hierarchy(enforce => 1) DID change the hierarchy when a different sample was supplied';
 
 exit;
