@@ -80,7 +80,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Library',
                 unique       => [qw(id)],
-                indexed      => [qw(name tag)],
+                indexed      => [qw(name tag platform center_name)],
                 keep_history => 1
             },
             {
