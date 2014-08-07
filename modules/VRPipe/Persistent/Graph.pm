@@ -184,7 +184,7 @@ class VRPipe::Persistent::Graph {
             #*** should auto-retry when the code matches TransientError
         }
         
-        my (%nodes, %relationships);
+        my (%nodes, $node_order, %relationships);
         my $label_regex = qr/^$global_label\|([^\|]+)\|(.+)/;
         foreach my $result (@{ $decode->{results} }) {
             my $data = $result->{data} || next;
@@ -223,7 +223,7 @@ class VRPipe::Persistent::Graph {
                     $ok || next; # only return nodes created by us
                     
                     my $node = { id => $node_id, properties => $node_details->{properties}, namespace => $namespace, label => $label };
-                    $nodes{$node_id} = $node;
+                    $nodes{$node_id} = [++$node_order, $node];
                 }
                 
                 foreach my $rel_details (@{ $graph->{relationships} || [] }) {
@@ -242,7 +242,7 @@ class VRPipe::Persistent::Graph {
         }
         
         if (defined wantarray()) {
-            return { nodes => [values %nodes], relationships => [values %relationships] };
+            return { nodes => [map { $_->[1] } sort { $a->[0] <=> $b->[0] } values %nodes], relationships => [values %relationships] };
         }
         return;
     }
