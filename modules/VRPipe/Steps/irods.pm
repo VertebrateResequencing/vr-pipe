@@ -34,6 +34,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::irods with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     has 'irods_exes' => (
         is      => 'ro',
         isa     => 'HashRef',
@@ -41,8 +43,25 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         builder => '_build_irods_exes'
     );
     
+    has 'vrtrack' => (
+        is      => 'ro',
+        isa     => 'Object|Undef',
+        lazy    => 1,
+        builder => '_build_vrtrack'
+    );
+    
     method _build_irods_exes {
         return {};
+    }
+    
+    method _build_vrtrack {
+        my $vrtrack;
+        eval {
+            #*** currently optional, in future we'd just set this is a class
+            # variable
+            $vrtrack = VRPipe::Schema->create('VRTrack');
+        };
+        return $vrtrack;
     }
     
     method handle_exes (HashRef $options) {
@@ -169,9 +188,22 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
         }
         
+        my $meta;
         if ($add_metadata) {
-            my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
             $dest_file->add_metadata($meta, replace_data => 1);
+        }
+        
+        # try and make a file in the graph database that is associated with
+        # it's source file stored under the vrtrack schema
+        #*** it sucks that we have something vrtrack-specific in here; is there
+        #    a better way?
+        my $vrtrack = $self->vrtrack;
+        if ($vrtrack) {
+            my $vrsource = $vrtrack->get('File', { path => $source });
+            if ($vrsource) {
+                my $vrdest = $vrtrack->add('File', { path => $dest_file->path->stringify, %{ $meta || {} } }, incoming => { type => 'imported', node => $vrsource });
+            }
         }
     }
     
