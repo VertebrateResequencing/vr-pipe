@@ -420,6 +420,12 @@ class VRPipe::Job extends VRPipe::Persistent {
                 open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
                 
                 chdir($dir);
+                
+                # step code needs to be able to find out what stepstate the
+                # code is being run for, without altering the cmd line - we set
+                # it as an env var
+                $ENV{VRPIPE_STEPSTATE} = $ss->id() if $ss;
+                
                 # exec is supposed to get our $cmd to run whilst keeping the
                 # same $cmd_pid, but on some systems like Ubuntu the sh (dash)
                 # is a bit sucky: http://www.perlmonks.org/?node_id=785284 We
