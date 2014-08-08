@@ -66,6 +66,8 @@ use VRPipe::Base;
 role VRPipe::SchemaRole {
     use VRPipe::Persistent::InMemory;
     use VRPipe::Persistent::Graph;
+    use Digest::MD5 qw(md5_hex);
+    
     my $graph = VRPipe::Persistent::Graph->new();
     
     has 'schemas' => (
@@ -311,6 +313,10 @@ role VRPipe::SchemaRole {
     
     method create_uuid {
         return $graph->create_uuid();
+    }
+    
+    method md5sum (Str $str) {
+        return md5_hex($str);
     }
     
     method date_to_epoch (Str $date) {
