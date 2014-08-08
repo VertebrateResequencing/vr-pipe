@@ -1,9 +1,10 @@
 #!/usr/bin/env perl
 use strict;
 use warnings;
+use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 58;
+    use Test::Most tests => 65;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -162,5 +163,35 @@ is $eshsam2, undef, 'and the new sample was not created';
 $schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample2', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1', enforce => 1);
 $eshsam2 = $schema->get('Sample', { name => 'esh_sample2' });
 is_deeply [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => { max_depth => 10 })], [$eshlib->node_id, $eshstu->node_id, $eshgro->node_id, $eshtax->node_id, $eshsam2->node_id], 'ensure_sequencing_hierarchy(enforce => 1) DID change the hierarchy when a different sample was supplied';
+
+# test some VRPipe-specific things
+my $vrpipe = VRPipe::Schema->create('VRPipe');
+my @paths  = ('/foo/a/cat.txt', '/foo/b/cat.txt', '/foo/a/dog.txt');
+my @files  = $vrpipe->get_or_store_filesystem_paths(\@paths);
+is_deeply {
+    map { $vrpipe->filesystemelement_to_path($_) => 1 } @files;
+}, { '/foo/a/cat.txt' => 1, '/foo/b/cat.txt' => 1, '/foo/a/dog.txt' => 1 }, 'get_or_store_file_paths() and file_to_path() worked correctly';
+my $dog_uuid = $files[2]->uuid;
+my $llama = $vrpipe->move_filesystemelement($files[2], '/foo/b/llama.txt');
+is_deeply [$llama->uuid, $vrpipe->filesystemelement_to_path($llama)], [$dog_uuid, '/foo/b/llama.txt'], 'move_filesystemelement() worked';
+$vrpipe->move_filesystemelement('/foo/b', '/foo/a/b');
+my $bcat = $vrpipe->get('FileSystemElement', { uuid => $files[1]->uuid });
+is $vrpipe->filesystemelement_to_path($bcat), '/foo/a/b/cat.txt', 'move_filesystemelement() can be used to move directories, and it also moves all contained files';
+
+# make a traditional mysql vrpipe StepState so we can test that
+# ensure_state_hierarchy() can represent the same thing in the graph database
+my $pipeline = VRPipe::Pipeline->create(name => 'test_pipeline');
+my $datasource = VRPipe::DataSource->create(type => 'fofn_with_metadata', method => 'grouped_by_metadata', options => { metadata_keys => 'study|sample' }, source => file(qw(t data datasource.fofn_with_metadata))->absolute);
+my $setup = VRPipe::PipelineSetup->create(name => 'ps1', datasource => $datasource, output_root => '/tmp/out', pipeline => $pipeline, active => 0);
+$datasource->elements;
+my $ss1 = VRPipe::StepState->create(dataelement => 1, pipelinesetup => 1, stepmember => 1);
+my $ss2 = VRPipe::StepState->create(dataelement => 2, pipelinesetup => 1, stepmember => 1);
+ok my $graph_ss = $vrpipe->ensure_state_hierarchy($ss1), 'ensure_state_hierarchy() worked';
+$graph_ss = $vrpipe->ensure_state_hierarchy($ss2);
+ok $graph_ss = $vrpipe->ensure_state_hierarchy($ss2), 'ensure_state_hierarchy() worked twice on the same StepState';
+ok my $ps = $vrpipe->get('PipelineSetup', { name => 'ps1' }), 'a PipelineSetup was created in the graph database';
+@related = $ps->related(outgoing => { max_depth => 500 });
+is scalar(@related), 21, 'all the related nodes were also created';
+#*** more detailed, specific tests to make sure the graph is correct? checked visually it's fine...
 
 exit;
