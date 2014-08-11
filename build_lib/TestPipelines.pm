@@ -52,7 +52,7 @@ use warnings;
 use Exporter 'import';
 use Path::Class;
 
-our @EXPORT = qw(get_output_dir handle_pipeline output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
+our @EXPORT = qw(get_output_dir handle_pipeline wait_till_setup_done output_subdirs create_single_step_pipeline get_bam_header get_bam_records finish);
 
 our $manager = VRPipe::Manager->create();
 our $scheduler;
@@ -174,6 +174,71 @@ sub all_pipelines_finished {
         return 0 if $not_done;
     }
     return 1;
+}
+
+sub wait_till_setup_done {
+    # return true when the setup is done doing stuff - either completed
+    # successfully or stalled with permanent fails
+    my $setup   = shift;
+    my $give_up = 3600;
+    my $debug   = VRPipeTest::debug();
+    $manager->set_verbose_global(1) if $debug;
+    my $gave_up = 0;
+    while (1) {
+        last if setup_done($setup);
+        
+        if ($give_up-- <= 0) {
+            $gave_up = 1;
+            warn "setup ", $setup->id, " not finished yet, but giving up after 1500 cycles\n";
+            last;
+        }
+        
+        sleep(1);
+    }
+    
+    $manager->set_verbose_global(0) if $debug;
+    return $gave_up ? 0 : 1;
+}
+
+sub setup_done {
+    my $setup = shift;
+    
+    # has it started?
+    $setup->datasource->elements;
+    my $found = VRPipe::DataElement->search({ datasource => $setup->datasource->id, withdrawn => 0 });
+    return 0 unless $found;
+    
+    my $setup_id  = $setup->id;
+    my $pipeline  = $setup->pipeline;
+    my $num_steps = $pipeline->step_members;
+    
+    # have all dataelements completed all steps?
+    my @not_complete = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0, completed_steps => { '!=' => $num_steps } }, { join => 'dataelement' });
+    return 1 if !@not_complete;
+    
+    # have all incomplete dataelements stalled due to failures?
+    my $incomplete_due_to_stall = 0;
+    foreach my $des (@not_complete) {
+        my $de = $des->dataelement;
+        my ($ss) = VRPipe::StepState->search({ complete => 0, dataelement => $de, pipelinesetup => $setup });
+        next unless $ss;
+        my $stalled_or_complete_subs = 0;
+        next unless $ss->dispatched;
+        my @subs = VRPipe::Submission->search({ stepstate => $ss });
+        foreach my $sub (@subs) {
+            if ($sub->_done) {
+                $stalled_or_complete_subs++;
+            }
+            elsif ($sub->_failed && $sub->retries == 3) {
+                $stalled_or_complete_subs++;
+            }
+        }
+        if ($stalled_or_complete_subs == @subs) {
+            $incomplete_due_to_stall++;
+        }
+    }
+    
+    return $incomplete_due_to_stall == @not_complete;
 }
 
 sub get_bam_header {

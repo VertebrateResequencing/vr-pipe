@@ -75,50 +75,20 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
                 unless ($control_sample) {
                     my $control_value = $vcf_file->meta_value($control_key);
                     if ($control_value && $control_value =~ /$control_regex/i) {
-                        unshift(@input_set, $vcf_file->path);
+                        unshift(@input_set, $vcf_file);
                         $control_sample = join('_', map { $vcf_file->meta_value($_) } @sample_keys);
                         next;
                     }
                 }
                 
-                push @input_set, $vcf_file->path;
+                push @input_set, $vcf_file;
             }
             $control_sample || $self->throw("There was no control sample identified amongst the input vcf files (@input_set).");
             
             my $merged_meta = $self->combined_metadata($self->inputs->{vcf_files});
             $merged_meta->{$control_key} = $control_sample;
-            
-            # the rest of this body_sub is identical to parent *** can we avoid
-            # this code duplication?...
-            
             my $merged_basename = 'merged.vcf.gz';
-            my $merged_vcf      = $self->output_file(output_key => 'merged_vcf', basename => $merged_basename, type => 'vcf', metadata => $merged_meta);
-            my $output_path     = $merged_vcf->path;
-            my $index           = $self->output_file(output_key => 'vcf_index', basename => $merged_basename . '.csi', type => 'bin');
-            
-            my $req = $self->new_requirements(memory => $self->_determine_memory(scalar(@input_set)), time => 1);
-            if (@input_set == 1) {
-                # merge doesn't work on 1 input file; just copy the file over.
-                # (we don't symlink since it needs its own metadata, and we redo
-                #  the metadata since copy adds source metadata to destination)
-                my $source = $self->inputs->{vcf_files}->[0];
-                $source->copy($merged_vcf);
-                $merged_vcf->add_metadata($merged_meta);
-                $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
-            }
-            else {
-                my $this_cmd = qq[$bcftools_exe merge $bcfopts @input_set > $output_path && $bcftools_exe index $output_path];
-                
-                $self->set_cmd_summary(
-                    VRPipe::StepCmdSummary->create(
-                        exe     => 'bcftools',
-                        version => VRPipe::StepCmdSummary->determine_version($bcftools_exe, '^Version: (.+)$'),
-                        summary => "bcftools merge $bcfopts \@input_vcfs > \$output_path && bcftools index \$output_path"
-                    )
-                );
-                
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::vcf_merge_different_samples_control_aware', 'merge_vcf', [$this_cmd, $req, { output_files => [$merged_vcf, $index] }]);
-            }
+            $self->_merge($bcftools_exe, $bcfopts, \@input_set, $merged_basename, 'merged_vcf', 'vcf', $merged_meta, 'vcf_index');
         };
     }
     

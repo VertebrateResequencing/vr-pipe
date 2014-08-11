@@ -1,3 +1,10 @@
+# version 0.198
+(you must first upgrade to 0.190 if you haven't done so already, see notes
+below)
+The database schema has changed, so run vrpipe-db_upgrade. After doing this,
+also log in to your production database and do:
+mysql> update stepstate set dispatched = 1;
+
 # version 0.190
 (you must first upgrade to 0.187 if you haven't done so already, see notes
 below)
