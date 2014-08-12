@@ -168,9 +168,8 @@ is_deeply [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => 
 my $vrpipe = VRPipe::Schema->create('VRPipe');
 my @paths  = ('/foo/a/cat.txt', '/foo/b/cat.txt', '/foo/a/dog.txt');
 my @files  = $vrpipe->get_or_store_filesystem_paths(\@paths);
-is_deeply {
-    map { $vrpipe->filesystemelement_to_path($_) => 1 } @files;
-}, { '/foo/a/cat.txt' => 1, '/foo/b/cat.txt' => 1, '/foo/a/dog.txt' => 1 }, 'get_or_store_file_paths() and file_to_path() worked correctly';
+my %got    = map { $vrpipe->filesystemelement_to_path($_) => 1 } @files;
+is_deeply \%got, { '/foo/a/cat.txt' => 1, '/foo/b/cat.txt' => 1, '/foo/a/dog.txt' => 1 }, 'get_or_store_file_paths() and file_to_path() worked correctly';
 my $dog_uuid = $files[2]->uuid;
 my $llama = $vrpipe->move_filesystemelement($files[2], '/foo/b/llama.txt');
 is_deeply [$llama->uuid, $vrpipe->filesystemelement_to_path($llama)], [$dog_uuid, '/foo/b/llama.txt'], 'move_filesystemelement() worked';
