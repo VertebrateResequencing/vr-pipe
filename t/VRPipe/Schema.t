@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 65;
+    use Test::Most tests => 66;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -95,6 +95,9 @@ is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's
 $sample = $schema->add('Sample', { name => 's1', created_date => 12 });
 $sample = $schema->add('Sample', { name => 's1', created_date => undef });
 is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'pn1', supplier_name => 'supn1', created_date => 12 }], 'add() with null values for properties does not unset previously set properties';
+# also check it works on allow_anything labels
+my $targetless_file = $schema->add('File', { path => '/no/target', manual_qc => 1, target => undef });
+is_deeply $targetless_file->{properties}, { path => '/no/target', manual_qc => 1 }, 'add() with null values for properties does not add those properties for an allow_anything label';
 
 # test that we can get the latest data if another process updates a property
 is $lib1->tag, 'ATG', 'tag starts out as ATG';

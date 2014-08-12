@@ -217,17 +217,18 @@ role VRPipe::SchemaRole {
         if ($properties) {
             $props = ref($properties) eq 'HASH' ? [$properties] : $properties;
             
-            unless ($self->_allows_anything($label)) {
-                # check the supplied properties are allowed ($graph checks that required
-                # ones are supplied)
-                my %valid_props = map { $_ => 1 } @{ $self->label_properties($label) };
-                foreach my $prop_hash (@$props) {
-                    foreach my $prop (keys %$prop_hash) {
-                        unless (defined $prop_hash->{$prop}) {
-                            delete $prop_hash->{$prop};
-                            next;
-                        }
-                        
+            my %valid_props = map { $_ => 1 } @{ $self->label_properties($label) };
+            foreach my $prop_hash (@$props) {
+                foreach my $prop (keys %$prop_hash) {
+                    # drop any keys where value is undef
+                    unless (defined $prop_hash->{$prop}) {
+                        delete $prop_hash->{$prop};
+                        next;
+                    }
+                    
+                    unless ($self->_allows_anything($label)) {
+                        # check the supplied properties are allowed ($graph
+                        # checks that required ones are supplied)
                         unless (exists $valid_props{$prop}) {
                             $self->throw("Property '$prop' supplied, but that isn't defined in the schema for ${namespace}::$label");
                         }
