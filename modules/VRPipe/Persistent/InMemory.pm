@@ -338,10 +338,11 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 900, Str :$key_prefix = 'lock') {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Int :$unlock_after?) {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         my $sleep_time = 0.01;
+        $unlock_after ||= $deployment eq 'testing' ? 30 : 900;
         while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
             if ($sleep_time >= $check_every) {
                 $sleep_time = $check_every;
