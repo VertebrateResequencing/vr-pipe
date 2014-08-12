@@ -169,19 +169,30 @@ class VRPipe::Persistent::Graph {
             );
         }
         
-        my $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content);
-        my $res = $tx->success;
-        unless ($res) {
-            my $err = $tx->error;
-            $self->throw('[' . $err->{code} . '] ' . $err->{message});
-        }
-        my $decode = $json->decode($res->body);
-        
-        my $errors = $decode->{errors};
-        if (@$errors) {
-            my $error = $errors->[0];
-            $self->throw('[' . $error->{code} . '] ' . $error->{message});
-            #*** should auto-retry when the code matches TransientError
+        my $decode;
+        for (1 .. 20) {
+            my $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content);
+            my $res = $tx->success;
+            unless ($res) {
+                my $err = $tx->error;
+                $self->throw('[' . $err->{code} . '] ' . $err->{message});
+            }
+            $decode = $json->decode($res->body);
+            
+            my $errors = $decode->{errors};
+            if (@$errors) {
+                my $error = $errors->[0];
+                if ($error->{code} =~ /CouldNotCommit|TransientError/) {
+                    warn "retrying cypher due to: ", '[' . $error->{code} . '] ' . $error->{message}, "\n";
+                    sleep(1);
+                }
+                else {
+                    $self->throw('[' . $error->{code} . '] ' . $error->{message});
+                }
+            }
+            else {
+                last;
+            }
         }
         
         my (%nodes, $node_order, %relationships);
