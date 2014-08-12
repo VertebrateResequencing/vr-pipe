@@ -24,6 +24,9 @@ VRPipe::Schema - apply schemas to the database and get/create/modify nodes
     $schema->delete($library);
     
     my $graph = $schema->graph;
+    
+    # to actually add a new schema to the database (or update a changed one):
+    $schema = VRPipe::Schema->create($type, update_schemas_in_db => 1);
 
 =head1 DESCRIPTION
 
@@ -68,9 +71,9 @@ use VRPipe::Base::AbstractFactory;
 implementation_does qw/VRPipe::SchemaRole/;
 
 sub create {
-    my ($self, $type) = @_;
+    my ($self, $type, %args) = @_;
     my $obj = $self->SUPER::create($type, {});
-    $obj->add_schemas();
+    $obj->add_schemas(%args);
     return $obj;
 }
 

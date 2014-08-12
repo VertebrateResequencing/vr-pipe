@@ -39,7 +39,9 @@ use Cwd 'getcwd';
 use Digest::MD5;
 use VRPipe::Persistent::InMemory;
 use VRPipe::Persistent::Graph;
+use VRPipe::Schema;
 use File::Share ':all';
+use Module::Find;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -268,6 +270,17 @@ sub start_server {
                     unless ($deployment eq 'testing') {
                         fork_call {
                             $backend->install_pipelines_and_steps;
+                            
+                            # also add or update all graph database schemas
+                            foreach my $module (findallmod(VRPipe::Schema)) {
+                                eval "require $module;";
+                                unless ($@) {
+                                    my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
+                                    $type || next;
+                                    VRPipe::Schema->create($type, update_schemas_in_db => 1);
+                                }
+                            }
+                            
                             return;
                         }
                         $watcher_error_sub;

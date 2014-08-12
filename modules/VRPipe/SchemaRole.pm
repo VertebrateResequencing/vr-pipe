@@ -134,7 +134,7 @@ role VRPipe::SchemaRole {
         return $namespace;
     }
     
-    method add_schemas {
+    method add_schemas (Bool :$update_schemas_in_db = 0) {
         my $graph     = VRPipe::Persistent::Graph->new();
         my $namespace = $self->namespace;
         
@@ -143,7 +143,7 @@ role VRPipe::SchemaRole {
             my $optional       = delete $def->{optional};
             my $historical     = delete $def->{keep_history};
             my $allow_anything = delete $def->{allow_anything};
-            $graph->add_schema(%$def, namespace => $namespace);
+            $graph->add_schema(%$def, namespace => $namespace) if $update_schemas_in_db;
             
             # store on ourselves what's valid according to this definition
             my $label = $def->{label};
