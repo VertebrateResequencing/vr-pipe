@@ -40,6 +40,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
+    my $vrpipe_schema;
+    
     method schema_definitions {
         return [
             # general
@@ -228,6 +230,11 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         return \%return;
+    }
+    
+    method add_file (Str $path) {
+        $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+        return $vrpipe_schema->path_to_filesystemelement($path);
     }
 }
 

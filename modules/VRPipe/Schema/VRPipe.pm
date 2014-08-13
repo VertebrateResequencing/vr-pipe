@@ -82,9 +82,18 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 indexed => [qw(sql_id)]  # we don't do withdrawn for now, since we don't have a way to keep in sync
             },
             {
-                label   => 'FileSystemElement', # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
-                unique  => [qw(uuid)],
-                indexed => [qw(basename)]       # again, other File properties we can't keep in sync for now
+                # don't add this directly; we have a pretend 'File' label that
+                # you can add, supplying path (only), and you get back a
+                # FileSystemElement for your file basename attached to ones for
+                # the parent dirs up to root
+                label          => 'FileSystemElement', # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
+                unique         => [qw(uuid)],
+                indexed        => [qw(basename md5)],
+                allow_anything => 1,                   # allow arbitrary metadata to be stored on files/dirs
+                methods        => {
+                    path => sub { __PACKAGE__->filesystemelement_to_path(shift) },
+                    move => sub { __PACKAGE__->move_filesystemelement(shift, shift); }
+                }
             },
             {
                 label   => 'KeyVal',
@@ -202,7 +211,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # initial basename and directory. This allows them to be renamed and moved
     # without affecting our knowledge of what file was produced by what
     # stepstate, and where that file is now
-    method get_or_store_filesystem_paths (ArrayRef[Str] $paths!, Bool :$return_cypher = 0) {
+    method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str] $paths!, Bool :$return_cypher = 0, Bool :$only_get = 0) {
         my $return_leaves = defined wantarray();
         
         my @cypher;
@@ -220,7 +229,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # root node
             my $uuid   = $self->create_uuid();
             my %params = (root_basename => '/', root_uuid => $uuid);
-            my $cypher = "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
+            my $cypher = $only_get ? "MATCH (root:$fse_labels { basename: { param }.root_basename })" : "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
             
             # sub dirs
             my @chain;
@@ -231,16 +240,16 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 $dir_num++;
                 $params{ $dir_num . '_basename' } = $dir;
                 $params{ $dir_num . '_uuid' }     = $uuid;
-                push(@chain, "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
+                push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
                 $previous = $dir_num;
             }
-            $cypher .= join(' ', @chain);
+            $cypher .= join($only_get ? '' : ' ', @chain);
             
             # leaf file or dir
             $uuid                  = $self->create_uuid();
             $params{leaf_basename} = $basename;
             $params{leaf_uuid}     = $uuid;
-            $cypher .= " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename }) ON CREATE SET leaf.uuid = { param }.leaf_uuid" . ($return_leaves ? ' RETURN leaf' : '');
+            $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             push(@cypher, [$cypher, { param => \%params }]);
         }
         
@@ -268,20 +277,21 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         }
     }
     
-    method path_to_filesystemelement (Str $path) {
-        return $self->get_or_store_filesystem_paths([$path]);
+    method path_to_filesystemelement (ClassName|Object $self: Str $path, Bool :$only_get = 0) {
+        return $self->get_or_store_filesystem_paths([$path], only_get => $only_get);
     }
     
-    method filesystemelement_to_path (Object $file) {
+    method filesystemelement_to_path (ClassName|Object $self: Object $file) {
         my @dirs = $file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' });
         @dirs = reverse(@dirs);
         shift(@dirs);
         return file('', (map { $_->basename } @dirs), $file->basename)->stringify;
     }
     
-    method move_filesystemelement (Str|Object $source, Str $dest) {
+    method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
         unless (ref($source)) {
-            $source = $self->path_to_filesystemelement($source);
+            $source = $self->path_to_filesystemelement($source, only_get => 1);
+            $source || return;
         }
         
         my $file = file($dest);
@@ -290,6 +300,48 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         $dir->relate_to($source, 'contains', selfish => 1);
         $source->basename($file->basename);
         return $source;
+    }
+    
+    # can't get around to work, so the else will copy/paste from SchemaRole :(
+    method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
+        if ($label eq 'File') {
+            my @paths;
+            foreach my $prop (ref($properties) eq 'ARRAY' ? @$properties : ($properties)) {
+                push(@paths, $prop->{path});
+            }
+            return $self->get_or_store_filesystem_paths(\@paths);
+        }
+        else {
+            my $history_props;
+            my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
+            
+            if ($self->_is_historical($label)) {
+                foreach my $node (@nodes) {
+                    $node->_maintain_property_history(0);
+                }
+            }
+            
+            if (wantarray()) {
+                return @nodes;
+            }
+            else {
+                return $nodes[0];
+            }
+        }
+    }
+    
+    # can't get around to work, so the else will copy/paste from SchemaRole :(
+    method get (Str $label!, HashRef $properties?) {
+        if ($label eq 'File') {
+            my @paths;
+            foreach my $prop (ref($properties) eq 'ARRAY' ? @$properties : ($properties)) {
+                push(@paths, $prop->{path});
+            }
+            return $self->get_or_store_filesystem_paths(\@paths, only_get => 1);
+        }
+        else {
+            return $self->_get_and_bless_nodes($label, 'get_nodes', $properties ? ($properties) : ());
+        }
     }
 }
 

@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 67;
+    use Test::Most tests => 78;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -32,9 +32,9 @@ ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming
 throws_ok { $schema->add('Foo', { foo => 'bar' }) } qr/'Foo' isn't a valid label for schema VRTrack/, 'add() throws when given an invalid label';
 throws_ok { $schema->add('Sample', { id => '1' }) } qr/Parameter 'name' must be supplied/, 'add() throws when not given a required parameter';
 throws_ok { $schema->add('Sample', { name => 's2', foo => 'bar' }) } qr/Property 'foo' supplied, but that isn't defined in the schema for VRTrack::Sample/, 'add() throws when given an invalid parameter';
-ok my $file = $schema->add('File', { path => '/path', foo => 'bar' }), 'arbitrary parameters can be supplied to a label defined with allow_anything => 1';
-ok $file->add_properties({ cat => 'banana' }), 'add_properties() also worked with an arbitrary parameter';
-is_deeply $file->{properties}, { path => '/path', foo => 'bar', cat => 'banana' }, 'We really do store whatever on a allow_anything label';
+ok my $bs = $schema->add('Bam_Stats', { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar' }), 'arbitrary parameters can be supplied to a label defined with allow_anything => 1';
+ok $bs->add_properties({ cat => 'banana' }), 'add_properties() also worked with an arbitrary parameter';
+is_deeply $bs->{properties}, { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar', cat => 'banana' }, 'We really do store whatever on a allow_anything label';
 
 ok my $lib1 = $schema->get('Library', { id => 'l1' }), 'get() method worked';
 ok @libs = $schema->get('Library'), 'get() method worked with no properties arg';
@@ -96,8 +96,8 @@ $sample = $schema->add('Sample', { name => 's1', created_date => 12 });
 $sample = $schema->add('Sample', { name => 's1', created_date => undef });
 is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'pn1', supplier_name => 'supn1', created_date => 12 }], 'add() with null values for properties does not unset previously set properties';
 # also check it works on allow_anything labels
-my $targetless_file = $schema->add('File', { path => '/no/target', manual_qc => 1, target => undef });
-is_deeply $targetless_file->{properties}, { path => '/no/target', manual_qc => 1 }, 'add() with null values for properties does not add those properties for an allow_anything label';
+my $fooless_bs = $schema->add('Bam_Stats', { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => undef });
+is_deeply $fooless_bs->{properties}, { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100 }, 'add() with null values for properties does not add those properties for an allow_anything label';
 
 # test that we can get the latest data if another process updates a property
 is $lib1->tag, 'ATG', 'tag starts out as ATG';
@@ -180,6 +180,15 @@ is_deeply [$llama->uuid, $vrpipe->filesystemelement_to_path($llama)], [$dog_uuid
 $vrpipe->move_filesystemelement('/foo/b', '/foo/a/b');
 my $bcat = $vrpipe->get('FileSystemElement', { uuid => $files[1]->uuid });
 is $vrpipe->filesystemelement_to_path($bcat), '/foo/a/b/cat.txt', 'move_filesystemelement() can be used to move directories, and it also moves all contained files';
+ok my $file = $vrpipe->add('File', { path => '/bar/horse.txt' }), 'adding File is possible';
+isa_ok($file, 'VRPipe::Schema::VRPipe::FileSystemElement');
+is $file->basename, 'horse.txt', 'File, which is actually a FileSystemElement, has the correct basename';
+ok my $gotten_file = $vrpipe->get('File', { path => '/bar/horse.txt' }), 'getting a File is possible';
+is $gotten_file->node_id, $file->node_id, 'gotten and added filesystemelement nodes match';
+is $vrpipe->get('File', { path => '/bar/horse' }), undef, 'getting a non-existing file does not create it in db';
+is $gotten_file->path, '/bar/horse.txt', 'there is a working path method on FileSystemElements';
+ok my $new_location = $gotten_file->move('/zar/horse.txt'), 'there is also a working move method';
+is_deeply [$new_location->node_id, $new_location->path], [$gotten_file->node_id, '/zar/horse.txt'], 'the move worked correctly';
 
 # make a traditional mysql vrpipe StepState so we can test that
 # ensure_state_hierarchy() can represent the same thing in the graph database
@@ -196,5 +205,9 @@ ok my $ps = $vrpipe->get('PipelineSetup', { name => 'ps1' }), 'a PipelineSetup w
 @related = $ps->related(outgoing => { max_depth => 500 });
 is scalar(@related), 21, 'all the related nodes were also created';
 #*** more detailed, specific tests to make sure the graph is correct? checked visually it's fine...
+
+# test VRTrack schema's add_file method, which passes through to VRPipe schema
+ok my $vrtrack_file = $schema->add_file('/bar/snake.txt'), 'add_file() method on the VRTrack schema worked';
+is $vrtrack_file->path, '/bar/snake.txt', 'the path() method worked on what that returned';
 
 exit;

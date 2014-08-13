@@ -143,6 +143,7 @@ role VRPipe::SchemaRole {
             my $optional       = delete $def->{optional};
             my $historical     = delete $def->{keep_history};
             my $allow_anything = delete $def->{allow_anything};
+            my $methods        = delete $def->{methods};
             $graph->add_schema(%$def, namespace => $namespace) if $update_schemas_in_db;
             
             # store on ourselves what's valid according to this definition
@@ -155,13 +156,14 @@ role VRPipe::SchemaRole {
             $self->_set_autofill_uuid($label => 1) if exists $uniques{uuid};
             
             # create a class for this label
-            my $methods = {};
+            $methods ||= {};
             foreach my $property (@label_properties) {
+                my $method_name = lc($property);
+                $method_name =~ s/\s+/_/g;
+                next if defined $methods->{$method_name};
                 my $sub = sub {
                     shift->_get_setter($property, @_);
                 };
-                my $method_name = lc($property);
-                $method_name =~ s/\s+/_/g;
                 $methods->{$method_name} = $sub;
             }
             
@@ -314,7 +316,7 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method create_uuid {
+    method create_uuid (ClassName|Object $self:) {
         return $graph->create_uuid();
     }
     
