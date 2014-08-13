@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 66;
+    use Test::Most tests => 67;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
 }
@@ -148,6 +148,7 @@ is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() w
 # unique uuid properties auto-fill if not supplied
 ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', 'raw total sequences' => 100 }), 'could add a new node without supplying its unique value when the unique is a uuid';
 like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
+is $bam_stats->raw_total_sequences(), 100, 'we can call a property method that has spaces in the name';
 
 # test the VRTrack-specific ensure_sequencing_hierarchy method
 ok my $hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample1', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1'), 'ensure_sequencing_hierarchy() worked';

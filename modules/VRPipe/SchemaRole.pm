@@ -160,7 +160,9 @@ role VRPipe::SchemaRole {
                 my $sub = sub {
                     shift->_get_setter($property, @_);
                 };
-                $methods->{ lc($property) } = $sub;
+                my $method_name = lc($property);
+                $method_name =~ s/\s+/_/g;
+                $methods->{$method_name} = $sub;
             }
             
             $methods->{unique_properties} = sub {
