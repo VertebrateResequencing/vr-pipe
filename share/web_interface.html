@@ -890,14 +890,14 @@
                                     
                                     var clickable;
                                     if (ext == 'png' || ext == 'jpg' || ext == 'gif') {
-                                        clickable = '<img src="/file' + path + '" class="popover_thumb">';
+                                        clickable = '<img src="/file' + encodeURIComponent(path) + '" class="popover_thumb">';
                                         key = 'img';
                                     }
                                     else {
                                         clickable = wbr(path);
                                     }
                                     
-                                    value = '<a href="/file' + path + '" target="_blank">' + clickable + '</a>';
+                                    value = '<a href="/file' + encodeURIComponent(path) + '" target="_blank">' + clickable + '</a>';
                                 }
                                 else if (key.indexOf("date") > -1 && !isNaN(parseFloat(value)) && isFinite(value)) {
                                     // convert epoch seconds to friendly date
