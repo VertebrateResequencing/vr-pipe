@@ -1051,10 +1051,12 @@ role VRPipe::StepRole {
         }
         return unless $graph;
         
-        $ss ||= $self->step_state;
         unless ($ss) {
             if (defined $ENV{VRPIPE_STEPSTATE}) {
                 $ss = VRPipe::StepState->get(id => $ENV{VRPIPE_STEPSTATE});
+            }
+            elsif (ref($self)) {
+                $ss = $self->step_state;
             }
             else {
                 return;
