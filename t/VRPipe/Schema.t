@@ -146,7 +146,7 @@ like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
 is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
 # unique uuid properties auto-fill if not supplied
-ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', reads => 1, filtered_reads => 1, reads_mapped => 1, bases => 1, bases_mapped => 1, bases_mapped_c => 1, bases_trimmed => 1, reads_paired => 1, paired => 1, error_rate => 1, forward_reads => 1, reverse_reads => 1, avg_read_length => 1, mean_insert_size => 1, sd_insert_size => 1 }), 'could add a new node without supplying its unique value when the unique is a uuid';
+ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', 'raw total sequences' => 100 }), 'could add a new node without supplying its unique value when the unique is a uuid';
 like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
 
 # test the VRTrack-specific ensure_sequencing_hierarchy method

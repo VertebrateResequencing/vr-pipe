@@ -422,7 +422,7 @@ class VRPipe::Persistent::Graph {
     
     sub _param_map {
         my ($self, $params, $param_key) = @_;
-        return $params ? ' { ' . join(', ', map { "$_: {$param_key}.$_" } sort keys %$params) . ' }' : '';
+        return $params ? ' { ' . join(', ', map { "`$_`: {$param_key}.`$_`" } sort keys %$params) . ' }' : '';
     }
     
     sub _labels_and_param_map {

@@ -143,10 +143,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             
             # QC bam stats
             {
-                label    => 'Bam_Stats',
-                unique   => [qw(uuid)],
-                required => [qw(mode options reads filtered_reads reads_mapped bases bases_mapped bases_mapped_c bases_trimmed reads_paired paired error_rate forward_reads reverse_reads avg_read_length mean_insert_size sd_insert_size)],
-                optional => [qw(rmdup_reads rmdup_reads_mapped rmdup_bases rmdup_bases_mapped mean_coverage bases_of_1X_coverage bases_of_2X_coverage bases_of_5X_coverage bases_of_10X_coverage bases_of_20X_coverage bases_of_50X_coverage bases_of_100X_coverage)]
+                label          => 'Bam_Stats',
+                unique         => [qw(uuid)],
+                required       => [qw(mode options), 'raw total sequences'],
+                allow_anything => 1
             },
         ];
     }
