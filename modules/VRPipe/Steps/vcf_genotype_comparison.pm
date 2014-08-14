@@ -36,6 +36,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
+    use VRPipe::Schema;
+    
     around options_definition {
         return {
             %{ $self->$orig },
@@ -124,17 +126,102 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
         
+        # graph db currently optional
+        my $vrtrack;
+        eval { $vrtrack = VRPipe::Schema->create('VRTrack'); };
+        my $output_file_in_graph;
+        if ($vrtrack) {
+            $output_file_in_graph = $vrtrack->add_file($output_path);
+            $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
+        }
+        
         my $fh = $output_file->openr;
+        my %pairs;
+        my $sample_source;
         while (<$fh>) {
-            next unless /^MD\s+(\S+)\s+(\S+)/;
-            my $md     = $1;
-            my $sample = $2;
-            
-            foreach my $file ($vcf_file, $output_file) {
-                $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+            if (/^MD\s+(\S+)\s+(\S+)/) {
+                my $md     = $1;
+                my $sample = $2;
+                
+                foreach my $file ($vcf_file, $output_file) {
+                    $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+                }
             }
-            
-            last;
+            elsif ($vrtrack && /^CN\s/) {
+                chomp;
+                my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
+                
+                # there could be multiple rows with the same pair of samples and
+                # we need a unique identifier for each one; in the file they are
+                # uniqufied by adding some number prefix to one of the samples,
+                # but we don't like that
+                $sample_i =~ s/^\d+\://;
+                $sample_j =~ s/^\d+\://;
+                my $unique = join('.', sort ($sample_i, $sample_j));
+                my $i = 0;
+                while (1) {
+                    $i++;
+                    my $this_unique = $unique . '.' . $i;
+                    next if exists $pairs{$this_unique};
+                    $pairs{$this_unique} = 1;
+                    $unique = $this_unique;
+                    last;
+                }
+                
+                # before we can store the result we need to find the sample
+                # nodes in the graph database under the VRTrack schema;
+                # complication is that the sample names in the file could be
+                # name, public_name or some combination of both (or indeed
+                # anything else). Further problem is that since this is a
+                # wrapped cmd, we can't even pass in the info of what was used
+                # as an argument... for now we try out the obvious possibilities
+                # until found
+                my %sample_nodes;
+                unless (defined $sample_source) {
+                    my $sample_node;
+                    
+                    if ($sample_i =~ /^(.+)_([^_]+)$/) {
+                        # public_name+sample
+                        $sample_node = $vrtrack->get('Sample', { public_name => $1, name => $2 });
+                        if ($sample_node) {
+                            $sample_source = 'public_name+sample';
+                        }
+                    }
+                    if (!$sample_node) {
+                        # sample
+                        $sample_node = $vrtrack->get('Sample', { name => $sample_i });
+                        if ($sample_node) {
+                            $sample_source = 'sample';
+                        }
+                    }
+                    if (!$sample_node) {
+                        # ... give up for now
+                        $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
+                    }
+                    
+                    $sample_nodes{$sample_i} = $sample_node;
+                }
+                
+                foreach my $identifer ($sample_i, $sample_j) {
+                    next if defined $sample_nodes{$identifer};
+                    
+                    if ($sample_source eq 'public_name+sample') {
+                        my ($public_name, $sample) = $identifer =~ /^(.+)_([^_]+)$/;
+                        my $sample_node = $vrtrack->get('Sample', { public_name => $public_name, name => $sample });
+                        $sample_nodes{$identifer} = $sample_node;
+                    }
+                    elsif ($sample_source eq 'sample') {
+                        my $sample_node = $vrtrack->get('Sample', { name => $identifer });
+                        $sample_nodes{$identifer} = $sample_node;
+                    }
+                }
+                
+                my $discordance_node = $vrtrack->add('Discordance', { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth }, incoming => { type => 'discordance', node => $output_file_in_graph });
+                
+                foreach my $sample_node (values %sample_nodes) {
+                    $sample_node->relate_to($discordance_node, 'genotype_comparison_discordance');
+                }
+            }
         }
         $output_file->close;
     }

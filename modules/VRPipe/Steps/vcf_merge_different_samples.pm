@@ -157,6 +157,7 @@ class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools
             my $source = $input_vcfs->[0];
             $source->copy($merged_vcf);
             $merged_vcf->add_metadata($output_metadata);
+            $self->relate_input_to_output($source->path->stringify, 'copied', $output_path->stringify);
             $self->dispatch(["$bcftools_exe index $output_path", $req, { output_files => [$merged_vcf, $index] }]);
         }
         else {
@@ -175,6 +176,12 @@ class VRPipe::Steps::vcf_merge_different_samples extends VRPipe::Steps::bcftools
                 $l_file->close;
                 $cmd_input     = '-l ' . $l_file->path;
                 $summary_input = '-l $input_vcfs_fofn';
+            }
+            
+            # relate input to output in graph db
+            #*** this loop is probably slow; should find a better way
+            foreach my $input (@$input_vcfs) {
+                $self->relate_input_to_output($input->path->stringify, 'merged', $output_path->stringify);
             }
             
             my $cmd = qq[$bcftools_exe merge $bcfopts $cmd_input > $output_path && $bcftools_exe index $output_path];
