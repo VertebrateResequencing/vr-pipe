@@ -134,7 +134,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             @required_keys = split(',', $required_metadata);
         }
         
-        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created);
+        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender);
         my ($study_sth, $study_title);
         my $vrtrack;
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
@@ -175,10 +175,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             # individual name = sample_supplier_name or sample
             # individual acc = sample_accession_number
             
-            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created from current_samples where name = ?];
+            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created, gender from current_samples where name = ?];
             $sample_sth = $dbh->prepare($sql);
             $sample_sth->execute;
-            $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created));
+            $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender));
             
             $sql       = q[select name from current_studies where internal_id = ?];
             $study_sth = $dbh->prepare($sql);
@@ -233,7 +233,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                         undef $control;
                         undef $taxon_id;
                         undef $created;
+                        undef $gender;
                         my $sanger_sample_id = $meta->{sample};
+                        
                         if ($sanger_sample_id) {
                             $sample_sth->execute($sanger_sample_id);
                             $sample_sth->fetch;
@@ -254,6 +256,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                             }
                             if (defined $created) {
                                 $meta->{sample_created_date} = "$created";
+                            }
+                            if (defined $gender) {
+                                $meta->{sample_gender} = "$gender";
                             }
                         }
                         
@@ -402,6 +407,18 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                             $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
                         }
                         my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} }, incoming => { type => 'member', node => $study });
+                        
+                        my $sex = 'U'; # unknown
+                        if (defined $meta->{sample_gender}) {
+                            if ($meta->{sample_gender} =~ /^f/i) {
+                                $sex = 'F';
+                            }
+                            elsif ($meta->{sample_gender} =~ /^m/i) {
+                                $sex = 'M';
+                            }
+                            delete $meta->{sample_gender}; # this new thing we don't want on our VRPipe::File metadata
+                        }
+                        $vrtrack->add('Gender', { source_gender_md5 => md5_hex('sequencescape.' . $sex), source => 'sequencescape', gender => $sex }, incoming => { type => 'gender', node => $sample });
                         
                         if ($donor) {
                             #*** we don't have a way of tracking changes to
