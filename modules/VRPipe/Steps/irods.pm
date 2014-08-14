@@ -177,23 +177,8 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $dest_file->add_metadata($meta, replace_data => 1);
         }
         
-        # try and make a file in the graph database that is associated with
-        # it's source file stored under the vrtrack schema
-        #*** it sucks that we have something vrtrack-specific in here; is there
-        #    a better way?
-        my $vrtrack;
-        eval {
-            #*** currently optional, in future we'd just set this is a class
-            # variable
-            $vrtrack = VRPipe::Schema->create('VRTrack');
-        };
-        if ($vrtrack) {
-            my $vrsource = $vrtrack->get('File', { path => $source });
-            if ($vrsource) {
-                my $vrdest = $vrtrack->add('File', { path => $dest_file->path->stringify, %{ $meta || {} } }, incoming => { type => 'imported', node => $vrsource });
-                $self->result_nodes([$vrdest]);
-            }
-        }
+        # relate source file to dest file in the graph database
+        $self->relate_input_to_output($source, 'imported', $dest_file->path->stringify, $meta ? $meta : ());
     }
     
     method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {

@@ -1073,6 +1073,24 @@ role VRPipe::StepRole {
             $graph_ss->relate_to($result_node, 'result');
         }
     }
+    
+    method relate_input_to_output (ClassName|Object $self: Str|Object $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
+        # the graph db is currently optional, so allow for a failure to connect
+        unless (defined $graph) {
+            eval { $graph = VRPipe::Schema->create('VRPipe'); };
+            $graph ||= 0;
+        }
+        return unless $graph;
+        
+        my $input_file  = ref($input)  ? $input  : $graph->add('File', { path => $input });
+        my $output_file = ref($output) ? $output : $graph->add('File', { path => $output });
+        if ($output_file_meta) {
+            $output_file->add_properties($output_file_meta);
+        }
+        
+        $input_file->relate_to($output_file, $type);
+        $self->result_nodes([$output_file]);
+    }
 }
 
 1;
