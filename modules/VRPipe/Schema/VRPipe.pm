@@ -86,12 +86,12 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 # you can add, supplying path (only), and you get back a
                 # FileSystemElement for your file basename attached to ones for
                 # the parent dirs up to root
-                label          => 'FileSystemElement', # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
+                label          => 'FileSystemElement',     # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
                 unique         => [qw(uuid)],
-                indexed        => [qw(basename md5)],
-                allow_anything => 1,                   # allow arbitrary metadata to be stored on files/dirs
+                indexed        => [qw(basename md5 path)], # full path is stored just to avoid a query to find the full path based on relationships when you're given a FileSystemElement in some other query; it isn't canonical but we hope to keep it up-to-date
+                allow_anything => 1,                       # allow arbitrary metadata to be stored on files/dirs
                 methods        => {
-                    path => sub { __PACKAGE__->filesystemelement_to_path(shift) },
+                    path => sub { __PACKAGE__->filesystemelement_to_path(shift) },    # don't trust the path property - calculate instead
                     move => sub { __PACKAGE__->move_filesystemelement(shift, shift); }
                 }
             },
@@ -233,14 +233,17 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             
             # sub dirs
             my @chain;
-            my $previous = 'root';
-            my $dir_num  = 0;
+            my $previous        = 'root';
+            my $dir_num         = 0;
+            my $developing_path = '';
             foreach my $dir (@components) {
                 $uuid = $self->create_uuid();
                 $dir_num++;
                 $params{ $dir_num . '_basename' } = $dir;
                 $params{ $dir_num . '_uuid' }     = $uuid;
-                push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
+                $developing_path .= "/$dir";
+                $params{ $dir_num . '_path' } = $developing_path;
+                push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename`, path: { param }.`${dir_num}_path` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
                 $previous = $dir_num;
             }
             $cypher .= join($only_get ? '' : ' ', @chain);
@@ -249,7 +252,8 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             $uuid                  = $self->create_uuid();
             $params{leaf_basename} = $basename;
             $params{leaf_uuid}     = $uuid;
-            $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
+            $params{leaf_path}     = $path;
+            $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             push(@cypher, [$cypher, { param => \%params }]);
         }
         
@@ -282,10 +286,15 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     }
     
     method filesystemelement_to_path (ClassName|Object $self: Object $file) {
+        # we store the absolute path as a property on the node, but that could
+        # theoretically become de-synced with reality; this returns and sets the
+        # correct current absolute path
         my @dirs = $file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' });
         @dirs = reverse(@dirs);
         shift(@dirs);
-        return file('', (map { $_->basename } @dirs), $file->basename)->stringify;
+        my $path = file('', (map { $_->basename } @dirs), $file->basename)->stringify;
+        $file->add_properties({ path => $path });
+        return $path;
     }
     
     method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
@@ -298,7 +307,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         $self->throw("$dest must be absolute") unless $file->is_absolute;
         my $dir = $self->path_to_filesystemelement($file->dir->stringify);
         $dir->relate_to($source, 'contains', selfish => 1);
-        $source->basename($file->basename);
+        $source->add_properties({ basename => $file->basename, path => $dest });
         return $source;
     }
     
