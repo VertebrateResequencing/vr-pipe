@@ -70,13 +70,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed      => [qw(id public_name supplier_name accession created_date consent control)],
                 keep_history => 1
             },
-            {
-                label          => 'File',
-                unique         => [qw(path)],
-                indexed        => [qw(type manual_qc target md5)],
-                keep_history   => 1,
-                allow_anything => 1
-            },
             
             # bams
             {
@@ -235,6 +228,11 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     method add_file (Str $path) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement($path);
+    }
+    
+    method get_file (Str $path) {
+        $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+        return $vrpipe_schema->path_to_filesystemelement($path, only_get => 1);
     }
 }
 

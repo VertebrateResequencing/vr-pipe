@@ -182,13 +182,12 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
             }
             
             # now add the stats file node and relate it with what we can
-            my $vrsource = $vrtrack->get('File', { path => $bam_path });
-            my $vrfile;
+            my $vrsource = $vrtrack->get_file($bam_path);
+            my $vrfile   = $vrtrack->add_file($stats_path);
             if ($vrsource) {
-                $vrfile = $vrtrack->add('File', { path => $stats_path }, incoming => { type => 'parsed', node => $vrsource });
+                $vrsource->relate_to($vrfile, 'parsed');
             }
             elsif (@lanes) {
-                $vrfile = $vrtrack->add('File', { path => $stats_path });
                 foreach my $vrlane (@lanes) {
                     $vrlane->relate_to($vrfile, 'stats');
                 }

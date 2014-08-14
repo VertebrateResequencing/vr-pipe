@@ -366,7 +366,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                                             my $path = file($dir, $1)->stringify;
                                             push(@files, $path);
                                             
-                                            my $vrtrack_file = $vrtrack->add('File', { path => $path }, incoming => { type => 'contains', node => $collections{$analysis_collection} });
+                                            my $vrtrack_file = $vrtrack->add_file($path);
+                                            $collections{$analysis_collection}->relate_to($vrtrack_file, 'contains');
                                         }
                                     }
                                     
@@ -414,7 +415,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                             $taxon->relate_to($sample, 'member', selfish => 1);
                         }
                         
-                        my $file           = $vrtrack->add('File', { path => $path, manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
+                        my $file = $vrtrack->add_file($path);
+                        $file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
                         my $file_connected = 0;
                         my $unique         = file($path)->basename;
                         $unique =~ s/\.gz$//;
