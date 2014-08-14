@@ -103,8 +103,6 @@ my $meta = $vr_imported_bam_file->properties(flatten_parents => 1);
 foreach my $key (qw(datasource_uuid uuid filesystemelement_uuid stepstate_uuid filesystemelement_basename filesystemelement_path dataelement_uuid stepstate_sql_id)) {
     delete $meta->{$key};
 }
-use Data::Dumper;
-print Dumper($meta), "\n";
 is_deeply $meta,
   {
     'vrtrack_lane_run'            => '9417',
