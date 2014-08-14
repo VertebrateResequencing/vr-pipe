@@ -40,7 +40,7 @@ class VRPipe::Pipelines::vcf_merge_and_compare_genotypes with VRPipe::PipelineRo
     }
     
     method description {
-        return 'Merge multiple VCF files with vcf-isec, then compare genotypes of the samples to see if they all came from the same individual';
+        return 'Merge multiple VCF files with bcftools merge, then compare genotypes of the samples to see if they all came from the same individual';
     }
     
     method step_names {
