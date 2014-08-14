@@ -143,6 +143,20 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 required       => [qw(mode options), 'raw total sequences'],
                 allow_anything => 1
             },
+            
+            # gender (for expected or calculated from sequenom/fluidgm)
+            {
+                label   => 'Gender',
+                unique  => [qw(source_gender_md5)],
+                indexed => [qw(source gender)]
+            },
+            
+            # genotype comparison results
+            {
+                label    => 'Discordance',
+                unique   => [qw(sample_pair)],
+                required => [qw(discordance num_of_sites avg_min_depth)]
+            },
         ];
     }
     
