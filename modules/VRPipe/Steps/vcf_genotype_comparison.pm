@@ -129,15 +129,17 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         # graph db currently optional
         my $vrtrack;
         eval { $vrtrack = VRPipe::Schema->create('VRTrack'); };
-        my $output_file_in_graph;
+        my ($output_file_in_graph, $graph);
         if ($vrtrack) {
             $output_file_in_graph = $vrtrack->add_file($output_path);
             $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
+            $graph = $vrtrack->graph;
         }
-        
-        my $fh = $output_file->openr;
+        my $count = 0;
+        my $fh    = $output_file->openr;
         my %pairs;
         my $sample_source;
+        my (@node_props, @rel_details);
         while (<$fh>) {
             if (/^MD\s+(\S+)\s+(\S+)/) {
                 my $md     = $1;
@@ -150,7 +152,6 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
             elsif ($vrtrack && /^CN\s/) {
                 chomp;
                 my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
-                
                 # there could be multiple rows with the same pair of samples and
                 # we need a unique identifier for each one; in the file they are
                 # uniqufied by adding some number prefix to one of the samples,
@@ -168,6 +169,8 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                     last;
                 }
                 
+                push(@node_props, { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth });
+                
                 # before we can store the result we need to find the sample
                 # nodes in the graph database under the VRTrack schema;
                 # complication is that the sample names in the file could be
@@ -176,10 +179,8 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                 # wrapped cmd, we can't even pass in the info of what was used
                 # as an argument... for now we try out the obvious possibilities
                 # until found
-                my %sample_nodes;
                 unless (defined $sample_source) {
                     my $sample_node;
-                    
                     if ($sample_i =~ /^(.+)_([^_]+)$/) {
                         # public_name+sample
                         $sample_node = $vrtrack->get('Sample', { public_name => $1, name => $2 });
@@ -198,32 +199,37 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                         # ... give up for now
                         $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
                     }
-                    
-                    $sample_nodes{$sample_i} = $sample_node;
                 }
                 
                 foreach my $identifer ($sample_i, $sample_j) {
-                    next if defined $sample_nodes{$identifer};
-                    
+                    my $sample_props;
                     if ($sample_source eq 'public_name+sample') {
                         my ($public_name, $sample) = $identifer =~ /^(.+)_([^_]+)$/;
-                        my $sample_node = $vrtrack->get('Sample', { public_name => $public_name, name => $sample });
-                        $sample_nodes{$identifer} = $sample_node;
+                        $sample_props = { public_name => $public_name, name => $sample };
                     }
                     elsif ($sample_source eq 'sample') {
-                        my $sample_node = $vrtrack->get('Sample', { name => $identifer });
-                        $sample_nodes{$identifer} = $sample_node;
+                        $sample_props = { name => $identifer };
                     }
+                    
+                    push(@rel_details, { from => { namespace => 'VRTrack', label => 'Sample', properties => $sample_props }, to => { namespace => 'VRTrack', label => 'Discordance', properties => { sample_pair => $unique } }, type => 'genotype_comparison_discordance' });
                 }
                 
-                my $discordance_node = $vrtrack->add('Discordance', { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth }, incoming => { type => 'discordance', node => $output_file_in_graph });
-                
-                foreach my $sample_node (values %sample_nodes) {
-                    $sample_node->relate_to($discordance_node, 'genotype_comparison_discordance');
+                $count++;
+                if ($count == 10000) {
+                    $vrtrack->add('Discordance', \@node_props, incoming => { type => 'discordance', node => $output_file_in_graph });
+                    $graph->create_mass_relationships(\@rel_details);
+                    $count       = 0;
+                    @node_props  = ();
+                    @rel_details = ();
                 }
             }
         }
         $output_file->close;
+        
+        if (@node_props) {
+            $vrtrack->add('Discordance', \@node_props, incoming => { type => 'discordance', node => $output_file_in_graph });
+            $graph->create_mass_relationships(\@rel_details);
+        }
     }
 }
 
