@@ -199,6 +199,10 @@ role VRPipe::SchemaRole {
                 return $namespace . '::' . $label;
             };
             
+            $methods->{cypher_labels} = sub {
+                return $graph->_labels($namespace, $label);
+            };
+            
             my $class = Moose::Meta::Class->create(
                 'VRPipe::Schema::' . $namespace . '::' . $label,
                 roles   => ['VRPipe::SchemaLabelRole', 'VRPipe::Base::Debuggable'],
@@ -326,6 +330,10 @@ role VRPipe::SchemaRole {
     
     method date_to_epoch (Str $date) {
         return $graph->date_to_epoch($date);
+    }
+    
+    method cypher_labels (Str $label) {
+        return $graph->_labels($self->namespace, $label);
     }
 }
 
