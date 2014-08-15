@@ -270,7 +270,7 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
+    method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
         my $history_props;
         my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
         

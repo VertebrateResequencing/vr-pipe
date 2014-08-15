@@ -442,7 +442,9 @@ class VRPipe::Persistent::Graph {
     }
     
     # in/outgoing HashRef is { type => 'type', node => $node }
-    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, Bool :$return_history_nodes = 0, HashRef :$incoming?, HashRef :$outgoing?) {
+    # instead of node you can have node_spec => { namespace => ..., label => ..., properties => { ... } }
+    # to have multiple in/outgoing, supply an array ref of those hashrefs
+    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, Bool :$return_history_nodes = 0, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
         my ($labels, $param_map);
         my $set = '';
         if ($update) {
@@ -477,26 +479,24 @@ class VRPipe::Persistent::Graph {
             ($labels, $param_map) = $self->_labels_and_param_map($namespace, $label, $properties->[0], 'param', 1);
         }
         
-        my $incoming_merge = '';
-        my $match          = '';
+        my $rel_merge    = '';
+        my $match        = '';
+        my $extra_params = {};
         if ($incoming) {
-            my $node_id = $self->node_id($incoming->{node});
-            $incoming_merge = " MERGE (l)-[:$incoming->{type}]->(n)";
-            $match          = "MATCH (l) WHERE id(l) = $node_id ";
+            ($rel_merge, $match) = $self->_add_rel_cypher($incoming, 'l', 'in', $extra_params);
         }
-        my $outgoing_merge = '';
         if ($outgoing) {
-            my $node_id = $self->node_id($outgoing->{node});
-            $outgoing_merge = " MERGE (n)-[:$outgoing->{type}]->(r)";
-            $match .= "MATCH (r) WHERE id(r) = $node_id ";
+            my ($out_merge, $out_match) = $self->_add_rel_cypher($outgoing, 'r', 'out', $extra_params);
+            $rel_merge .= $out_merge;
+            $match     .= $out_match;
         }
         
-        my $cypher = "${match}MERGE (n:$labels$param_map)$set$incoming_merge$outgoing_merge";
+        my $cypher = "${match}MERGE (n:$labels$param_map)$set$rel_merge";
         $cypher .= ' RETURN n' if defined wantarray();
         
         my @to_run;
         foreach my $prop (@$properties) {
-            push(@to_run, [$cypher, { 'param' => $prop }]);
+            push(@to_run, [$cypher, { 'param' => $prop, %{$extra_params} }]);
         }
         
         if (defined wantarray()) {
@@ -507,7 +507,45 @@ class VRPipe::Persistent::Graph {
         }
     }
     
-    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, Bool :$update = 0, HashRef :$incoming?, HashRef :$outgoing?) {
+    sub _add_rel_cypher {
+        my ($self, $spec, $prefix, $direction, $extra_params) = @_;
+        my $i     = 0;
+        my $merge = '';
+        my $match = '';
+        foreach my $s (ref($spec) eq 'ARRAY' ? @$spec : ($spec)) {
+            $i++;
+            
+            my $type = $s->{type} || $self->throw("type must be defined in incoming/outgoing");
+            
+            if ($direction eq 'in') {
+                $merge .= " MERGE (`$prefix$i`)-[:$type]->(n)";
+            }
+            elsif ($direction eq 'out') {
+                $merge .= " MERGE (n)-[:$type]->(`$prefix$i`)";
+            }
+            else {
+                $self->throw("bad direction '$direction' supplied to _add_rel_cypher");
+            }
+            
+            if ($s->{node}) {
+                my $node_id = $self->node_id($s->{node});
+                $match .= "MATCH (`$prefix$i`) WHERE id(`$prefix$i`) = $node_id ";
+            }
+            elsif ($s->{node_spec}) {
+                my $node_spec = $s->{node_spec};
+                my $param_key = "$prefix${i}param";
+                my ($labels, $param_map) = $self->_labels_and_param_map($node_spec->{namespace}, $node_spec->{label}, $node_spec->{properties}, $param_key);
+                $match .= "MATCH (`$prefix$i`:$labels$param_map)";
+                $extra_params->{$param_key} = $node_spec->{properties};
+            }
+            else {
+                $self->throw("node or node_spec must be defined in incoming/outgoing");
+            }
+        }
+        return ($merge, $match);
+    }
+    
+    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, Bool :$update = 0, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
         my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], update => $update, $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
         return $node;
     }

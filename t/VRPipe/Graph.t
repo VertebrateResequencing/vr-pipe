@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 65;
+    use Test::Most tests => 66;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -132,6 +132,9 @@ is $graph->node_property($node, 'name'), 'Genome Campus', 'add_node() outgoing o
 my $ebi = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'EBI' }, incoming => { node => $campus, type => 'contains' }, outgoing => { node => $employee, type => 'has_employee' });
 @nodes = $graph->related_nodes($ebi);
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Genome Campus', $graph->node_property($employee, 'name')], 'add_node() worked with both incoming and outgoing specified at once';
+my ($tom, $jim) = $graph->add_nodes(namespace => 'OtherNS', label => 'Individual', properties => [{ name => 'Tom' }, { name => 'Jim' }], incoming => [{ type => 'has_employee', node_spec => { namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Genome Campus' } } }, { type => 'has_employee', node_spec => { namespace => 'OtherNS', label => 'Workplace', properties => { name => 'EBI' } } }]);
+@nodes = $graph->related_nodes($jim);
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['EBI', 'Genome Campus'], 'add_nodes() worked with 2 incoming nodes defined with specs';
 
 # add nodes to test display of images, and test the uuid creation helper method
 # and required schema option
@@ -153,10 +156,10 @@ is_deeply \%node_ids, { map { $_ => 1 } @root_ids }, 'root_nodes() worked as exe
 # make sure there are no problems getting a ton of nodes back from a cypher
 # query
 my $data = $graph->_run_cypher([['match n return n']]);
-is scalar(@{ $data->{nodes} }), 1068, 'no problems returning lots of nodes';
+is scalar(@{ $data->{nodes} }), 1070, 'no problems returning lots of nodes';
 my $encoded = $graph->json_encode($data);
 my $decoded = $graph->json_decode($encoded);
-is scalar(@{ $decoded->{nodes} }), 1068, 'json_encode/decode successfully roundtrips on lots of nodes';
+is scalar(@{ $decoded->{nodes} }), 1070, 'json_encode/decode successfully roundtrips on lots of nodes';
 
 # test the check_parents option to node_property
 is $graph->node_property($image, 'vrtrack_lane_name'), undef, 'by default, parent properties are not available';
