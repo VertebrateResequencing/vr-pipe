@@ -653,6 +653,36 @@ class VRPipe::Persistent::Graph {
         return @{ $self->_run_cypher(\@cypher)->{relationships} };
     }
     
+    # each hashref in $spec_list is { from => { id }|{ namespace, label, properties }, to => {...}, type => '...' }
+    method create_mass_relationships (ArrayRef[HashRef] $spec_list) {
+        my @cypher;
+        
+        foreach my $spec (@$spec_list) {
+            my $type = $spec->{type} || $self->throw("type must be present");
+            
+            my $match  = '';
+            my $params = {};
+            foreach my $direction ('from', 'to') {
+                my $node_spec = $spec->{$direction} || $self->throw("$direction must be present");
+                if ($node_spec->{id}) {
+                    $match .= "MATCH ($direction) WHERE id($direction) = $node_spec->{id} ";
+                }
+                elsif ($node_spec->{namespace} && $node_spec->{label} && $node_spec->{properties}) {
+                    my ($labels, $param_map) = $self->_labels_and_param_map($node_spec->{namespace}, $node_spec->{label}, $node_spec->{properties}, $direction);
+                    $match .= "MATCH ($direction:$labels$param_map) ";
+                    $params->{$direction} = $node_spec->{properties};
+                }
+                else {
+                    $self->throw("node id or namespace,label,properties must be defined in $direction");
+                }
+            }
+            
+            push(@cypher, [$match . " MERGE (from)-[:$type]->(to)", $params]);
+        }
+        
+        $self->_run_cypher(\@cypher);
+    }
+    
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
     # namespace, label, properties}, where the later 3 are result node specs and
     # with depths defaulting to 1 and others defaulting to undef; none supplied

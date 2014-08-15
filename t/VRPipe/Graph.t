@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 66;
+    use Test::Most tests => 68;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -135,6 +135,16 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Genome Camp
 my ($tom, $jim) = $graph->add_nodes(namespace => 'OtherNS', label => 'Individual', properties => [{ name => 'Tom' }, { name => 'Jim' }], incoming => [{ type => 'has_employee', node_spec => { namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Genome Campus' } } }, { type => 'has_employee', node_spec => { namespace => 'OtherNS', label => 'Workplace', properties => { name => 'EBI' } } }]);
 @nodes = $graph->related_nodes($jim);
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['EBI', 'Genome Campus'], 'add_nodes() worked with 2 incoming nodes defined with specs';
+@nodes = $graph->related_nodes($ebi, outgoing => {});
+is scalar(@nodes), 3, 'before creating mass relationships, had just 3';
+my @rel_details;
+
+for (1 .. 1000) {
+    push(@rel_details, { from => $ebi, to => { namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person' . $_ } }, type => 'has_employee' });
+}
+$graph->create_mass_relationships(\@rel_details);
+@nodes = $graph->related_nodes($ebi, outgoing => {});
+is scalar(@nodes), 1002, 'after creating mass relationships, had 1002';
 
 # add nodes to test display of images, and test the uuid creation helper method
 # and required schema option
