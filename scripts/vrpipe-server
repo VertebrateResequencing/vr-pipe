@@ -677,6 +677,10 @@ sub start_server {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'css', $basename)->stringify, $env, max_age => 525200);
         },
+        '/fonts/(.+)$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(file($dist_dir, 'fonts', $basename)->stringify, $env, max_age => 525200);
+        },
         '/file/(.+)$' => sub {
             my ($env, $path) = @_;
             $backend->psgi_file_response('/' . $path, $env);
