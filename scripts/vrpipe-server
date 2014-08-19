@@ -68,6 +68,8 @@ my $scheduler;
 my $im       = VRPipe::Persistent::InMemory->new();
 my $dist_dir = dist_dir('VRPipe');
 my $graph    = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
+my $vrtrack;
+eval { $vrtrack = VRPipe::Schema->create('VRTrack'); }; # graph db currently optional
 
 my $command = shift;
 unless ($command) {
@@ -662,11 +664,18 @@ sub start_server {
     my $deploymentLabel = $deployment eq 'production' ? 'vdp' : "vdt$user";
     $backend->register_psgi_pages(
         '/' => sub {
-            foo => { pat => qr/beginner/, repl => 'hacker' }, $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift, [[qr/\%\%cypherURI\%\%/, $cypherURI], [qr/\%\%deploymentLabel\%\%/, $deploymentLabel]]);
+            $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
+        },
+        '/qc' => sub {
+            $backend->psgi_file_response(file($dist_dir, 'qc.html')->stringify, shift);
         },
         '/js/(.+\.js)$' => sub {
             my ($env, $basename) = @_;
-            $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env);
+            $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env, max_age => 525200);
+        },
+        '/css/(.+\.css)$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(file($dist_dir, 'css', $basename)->stringify, $env, max_age => 525200);
         },
         '/file/(.+)$' => sub {
             my ($env, $path) = @_;
@@ -679,6 +688,10 @@ sub start_server {
         '/rest/graph/(.+)$' => sub {
             my ($env, $method) = @_;
             $backend->psgi_nonblocking_json_response($graph, \&graph, $env, $method);
+        },
+        '/rest/qc/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&qc, $env, $method);
         },
         '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
         '/dsn'    => sub {
@@ -1255,4 +1268,49 @@ sub status_old {
     }
     
     return $xml;
+}
+
+sub qc {
+    my ($args, $method) = @_;
+    
+    my $data;
+    if ($method eq 'labels') {
+        $data = $vrtrack->labels;
+    }
+    elsif ($method eq 'label_property_values') {
+        my $label    = $args->{label};
+        my $property = $args->{property};
+        if ($label && $property) {
+            my $t = time();
+            #my @nodes = $vrtrack->get($label); this is half the speed of calling raw _run_cypher
+            my $cypher_labels = $vrtrack->cypher_labels($label);
+            my $node_data     = $graph->_run_cypher([["MATCH (n:$cypher_labels) RETURN n"]])->{nodes};
+            my %vals;
+            foreach my $node (@$node_data) {
+                $vals{ $node->{properties}->{$property} } = 1;
+            }
+            $data = [keys %vals];
+        }
+        else {
+            $data = { errors => ["Both label and property must be supplied to label_property_values()"] };
+        }
+    }
+    elsif ($method eq 'sample_discordance') {
+        my $donor = $args->{donor};
+        if ($donor) {
+            my $donor_node = $vrtrack->get('Donor', { id => $donor });
+            if ($donor_node) {
+                my $cypher = "match (cohort)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) where id(cohort) = 20029 with cohort,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(cohort) WHERE sample <> sample2 return distinct discordance, sample";
+                $data = $graph->_run_cypher([[$cypher]]);
+            }
+            else {
+                $data = { errors => ["No donor with id $donor"] };
+            }
+        }
+    }
+    else {
+        $data = { errors => ["Invalid qc method '$method'"] };
+    }
+    
+    return $data;
 }
