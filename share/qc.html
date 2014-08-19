@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>VRPipe - QC</title>
+        
+        <!-- jQuery for REST interaction, and needed by bootstrap.js -->
+        <script src="/js/jquery-1.11.0.min.js"></script>
+        
+        <!-- Bootstrap for presentation and styling -->
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
+        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+        
+        <!-- Knockout for event handling -->
+        <script src="/js/knockout-3.1.0.min.js"></script>
+        
+        <!-- Bootstrap Multiselect for nice selects -->
+        <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
+        <link rel="stylesheet" href="/css/bootstrap-multiselect-0.9.8.css">
+        
+        <!-- Knockstrap to make buttons and things work 2-way between knockout and bootstrap -->
+        <script src="/js/knockstrap-0.4.0.min.js"></script>
+        
+        <!-- Simrou for client-side navigation -->
+        <script src="/js/simrou-1.5.4.min.js"></script>
+        
+        <!-- Some of our own general helper functions -->
+        <script src="/js/vrpipe.js"></script>
+        
+        <style>
+            .loader {
+                background-image: url(data:image/gif;base64,R0lGODlhEAALAPQAAP///0pISOTk5N3d3e/v705MTEpISGpoaKalpY6MjM3NzWJgYH59fauqqpCPj9DQ0GRjY0xKSoF/f+zs7OPi4vb29nFwcOXl5fX19crKyru6utnY2PLy8gAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh/hpDcmVhdGVkIHdpdGggYWpheGxvYWQuaW5mbwAh+QQJCwAAACwAAAAAEAALAAAFLSAgjmRpnqSgCuLKAq5AEIM4zDVw03ve27ifDgfkEYe04kDIDC5zrtYKRa2WQgAh+QQJCwAAACwAAAAAEAALAAAFJGBhGAVgnqhpHIeRvsDawqns0qeN5+y967tYLyicBYE7EYkYAgAh+QQJCwAAACwAAAAAEAALAAAFNiAgjothLOOIJAkiGgxjpGKiKMkbz7SN6zIawJcDwIK9W/HISxGBzdHTuBNOmcJVCyoUlk7CEAAh+QQJCwAAACwAAAAAEAALAAAFNSAgjqQIRRFUAo3jNGIkSdHqPI8Tz3V55zuaDacDyIQ+YrBH+hWPzJFzOQQaeavWi7oqnVIhACH5BAkLAAAALAAAAAAQAAsAAAUyICCOZGme1rJY5kRRk7hI0mJSVUXJtF3iOl7tltsBZsNfUegjAY3I5sgFY55KqdX1GgIAIfkECQsAAAAsAAAAABAACwAABTcgII5kaZ4kcV2EqLJipmnZhWGXaOOitm2aXQ4g7P2Ct2ER4AMul00kj5g0Al8tADY2y6C+4FIIACH5BAkLAAAALAAAAAAQAAsAAAUvICCOZGme5ERRk6iy7qpyHCVStA3gNa/7txxwlwv2isSacYUc+l4tADQGQ1mvpBAAIfkECQsAAAAsAAAAABAACwAABS8gII5kaZ7kRFGTqLLuqnIcJVK0DeA1r/u3HHCXC/aKxJpxhRz6Xi0ANAZDWa+kEAA7AAAAAAAAAAAA);
+                height: 11px;
+                width: 16px;
+            }
+            
+            .popover_thumb {
+                max-width: 200px;
+                max-height: 200px;
+            }
+            
+            .toolbar-with-whitespace {
+                margin-top: 15px;
+                margin-bottom: 20px;
+            }
+            
+            .setup {
+                width: 263px;
+                border: 1px solid black;
+                margin-bottom: 15px;
+                overflow: hidden;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="qc">
+                <h3>VRTrack QC</h3>
+                
+                <!-- selector -->
+                <select size="2" id="labelSelect" class="multiselect" data-bind="
+                    options: labels,
+                    selectedOptions: selectedLabel,
+                    multiselect: true">
+                </select>
+                
+                <select size="2" id="propertySelect" class="multiselect" data-bind="
+                    options: selectedLabelProperties,
+                    selectedOptions: selectedLabelProperty,
+                    multiselect: true">
+                </select>
+                
+                <select size="2" id="valueSelect" class="multiselect" multiple="multiple" data-bind="
+                    options: labelPropertyValues,
+                    selectedOptions: selectedLabelPropertyValues,
+                    multiselect: true">
+                </select>
+                
+                <div data-bind="visible: selectedLabel">
+                    You have chosen label: 
+                    <span data-bind="text: selectedLabel()"></span>.
+                </div>
+                <div data-bind="visible: selectedLabelProperty">
+                    You have chosen property: 
+                    <span data-bind="text: selectedLabelProperty()"></span>.
+                </div>
+                <div data-bind="visible: selectedLabelPropertyValues().length">
+                    You have chosen values: 
+                    <span data-bind="text: selectedLabelPropertyValues()"></span>.
+                </div>
+                
+                <div id="errors" data-bind="foreach: errors">
+                    <div class="alert alert-danger fade in">
+                        <p data-bind="text: $data"></p>
+                    </div>
+                </div>
+                
+                <div data-bind="loadingWhen: loading().length">
+                    loading div
+                </div>
+            </div>
+            
+            <hr>
+            
+            <footer id="footer">
+                <small>&copy; 2014 Genome Research Limited.</small>
+            </footer>
+        </div>
+        
+        <script type="text/javascript">
+            // viewmodel for qc
+            function QCViewModel() {
+                var self = this;
+                self.loading = ko.observableArray();
+                self.errors = ko.observableArray();
+                self.labels = ko.observableArray();
+                self.labels.extend({ rateLimit: 100 });
+                self.labelProperties = {};
+                self.selectedLabelProperties = ko.observableArray();
+                self.selectedLabelProperties.extend({ rateLimit: 100 });
+                self.labelPropertyValues = ko.observableArray();
+                self.labelPropertyValues.extend({ rateLimit: 100 });
+                self.selectedLabel = ko.observable();
+                self.selectedLabelProperty = ko.observable();
+                self.selectedLabelPropertyValues = ko.observableArray();
+                
+                // configure the multiselects
+                $('#labelSelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Level...'
+                });
+                $('#propertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#valueSelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    selectAllValue: 'allValuesSelected', // the name of a class... not sure if this is useful or how use it
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Value...'
+                });
+                
+                // function to get data from the graph database
+                self.getGraphData = function(method, args) {
+                    self.loading.removeAll();
+                    self.errors.removeAll();
+                    var start = new Date().getTime();
+                    
+                    vrpipeRestMethod('qc', method, args, self.loading, self.errors, function(data) {
+                        var end = new Date().getTime();
+                        var time = end - start;
+                        console.log(method + ' took ' + time + 'ms');
+                        
+                        if (method == 'labels') {
+                            self.labels.removeAll();
+                            for (var key in data) {
+                                self.labels.push(key);
+                                self.labelProperties[key] = data[key];
+                            }
+                        }
+                        else if (method == 'label_property_values') {
+                            self.labelPropertyValues.removeAll();
+                            self.selectedLabelPropertyValues.removeAll();
+                            for (var i = 0; i < data.length; i++) {
+                                self.labelPropertyValues.push(data[i]);
+                            }
+                        }
+                    });
+                }
+                
+                self.getGraphData('labels', { });
+                
+                self.selectedLabel.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.selectedLabelProperty(undefined);
+                        self.labelPropertyValues.removeAll();
+                        self.selectedLabelPropertyValues.removeAll();
+                        self.selectedLabelProperties.removeAll();
+                        var props = self.labelProperties[newValue[0]];
+                        for (var i = 0; i < props.length; i++) {
+                            self.selectedLabelProperties.push(props[i]);
+                        }
+                    }
+                });
+                
+                self.selectedLabelProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '') {
+                        self.getGraphData('label_property_values', { label: self.selectedLabel()[0], property: newValue[0] });
+                    }
+                });
+                
+                // self.getGraphData('sample_discordance', { donor: 'fde0774b-cecd-45d0-9d72-49bd257dd232' });
+            }
+            
+            var qcvm = new QCViewModel();
+            ko.applyBindings(qcvm);
+        </script>
+    </body>
+</html>
