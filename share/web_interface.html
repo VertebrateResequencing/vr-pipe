@@ -33,6 +33,9 @@
         <script src="/js/jquery-isotope-1.5.25.min.js"></script>
         <script src="/js/knockout-isotope-1.0.3.min.js"></script>
         
+        <!-- Some of our own general helper functions -->
+        <script src="/js/vrpipe.js"></script>
+        
         <style>
             .loader {
                 background-image: url(data:image/gif;base64,R0lGODlhEAALAPQAAP///0pISOTk5N3d3e/v705MTEpISGpoaKalpY6MjM3NzWJgYH59fauqqpCPj9DQ0GRjY0xKSoF/f+zs7OPi4vb29nFwcOXl5fX19crKyru6utnY2PLy8gAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh/hpDcmVhdGVkIHdpdGggYWpheGxvYWQuaW5mbwAh+QQJCwAAACwAAAAAEAALAAAFLSAgjmRpnqSgCuLKAq5AEIM4zDVw03ve27ifDgfkEYe04kDIDC5zrtYKRa2WQgAh+QQJCwAAACwAAAAAEAALAAAFJGBhGAVgnqhpHIeRvsDawqns0qeN5+y967tYLyicBYE7EYkYAgAh+QQJCwAAACwAAAAAEAALAAAFNiAgjothLOOIJAkiGgxjpGKiKMkbz7SN6zIawJcDwIK9W/HISxGBzdHTuBNOmcJVCyoUlk7CEAAh+QQJCwAAACwAAAAAEAALAAAFNSAgjqQIRRFUAo3jNGIkSdHqPI8Tz3V55zuaDacDyIQ+YrBH+hWPzJFzOQQaeavWi7oqnVIhACH5BAkLAAAALAAAAAAQAAsAAAUyICCOZGme1rJY5kRRk7hI0mJSVUXJtF3iOl7tltsBZsNfUegjAY3I5sgFY55KqdX1GgIAIfkECQsAAAAsAAAAABAACwAABTcgII5kaZ4kcV2EqLJipmnZhWGXaOOitm2aXQ4g7P2Ct2ER4AMul00kj5g0Al8tADY2y6C+4FIIACH5BAkLAAAALAAAAAAQAAsAAAUvICCOZGme5ERRk6iy7qpyHCVStA3gNa/7txxwlwv2isSacYUc+l4tADQGQ1mvpBAAIfkECQsAAAAsAAAAABAACwAABS8gII5kaZ7kRFGTqLLuqnIcJVK0DeA1r/u3HHCXC/aKxJpxhRz6Xi0ANAZDWa+kEAA7AAAAAAAAAAAA);
@@ -334,131 +337,6 @@
             route.get(function(event, params) {
                 $('#tabsections a[href="#graph"]').tab('show');
             });
-            
-            // we have a custom ko binding to handle our loading feedback
-            // (from http://blog.greatrexpectations.com/2012/06/17/loading-placeholders-using-knockout-js/)
-            ko.bindingHandlers.loadingWhen = {
-                init: function (element) {
-                    var $element = $(element),
-                        currentPosition = $element.css("position")
-                        $loader = $("<div>").addClass("loader").hide();
-                    
-                    //add the loader
-                    $element.append($loader);
-                    
-                    //make sure that we can absolutely position the loader against the original element
-                    if (currentPosition == "auto" || currentPosition == "static")
-                        $element.css("position", "relative");
-
-                    //center the loader
-                    $loader.css({
-                        position: "absolute",
-                        top: "20px",
-                        left: "50%",
-                        "margin-left": -($loader.width() / 2) + "px"
-                    });
-                },
-                update: function (element, valueAccessor) {
-                    var isLoading = ko.utils.unwrapObservable(valueAccessor()),
-                        $element = $(element),
-                        $childrenToHide = $element.children(":not(div.loader)"),
-                        $loader = $element.find("div.loader");
-
-                    if (isLoading) {
-                        $childrenToHide.css("visibility", "hidden").attr("disabled", "disabled");
-                        $loader.fadeIn("slow");
-                    }
-                    else {
-                        $loader.fadeOut("fast");
-                        $childrenToHide.css("visibility", "visible").removeAttr("disabled");
-                    }
-                }
-            };
-            
-            // ajax function to send/get json queries
-            var ajax = function(uri, method, loading, error, data) {
-                var loadingTimeout;
-                var request = {
-                    url: uri,
-                    type: method,
-                    contentType: "application/json",
-                    accepts: "application/json",
-                    cache: false,
-                    dataType: 'json',
-                    data: JSON.stringify(data),
-                    beforeSend: function (xhr) {
-                        // say that we're loading, but only if for more than
-                        // half a second
-                        if (loadingTimeout) { clearTimeout(loadingTimeout); }
-                        loadingTimeout = setTimeout(function() {
-                            loading.push(true);
-                        }, 500);
-                    },
-                    error: function(jqXHR, textStatus, errorThrown) {
-                        if (textStatus) {
-                            var msg = "Ajax " + textStatus + " " + jqXHR.status + " connecting to " + uri;
-                            if (errorThrown) {
-                                msg = msg + ": " + errorThrown;
-                            }
-                            error.push(msg);
-                        }
-                    },
-                    complete: function(jqXHR, textStatus) {
-                        if (loadingTimeout) { clearTimeout(loadingTimeout); }
-                        loading.pop();
-                    }
-                };
-                return $.ajax(request);
-            }
-            
-            // function to call a VRPipe Rest method and do something with the
-            // json response, and its helper function to deal with errors
-            var vrpipeRestDataErrorParser = function(data, error) {
-                if (data.hasOwnProperty('errors')) {
-                    for (var i = 0; i < data.errors.length; i++) {
-                        error.push(data.errors[i]);
-                    }
-                    return 1;
-                }
-                return 0;
-            }
-            var vrpipeRestMethod = function(category, method, args, loading, error, donefunction) {
-                var promise = ajax('/rest/' + category + '/' + method, 'POST', loading, error, args);
-                
-                if (donefunction) {
-                    promise.done(function(data) {
-                        if (! vrpipeRestDataErrorParser(data, error)) {
-                            donefunction(data);
-                        }
-                    });
-                }
-                else {
-                    return promise;
-                }
-            }
-            
-            var shorten_string = function(string) {
-                var shortened = string;
-                if (string.length > 25) {
-                    shortened = string.substring(0, 5) + '[...]' + string.slice(-15);
-                }
-                return shortened;
-            }
-            
-            var wbr = function(string) {
-                var wbrd = '' + string;
-                if (string.length > 21) {
-                    wbrd = wbrd.replace(/(.{21})/g, "$1<wbr>");
-                }
-                else {
-                    wbrd = wbrd.replace(/([_\-,\.\(\)])/g, "$1<wbr>");
-                }
-                return wbrd;
-            }
-            
-            var zeropad = function(num) {
-                return (num < 10) ? ("0" + num) : num;
-            }
             
             // viewmodel for status
             function StatusViewModel() {
@@ -899,9 +777,7 @@
                                     value = '<a href="/file' + encodeURIComponent(path) + '" target="_blank">' + clickable + '</a>';
                                 }
                                 else if (key.indexOf("date") > -1 && !isNaN(parseFloat(value)) && isFinite(value)) {
-                                    // convert epoch seconds to friendly date
-                                    var date = new Date(value * 1000);
-                                    value = date.getFullYear() + "/" + zeropad(date.getMonth() + 1) + "/" + zeropad(date.getDate()) + " " + zeropad(date.getHours()) + ":" + zeropad(date.getMinutes()) + ":" + zeropad(date.getSeconds());
+                                    value = epochToDate(value);
                                 }
                                 else {
                                     value = wbr(value);
@@ -947,7 +823,7 @@
                             displayName = node.properties[uniqueParam];
                         }
                         
-                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: shorten_string(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
+                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: shortenString(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
                     }
                     
                     self.cy = self.plotCytoscape();
