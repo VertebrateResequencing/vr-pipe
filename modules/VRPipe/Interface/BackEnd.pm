@@ -59,6 +59,7 @@ class VRPipe::Interface::BackEnd {
         csv  => 'text/csv',
         html => 'text/html',
         js   => 'text/javascript',
+        css  => 'text/css',
         txt  => 'text/plain',
         zip  => 'application/zip',
         gzip => 'application/gzip',
@@ -685,7 +686,7 @@ XSL
         return $res;
     }
     
-    method psgi_file_response (Str $path, HashRef $env, ArrayRef $regexes?) {
+    method psgi_file_response (Str $path, HashRef $env, ArrayRef :$regexes?, Int :$max_age?) {
         my $req = Plack::Request->new($env);
         
         my $ok = open(my $fh, $path);
@@ -725,6 +726,9 @@ XSL
         my $res = $req->new_response(200);
         $res->content_type($content_type);
         $res->body($content);
+        if ($max_age) {
+            $res->header('cache-control' => "public, max-age=$max_age");
+        }
         return $res;
     }
     
