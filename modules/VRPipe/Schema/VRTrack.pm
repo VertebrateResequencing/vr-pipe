@@ -61,8 +61,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed => [qw(common_name)]
             },
             {
-                label  => 'Donor',
-                unique => [qw(id)]
+                label    => 'Donor',
+                unique   => [qw(id)],
+                optional => [qw(example_sample last_sample_added_date)] # psuedo fields not stored in db, but you could calculate these when retrieving a donor
             },
             {
                 label        => 'Sample',
