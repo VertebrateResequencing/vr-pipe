@@ -42,6 +42,7 @@ use VRPipe::Persistent::Graph;
 use VRPipe::Schema;
 use File::Share ':all';
 use Module::Find;
+use DateTime;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -1281,35 +1282,235 @@ sub qc {
     if ($method eq 'labels') {
         $data = $vrtrack->labels;
     }
-    elsif ($method eq 'label_property_values') {
-        my $label    = $args->{label};
-        my $property = $args->{property};
-        if ($label && $property) {
-            my $t = time();
-            #my @nodes = $vrtrack->get($label); this is half the speed of calling raw _run_cypher
+    elsif ($method eq 'nodes_of_label') {
+        my $label = $args->{label};
+        if ($label) {
             my $cypher_labels = $vrtrack->cypher_labels($label);
-            my $node_data     = $graph->_run_cypher([["MATCH (n:$cypher_labels) RETURN n"]])->{nodes};
-            my %vals;
-            foreach my $node (@$node_data) {
-                $vals{ $node->{properties}->{$property} } = 1;
-            }
-            $data = [keys %vals];
-        }
-        else {
-            $data = { errors => ["Both label and property must be supplied to label_property_values()"] };
-        }
-    }
-    elsif ($method eq 'sample_discordance') {
-        my $donor = $args->{donor};
-        if ($donor) {
-            my $donor_node = $vrtrack->get('Donor', { id => $donor });
-            if ($donor_node) {
-                my $cypher = "match (cohort)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) where id(cohort) = 20029 with cohort,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(cohort) WHERE sample <> sample2 return distinct discordance, sample";
-                $data = $graph->_run_cypher([[$cypher]]);
+            
+            my $cypher;
+            my $groups = $args->{groups};
+            if ($groups) {
+                my $params       = { group => { ids => $groups } };
+                my $group_labels = $vrtrack->cypher_labels('Group');
+                my $match        = "MATCH (group:$group_labels) WHERE id(group) IN {group}.ids";
+                
+                my $studies  = $args->{studies};
+                my $previous = 'group';
+                my ($donors, $samples);
+                if ($studies) {
+                    $params->{study}->{ids} = $studies;
+                    my $study_labels = $vrtrack->cypher_labels('Study');
+                    $match .= " MATCH (group)-->(study:$study_labels) WHERE id(study) IN {study}.ids";
+                    $previous = 'study';
+                    
+                    $donors = $args->{donors};
+                    if ($donors) {
+                        $params->{donor}->{ids} = $donors;
+                        my $donor_labels = $vrtrack->cypher_labels('Donor');
+                        $match .= " MATCH ($previous)-->(donor:$donor_labels) WHERE id(donor) IN {donor}.ids";
+                        $previous = 'donor';
+                    }
+                    
+                    $samples = $args->{samples};
+                    if ($samples) {
+                        $params->{sample}->{ids} = $samples;
+                        my $sample_labels = $vrtrack->cypher_labels('Sample');
+                        $match .= " MATCH ($previous)-->(sample:$sample_labels) WHERE id(sample) IN {sample}.ids";
+                        $previous = 'sample';
+                    }
+                }
+                
+                my $donor_special;
+                if ($label eq 'Donor') {
+                    # donor's just have meaningless ids; user will always want
+                    # to see the donor's control sample public name and the
+                    # most recent created_date of its member samples, so we will
+                    # add those as psuedo properties on the donor nodes; first
+                    # adjust the cypher to get the donor's samples
+                    my $sample_labels = $vrtrack->cypher_labels('Sample');
+                    $donor_special = "WITH donor MATCH (donor)-[r]->(d_sample:$sample_labels) RETURN donor,r,d_sample";
+                }
+                
+                my $query;
+                if ($label eq 'Donor' && $donors) {
+                    $query = $donor_special;
+                }
+                elsif ($label eq 'Sample' && $samples) {
+                    $query = 'RETURN sample';
+                }
+                else {
+                    my $min_d = $args->{min_depth} || 1;
+                    my $max_d = $args->{max_depth} || 1;
+                    my $depth = "$min_d..$max_d";
+                    my $return = 'RETURN n';
+                    if ($donor_special) {
+                        $donor_special =~ s/donor/n/g;
+                        $return = $donor_special;
+                    }
+                    
+                    $query = "MATCH ($previous)-[*$depth]->(n:$cypher_labels) $return";
+                }
+                
+                $cypher = ["$match $query", $params];
             }
             else {
-                $data = { errors => ["No donor with id $donor"] };
+                $cypher = ["MATCH (n:$cypher_labels) RETURN n"];
             }
+            
+            my $graph_data = $graph->_run_cypher([$cypher]);
+            if ($label eq 'Donor') {
+                # we have sample nodes related to our donor nodes; figure out
+                # which samples belong to which donors, then add the relevant
+                # sample properties to the donor node
+                my %rels;
+                foreach my $rel (@{ $graph_data->{relationships} }) {
+                    push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+                }
+                
+                my %nodes;
+                foreach my $node (@{ $graph_data->{nodes} }) {
+                    $nodes{ $node->{label} }->{ $node->{id} } = $node;
+                }
+                
+                foreach my $donor (values $nodes{Donor}) {
+                    my ($most_recent_date, @controls, $shortest);
+                    foreach my $sample_id (@{ $rels{ $donor->{id} } || next }) {
+                        my $s_props = $nodes{Sample}->{$sample_id}->{properties};
+                        
+                        my $cd = $s_props->{created_date};
+                        if ($cd && (!defined $most_recent_date || $cd > $most_recent_date)) {
+                            $most_recent_date = $cd;
+                        }
+                        
+                        my $name = $s_props->{public_name} || $s_props->{name};
+                        if (!defined $shortest || length($name) < length($shortest)) {
+                            $shortest = $name;
+                        }
+                        
+                        push(@controls, $name) if $s_props->{control};
+                    }
+                    
+                    if (@controls || $shortest) {
+                        $donor->{properties}->{example_sample} = @controls == 1 ? $controls[0] : $shortest;
+                    }
+                    if ($most_recent_date) {
+                        # convert to yyyy-mm-dd
+                        my $dt = DateTime->from_epoch(epoch => $most_recent_date);
+                        $donor->{properties}->{last_sample_added_date} = $dt->ymd;
+                    }
+                }
+                
+                $data = [values $nodes{Donor}];
+            }
+            else {
+                if ($label eq 'Sample') {
+                    # convert created_date property from epoch to ymd
+                    foreach my $sample (@{ $graph_data->{nodes} }) {
+                        if (defined $sample->{properties}->{created_date}) {
+                            my $dt = DateTime->from_epoch(epoch => $sample->{properties}->{created_date});
+                            $sample->{properties}->{created_date} = $dt->ymd;
+                        }
+                    }
+                }
+                
+                $data = $graph_data->{nodes};
+            }
+        }
+        else {
+            $data = { errors => ["label must be supplied to nodes_of_label()"] };
+        }
+    }
+    elsif ($method eq 'donor_qc') {
+        my $donor = $args->{donor};
+        if ($donor) {
+            # get the discordance results between all samples from this donor
+            my $study_labels = $vrtrack->cypher_labels('Study');
+            my $cypher       = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) RETURN DISTINCT discordance, sample, ssr, sdr";
+            my $graph_data   = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+            
+            my %rels;
+            foreach my $rel (@{ $graph_data->{relationships} }) {
+                push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
+            }
+            
+            my %nodes;
+            foreach my $node (@{ $graph_data->{nodes} }) {
+                $nodes{ $node->{label} }->{ $node->{id} } = $node;
+            }
+            
+            my %sample_meta;
+            foreach my $sample (values $nodes{Sample}) {
+                my $sid        = $sample->{id};
+                my ($study_id) = @{ $rels{$sid} };
+                my $study_node = $nodes{Study}->{$study_id};
+                my $props      = $sample->{properties};
+                $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $nodes{Study}->{$study_id}->{properties}->{id}];
+            }
+            
+            my @results;
+            foreach my $disc (values $nodes{Discordance}) {
+                my $did = $disc->{id};
+                my @samples_meta;
+                foreach my $sample_id (@{ $rels{$did} }) {
+                    push(@samples_meta, $sample_meta{$sample_id});
+                }
+                my ($sample1_meta, $sample2_meta) =
+                  sort { $a->[3] <=> $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
+                
+                my $props = $disc->{properties};
+                push(@results, { type => 'discordance', discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3] });
+            }
+            
+            @results =
+              sort { $a->{sample1_study} <=> $b->{sample1_study} || $a->{sample2_study} <=> $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
+            
+            # get the gender info for all samples from this donor
+            $cypher = "MATCH (donor)-[:sample]->(sample)-[ser:gender]->(egender) WHERE id(donor) = {donor}.id MATCH (sample)-[sar1:processed]->()-[sar2:imported]->()-[sar3:converted]->()-[sar4:gender]->(agender) return sample, ser, egender, sar1, sar2, sar3, sar4, agender";
+            $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+            
+            %rels = ();
+            foreach my $rel (@{ $graph_data->{relationships} }) {
+                push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+            }
+            
+            %nodes = ();
+            my %sample_nodes;
+            foreach my $node (@{ $graph_data->{nodes} }) {
+                $nodes{ $node->{id} } = $node;
+                $sample_nodes{ $node->{id} } = $node if $node->{label} eq 'Sample';
+            }
+            
+            foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
+                my $sid = $sample->{id};
+                my ($eg, $ag);
+                foreach my $node_id (@{ $rels{$sid} }) {
+                    my $node        = $nodes{$node_id};
+                    my $previous_id = $node_id;
+                    while ($node->{label} ne 'Gender') {
+                        my ($child_node_id) = @{ $rels{$previous_id} };
+                        $node = $nodes{$child_node_id};
+                        $node || last;
+                        $previous_id = $child_node_id;
+                    }
+                    $node || next;
+                    
+                    my $gender_props = $node->{properties};
+                    if ($gender_props->{source} eq 'sequencescape') {
+                        $eg = $gender_props->{gender};
+                    }
+                    else {
+                        $ag = $gender_props->{gender};
+                    }
+                }
+                
+                my $sample_props = $sample->{properties};
+                push(@results, { type => 'gender', sample_name => $sample_props->{name}, sample_public_name => $sample_props->{public_name}, expected_gender => $eg, actual_gender => $ag });
+            }
+            
+            $data = \@results;
+        }
+        else {
+            $data = { errors => ["donor node id must be supplied to donor_qc()"] };
         }
     }
     else {

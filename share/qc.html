@@ -56,6 +56,10 @@
                 margin-bottom: 15px;
                 overflow: hidden;
             }
+            
+            .top-margin {
+                margin-top: 5px;
+            }
         </style>
     </head>
     <body>
@@ -63,47 +67,196 @@
             <div id="qc">
                 <h3>VRTrack QC</h3>
                 
-                <!-- selector -->
-                <select size="2" id="labelSelect" class="multiselect" data-bind="
-                    options: labels,
-                    selectedOptions: selectedLabel,
-                    multiselect: true">
-                </select>
-                
-                <select size="2" id="propertySelect" class="multiselect" data-bind="
-                    options: selectedLabelProperties,
-                    selectedOptions: selectedLabelProperty,
-                    multiselect: true">
-                </select>
-                
-                <select size="2" id="valueSelect" class="multiselect" multiple="multiple" data-bind="
-                    options: labelPropertyValues,
-                    selectedOptions: selectedLabelPropertyValues,
-                    multiselect: true">
-                </select>
-                
-                <div data-bind="visible: selectedLabel">
-                    You have chosen label: 
-                    <span data-bind="text: selectedLabel()"></span>.
-                </div>
-                <div data-bind="visible: selectedLabelProperty">
-                    You have chosen property: 
-                    <span data-bind="text: selectedLabelProperty()"></span>.
-                </div>
-                <div data-bind="visible: selectedLabelPropertyValues().length">
-                    You have chosen values: 
-                    <span data-bind="text: selectedLabelPropertyValues()"></span>.
+                <div data-bind="loadingWhen: loading().length">
+                    &nbsp;
                 </div>
                 
-                <div id="errors" data-bind="foreach: errors">
+                <div id="selector">
+                    <form role="form" class="input-group btn-group">
+                        <span class="input-group-addon"><b>Group</b></span>
+                        <select size="2" id="groupSelect" class="multiselect" multiple="multiple" data-bind="
+                            options: groupNodes,
+                            optionsText: function(item) {
+                                return item.properties['name']
+                            },
+                            optionsValue: function(item) {
+                                return +item.id
+                            },
+                            selectedOptions: selectedGroups,
+                            multiselect: true">
+                        </select>
+                    </form>
+                    
+                    <form role="form" class="input-group btn-group top-margin" data-bind="visible: selectedGroups().length">
+                        <span class="input-group-addon"><b>Study</b></span>
+                        <select size="2" id="studyPropertySelect" class="multiselect" data-bind="
+                            options: studyProperties,
+                            selectedOptions: selectedStudyProperty,
+                            multiselect: true">
+                        </select>
+                        <select size="2" id="studySelect" class="multiselect" multiple="multiple" data-bind="
+                            options: studyNodes,
+                            optionsText: function(item) {
+                                return item.properties[selectedStudyProperty()]
+                            },
+                            optionsValue: function(item) {
+                                return +item.id
+                            },
+                            selectedOptions: selectedStudies,
+                            multiselect: true">
+                        </select>
+                    </form>
+                    
+                    <div data-bind="visible: selectedStudies().length">
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon">Donor</span>
+                            <select size="2" id="donorPropertySelect" class="multiselect" data-bind="
+                                options: donorProperties,
+                                selectedOptions: selectedDonorProperty,
+                                multiselect: true">
+                            </select>
+                            <select size="2" id="donorSelect" class="multiselect" multiple="multiple" data-bind="
+                                options: donorNodes,
+                                optionsText: function(item) {
+                                    return item.properties[selectedDonorProperty()]
+                                },
+                                optionsValue: function(item) {
+                                    return +item.id
+                                },
+                                selectedOptions: selectedDonors,
+                                multiselect: true">
+                            </select>
+                        </form>
+                        
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon">Sample</span>
+                            <select size="2" id="samplePropertySelect" class="multiselect" data-bind="
+                                options: sampleProperties,
+                                selectedOptions: selectedSampleProperty,
+                                multiselect: true">
+                            </select>
+                            <select size="2" id="sampleSelect" class="multiselect" multiple="multiple" data-bind="
+                                options: sampleNodes,
+                                optionsText: function(item) {
+                                    return item.properties[selectedSampleProperty()]
+                                },
+                                optionsValue: function(item) {
+                                    return +item.id
+                                },
+                                selectedOptions: selectedSamples,
+                                multiselect: true">
+                            </select>
+                        </form>
+                        
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon"><b>View</b></span>
+                            <select size="2" id="viewSelect" class="multiselect" data-bind="
+                                options: viewLabels,
+                                selectedOptions: selectedViewLabel,
+                                multiselect: true">
+                            </select>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="top-margin" id="errors" data-bind="foreach: errors">
                     <div class="alert alert-danger fade in">
                         <p data-bind="text: $data"></p>
                     </div>
                 </div>
                 
-                <div data-bind="loadingWhen: loading().length">
-                    loading div
+                <div id="viewtable" data-bind="visible: viewNodes().length">
+                    <hr>
+                    
+                    <div class="panel panel-default">
+                        <div class="panel-heading" data-bind="text: selectedViewLabel"></div>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr data-bind="foreach: viewColumnNames">
+                                        <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="foreach: viewNodes">
+                                    <tr data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
+                                        <td data-bind="text: $parent[$data]"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="panel-footer"><small><span data-bind="text: viewNodes().length"></span> rows</small></div>
+                    </div>
                 </div>
+                
+                <div id="donorqc" data-bind="visible: donorInternalDiscordance().length"> <!-- donorGenderResults().length && -->
+                    <div class="panel panel-default">
+                        <div class="panel-heading">Gender</div>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>sample name</th>
+                                        <th>sample public name</th>
+                                        <th>expected gender</th>
+                                        <th>actual gender</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="foreach: donorGenderResults">
+                                    <tr>
+                                        <td data-bind="text: sample_name"></td>
+                                        <td data-bind="text: sample_public_name"></td>
+                                        <td data-bind="text: expected_gender"></td>
+                                        <td data-bind="text: actual_gender"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="panel panel-default">
+                        <div class="panel-heading">Discordance</div>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr>
+                                        <th colspan="4">sample 1</th>
+                                        <th colspan="3">genotype comparison</th>
+                                        <th colspan="4">sample 2</th>
+                                    </tr>
+                                    <tr>
+                                        <th>study</th>
+                                        <th>name</th>
+                                        <th>public name</th>
+                                        <th>control</th>
+                                        <th>discordance</th>
+                                        <th>num of sites</th>
+                                        <th>avg min depth</th>
+                                        <th>study</th>
+                                        <th>name</th>
+                                        <th>public name</th>
+                                        <th>control</th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="foreach: donorInternalDiscordance">
+                                    <tr>
+                                        <td data-bind="text: sample1_study"></td>
+                                        <td data-bind="text: sample1_name"></td>
+                                        <td data-bind="text: sample1_public_name"></td>
+                                        <td data-bind="text: sample1_control"></td>
+                                        <td data-bind="text: discordance"></td>
+                                        <td data-bind="text: num_of_sites"></td>
+                                        <td data-bind="text: avg_min_depth"></td>
+                                        <td data-bind="text: sample2_study"></td>
+                                        <td data-bind="text: sample2_name"></td>
+                                        <td data-bind="text: sample2_public_name"></td>
+                                        <td data-bind="text: sample2_control"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
             </div>
             
             <hr>
@@ -117,41 +270,88 @@
             // viewmodel for qc
             function QCViewModel() {
                 var self = this;
+                
                 self.loading = ko.observableArray();
                 self.errors = ko.observableArray();
                 self.labels = ko.observableArray();
-                self.labels.extend({ rateLimit: 100 });
                 self.labelProperties = {};
-                self.selectedLabelProperties = ko.observableArray();
-                self.selectedLabelProperties.extend({ rateLimit: 100 });
-                self.labelPropertyValues = ko.observableArray();
-                self.labelPropertyValues.extend({ rateLimit: 200 });
-                self.selectedLabel = ko.observable();
-                self.selectedLabelProperty = ko.observable();
-                self.selectedLabelPropertyValues = ko.observableArray();
+                self.viewLabels = ko.observableArray();
+                
+                // required group and study selection vars
+                self.groupNodes = ko.observableArray();
+                self.selectedGroups = ko.observableArray();
+                self.studyProperties = ko.observableArray();
+                self.selectedStudyProperty = ko.observable();
+                self.studyNodes = ko.observableArray();
+                self.selectedStudies = ko.observableArray();
+                
+                // optional donor and sample selection vars
+                self.donorProperties = ko.observableArray();
+                self.selectedDonorProperty = ko.observable();
+                self.donorNodes = ko.observableArray();
+                self.selectedDonors = ko.observableArray();
+                self.sampleProperties = ko.observableArray();
+                self.selectedSampleProperty = ko.observable();
+                self.sampleNodes = ko.observableArray();
+                self.selectedSamples = ko.observableArray();
+                
+                // view mode vars
+                self.selectedViewLabel = ko.observable();
+                self.viewNodes = ko.observableArray();
+                
+                // donor qc results
+                self.donorGenderResults = ko.observableArray();
+                self.donorInternalDiscordance = ko.observableArray();
                 
                 // configure the multiselects
-                $('#labelSelect').multiselect({
+                $('#groupSelect').multiselect({
+                    enableCaseInsensitiveFiltering: true,
                     maxHeight: 300,
-                    nonSelectedText: 'Type...'
+                    nonSelectedText: 'Group...'
                 });
-                $('#propertySelect').multiselect({
+                $('#studyPropertySelect').multiselect({
                     maxHeight: 300,
-                    disableIfEmpty: true,
                     nonSelectedText: 'Property...'
                 });
-                $('#valueSelect').multiselect({
+                $('#studySelect').multiselect({
                     includeSelectAllOption: true,
                     includeSelectAllIfMoreThan: 1,
-                    selectAllValue: 'allValuesSelected', // the name of a class... not sure if this is useful or how use it
                     enableCaseInsensitiveFiltering: true,
                     disableIfEmpty: true,
                     maxHeight: 300,
-                    nonSelectedText: 'Value...'
+                    nonSelectedText: 'Study...'
+                });
+                $('#donorPropertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#donorSelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Donor...'
+                });
+                $('#samplePropertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#sampleSelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Sample...'
+                });
+                $('#viewSelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'View...'
                 });
                 
                 // function to get data from the graph database
-                self.getGraphData = function(method, args) {
+                self.getGraphData = function(method, args, subargs) {
                     self.loading.removeAll();
                     self.errors.removeAll();
                     var start = new Date().getTime();
@@ -159,51 +359,252 @@
                     vrpipeRestMethod('qc', method, args, self.loading, self.errors, function(data) {
                         var end = new Date().getTime();
                         var time = end - start;
-                        console.log(method + ' took ' + time + 'ms');
+                        //console.log(method + ' took ' + time + 'ms');
+                        
+                        var resultStore = subargs['resultStore'];
+                        // we won't push directly to this because even with
+                        // ratelimiting it's too slow; we'll push to temp arrays
+                        // and then set the resultStore to it
                         
                         if (method == 'labels') {
-                            self.labels.removeAll();
+                            resultStore.removeAll();
                             var keys = [];
                             for (var key in data) {
                                 keys.push(key);
                             }
                             keys.sort();
+                            var arr = [];
                             for (var i = 0; i < keys.length; i++) {
                                 var key = keys[i];
-                                self.labels.push(key);
                                 self.labelProperties[key] = data[key];
-                            }
+                                if (key != 'Group' && key != 'Study') {
+                                    arr.push(key);
+                                }
+                            }      
+                            resultStore(arr);
+                            self.viewLabels.push('Donor');
+                            self.viewLabels.push('Sample');
+                            
+                            // populate the groups select and the all properties
+                            self.getGraphData('nodes_of_label', { label: 'Group' }, { resultStore: self.groupNodes, sortProperty: 'name' });
+                            self.fillProperties('Study', self.studyProperties);
+                            self.fillProperties('Donor', self.donorProperties);
+                            self.fillProperties('Sample', self.sampleProperties);
                         }
-                        else if (method == 'label_property_values') {
-                            self.labelPropertyValues.removeAll();
-                            self.selectedLabelPropertyValues.removeAll();
+                        else if (method == 'nodes_of_label') {
+                            resultStore.removeAll();
+                            var arr = [];
+                            var flatten = subargs['flatten'];
                             for (var i = 0; i < data.length; i++) {
-                                self.labelPropertyValues.push(data[i]);
+                                if (flatten) {
+                                    data[i]['properties']['node_id'] = data[i]['id'];
+                                    data[i]['properties']['node_label'] = data[i]['label'];
+                                    arr.push(data[i]['properties']);
+                                }
+                                else {
+                                    arr.push(data[i]);
+                                }
+                            }
+                            resultStore(arr);
+                            
+                            if (subargs.hasOwnProperty('sortProperty') && data.length > 1) {
+                                self.sortNodesByProperty(resultStore, subargs['sortProperty']);
                             }
                         }
-                    });
+                        else if (method == 'donor_qc') {
+                            self.donorGenderResults.removeAll();
+                            self.donorInternalDiscordance.removeAll();
+                            var genderArr = [];
+                            var discArr = [];
+                            for (var i = 0; i < data.length; i++) {
+                                var result = data[i];
+                                var type = result['type'];
+                                if (type == 'gender') {
+                                    genderArr.push(result);
+                                }
+                                else if (type == 'discordance') {
+                                    discArr.push(result);
+                                }
+                            }
+                            self.donorGenderResults(genderArr);
+                            self.donorInternalDiscordance(discArr);
+                        }
+                    }, subargs);
                 }
                 
-                self.getGraphData('labels', { });
+                // function to fill an array with the properties of a given label
+                self.fillProperties = function(label, list) {
+                    var props = self.labelProperties[label];
+                    var arr = [];
+                    for (var i = 0; i < props.length; i++) {
+                        arr.push(props[i]);
+                    }
+                    list(arr);
+                }
                 
-                self.selectedLabel.subscribe(function(newValue) {
-                    if (newValue) {
-                        self.selectedLabelProperty(undefined);
-                        self.labelPropertyValues.removeAll();
-                        self.selectedLabelPropertyValues.removeAll();
-                        self.selectedLabelProperties.removeAll();
-                        var props = self.labelProperties[newValue[0]];
-                        for (var i = 0; i < props.length; i++) {
-                            self.selectedLabelProperties.push(props[i]);
+                // function to sort an observable array of nodes by a property
+                self.sortNodesByProperty = function(list, property, selectlist, selectid) {
+                    // (we go through this convoluted mess instead of just
+                    // directly sorting the incoming list, because otherwise the
+                    // selects don't update until the NEXT call to this method!)
+                    var arr = [];
+                    for (var i = list().length - 1; i >= 0; i--) {
+                        arr.push(list()[i]);
+                    };
+                    arr.sort(function(left, right) {
+                        return left.properties[property] == right.properties[property] ? (left.id < right.id ? -1 : 1) : (left.properties[property] < right.properties[property] ? -1 : 1)
+                    });
+                    var selected = [];
+                    if (selectlist != undefined) {
+                        for (var i = 0; i < selectlist().length; i++) {
+                            selected.push(selectlist()[i]);
+                        };
+                    }
+                    list.removeAll();
+                    list(arr);
+                    if (selected.length) {
+                        $(selectid).multiselect('select', selected);
+                        selectlist(selected);
+                    }
+                }
+                
+                // function to unset a selection
+                self.deselect = function(selected, id) {
+                    if (selected()) {
+                        $(id).multiselect('deselect', selected());
+                        selected(undefined);
+                    }
+                }
+                
+                // function to reset parts of the view
+                self.reset = function(mode) {
+                    self.deselect(self.selectedViewLabel, '#viewSelect');
+                    self.viewNodes.removeAll();
+                    
+                    if (mode > 1) {
+                        self.deselect(self.selectedSampleProperty, '#samplePropertySelect');
+                        self.selectedSamples.removeAll();
+                        self.sampleNodes.removeAll();
+                    }
+                    
+                    if (mode > 2) {
+                        self.deselect(self.selectedDonorProperty, '#donorPropertySelect');
+                        self.selectedDonors.removeAll();
+                        self.donorNodes.removeAll();
+                    }
+                    
+                    if (mode > 3) {
+                        self.deselect(self.selectedStudyProperty, '#studyPropertySelect');
+                        self.selectedStudies.removeAll();
+                        self.studyNodes.removeAll();
+                    }
+                }
+                
+                // get all the schema details from the db
+                self.getGraphData('labels', { }, { resultStore: self.labels });
+                
+                // when the user selects a study property, if they have also
+                // already chosen a group, then fill in the studyPropertyValues
+                self.selectedStudyProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && self.selectedGroups().length) {
+                        if (self.studyNodes().length) {
+                            self.sortNodesByProperty(self.studyNodes, newValue[0], self.selectedStudies, '#studySelect');
+                        }
+                        else {
+                            self.getGraphData('nodes_of_label', { label: 'Study', groups: self.selectedGroups() }, { resultStore: self.studyNodes, sortProperty: newValue[0] });
                         }
                     }
                 });
                 
-                self.selectedLabelProperty.subscribe(function(newValue) {
+                // when the user changes groups or studies we need to reset things
+                self.selectedGroups.subscribe(function(newValue) {
+                    self.reset(4);
+                });
+                self.selectedStudies.subscribe(function(newValue) {
+                    self.reset(3);
+                });
+                
+                // when donor or sample property is changed, fill in the values
+                // to select from
+                self.selectedDonorProperty.subscribe(function(newValue) {
                     if (newValue && newValue != '') {
-                        self.getGraphData('label_property_values', { label: self.selectedLabel()[0], property: newValue[0] });
+                        if (self.donorNodes().length) {
+                            self.sortNodesByProperty(self.donorNodes, newValue[0], self.selectedDonors, '#donorSelect');
+                        }
+                        else {
+                            self.getGraphData('nodes_of_label', { label: 'Donor', groups: self.selectedGroups(), studies: self.selectedStudies() }, { resultStore: self.donorNodes, sortProperty: newValue[0] });
+                        }
                     }
                 });
+                self.selectedSampleProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '') {
+                        if (self.sampleNodes().length) {
+                            self.sortNodesByProperty(self.sampleNodes, newValue[0], self.selectedSamples, '#sampleSelect');
+                        }
+                        else {
+                            var opts = {label: 'Sample', groups: self.selectedGroups(), studies: self.selectedStudies()};
+                            if (self.selectedDonors().length) {
+                                opts['donors'] = self.selectedDonors();
+                            }
+                            self.getGraphData('nodes_of_label', opts, { resultStore: self.sampleNodes, sortProperty: newValue[0] });
+                        }
+                    }
+                });
+                
+                // when donor is changed, update samples
+                self.selectedDonors.subscribe(function(newValue) {
+                    self.reset(2);
+                    
+                    if (newValue && newValue != '') {
+                        self.getGraphData('nodes_of_label', { label: 'Sample', groups: self.selectedGroups(), studies: self.selectedStudies(), donors: newValue }, { resultStore: self.sampleNodes });
+                    }
+                });
+                
+                // when samples change, reset the view
+                self.selectedSamples.subscribe(function(newValue) {
+                    self.reset(1);
+                });
+                
+                // when the user selects a view, get all nodes with that label,
+                // filtered based on group, studies and any other selections
+                self.selectedViewLabel.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && self.selectedGroups().length && self.selectedStudies().length) {
+                        self.viewNodes.removeAll();
+                        var opts = {label: newValue[0], groups: self.selectedGroups(), studies: self.selectedStudies()};
+                        if (self.selectedDonors().length) {
+                            opts['donors'] = self.selectedDonors();
+                        }
+                        if (self.selectedSamples().length) {
+                            opts['samples'] = self.selectedSamples();
+                        }
+                        self.getGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, flatten: true });
+                    }
+                });
+                
+                // dynamic view table columns
+                self.viewColumnNames = ko.computed(function () {
+                    if (self.viewNodes().length === 0) return [];
+                    var props = [];
+                    var obj = self.viewNodes()[0];
+                    for (var name in obj) {
+                        if (name == 'node_id' || name == 'node_label') {
+                            continue;
+                        }
+                        props.push(name);
+                    }
+                    return props;
+                });
+                
+                // when a node in the view table is clicked on, get all the
+                // QC results for it
+                self.showQCForNode = function(node) {
+                    var nodeID = +node['node_id'];
+                    var nodeLabel = node['node_label'];
+                    
+                    if (nodeLabel == 'Donor') {
+                        self.getGraphData('donor_qc', { donor: nodeID }, { });
+                    }
+                }
                 
                 // self.getGraphData('sample_discordance', { donor: 'fde0774b-cecd-45d0-9d72-49bd257dd232' });
             }
