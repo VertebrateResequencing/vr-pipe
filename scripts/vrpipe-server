@@ -668,7 +668,7 @@ sub start_server {
             $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
         },
         '/qc' => sub {
-            $backend->psgi_file_response(file($dist_dir, 'qc.html')->stringify, shift);
+            $backend->psgi_file_response(file($dist_dir, 'pages/vrtrack_qc/selector.html')->stringify, shift);
         },
         '/js/(.+\.js)$' => sub {
             my ($env, $basename) = @_;
