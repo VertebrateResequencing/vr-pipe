@@ -46,6 +46,13 @@
                         <li class="active"><a href="#home" data-toggle="tab">Home</a></li>
                         <li><a href="#status" data-toggle="tab">Status</a></li>
                         <li><a href="#graph" data-toggle="tab">Graph</a></li>
+                        
+                        <li class="dropdown">
+                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Pages <span class="caret"></span></a>
+                            <ul class="dropdown-menu" role="menu" data-bind="foreach: pages">
+                                <li><a data-bind="attr: { href: '/pages/' + $data }, text: $data"></a></li>
+                            </ul>
+                        </li>
                     </ul>
                 </div>
             </div>
@@ -313,6 +320,18 @@
             route.get(function(event, params) {
                 $('#tabsections a[href="#graph"]').tab('show');
             });
+            
+            // viewmodel for the navbar
+            function NavViewModel() {
+                var self = this;
+                self.loading = ko.observableArray();
+                self.errors = ko.observableArray();
+                self.pages = ko.observableArray();
+                vrpipeRestMethod('graph', 'get_pages', {}, self.loading, self.errors, function(data) {
+                    console.log('got data ' + JSON.stringify(data));
+                    self.pages(data);
+                });
+            }
             
             // viewmodel for status
             function StatusViewModel() {
@@ -1092,6 +1111,8 @@
                 });
             }
             
+            var nvm = new NavViewModel();
+            ko.applyBindings(nvm, $('#nav')[0]);
             var svm = new StatusViewModel();
             ko.applyBindings(svm, $('#status')[0]);
             var gvm = new GraphViewModel();

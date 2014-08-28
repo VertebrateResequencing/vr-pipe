@@ -66,9 +66,19 @@ my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $scheduler;
-my $im       = VRPipe::Persistent::InMemory->new();
-my $dist_dir = dist_dir('VRPipe');
-my $graph    = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
+my $im        = VRPipe::Persistent::InMemory->new();
+my $dist_dir  = dist_dir('VRPipe');
+my $pages_dir = dir($dist_dir, 'pages');
+my @pages;
+
+while (my $sub_dir = $pages_dir->next) {
+    next unless -d $sub_dir;
+    my $index = file($sub_dir, 'index.html');
+    next unless -e $index;
+    push(@pages, $sub_dir->basename);
+}
+my $pages = [sort @pages];
+my $graph = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
 my $vrtrack;
 eval { $vrtrack = VRPipe::Schema->create('VRTrack'); }; # graph db currently optional
 
@@ -832,6 +842,9 @@ sub graph {
         else {
             $data = $graph->_run_cypher([[$cypher]]);
         }
+    }
+    elsif ($method eq 'get_pages') {
+        $data = $pages;
     }
     else {
         $data = { errors => ["Invalid graph method '$method'"] };
