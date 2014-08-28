@@ -667,9 +667,6 @@ sub start_server {
         '/' => sub {
             $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
         },
-        '/qc' => sub {
-            $backend->psgi_file_response(file($dist_dir, 'pages/vrtrack_qc/selector.html')->stringify, shift);
-        },
         '/js/(.+\.js)$' => sub {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env, max_age => 525200);
@@ -681,6 +678,13 @@ sub start_server {
         '/fonts/(.+)$' => sub {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'fonts', $basename)->stringify, $env, max_age => 525200);
+        },
+        '/pages/(.+)$' => sub {
+            my ($env, $path) = @_;
+            unless ($path =~ /\.html$/) {
+                $path .= '/index.html';
+            }
+            $backend->psgi_file_response(file($dist_dir, 'pages', $path)->stringify, $env, max_age => 525200);
         },
         '/file/(.+)$' => sub {
             my ($env, $path) = @_;

@@ -150,7 +150,7 @@
                                     </tr>
                                 </thead>
                                 <tbody data-bind="foreach: viewNodes">
-                                    <tr data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
+                                    <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
                                         <td data-bind="text: $parent[$data]"></td>
                                     </tr>
                                 </tbody>
@@ -160,7 +160,7 @@
                     </div>
                 </div>
                 
-                <div id="donorqc" data-bind="visible: donorInternalDiscordance().length"> <!-- donorGenderResults().length && -->
+                <div id="donorqc" style="display: none">
                     <div class="panel panel-default">
                         <div class="panel-heading">Gender</div>
                         <div class="table-responsive">
@@ -212,14 +212,14 @@
                                 <tbody data-bind="foreach: donorInternalDiscordance">
                                     <tr>
                                         <td data-bind="text: sample1_study"></td>
-                                        <td data-bind="text: sample1_name"></td>
+                                        <td style="cursor: pointer" data-bind="text: sample1_name"></td>
                                         <td data-bind="text: sample1_public_name"></td>
                                         <td data-bind="text: sample1_control"></td>
                                         <td data-bind="text: discordance"></td>
                                         <td data-bind="text: num_of_sites"></td>
                                         <td data-bind="text: avg_min_depth"></td>
                                         <td data-bind="text: sample2_study"></td>
-                                        <td data-bind="text: sample2_name"></td>
+                                        <td style="cursor: pointer" data-bind="text: sample2_name"></td>
                                         <td data-bind="text: sample2_public_name"></td>
                                         <td data-bind="text: sample2_control"></td>
                                     </tr>
@@ -400,6 +400,16 @@
                             }
                             self.donorGenderResults(genderArr);
                             self.donorInternalDiscordance(discArr);
+                            
+                            var tabView = subargs['tabView'];
+                            if (tabView) {
+                                tabView.document.title = subargs['donorSample'] + ' [VRTrack Donor QC]';
+                                $('#heading', tabView.document).text('VRTrack Donor QC: ' + subargs['donorSample']);
+                                $('#qc', tabView.document).html($("#donorqc").html());
+                            }
+                            else {
+                                alert('Please allow popups for this site');
+                            }
                         }
                     }, subargs);
                 }
@@ -572,9 +582,10 @@
                 self.showQCForNode = function(node) {
                     var nodeID = +node['node_id'];
                     var nodeLabel = node['node_label'];
+                    var childWindow = window.open('/pages/vrtrack_qc/tab_viewer.html', '_blank', '', false);
                     
                     if (nodeLabel == 'Donor') {
-                        self.getGraphData('donor_qc', { donor: nodeID }, { });
+                        self.getGraphData('donor_qc', { donor: nodeID }, { tabView: childWindow, donorSample: node['example_sample'] });
                     }
                 }
                 
