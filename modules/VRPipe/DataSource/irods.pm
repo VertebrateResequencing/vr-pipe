@@ -443,6 +443,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                     }
                 }
             }
+            if ($add_metadata_from_warehouse && exists $new_metadata->{lane}) {
+                my $lane = $vrfile->basename;
+                $lane =~ s/\.gz$//;
+                $lane =~ s/\.[^\.]+$//;
+                $new_metadata->{lane} = $lane;
+            }
             
             # if there was no metadata this will add metadata to the file.
             $vrfile->add_metadata($new_metadata, replace_data => 0);
