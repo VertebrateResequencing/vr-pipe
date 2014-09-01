@@ -233,7 +233,7 @@ class VRPipe::Persistent::Graph {
                     }
                     $ok || next; # only return nodes created by us
                     
-                    my $node = { id => $node_id, properties => $node_details->{properties}, namespace => $namespace, label => $label };
+                    my $node = { id => int($node_id), properties => $node_details->{properties}, namespace => $namespace, label => $label };
                     $nodes{$node_id} = [++$node_order, $node];
                 }
                 
