@@ -249,6 +249,62 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement($path, only_get => 1);
     }
+    
+    # donor's just have meaningless ids; user will want to see the
+    # donor's control sample public name and the most recent created_date of its
+    # member samples, so we'll need some cypher that get the donor's samples
+    # and the relationship between them. You're supposed to append the return
+    # value of this to some cypher that first matches your desired donor(s).
+    method donor_to_sample_match_cypher (Str $donor_identifer = 'donor') {
+        my $sample_labels = $self->cypher_labels('Sample');
+        return "MATCH ($donor_identifer)-[ds_rel]->(d_sample:$sample_labels) RETURN $donor_identifer,ds_rel,d_sample";
+    }
+    
+    # if user ran a cypher query based on donor_to_sample_match_cypher()
+    # we have sample nodes related to our donor nodes; figure out
+    # which samples belong to which donors, then add the relevant
+    # sample properties to the donor node. Input is the output of run_cypher().
+    method add_sample_info_to_donors (HashRef $graph_data) {
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+        }
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        foreach my $donor (values $nodes{Donor}) {
+            my ($most_recent_date, @controls, $shortest);
+            foreach my $sample_id (@{ $rels{ $donor->{id} } || next }) {
+                my $s_props = $nodes{Sample}->{$sample_id}->{properties};
+                
+                my $cd = $s_props->{created_date};
+                if ($cd && (!defined $most_recent_date || $cd > $most_recent_date)) {
+                    $most_recent_date = $cd;
+                }
+                
+                my $name = $s_props->{public_name} || $s_props->{name};
+                if (!defined $shortest || length($name) < length($shortest)) {
+                    $shortest = $name;
+                }
+                
+                push(@controls, $name) if $s_props->{control};
+            }
+            
+            if (@controls || $shortest) {
+                $donor->{properties}->{example_sample} = @controls == 1 ? $controls[0] : $shortest;
+            }
+            if ($most_recent_date) {
+                # convert to yyyy-mm-dd
+                my $dt = DateTime->from_epoch(epoch => $most_recent_date);
+                $donor->{properties}->{last_sample_added_date} = $dt->ymd;
+            }
+        }
+        
+        return [sort { $b->{properties}->{last_sample_added_date} cmp $a->{properties}->{last_sample_added_date} } values $nodes{Donor}];
+    }
 }
 
 1;
