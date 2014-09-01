@@ -303,7 +303,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
         }
         
-        return [sort { $b->{properties}->{last_sample_added_date} cmp $a->{properties}->{last_sample_added_date} } values $nodes{Donor}];
+        return [sort { $b->{properties}->{last_sample_added_date} cmp $a->{properties}->{last_sample_added_date} || $a->{properties}->{example_sample} cmp $b->{properties}->{example_sample} } values $nodes{Donor}];
     }
 }
 
