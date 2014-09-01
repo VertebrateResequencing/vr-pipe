@@ -78,6 +78,7 @@ while (my $sub_dir = $pages_dir->next) {
     push(@pages, $sub_dir->basename);
 }
 my $pages = [sort @pages];
+my %pages = map { $_ => 1 } @pages;
 my $graph = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
 my $vrtrack;
 eval { $vrtrack = VRPipe::Schema->create('VRTrack'); }; # graph db currently optional
@@ -691,10 +692,13 @@ sub start_server {
         },
         '/pages/(.+)$' => sub {
             my ($env, $path) = @_;
-            unless ($path =~ /\.html$/) {
-                $path .= '/index.html';
+            $path =~ s/\?.+$//;
+            $path =~ s/\/$//;
+            my $abs = file($dist_dir, 'pages', $path);
+            if (exists $pages{ $abs->basename }) {
+                $abs = file($abs, 'index.html');
             }
-            $backend->psgi_file_response(file($dist_dir, 'pages', $path)->stringify, $env, max_age => 525200);
+            $backend->psgi_file_response($abs->stringify, $env, max_age => 525200);
         },
         '/file/(.+)$' => sub {
             my ($env, $path) = @_;
@@ -1344,8 +1348,8 @@ sub qc {
                     # most recent created_date of its member samples, so we will
                     # add those as psuedo properties on the donor nodes; first
                     # adjust the cypher to get the donor's samples
-                    my $sample_labels = $vrtrack->cypher_labels('Sample');
-                    $donor_special = "WITH donor MATCH (donor)-[r]->(d_sample:$sample_labels) RETURN donor,r,d_sample";
+                    my $dtsmc = $vrtrack->donor_to_sample_match_cypher('donor');
+                    $donor_special = "WITH donor $dtsmc";
                 }
                 
                 my $query;
@@ -1379,45 +1383,7 @@ sub qc {
                 # we have sample nodes related to our donor nodes; figure out
                 # which samples belong to which donors, then add the relevant
                 # sample properties to the donor node
-                my %rels;
-                foreach my $rel (@{ $graph_data->{relationships} }) {
-                    push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
-                }
-                
-                my %nodes;
-                foreach my $node (@{ $graph_data->{nodes} }) {
-                    $nodes{ $node->{label} }->{ $node->{id} } = $node;
-                }
-                
-                foreach my $donor (values $nodes{Donor}) {
-                    my ($most_recent_date, @controls, $shortest);
-                    foreach my $sample_id (@{ $rels{ $donor->{id} } || next }) {
-                        my $s_props = $nodes{Sample}->{$sample_id}->{properties};
-                        
-                        my $cd = $s_props->{created_date};
-                        if ($cd && (!defined $most_recent_date || $cd > $most_recent_date)) {
-                            $most_recent_date = $cd;
-                        }
-                        
-                        my $name = $s_props->{public_name} || $s_props->{name};
-                        if (!defined $shortest || length($name) < length($shortest)) {
-                            $shortest = $name;
-                        }
-                        
-                        push(@controls, $name) if $s_props->{control};
-                    }
-                    
-                    if (@controls || $shortest) {
-                        $donor->{properties}->{example_sample} = @controls == 1 ? $controls[0] : $shortest;
-                    }
-                    if ($most_recent_date) {
-                        # convert to yyyy-mm-dd
-                        my $dt = DateTime->from_epoch(epoch => $most_recent_date);
-                        $donor->{properties}->{last_sample_added_date} = $dt->ymd;
-                    }
-                }
-                
-                $data = [values $nodes{Donor}];
+                $data = $vrtrack->add_sample_info_to_donors($graph_data);
             }
             else {
                 if ($label eq 'Sample') {
@@ -1435,6 +1401,24 @@ sub qc {
         }
         else {
             $data = { errors => ["label must be supplied to nodes_of_label()"] };
+        }
+    }
+    elsif ($method eq 'node_by_id') {
+        my $id = $args->{node_id};
+        if ($id) {
+            $data = $graph->get_node_by_id($id);
+            
+            if ($data->{label} eq 'Donor') {
+                # add some sample properties to the donor
+                my $cypher = "MATCH (donor) WHERE id(donor) = {param}.donor_id ";
+                $cypher .= $vrtrack->donor_to_sample_match_cypher('donor');
+                my $graph_data = $graph->_run_cypher([[$cypher, { param => { donor_id => $data->{id} } }]]);
+                $data = $vrtrack->add_sample_info_to_donors($graph_data);
+                $data = $data->[0];
+            }
+        }
+        else {
+            $data = { errors => ["node_id must be supplied to node_by_id()"] };
         }
     }
     elsif ($method eq 'donor_qc') {
