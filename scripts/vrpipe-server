@@ -1439,6 +1439,10 @@ sub qc {
                 $nodes{ $node->{label} }->{ $node->{id} } = $node;
             }
             
+            unless (defined $nodes{Sample}) {
+                return { errors => ["donor node id $donor had no samples; is it really the node id of a donor?"] };
+            }
+            
             my %sample_meta;
             foreach my $sample (values $nodes{Sample}) {
                 my $sid        = $sample->{id};
