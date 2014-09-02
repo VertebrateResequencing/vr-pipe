@@ -137,8 +137,10 @@
                     if (newValue) {
                         var sample = newValue.properties['example_sample'];
                         
-                        document.title = sample + ' [VRTrack Donor QC]';
-                        $('#heading').text('VRTrack Donor QC: ' + sample);
+                        if (sample) {
+                            document.title = sample + ' [VRTrack Donor QC]';
+                            $('#heading').text('VRTrack Donor QC: ' + sample);
+                        }
                         
                         getQCGraphData('donor_qc', { donor: +newValue['id'] }, { donorGenderResults: self.donorGenderResults, donorInternalDiscordance: self.donorInternalDiscordance }, self.loading, self.errors);
                     }
