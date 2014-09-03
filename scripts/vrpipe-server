@@ -692,7 +692,7 @@ sub start_server {
         },
         '/pages/(.+)$' => sub {
             my ($env, $path) = @_;
-            $path =~ s/\?.+$//;
+            $path =~ s/[\?#].+$//;
             $path =~ s/\/$//;
             my $abs = file($dist_dir, 'pages', $path);
             if (exists $pages{ $abs->basename }) {
