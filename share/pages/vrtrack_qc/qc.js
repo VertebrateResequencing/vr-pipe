@@ -15,32 +15,6 @@ var fillProperties = function(labelProperties, label, list) {
     list(arr);
 }
 
-// function to sort an observable array of nodes by a property
-var sortNodesByProperty = function(list, property, selectlist, selectid) {
-    // (we go through this convoluted mess instead of just
-    // directly sorting the incoming list, because otherwise the
-    // selects don't update until the NEXT call to this method!)
-    var arr = [];
-    for (var i = list().length - 1; i >= 0; i--) {
-        arr.push(list()[i]);
-    };
-    arr.sort(function(left, right) {
-        return left.properties[property] == right.properties[property] ? (left.id < right.id ? -1 : 1) : (left.properties[property] < right.properties[property] ? -1 : 1)
-    });
-    var selected = [];
-    if (selectlist != undefined) {
-        for (var i = 0; i < selectlist().length; i++) {
-            selected.push(selectlist()[i]);
-        };
-    }
-    list.removeAll();
-    list(arr);
-    if (selected.length) {
-        $(selectid).multiselect('select', selected);
-        selectlist(selected);
-    }
-}
-
 // function to call qc methods to get results from the graph db
 var getQCGraphData = function(method, args, subargs, loading, errors) {
     loading.removeAll();
@@ -74,13 +48,12 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
             viewLabels.push('Sample');
             
             // populate the groups select and the all properties
-            getQCGraphData('nodes_of_label', { label: 'Group' }, { resultStore: subargs['groupNodes'], sortProperty: 'name' }, loading, errors);
             fillProperties(labelProperties, 'Study', subargs['studyProperties']);
             fillProperties(labelProperties, 'Donor', subargs['donorProperties']);
             fillProperties(labelProperties, 'Sample', subargs['sampleProperties']);
+            getQCGraphData('nodes_of_label', { label: 'Group' }, { resultStore: subargs['groupNodes'], sortProperty: 'name' }, loading, errors);
         }
         else if (method == 'nodes_of_label') {
-            resultStore.removeAll();
             var arr = [];
             var flatten = subargs['flatten'];
             for (var i = 0; i < data.length; i++) {
@@ -94,10 +67,6 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 }
             }
             resultStore(arr);
-            
-            if (subargs.hasOwnProperty('sortProperty') && data.length > 1) {
-                sortNodesByProperty(resultStore, subargs['sortProperty']);
-            }
         }
         else if (method == 'node_by_id') {
             var result = subargs['result'];

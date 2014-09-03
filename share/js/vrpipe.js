@@ -175,3 +175,45 @@ var epochToDate = function(epoch) {
     var date = new Date(epoch * 1000);
     return date.getFullYear() + "/" + zeropad(date.getMonth() + 1) + "/" + zeropad(date.getDate()) + " " + zeropad(date.getHours()) + ":" + zeropad(date.getMinutes()) + ":" + zeropad(date.getSeconds());
 }
+
+// find out if 2 arrays are equal, regardless of order
+function arraysEqual(a, b) {
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+
+    a.sort();
+    b.sort();
+
+    for (var i = 0; i < a.length; ++i) {
+        if (a[i] !== b[i]) return false;
+    }
+    return true;
+}
+
+// split a comma separated string of numbers in to an array of ints
+function splitToInts(str) {
+    return $.map(str.split(','), function(value){return parseInt(value, 10);});
+}
+
+// wait until a given observeable array has length, then run the given function
+var runWhenPopulated = function(observable, runFunction) {
+    if (observable().length) {
+        runFunction();
+    }
+    else {
+        var subscription;
+        subscription = observable.subscribe(function(newValue) {
+            if (newValue.length) {
+                subscription.dispose();
+                runFunction();
+            }
+        });
+    }
+}
+
+// get a stacktrace
+var stackTrace = function() {
+    var err = new Error();
+    console.log(err.stack);
+}
