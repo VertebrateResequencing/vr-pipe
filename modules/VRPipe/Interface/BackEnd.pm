@@ -713,7 +713,15 @@ XSL
         my $content = '';
         {
             local $/ = undef;
-            binmode $fh if $bin_mode;
+            
+            if ($path =~ /vcf\.gz$/ && -s $path < 5000000) {
+                close($fh);
+                open($fh, "zcat $path |");
+                $content_type = $extension_to_content_type{txt};
+            }
+            else {
+                binmode $fh if $bin_mode;
+            }
             $content = <$fh>;
             close($fh);
             
