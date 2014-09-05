@@ -80,8 +80,11 @@ while (my $sub_dir = $pages_dir->next) {
 my $pages = [sort @pages];
 my %pages = map { $_ => 1 } @pages;
 my $graph = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
-my $vrtrack;
+my ($vrtrack, $vrtrack_error);
 eval { $vrtrack = VRPipe::Schema->create('VRTrack'); }; # graph db currently optional
+if ($@) {
+    $vrtrack_error = $@;
+}
 
 my $command = shift;
 unless ($command) {
@@ -1299,6 +1302,10 @@ sub status_old {
 sub qc {
     my ($args, $method) = @_;
     
+    unless ($vrtrack) {
+        return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?", $vrtrack_error] };
+    }
+    
     my $data;
     if ($method eq 'labels') {
         $data = $vrtrack->labels;
@@ -1406,15 +1413,13 @@ sub qc {
     elsif ($method eq 'node_by_id') {
         my $id = $args->{node_id};
         if ($id) {
-            $data = $graph->get_node_by_id($id);
+            my $label = $args->{label};
             
-            if ($data->{label} eq 'Donor') {
-                # add some sample properties to the donor
-                my $cypher = "MATCH (donor) WHERE id(donor) = {param}.donor_id ";
-                $cypher .= $vrtrack->donor_to_sample_match_cypher('donor');
-                my $graph_data = $graph->_run_cypher([[$cypher, { param => { donor_id => $data->{id} } }]]);
-                $data = $vrtrack->add_sample_info_to_donors($graph_data);
-                $data = $data->[0];
+            if ($label) {
+                $data = $vrtrack->get_node_by_id_with_extra_info($label, $id);
+            }
+            else {
+                $data = $graph->get_node_by_id($id);
             }
         }
         else {
@@ -1425,97 +1430,26 @@ sub qc {
         my $donor = $args->{donor};
         if ($donor) {
             # get the discordance results between all samples from this donor
-            my $study_labels = $vrtrack->cypher_labels('Study');
-            my $cypher       = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) RETURN DISTINCT discordance, sample, ssr, sdr";
-            my $graph_data   = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
-            
-            my %rels;
-            foreach my $rel (@{ $graph_data->{relationships} }) {
-                push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
-            }
-            
-            my %nodes;
-            foreach my $node (@{ $graph_data->{nodes} }) {
-                $nodes{ $node->{label} }->{ $node->{id} } = $node;
-            }
-            
-            unless (defined $nodes{Sample}) {
-                return { errors => ["donor node id $donor had no samples; is it really the node id of a donor?"] };
-            }
-            
-            my %sample_meta;
-            foreach my $sample (values $nodes{Sample}) {
-                my $sid        = $sample->{id};
-                my ($study_id) = @{ $rels{$sid} };
-                my $study_node = $nodes{Study}->{$study_id};
-                my $props      = $sample->{properties};
-                $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $nodes{Study}->{$study_id}->{properties}->{id}];
-            }
-            
-            my @results;
-            foreach my $disc (values $nodes{Discordance}) {
-                my $did = $disc->{id};
-                my @samples_meta;
-                foreach my $sample_id (@{ $rels{$did} }) {
-                    push(@samples_meta, $sample_meta{$sample_id});
-                }
-                my ($sample1_meta, $sample2_meta) =
-                  sort { $a->[3] <=> $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
-                
-                my $props = $disc->{properties};
-                push(@results, { type => 'discordance', discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3] });
-            }
-            
-            @results =
-              sort { $a->{sample1_study} <=> $b->{sample1_study} || $a->{sample2_study} <=> $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
+            my $d_results = $vrtrack->donor_discordance_results($donor);
             
             # get the gender info for all samples from this donor
-            $cypher = "MATCH (donor)-[:sample]->(sample)-[ser:gender]->(egender) WHERE id(donor) = {donor}.id MATCH (sample)-[sar1:processed]->()-[sar2:imported]->()-[sar3:converted]->()-[sar4:gender]->(agender) return sample, ser, egender, sar1, sar2, sar3, sar4, agender";
-            $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+            my $g_results = $vrtrack->donor_gender_results($donor);
             
-            %rels = ();
-            foreach my $rel (@{ $graph_data->{relationships} }) {
-                push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
-            }
-            
-            %nodes = ();
-            my %sample_nodes;
-            foreach my $node (@{ $graph_data->{nodes} }) {
-                $nodes{ $node->{id} } = $node;
-                $sample_nodes{ $node->{id} } = $node if $node->{label} eq 'Sample';
-            }
-            
-            foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
-                my $sid = $sample->{id};
-                my ($eg, $ag);
-                foreach my $node_id (@{ $rels{$sid} }) {
-                    my $node        = $nodes{$node_id};
-                    my $previous_id = $node_id;
-                    while ($node->{label} ne 'Gender') {
-                        my ($child_node_id) = @{ $rels{$previous_id} };
-                        $node = $nodes{$child_node_id};
-                        $node || last;
-                        $previous_id = $child_node_id;
-                    }
-                    $node || next;
-                    
-                    my $gender_props = $node->{properties};
-                    if ($gender_props->{source} eq 'sequencescape') {
-                        $eg = $gender_props->{gender};
-                    }
-                    else {
-                        $ag = $gender_props->{gender};
-                    }
-                }
-                
-                my $sample_props = $sample->{properties};
-                push(@results, { type => 'gender', sample_name => $sample_props->{name}, sample_public_name => $sample_props->{public_name}, expected_gender => $eg, actual_gender => $ag });
-            }
-            
-            $data = \@results;
+            $data = [@$d_results, @$g_results];
         }
         else {
             $data = { errors => ["donor node id must be supplied to donor_qc()"] };
+        }
+    }
+    elsif ($method eq 'sample_discordance') {
+        my $sample = $args->{sample};
+        if ($sample) {
+            # get the discordance results between this sample and all others,
+            # along with any donor info to apply to those other samples
+            $data = $vrtrack->sample_discordance_results($sample);
+        }
+        else {
+            $data = { errors => ["sample node id must be supplied to sample_discordance()"] };
         }
     }
     else {

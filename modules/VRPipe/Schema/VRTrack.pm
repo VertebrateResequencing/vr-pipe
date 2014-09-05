@@ -40,6 +40,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
+    use DateTime;
     my $vrpipe_schema;
     
     method schema_definitions {
@@ -304,6 +305,257 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         return [sort { $b->{properties}->{last_sample_added_date} cmp $a->{properties}->{last_sample_added_date} || $a->{properties}->{example_sample} cmp $b->{properties}->{example_sample} } values $nodes{Donor}];
+    }
+    
+    # it's useful when getting samples to have the donor info, if there is one,
+    # so we'll need some cypher that get the sample's donor and the relationship
+    # between them. You're supposed to append the return value of this to some
+    # cypher that first matches your desired sample(s).
+    method sample_extra_info_match_cypher (Str $sample_identifer = 'sample') {
+        my $donor_labels = $self->cypher_labels('Donor');
+        my $study_labels = $self->cypher_labels('Study');
+        return "OPTIONAL MATCH ($sample_identifer)<-[sd_rel]-(s_donor:$donor_labels) OPTIONAL MATCH (s_study:$study_labels)-[ssr:member]->($sample_identifer) RETURN $sample_identifer,sd_rel,s_donor,ssr,s_study";
+    }
+    
+    # if user ran a cypher query based on sample_extra_info_match_cypher()
+    # we have donor and study nodes related to our sample nodes; figure out
+    # which samples belong to which donors and studies, then add the relevant
+    # properties to the sample node. Input is the output of run_cypher().
+    method add_extra_info_to_samples (HashRef $graph_data) {
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
+        }
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        foreach my $sample (values $nodes{Sample}) {
+            my ($donor_id, $donor_node_id, $study_id, $study_node_id);
+            foreach my $node_id (@{ $rels{ $sample->{id} } || next }) {
+                if (exists $nodes{Donor}->{$node_id}) {
+                    $donor_id      = $nodes{Donor}->{$node_id}->{properties}->{id};
+                    $donor_node_id = $node_id;
+                }
+                elsif (exists $nodes{Study}->{$node_id}) {
+                    $study_id      = $nodes{Study}->{$node_id}->{properties}->{id};
+                    $study_node_id = $node_id;
+                }
+                last if $study_node_id && $donor_node_id;
+            }
+            
+            if ($donor_node_id && $donor_id) {
+                $sample->{properties}->{donor_node_id} = $donor_node_id;
+                $sample->{properties}->{donor_id}      = $donor_id;
+            }
+            
+            if ($study_id && $study_node_id) {
+                $sample->{properties}->{study_node_id} = $study_node_id;
+                $sample->{properties}->{study_id}      = $study_id;
+            }
+            
+            # convert created_date property from epoch to ymd
+            if (defined $sample->{properties}->{created_date}) {
+                my $dt = DateTime->from_epoch(epoch => $sample->{properties}->{created_date});
+                $sample->{properties}->{created_date} = $dt->ymd;
+            }
+        }
+        
+        return [sort { $b->{properties}->{created_date} cmp $a->{properties}->{created_date} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} } values $nodes{Sample}];
+    }
+    
+    method get_node_by_id_with_extra_info (Str $label!, Int $id!) {
+        my $graph = $self->graph();
+        my $node;
+        if ($label eq 'Donor') {
+            # add some sample properties to the donor
+            my $cypher = "MATCH (donor) WHERE id(donor) = {param}.donor_id ";
+            $cypher .= $self->donor_to_sample_match_cypher('donor');
+            my $graph_data = $graph->_run_cypher([[$cypher, { param => { donor_id => $id } }]]);
+            my $data = $self->add_sample_info_to_donors($graph_data);
+            $node = $data->[0];
+        }
+        elsif ($label eq 'Sample') {
+            # add some donor and study properties to the sample
+            my $cypher = "MATCH (sample) WHERE id(sample) = {param}.sample_id ";
+            $cypher .= $self->sample_extra_info_match_cypher('sample');
+            my $graph_data = $graph->_run_cypher([[$cypher, { param => { sample_id => $id } }]]);
+            my $data = $self->add_extra_info_to_samples($graph_data);
+            $node = $data->[0];
+        }
+        else {
+            $self->throw("label $label not supported by node_by_id_with_extra_info");
+        }
+        
+        return $node;
+    }
+    
+    # get the discordance results between all samples from the given donor
+    method donor_discordance_results (Int $donor) {
+        my $study_labels = $self->cypher_labels('Study');
+        my $cypher       = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) RETURN DISTINCT discordance, sample, ssr, sdr";
+        my $graph_data   = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
+        }
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        unless (defined $nodes{Sample}) {
+            $self->throw("donor node id $donor had no samples; is it really the node id of a donor?");
+        }
+        
+        my (%sample_meta, %studies);
+        foreach my $sample (values $nodes{Sample}) {
+            my $sid             = $sample->{id};
+            my ($study_node_id) = @{ $rels{$sid} };
+            my $study_node      = $nodes{Study}->{$study_node_id};
+            my $study_id        = $study_node->{properties}->{id};
+            $studies{$study_id}++;
+            my $props = $sample->{properties};
+            $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid];
+        }
+        
+        my $largest_study;
+        if (keys %studies > 1) {
+            ($largest_study) = sort { $studies{$b} <=> $studies{$a} || $a <=> $b } keys %studies;
+        }
+        
+        my @results;
+        foreach my $disc (values $nodes{Discordance}) {
+            my $did = $disc->{id};
+            my @samples_meta;
+            foreach my $sample_id (@{ $rels{$did} }) {
+                push(@samples_meta, $sample_meta{$sample_id});
+            }
+            my ($sample1_meta, $sample2_meta) = sort { $a->[3] <=> $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
+            
+            if ($largest_study) {
+                # we're only interested in samples of the largest study vs
+                # all other samples in the largest study, and comparisons
+                # between samples in different studies when one of them is from
+                # the largest study and the other has the same public_name
+                if ($sample1_meta->[3] != $largest_study || $sample2_meta->[3] != $largest_study) {
+                    next if $sample1_meta->[3] != $largest_study && $sample2_meta->[3] != $largest_study;
+                    next unless $sample1_meta->[1] eq $sample2_meta->[1];
+                }
+            }
+            
+            my $props = $disc->{properties};
+            push(@results, { type => 'discordance', discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample1_node_id => $sample1_meta->[4], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3], sample2_node_id => $sample2_meta->[4] });
+        }
+        
+        @results = sort { $a->{sample1_study} <=> $b->{sample1_study} || $a->{sample2_study} <=> $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
+        
+        return \@results;
+    }
+    
+    # get the gender info for all samples from this donor
+    method donor_gender_results (Int $donor) {
+        my $cypher = "MATCH (donor)-[:sample]->(sample)-[ser:gender]->(egender) WHERE id(donor) = {donor}.id MATCH (sample)-[sar1:processed]->()-[sar2:imported]->()-[sar3:converted]->(resultfile)-[sar4:gender]->(agender) return sample, ser, egender, sar1, sar2, sar3, resultfile, sar4, agender";
+        my $graph_data = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        my %rels = ();
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+        }
+        
+        my %nodes = ();
+        my %sample_nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{id} } = $node;
+            $sample_nodes{ $node->{id} } = $node if $node->{label} eq 'Sample';
+        }
+        
+        my @results;
+        foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
+            my $sid = $sample->{id};
+            my ($eg, $ag, $result_file_path);
+            foreach my $node_id (@{ $rels{$sid} }) {
+                my $node        = $nodes{$node_id};
+                my $previous_id = $node_id;
+                while ($node->{label} ne 'Gender') {
+                    my ($child_node_id) = @{ $rels{$previous_id} };
+                    $node = $nodes{$child_node_id};
+                    $node || last;
+                    
+                    if ($node->{label} eq 'FileSystemElement') {
+                        $result_file_path = $node->{properties}->{path};
+                    }
+                    
+                    $previous_id = $child_node_id;
+                }
+                $node || next;
+                
+                my $gender_props = $node->{properties};
+                if ($gender_props->{source} eq 'sequencescape') {
+                    $eg = $gender_props->{gender};
+                }
+                else {
+                    $ag = $gender_props->{gender};
+                }
+            }
+            
+            my $sample_props = $sample->{properties};
+            push(@results, { type => 'gender', sample_name => $sample_props->{name}, sample_public_name => $sample_props->{public_name}, expected_gender => $eg, actual_gender => $ag, result_file => $result_file_path });
+        }
+        
+        return \@results;
+    }
+    
+    # get the discordance results between this sample and all others, along with
+    # any donor info to apply to those other samples
+    method sample_discordance_results (Int $sample) {
+        my $cypher = "MATCH (sample)-[:genotype_comparison_discordance]->(discordance)<-[od_rel:genotype_comparison_discordance]-(other_sample) WHERE id(sample) = {sample}.id ";
+        $cypher .= $self->sample_extra_info_match_cypher('other_sample') . ',discordance,od_rel';
+        my $graph_data = $self->graph->_run_cypher([[$cypher, { sample => { id => $sample } }]]);
+        
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
+        }
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        unless (defined $nodes{Discordance}) {
+            return { errors => ["sample node id $sample had no discordance results; is it really the node id of a sample?"] };
+        }
+        my $other_samples = $self->add_extra_info_to_samples($graph_data);
+        
+        my %sample_meta;
+        foreach my $sample (@$other_samples) {
+            my $sid   = $sample->{id};
+            my $props = $sample->{properties};
+            $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control} || 0, $props->{study_id}, $props->{donor_node_id}, $sid];
+        }
+        
+        my @results;
+        foreach my $disc (values $nodes{Discordance}) {
+            my $did = $disc->{id};
+            my $sample_meta;
+            foreach my $sample_id (@{ $rels{$did} }) {
+                $sample_meta = $sample_meta{$sample_id};
+                # there should only be 1 of these...
+                last;
+            }
+            
+            my $props = $disc->{properties};
+            push(@results, { discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2], sample_study => $sample_meta->[3], donor_node_id => $sample_meta->[4], sample_node_id => $sample_meta->[5] });
+        }
+        
+        @results = sort { ($b->{discordance} < 3 && $b->{num_of_sites} > 15 ? 1 : 0) <=> ($a->{discordance} < 3 && $a->{num_of_sites} > 15 ? 1 : 0) || $b->{num_of_sites} - $b->{discordance} <=> $a->{num_of_sites} - $a->{discordance} || $a->{sample_study} <=> $b->{sample_study} || $b->{sample_control} <=> $a->{sample_control} || $a->{sample_public_name} cmp $b->{sample_public_name} } @results;
+        
+        return \@results;
     }
 }
 
