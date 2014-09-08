@@ -361,7 +361,7 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             die "Expected $records records in the sorted VCF file, but only got $actual_records\n";
         }
         
-        # record the gender, defaulting to male if in doubt
+        # record the gender, defaulting to 'U' for unknown if in doubt
         my $gender;
         my @genders = keys %gender;
         if (@genders) {
@@ -369,11 +369,11 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
                 $gender = $genders[0];
             }
             else {
-                $gender = 'M';
+                $gender = 'U';
             }
         }
         else {
-            $gender = 'M';
+            $gender = 'U';
         }
         $vcf_file->add_metadata({ calculated_gender => $gender });
         
