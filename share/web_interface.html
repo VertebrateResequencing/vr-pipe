@@ -29,9 +29,8 @@
         <!-- Cytoscape for graph display -->
         <script src="/js/cytoscape-2.2.9.min.js"></script>
         
-        <!-- Isotope for seamless layout of divs, plus a custom knockout binding to make them work together -->
-        <script src="/js/jquery-isotope-1.5.25.min.js"></script>
-        <script src="/js/knockout-isotope-1.0.3.min.js"></script>
+        <!-- Masonry for seamless layout of divs -->
+        <script src="/js/masonry-3.1.5.min.js"></script>
         
         <!-- Some of our own general helper functions -->
         <script src="/js/vrpipe.js"></script>
@@ -118,7 +117,7 @@
                                     </label>
                                     <label class="btn btn-default">
                                         <input type="checkbox" data-bind="checkbox: deactivatedSetups" />
-                                        deactivated
+                                        include deactivated
                                     </label>
                                 </div>
                             </div>
@@ -131,9 +130,9 @@
                         </div>
                     </div>
                     
-                    <div id="setup_center_container" style="width: 100%;" class="well">
-                        <div id="setup_center" style="margin: 0 auto;">
-                            <div id="setup_boxes" data-bind="isotope: { data: setups, options: isotopeOptions }">
+                    <div id="setup_center_container" style="width: 100%; border: 1px solid red" class="well">
+                        <div id="setup_center" style="margin: 0 auto; border: 1px solid blue">
+                            <div id="setup_boxes" data-bind="foreach: setups">
                                 <div class="setup">
                                     <div class="setupid" data-bind="text: id"></div>
                                     <table style="margin-bottom: 0">
@@ -321,6 +320,18 @@
                 $('#tabsections a[href="#graph"]').tab('show');
             });
             
+            function makeWall(els, data) {
+                console.log('makeWall called');
+                // ko.utils.arrayForEach(els, function(el) {
+                //     console.log('got item with width ' + el.outerWidth() + ' and height ' + el.outerHeight());
+                // });
+                $('.setup').each(function(i, obj) {
+                    console.log('brick ' + i + ' has width ' + $(this).outerWidth() + ' and height ' + $(this).outerHeight());
+                });
+                console.log('makeWall returning');
+                //console.log('got data ' + JSON.stringify(data));
+            }
+            
             // viewmodel for the navbar
             function NavViewModel() {
                 var self = this;
@@ -328,7 +339,6 @@
                 self.errors = ko.observableArray();
                 self.pages = ko.observableArray();
                 vrpipeRestMethod('graph', 'get_pages', {}, self.loading, self.errors, function(data) {
-                    console.log('got data ' + JSON.stringify(data));
                     self.pages(data);
                 });
             }
@@ -347,43 +357,33 @@
                 self.aquiringstatus = ko.observableArray();
                 self.statuserror = ko.observableArray();
                 
-                self.isotopeOptions = {
-                    itemSelector: '.setup',
-                    getSortData: {
-                        setupid: function(itemElem) {
-                            var id = $(itemElem).find('.setupid').text();
-                            return parseInt(id);
-                        }
-                    },
-                    sortBy: 'setupid',
-                    masonry: {
-                        gutterWidth: 15
-                    }
-                };
-                
-                // our isotope div is inside #setup_center; enable centering
+                // our masonry div is inside #setup_center; enable centering
                 // by setting the width of #setup_center to be a multiple of
-                // the isotope column width
-                $(function() {
-                    var columnWidth = 263,
-                        gutters = 15,
-                        columns = null;
-
-                    $(window).smartresize(function() {
-                        var maxWidth = $('#setup_center_container').width();
-                        var desiredColumns = Math.floor(maxWidth / columnWidth);
-                        var finalWidth = (desiredColumns * columnWidth) + ((desiredColumns - 1) * gutters);
-                        if (finalWidth > maxWidth) {
-                            desiredColumns = desiredColumns - 1;
-                            finalWidth = finalWidth - columnWidth - gutters;
-                        }
-                        
-                        if (desiredColumns !== columns) {
-                            columns = desiredColumns;
-                            $('#setup_center').width(finalWidth);
-                        }
-                    }).smartresize();
-                });
+                // the masonry column width
+                self.setupsColumnWidth = 263;
+                self.setupsGutterWidth = 15;
+                self.setupsNumColumns = null;
+                self.setupsResize = function() {
+                    var maxWidth = $('#setup_center_container').width();
+                    var desiredColumns = Math.floor(maxWidth / self.setupsColumnWidth);
+                    var finalWidth = (desiredColumns * self.setupsColumnWidth) + ((desiredColumns - 1) * self.setupsGutterWidth);
+                    if (finalWidth > maxWidth) {
+                        desiredColumns = desiredColumns - 1;
+                        finalWidth = finalWidth - self.setupsColumnWidth - self.setupsGutterWidth;
+                    }
+                    
+                    if (desiredColumns !== self.setupsNumColumns) {
+                        self.setupsNumColumns = desiredColumns;
+                        $('#setup_center').width(finalWidth);
+                    }
+                }
+                $(document).ready(self.setupsResize);
+                $(window).resize(self.setupsResize);
+                
+                self.masonryOptions = {
+                    gutter: 15,
+                    itemSelector: '.setup'
+                }
                 
                 self.getSpecificSetups = function() {
                     if (self.setupIds()) {
@@ -421,13 +421,22 @@
                     }
                 }
                 
+                var $container = $('#setup_boxes');
+                self.displayedSetups = 0;
                 self.getSetups = function(ids) {
-                    for (var i = 0; i < ids.length; i++) {
-                        var setupId = ids[i];
-                        vrpipeRestMethod('status', 'get_setup', { id: setupId }, self.aquiringstatus, self.statuserror, function(data) {
-                            self.setups.push(data.setup);
-                        });
-                    }
+                    vrpipeRestMethod('status', 'get_setups', { setups: ids }, self.aquiringstatus, self.statuserror, function(data) {
+                        self.setups(data);
+                        
+                        if (self.displayedSetups) {
+                            $container.masonry('destroy');
+                        }
+                        else {
+                            self.displayedSetups = 1;
+                        }
+                        
+                        $container.masonry(self.masonryOptions);
+                        console.log('set masonry');
+                    });
                 }
                 
                 self.setupIds.subscribe(function(newValue) {
@@ -456,6 +465,7 @@
                         self.setupIds(undefined);
                         self.displaySummary(undefined);
                         self.setupUser(undefined);
+                        self.resetData();
                         console.log('displayDefunct called');
                     }
                     else {

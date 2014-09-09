@@ -910,21 +910,32 @@ sub status {
             $data->{errors} = ["There are no$complete_string$active_string setups for user '$user'"];
         }
     }
-    elsif ($method eq 'get_setup') {
-        my $id = $args->{id};
-        my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
-        if ($setup) {
-            $data->{setup} = { id => $id };
-            foreach my $col (qw(desired_farm user pipeline name active description options output_root datasource unix_group controlling_farm)) {
-                my $val = $setup->$col();
-                if ($col eq 'output_root') {
-                    $val = $val->stringify;
+    elsif ($method eq 'get_setups') {
+        my $setups = $args->{setups};
+        if ($setups) {
+            my @setups;
+            foreach my $id (sort { $a <=> $b } @$setups) {
+                my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
+                if ($setup) {
+                    my $setup_data = { id => $id };
+                    foreach my $col (qw(desired_farm user pipeline name active description options output_root datasource unix_group controlling_farm)) {
+                        my $val = $setup->$col();
+                        if ($col eq 'output_root') {
+                            $val = $val->stringify;
+                        }
+                        push(@{ $setup_data->{parameters} }, { key => $col, val => ref($val) ? (ref($val) eq 'HASH' ? $graph->json_encode($val) : $val->id) : $val });
+                    }
+                    push(@setups, $setup_data);
                 }
-                push(@{ $data->{setup}->{parameters} }, { key => $col, val => ref($val) ? (ref($val) eq 'HASH' ? $graph->json_encode($val) : $val->id) : $val });
+                else {
+                    push(@{ $data->{errors} }, "No setup with id $id was found.");
+                }
             }
+            
+            $data = \@setups;
         }
         else {
-            $data->{errors} = ["No setup with id $id was found."];
+            $data->{errors} = ["setups must be supplied to get_setups()"];
         }
     }
     else {
