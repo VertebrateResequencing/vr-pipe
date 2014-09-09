@@ -130,8 +130,8 @@
                         </div>
                     </div>
                     
-                    <div id="setup_center_container" style="width: 100%; border: 1px solid red" class="well">
-                        <div id="setup_center" style="margin: 0 auto; border: 1px solid blue">
+                    <div id="setup_center_container" style="width: 100%;" class="well">
+                        <div id="setup_center" style="margin: 0 auto;">
                             <div id="setup_boxes" data-bind="foreach: setups">
                                 <div class="setup">
                                     <div class="setupid" data-bind="text: id"></div>
@@ -435,7 +435,6 @@
                         }
                         
                         $container.masonry(self.masonryOptions);
-                        console.log('set masonry');
                     });
                 }
                 
