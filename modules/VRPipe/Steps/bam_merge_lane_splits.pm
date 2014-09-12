@@ -45,6 +45,10 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 description   => 'path to your samtools executable',
                 optional      => 1,
                 default_value => 'samtools'
+            ),
+            samtools_merge_options => VRPipe::StepOption->create(
+                description => 'options to samtools merge command',
+                optional    => 1,
             )
         };
     }
@@ -82,11 +86,24 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self      = shift;
-            my $options   = $self->options;
-            my $samtools  = $options->{samtools_exe};
-            my $separate  = $options->{bam_merge_keep_single_paired_separate};
-            my $dict_path = $self->inputs->{dict_file}->[0]->path;
+            my $self          = shift;
+            my $options       = $self->options;
+            my $samtools      = $options->{samtools_exe};
+            my $samtools_opts = $options->{samtools_merge_options};
+            my $separate      = $options->{bam_merge_keep_single_paired_separate};
+            my $dict_path     = $self->inputs->{dict_file}->[0]->path;
+            
+            if ($samtools_opts =~ /\s-[hb]\s/) {
+                $self->throw("samtools options should not include -h or -b");
+            }
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'samtools',
+                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                    summary => "samtools merge $samtools_opts -h \$header_file \$output_file \@bam_files"
+                )
+            );
             
             my ($lane, %bams, %metas);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
@@ -176,7 +193,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     );
                 }
                 
-                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)]);";
+                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], samtools_opts => q[$samtools_opts], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@ofiles });
             }
         };
@@ -220,7 +237,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         return 0;                                                                                                                                                                                                                                      # meaning unlimited
     }
     
-    method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
+    method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str :$samtools_opts!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output . '.header');
         my $header_path = $header_file->path;
@@ -276,7 +293,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         my %step_name_counts;
         
         foreach my $stepm ($pipeline->step_members) {
-            last if $stepm->id == $this_stepm_id;
+            last if $stepm->id > $this_stepm_id;
             
             my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
             
@@ -298,7 +315,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         
         my $cmd_line;
         if (@$bams > 1) {
-            $cmd_line = "$samtools merge -h $header_path $output @$bams";
+            $cmd_line = "$samtools merge $samtools_opts -h $header_path $output @$bams";
         }
         else {
             my $sam_path = $output;

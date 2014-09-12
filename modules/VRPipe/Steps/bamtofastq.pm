@@ -40,7 +40,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
     method options_definition {
         return {
             bamtofastq_exe  => VRPipe::StepOption->create(description => 'path to bamtofastq executable',                                             optional => 1, default_value => 'bamtofastq'),
-            bamtofastq_opts => VRPipe::StepOption->create(description => 'bamtofastq options (excluding arguments that set input/output file names)', optional => 1, default_value => 'gz=1 level=9 exclude=SECONDARY,SUPPLEMENTARY,QCFAIL'),
+            bamtofastq_opts => VRPipe::StepOption->create(description => 'bamtofastq options (excluding arguments that set input/output file names)', optional => 1, default_value => 'gz=1 exclude=SECONDARY,SUPPLEMENTARY,QCFAIL'),
             fastqcheck_exe  => VRPipe::StepOption->create(description => 'path to fastqcheck executable',                                             optional => 1, default_value => 'fastqcheck'),
         };
     }
@@ -80,9 +80,17 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             if ($bamtofastq_opts =~ /\s(F|F2|S|O|O2|filename|fasta)=/) {
                 $self->throw("bamtofastq_opts should not include F=, F2=, S=, O=, O2=, filename= or fasta= options!");
             }
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'bamtofastq',
+                    version => VRPipe::StepCmdSummary->determine_version($bamtofastq_exe . ' --version', '^This.+version (.+)\.$'),
+                    summary => "bamtofastq $bamtofastq_opts filename=\$bam_file F=\$reads_1.fastq.gz F2=\$reads_2.fastq.gz S=\$reads_M.fastq.gz 2>\$log_file"
+                )
+            );
+            
             my $p_gz = '';
             $p_gz = ".gz" if ($bamtofastq_opts =~ /gz=1/);
-            
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {

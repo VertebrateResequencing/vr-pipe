@@ -78,6 +78,14 @@ class VRPipe::Steps::bam_to_fastq with VRPipe::StepRole {
             my $fastqcheck_exe = $options->{fastqcheck_exe};
             $bam2fastq_opts .= ' -f '; # force overwrite
             
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'bam2fastq',
+                    version => VRPipe::StepCmdSummary->determine_version($bam2fastq_exe, '^bam2fastq v(.+)$'),
+                    summary => "bam2fastq $bam2fastq_opts -o \$reads#.fastq \$bam_file 2>\$log_file"
+                )
+            );
+            
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
