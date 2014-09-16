@@ -38,6 +38,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
         return {
             samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                          optional => 1, default_value => 'samtools'),
+            bcftools_exe             => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                          optional => 1, default_value => 'bcftools'),
             samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
             reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
         };
@@ -58,6 +59,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $options = $self->handle_override_options($bcf_meta);
             
             my $samtools     = $options->{samtools_exe};
+            my $bcftools     = $options->{bcftools_exe};
             my $mpileup_opts = $options->{samtools_mpileup_options};
             
             my $reference_fasta = file($options->{reference_fasta});
@@ -89,22 +91,26 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
                     version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list > \$bcf_file"
+                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list > \$bcf_file && bcftools index \$bcf_file"
                 )
             );
             
-            my $bcf_file = $self->output_file(output_key => 'bcf_files', basename => $basename, type => 'bcf', metadata => $bcf_meta);
-            my $bcf_path = $bcf_file->path;
+            my $bcf_file  = $self->output_file(output_key => 'bcf_files', basename => $basename,       type => 'bcf', metadata => $bcf_meta);
+            my $bcf_index = $self->output_file(output_key => 'bcf_index', basename => "$basename.csi", type => 'bin', metadata => $bcf_meta);
+            my $bcf_path  = $bcf_file->path;
             
             my $req      = $self->new_requirements(memory => 500, time => 1);
-            my $cmd      = qq[$samtools mpileup $mpileup_opts -f $reference_fasta -b $bams_list_path > $bcf_path];
+            my $cmd      = qq[$samtools mpileup $mpileup_opts -f $reference_fasta -b $bams_list_path > $bcf_path && $bcftools index $bcf_path];
             my $this_cmd = "use VRPipe::Steps::mpileup_bcf; VRPipe::Steps::mpileup_bcf->mpileup_bcf_and_check(q[$cmd], input_ids => [qw(@input_ids)]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bcf_file] });
         };
     }
     
     method outputs_definition {
-        return { bcf_files => VRPipe::StepIODefinition->create(type => 'bcf', max_files => -1, description => 'a .bcf file for each set of input bam files') };
+        return {
+            bcf_files => VRPipe::StepIODefinition->create(type => 'bcf', max_files => -1, description => 'a .bcf file for each set of input bam files'),
+            bcf_index => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bcf.csi file for each set of input bam files')
+        };
     }
     
     method post_process_sub {
@@ -120,7 +126,7 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     }
     
     method mpileup_bcf_and_check (ClassName|Object $self: Str $cmd_line!, ArrayRef[Int] :$input_ids!) {
-        my ($fofn_path, $output_path) = $cmd_line =~ /-b (\S+) > (\S+)$/;
+        my ($fofn_path, $output_path) = $cmd_line =~ /-b (\S+) > (\S+) &&/;
         $fofn_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $output_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
