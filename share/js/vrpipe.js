@@ -156,13 +156,9 @@ var shortenString = function(string) {
 }
 
 var wbr = function(string) {
+    if (! string) { return '' }
     var wbrd = '' + string;
-    if (string.length > 21) {
-        wbrd = wbrd.replace(/(.{21})/g, "$1<wbr>");
-    }
-    else {
-        wbrd = wbrd.replace(/([_\-,\.\(\)])/g, "$1<wbr>");
-    }
+    wbrd = wbrd.replace(/([_\-\W])/g, "$1<wbr>");
     return wbrd;
 }
 
