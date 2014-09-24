@@ -16,9 +16,30 @@
 
 .setup {
     width: 263px;
-    border: 1px solid black;
     margin-bottom: 15px;
     overflow: hidden;
+}
+
+.stds {
+    border: 1px solid #e3e3e3;
+    overflow: auto;
+}
+
+.badge.setup_hole {
+    background-color: #f5f5f5;
+    color: black;
+    border: 1px solid #e3e3e3;
+    border-radius: 7px;
+}
+
+.setup_hole.user {
+    font-weight: normal;
+}
+
+.pipeline_name {
+    margin-top: 5px;
+    padding-left: 5px;
+    padding-right: 5px;
 }
 
 .top-margin {

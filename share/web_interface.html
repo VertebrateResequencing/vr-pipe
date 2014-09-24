@@ -84,13 +84,13 @@
                         
                         <div class="col-xs-8">
                             <div class="btn-toolbar" role="toolbar">
-                                <div class="btn-group">
+                                <!-- <div class="btn-group">
                                     <button class="btn btn-primary" data-bind="toggle: displayDefunct" data-toggle="tooltip" data-container="body" title="Only show those PipelineSetups that have something fundamentally wrong with them and are candidates for deletion (all other options will be ignored).">Defunct</button>
                                 </div>
                                 
                                 <div class="btn-group">
                                     <button class="btn btn-primary" data-bind="toggle: displaySummary" data-toggle="tooltip" data-container="body" title="Only show an overall summary of how many jobs need to be run vs how many are actually running (all other options will be ignored, except for a single setup id).">Summary</button>
-                                </div>
+                                </div> -->
                             </div>
                         </div>
                     </div>
@@ -130,19 +130,157 @@
                         </div>
                     </div>
                     
-                    <div id="setup_center_container" style="width: 100%;" class="well">
+                    <div id="setup_center_container" style="width: 100%;" class="well" data-bind="loadingWhen: aquiringstatus().length">
+                        <div data-bind="if: progressionModalVisible">
+                            <div data-bind="modal: {
+                                visible: progressionModalVisible,
+                                header: { data: { label: 'Step Progress Report' } },
+                                body: { name: 'progressionModalTemplate', data: progressionModalBodyData }
+                            }"></div>
+                             
+                            <script type="text/html" id="progressionModalTemplate">
+                                <dl>
+                                    <dt>setup</dt>
+                                    <dd style="overflow: auto">[<span data-bind="text: setup"></span>] <span data-bind="text: setup_name"></span></dd>
+                                    <dt>step</dt>
+                                    <dd style="overflow: auto">[<span data-bind="text: step_num"></span>] <span data-bind="text: step_name"></span></dd>
+                                    <!-- ko if: $data.hasOwnProperty('submission_summary') -->
+                                        <dt>num subs</dt>
+                                        <dd data-bind="text: submission_summary.num_submissions"></dd>
+                                        <dt>reserved MB</dt>
+                                        <dd><span data-bind="text: submission_summary.reserved_mb_mean"></span> mean; <span data-bind="text: submission_summary.reserved_mb_percentile"></span> 95th percentile</dd>
+                                        <dt>reserved time</dt>
+                                        <dd><span data-bind="text: submission_summary.reserved_time_mean"></span> mean; <span data-bind="text: submission_summary.reserved_time_percentile"></span> 95th percentile</dd>
+                                        <!-- ko if: submission_summary.actual_mb_mean -->
+                                            <dt>actual MB</dt>
+                                            <dd><span data-bind="text: submission_summary.actual_mb_mean"></span> mean; <span data-bind="text: submission_summary.actual_mb_percentile"></span> 95th percentile</dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: submission_summary.actual_time_mean -->
+                                            <dt>actual time</dt>
+                                            <dd><span data-bind="text: submission_summary.actual_time_mean"></span> mean; <span data-bind="text: submission_summary.actual_time_percentile"></span> 95th percentile</dd>
+                                        <!-- /ko -->
+                                    <!-- /ko -->
+                                </dl>
+                                
+                                <div data-bind="if: $data.hasOwnProperty('progression_problem')">
+                                    <div class="alert alert-danger fade in" style="overflow: auto">
+                                        <p data-bind="text: progression_problem"></p>
+                                    </div>
+                                </div>
+                                
+                                <div data-bind="if: $data.hasOwnProperty('example_submission')">
+                                    <h3>Example Submission</h3>
+                                    <dl>
+                                        <dt>submission</dt>
+                                        <dd data-bind="text: example_submission.submission_id"></dd>
+                                        <dt>retries</dt>
+                                        <dd data-bind="text: example_submission.submission_retries"></dd>
+                                        <dt>state</dt>
+                                        <dd data-bind="text: example_submission.submission_state"></dd>
+                                        <dt>dataelement</dt>
+                                        <dd data-bind="text: example_submission.dataelement_id"></dd>
+                                        <dt>job</dt>
+                                        <dd data-bind="text: example_submission.job_id"></dd>
+                                        <dt>cmd line</dt>
+                                        <dd data-bind="text: example_submission.job_cmd" style="overflow: auto"></dd>
+                                        <dt>cwd</dt>
+                                        <dd data-bind="text: example_submission.job_dir" style="overflow: auto"></dd>
+                                        <dt>job state</dt>
+                                        <dd data-bind="text: example_submission.job_state"></dd>
+                                        <!-- ko if: example_submission.job_exit_code -->
+                                            <dt>exit code</dt>
+                                            <dd data-bind="text: example_submission.job_exit_code"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_host -->
+                                            <dt>host</dt>
+                                            <dd data-bind="text: example_submission.job_host"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.submission_reserved_mb -->
+                                            <dt>reserved MB</dt>
+                                            <dd data-bind="text: example_submission.submission_reserved_mb"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.submission_reserved_hrs -->
+                                            <dt>reserved time</dt>
+                                            <dd data-bind="text: example_submission.submission_reserved_time"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_actual_mb -->
+                                            <dt>peak MB</dt>
+                                            <dd data-bind="text: example_submission.job_actual_mb"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_actual_time -->
+                                            <dt>wall time</dt>
+                                            <dd data-bind="text: example_submission.job_actual_time"></dd>
+                                        <!-- /ko -->
+                                    </dl>
+                                    
+                                    <div data-bind="if: example_submission.job_stdout">
+                                        <h4>Example Job StdOut</h4>
+                                        <div data-bind="foreach: example_submission.job_stdout">
+                                            <div class="stds" data-bind="foreach: $data">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div data-bind="if: example_submission.job_stderr">
+                                        <h4>Example Job StdErr</h4>
+                                        <div data-bind="foreach: example_submission.job_stderr">
+                                            <div class="stds" data-bind="foreach: $data">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </script>
+                        </div>
+                        
                         <div id="setup_center" style="margin: 0 auto;">
                             <div id="setup_boxes" data-bind="foreach: setups">
-                                <div class="setup">
-                                    <div class="setupid" data-bind="text: id"></div>
-                                    <table style="margin-bottom: 0">
-                                        <tbody data-bind="foreach: parameters">
-                                            <tr data-bind="if: val">
-                                                <th data-bind="text: key"></th>
-                                                <td data-bind="text: val"></td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
+                                <div data-bind="css: { 'setup panel': true, 'panel-primary': status == 'ok', 'panel-success': status == 'complete', 'panel-warning': status == 'unknown', 'panel-danger': status == 'stalled' }">
+                                    <div class="panel-heading"><span class="badge setup_hole" data-bind="text: id"></span> <span data-bind="html: wbr(parameters.name)"></span> <span class="badge setup_hole user" data-bind="text: parameters.user"></span></div>
+                                    <div class="panel-body">
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(parameters), container: 'body', html: true }">Details</button>
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(options), container: 'body', html: true }">Options</button>
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(datasource.parameters, datasource.options), container: 'body', html: true }">DataSource</button>
+                                        
+                                        <div class="table-responsive top-margin" style="overflow: auto">
+                                            <table class="table table-bordered table-condensed">
+                                                <caption class="pipeline_name" data-bind="html: wbr(pipeline.properties['name']), tooltip: { title: pipeline.properties['description'], placement: 'top', container: 'body' }"></caption>
+                                                <thead>
+                                                    <tr data-bind="foreach: pipeline.steps">
+                                                        <th class="text-center" data-bind="text: $index, tooltip: { title: properties['name'] + ': ' + properties['description'], placement: 'top', container: 'body' }"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody data-bind="foreach: progressions">
+                                                    <tr>
+                                                        <td style="cursor: pointer" data-bind="attr: { colspan: parseInt(step) + 1 }, css: { 'text-right': true, 'info': status == 'running', 'success': status == 'complete', 'active': status == 'processing' || status == 'pending', 'warning': status == 'unknown', 'danger': status == 'failed' }, click: $root.showProgressionDetails">
+                                                            <span data-bind="text: num_elements"></span> (<span data-bind="text: percent"></span>%)
+                                                        </td>
+                                                        <!-- ko if: step < ($parent.pipeline.steps.length - 1) -->
+                                                            <td data-bind="attr: { colspan: $parent.pipeline.steps.length - 1 - parseInt(step) }">&nbsp;</td>
+                                                        <!-- /ko -->
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        <div data-bind="foreach: warnings">
+                                            <div class="alert alert-warning fade in">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                        <div data-bind="foreach: errors">
+                                            <div class="alert alert-danger fade in">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="progress">
+                                            <div role="progressbar" data-bind="style: { width: progress_percent + '%' }, css: { 'progress-bar': true, 'progress-bar-primary': status == 'ok', 'progress-bar-success': status == 'complete', 'progress-bar-warning': status == 'unknown', 'progress-bar-danger': status == 'stalled' }">
+                                                <span data-bind="text: progress_percent + '%'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -381,7 +519,8 @@
                 $(window).resize(self.setupsResize);
                 
                 self.masonryOptions = {
-                    gutter: 15,
+                    gutter: self.setupsGutterWidth,
+                    columnWidth: self.setupsColumnWidth,
                     itemSelector: '.setup'
                 }
                 
@@ -424,8 +563,10 @@
                 var $container = $('#setup_boxes');
                 self.displayedSetups = 0;
                 self.getSetups = function(ids) {
+                    self.aquiringstatus.push(true);
                     vrpipeRestMethod('status', 'get_setups', { setups: ids }, self.aquiringstatus, self.statuserror, function(data) {
                         self.setups(data);
+                        self.aquiringstatus.pop();
                         
                         if (self.displayedSetups) {
                             $container.masonry('destroy');
@@ -539,6 +680,39 @@
                     self.displayDefunct(undefined);
                     self.displaySummary(undefined);
                     self.setupUser(undefined);
+                }
+                
+                self.setupPopoverHTMLFromKeyVals = function(keyvals, morekeyvals) {
+                    var html = '<table class="table table-bordered table-striped table-condensed" style="margin-bottom: 0"><tbody>';
+                    $.each(keyvals, function(key, value) {
+                        if (value != null) {
+                            html = html + '<tr><th>' + wbr(key) + '</th><td>' + wbr(value) + '</td></tr>';
+                        }
+                    });
+                    html = html + '</tbody></table>';
+                    
+                    if (morekeyvals && Object.keys(morekeyvals).length > 0) {
+                        html = html + '<br>' + self.setupPopoverHTMLFromKeyVals(morekeyvals);
+                    }
+                    
+                    return html;
+                }
+                
+                // stuff for the progression models which show setup errors
+                self.progressionModalVisible = ko.observable(false);
+                self.progressionModalBodyData = ko.observable();
+                self.progressionModalSpinner = ko.observableArray(); // not actually displayed anywhere; we change the cursor instead
+                self.showProgressionDetails = function(progression, event) {
+                    $("body").css("cursor", "progress");
+                    $(event.target).css("cursor", "progress");
+                    
+                    vrpipeRestMethod('status', 'step_progression_details', { setup: parseInt(progression.setup), step: parseInt(progression.step), type: progression.status }, self.progressionModalSpinner, self.statuserror, function(data) {
+                        //console.log(JSON.stringify(data));
+                        self.progressionModalBodyData(data);
+                        $("body").css("cursor", "default");
+                        $(event.target).css("cursor", "pointer");
+                        self.progressionModalVisible(true);
+                    });
                 }
                 
                 // if user clicked on status tab button, set url to /status, but

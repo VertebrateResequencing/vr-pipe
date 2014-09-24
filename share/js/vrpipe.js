@@ -159,6 +159,7 @@ var wbr = function(string) {
     if (! string) { return '' }
     var wbrd = '' + string;
     wbrd = wbrd.replace(/([_\-\W])/g, "$1<wbr>");
+    wbrd = wbrd.replace(/( <wbr>)/g, " ");
     return wbrd;
 }
 
