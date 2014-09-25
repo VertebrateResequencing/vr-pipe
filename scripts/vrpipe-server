@@ -719,8 +719,7 @@ sub start_server {
             my ($env, $method) = @_;
             $backend->psgi_nonblocking_json_response($graph, \&qc, $env, $method);
         },
-        '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
-        '/dsn'    => sub {
+        '/dsn' => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
         },
         '/stop' => sub {
@@ -969,6 +968,9 @@ sub status {
                                     my $val = $s->$col();
                                     $step_data->{properties}->{$col} = $val;
                                 }
+                                
+                                $step_data->{properties}->{inputs}  = [keys %{ $s->inputs_definition() }];
+                                $step_data->{properties}->{outputs} = [keys %{ $s->outputs_definition() }];
                                 
                                 $step_details{$s_id} = $step_data;
                             }

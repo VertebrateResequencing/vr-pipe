@@ -119,9 +119,7 @@ sub required_modules {
         'Test::Strict'                   => 0,
         'Time::Format'                   => 0,
         'Twiggy'                         => 0,
-        'TryCatch'                       => 0,
-        'XML::LibXML'                    => 0,
-        'XML::LibXSLT'                   => 0
+        'TryCatch'                       => 0
     };
 }
 
