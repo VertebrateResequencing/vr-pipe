@@ -1122,7 +1122,8 @@ sub status {
                                                 }
                                             }
                                             else {
-                                                push(@$warnings, "Currently processing step $step_number (" . $member->step->name . "). It's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
+                                                # push(@$warnings, "Currently processing step $step_number (" . $member->step->name . "). It's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
+                                                # instead of giving a warning on the setup, user can get the actual error by clicking a progression
                                                 $found_problem = 1;
                                                 last ESCHECKER;
                                             }
