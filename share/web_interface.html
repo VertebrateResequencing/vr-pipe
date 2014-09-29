@@ -237,7 +237,7 @@
                         <div id="setup_center" style="margin: 0 auto;">
                             <div id="setup_boxes" data-bind="foreach: setups">
                                 <div data-bind="css: { 'setup panel': true, 'panel-primary': status == 'ok', 'panel-success': status == 'complete', 'panel-warning': status == 'unknown', 'panel-danger': status == 'stalled' }">
-                                    <div class="panel-heading"><span class="badge setup_hole" data-bind="text: id"></span> <span data-bind="html: wbr(parameters.name)"></span> <span class="badge setup_hole user" data-bind="text: parameters.user"></span></div>
+                                    <div class="panel-heading"><span class="badge setup_hole" data-bind="text: id"></span> <span data-bind="html: wbr(parameters.name)"></span> <span class="badge setup_hole user" data-bind="text: parameters.user"></span><!-- ko if: parameters['active'] == '0' --> <span class="badge setup_hole user">inactive</span><!-- /ko --></div>
                                     <div class="panel-body">
                                         <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(parameters), container: 'body', html: true }">Details</button>
                                         <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(options), container: 'body', html: true }">Options</button>
