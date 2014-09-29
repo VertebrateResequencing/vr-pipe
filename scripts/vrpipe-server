@@ -1324,51 +1324,56 @@ sub status {
                 # try and trigger an incomplete element through the next
                 # step
                 my ($des) = VRPipe::DataElementState->search({ pipelinesetup => $setup, completed_steps => $step, 'dataelement.withdrawn' => 0 }, { rows => 1, join => 'dataelement' });
-                my $element = $des->dataelement;
-                
-                my $step_state = VRPipe::StepState->create(
-                    stepmember    => $step_member,
-                    dataelement   => $element,
-                    pipelinesetup => $setup_obj
-                );
-                
-                # work out which step inputs each step needs
-                my %step_inputs;
-                foreach my $adaptor (@{ $pipeline->adaptors || [] }) {
-                    my $hash = $adaptor->adaptor_hash || next;
-                    my %from_steps;
-                    while (my ($to_key, $from_keys) = each %{$hash}) {
-                        foreach my $from_step (values %{$from_keys}) {
-                            next unless $from_step;
-                            $from_steps{$from_step} = 1;
+                if ($des) {
+                    my $element = $des->dataelement;
+                    
+                    my $step_state = VRPipe::StepState->create(
+                        stepmember    => $step_member,
+                        dataelement   => $element,
+                        pipelinesetup => $setup_obj
+                    );
+                    
+                    # work out which step inputs each step needs
+                    my %step_inputs;
+                    foreach my $adaptor (@{ $pipeline->adaptors || [] }) {
+                        my $hash = $adaptor->adaptor_hash || next;
+                        my %from_steps;
+                        while (my ($to_key, $from_keys) = each %{$hash}) {
+                            foreach my $from_step (values %{$from_keys}) {
+                                next unless $from_step;
+                                $from_steps{$from_step} = 1;
+                            }
+                        }
+                        if (keys %from_steps) {
+                            $step_inputs{ $adaptor->to_step } = [keys %from_steps];
                         }
                     }
-                    if (keys %from_steps) {
-                        $step_inputs{ $adaptor->to_step } = [keys %from_steps];
+                    
+                    # work out the previous step outputs relevant to
+                    # the next step
+                    my %previous_step_outputs;
+                    foreach my $input_step_number (@{ $step_inputs{ $step + 1 } || [] }) {
+                        my $input_member = $sms[$input_step_number - 1];
+                        my ($input_ss) = VRPipe::StepState->search({ stepmember => $input_member, dataelement => $element, pipelinesetup => $setup_obj });
+                        my $input_step = $input_member->step(step_state => $input_ss);
+                        while (my ($key, $val) = each %{ $input_step->outputs() }) {
+                            $previous_step_outputs{$key}->{$input_step_number} = $val;
+                        }
                     }
-                }
-                
-                # work out the previous step outputs relevant to
-                # the next step
-                my %previous_step_outputs;
-                foreach my $input_step_number (@{ $step_inputs{ $step + 1 } || [] }) {
-                    my $input_member = $sms[$input_step_number - 1];
-                    my ($input_ss) = VRPipe::StepState->search({ stepmember => $input_member, dataelement => $element, pipelinesetup => $setup_obj });
-                    my $input_step = $input_member->step(step_state => $input_ss);
-                    while (my ($key, $val) = each %{ $input_step->outputs() }) {
-                        $previous_step_outputs{$key}->{$input_step_number} = $val;
+                    
+                    my $parsable_step = $step_member->step(previous_step_outputs => \%previous_step_outputs, step_state => $step_state);
+                    my $parse_return;
+                    eval { $parse_return = $parsable_step->parse(); };
+                    my $error = $@ || $parse_return;
+                    if ($error) {
+                        $data->{progression_problem} = "Unable to parse the next step (DataElementState " . $des->id . "): $error";
                     }
-                }
-                
-                my $parsable_step = $step_member->step(previous_step_outputs => \%previous_step_outputs, step_state => $step_state);
-                my $parse_return;
-                eval { $parse_return = $parsable_step->parse(); };
-                my $error = $@ || $parse_return;
-                if ($error) {
-                    $data->{progression_problem} = "Unable to parse the next step (DataElementState " . $des->id . "): $error";
+                    else {
+                        $data->{progression_problem} = "Was able to parse the next step without error, so not sure why things are stalled - perhaps something will happen soon? (Or ask the admin to check DataElementState " . $des->id . ', DataElement ' . $element->id . ')';
+                    }
                 }
                 else {
-                    $data->{progression_problem} = "Was able to parse the next step without error, so not sure why things are stalled - perhaps something will happen soon? (Or ask the admin to check DataElementState " . $des->id . ', DataElement ' . $element->id . ')';
+                    $data->{progression_problem} = "Most likely all data elements are withdrawn right now until the setup we depend on has completed.";
                 }
             }
         }
