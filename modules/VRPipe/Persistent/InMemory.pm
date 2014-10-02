@@ -53,6 +53,7 @@ class VRPipe::Persistent::InMemory {
     use AnyEvent;
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
+    use Bytes::Random::Secure;
     
     has '_maintenance_children' => (
         is      => 'ro',
@@ -427,6 +428,74 @@ class VRPipe::Persistent::InMemory {
     
     method drop_queue (Str $key!) {
         return $self->_redis->del('queue.' . $key);
+    }
+    
+    method create_session (HashRef $data!, Int :$idle_expiry = 3600, Int :$max_life = 86400) {
+        my $redis     = $self->_redis;
+        my $random    = Bytes::Random::Secure->new(Bits => 128, NonBlocking => 1);
+        my $key       = $random->bytes_hex(16);
+        my $redis_key = 'session.' . $key;
+        if ($redis->exists($redis_key)) {
+            # wow, this should be basically impossible
+            $self->throw("A session with key '$key' already exists, we've lost randomness!");
+        }
+        
+        my $absolute_expiry = time() + $max_life;
+        my $set             = $redis->hmset(
+            $redis_key,
+            %$data,
+            'session.idle_expiry'     => $idle_expiry,
+            'session.absolute_expiry' => $absolute_expiry
+        );
+        
+        if ($set) {
+            $redis->expire($redis_key, $idle_expiry);
+            # (exireat overrides expire, so I implement my own in get_session())
+            return $key;
+        }
+        return;
+    }
+    
+    method get_session (Str $key!) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'session.' . $key;
+        
+        my %hash = $redis->hgetall($redis_key);
+        if (keys %hash) {
+            # refresh expiry
+            my $absolute_expiry = delete $hash{'session.absolute_expiry'};
+            if (time() > $absolute_expiry) {
+                $self->drop_session($key);
+                return;
+            }
+            my $idle_expiry = delete $hash{'session.idle_expiry'};
+            $redis->expire($redis_key, $idle_expiry);
+            
+            return \%hash;
+        }
+        return;
+    }
+    
+    method session_set (Str $key!, Str $set_key!, Str $value!) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'session.' . $key;
+        if ($redis->exists($redis_key)) {
+            # we only set new key vals for existing sessions
+            return $redis->hset($redis_key, $set_key => $value);
+        }
+        return 0;
+    }
+    
+    method session_get (Str $key!, Str $get_key!) {
+        return $self->_redis->hget('session.' . $key, $get_key);
+    }
+    
+    method session_del (Str $key!, Str $del_key!) {
+        return $self->_redis->hdel('session.' . $key, $del_key);
+    }
+    
+    method drop_session (Str $key!) {
+        return $self->_redis->del('session.' . $key);
     }
     
     method log_stderr {
