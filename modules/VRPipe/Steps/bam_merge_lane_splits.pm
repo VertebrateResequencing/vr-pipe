@@ -105,6 +105,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 )
             );
             
+            my $source_key;
             my ($lane, %bams, %metas);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $this_path = $bam->path;
@@ -126,13 +127,27 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     }
                     
                     my @fqs = split(',', $meta->{mapped_fastqs});
-                    my @these_parents;
+                    my @these_parents = ();
                     foreach my $fq (@fqs) {
                         my $fq_file = VRPipe::File->get(path => $fq, auto_resolve => 1);
-                        my $parent = $fq_file->metadata->{source_fastq} || $self->throw("no source_fastq for one of the mapped fastqs of $this_path - was it really mapped from a fastq_split result?");
-                        push(@these_parents, $parent);
+                        my $parent = $fq_file->metadata->{source_fastq};
+                        if ($parent) {
+                            $source_key = 'mapped_fastqs';
+                            push(@these_parents, $parent);
+                        }
+                        else {
+                            $parent = $fq_file->metadata->{source_bam};
+                            if ($parent) {
+                                $source_key = 'source_bam';
+                                push(@these_parents, $parent) unless ($parent ~~ @these_parents);
+                            }
+                        }
+                        $self->throw("no source_fastq or source_bam for one of the mapped fastqs of $this_path") unless $source_key;
                     }
-                    $metas{$paired}->{mapped_fastqs} = join(',', @these_parents);
+                    if ($source_key eq "source_bam" && scalar(@these_parents) != 1) {
+                        $self->throw("mapped_fastqs of $this_path belong to multiple source_bams!");
+                    }
+                    $metas{$paired}->{$source_key} = join(',', @these_parents);
                 }
                 $metas{$paired}->{reads} += $meta->{reads};
                 $metas{$paired}->{bases} += $meta->{bases};
@@ -148,7 +163,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     $metas{2} = $metas{1};
                     $metas{2}->{reads} += $metas{0}->{reads};
                     $metas{2}->{bases} += $metas{0}->{bases};
-                    $metas{2}->{mapped_fastqs} = join(',', $metas{0}->{mapped_fastqs}, $metas{1}->{mapped_fastqs});
+                    $metas{2}->{$source_key} = join(',', $metas{0}->{$source_key}, $metas{1}->{$source_key});
                     $metas{2}->{paired} = 2;
                 }
             }
@@ -219,7 +234,8 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     reads          => 'total number of reads (sequences)',
                     paired         => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                     mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
-                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                    source_bam     => 'path to the original bam file which was realigned',
+                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study', 'mapped_fastqs', 'source_bam']
                 }
             )
         };
