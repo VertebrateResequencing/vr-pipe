@@ -10,7 +10,7 @@ file into fastq
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk> and Chris Joyce <ch5@sanger.ac.uk>.
+Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -36,12 +36,14 @@ use VRPipe::Base;
 
 class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
     use VRPipe::Parser;
+    use POSIX;
     
     method options_definition {
         return {
-            bamtofastq_exe  => VRPipe::StepOption->create(description => 'path to bamtofastq executable',                                             optional => 1, default_value => 'bamtofastq'),
-            bamtofastq_opts => VRPipe::StepOption->create(description => 'bamtofastq options (excluding arguments that set input/output file names)', optional => 1, default_value => 'gz=1 exclude=SECONDARY,SUPPLEMENTARY,QCFAIL'),
-            fastqcheck_exe  => VRPipe::StepOption->create(description => 'path to fastqcheck executable',                                             optional => 1, default_value => 'fastqcheck'),
+            bamtofastq_exe   => VRPipe::StepOption->create(description => 'path to bamtofastq executable',                                                                                                                                                      optional => 1, default_value => 'bamtofastq'),
+            bamtofastq_opts  => VRPipe::StepOption->create(description => 'bamtofastq options (excluding arguments that set input/output file names)',                                                                                                          optional => 1, default_value => 'gz=1 exclude=SECONDARY,SUPPLEMENTARY,QCFAIL'),
+            fastqcheck_exe   => VRPipe::StepOption->create(description => 'path to fastqcheck executable',                                                                                                                                                      optional => 1, default_value => 'fastqcheck'),
+            fastq_chunk_size => VRPipe::StepOption->create(description => 'size of output fastq chunks in base pair. When a value other than zero is specified, bamtofastq split option is used to generate the output fastqs in chunks of the specified size', optional => 1, default_value => '1000000000'),
         };
     }
     
@@ -59,6 +61,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
                     reverse_reads    => 'number of reverse reads',
                     paired           => '0=single ended reads only; 1=paired end reads present',
                     mean_insert_size => 'mean insert size (0 if unpaired)',
+                    avg_read_length  => 'the average length of reads',
                     library          => 'library name',
                     sample           => 'sample name',
                     center_name      => 'center name',
@@ -77,87 +80,40 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             my $bamtofastq_exe  = $options->{bamtofastq_exe};
             my $bamtofastq_opts = $options->{bamtofastq_opts};
             my $fastqcheck_exe  = $options->{fastqcheck_exe};
-            if ($bamtofastq_opts =~ /\s(F|F2|S|O|O2|filename|fasta)=/) {
-                $self->throw("bamtofastq_opts should not include F=, F2=, S=, O=, O2=, filename= or fasta= options!");
+            my $chunk_size      = $options->{fastq_chunk_size};
+            if ($bamtofastq_opts =~ /\s(F|F2|S|O|O2|filename|fasta|split)=/) {
+                $self->throw("bamtofastq_opts should not include F=, F2=, S=, O=, O2=, filename=, fasta= or split= options!");
             }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bamtofastq',
                     version => VRPipe::StepCmdSummary->determine_version($bamtofastq_exe . ' --version', '^This.+version (.+)\.$'),
-                    summary => "bamtofastq $bamtofastq_opts filename=\$bam_file F=\$reads_1.fastq.gz F2=\$reads_2.fastq.gz S=\$reads_M.fastq.gz 2>\$log_file"
+                    summary => "bamtofastq $bamtofastq_opts filename=\$bam_file split=\$reads_num F=\$fastq_1 F2=\$fastq_2 S=\$fastq_M 2>\$log_file"
                 )
             );
             
-            my $p_gz = '';
-            $p_gz = ".gz" if ($bamtofastq_opts =~ /gz=1/);
+            my $fastq_suffix = '';
+            if ($bamtofastq_opts =~ /gz=1/) {
+                $fastq_suffix = ".gz";
+            }
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-                my $meta   = $bam->metadata;
-                my $paired = $meta->{paired};
-                
                 my $source_bam = $bam->path->stringify;
-                my $fastq_meta = { source_bam => $source_bam };
-                foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study split_sequence population continent chrom from to individual project species public_name sample_accession_number)) {
-                    if (defined $meta->{$key}) {
-                        $fastq_meta->{$key} = $meta->{$key};
-                    }
+                my @fq_files = VRPipe::Steps::bamtofastq->split_fastq_outs(split_dir => $self->output_root, bam => $source_bam, chunk_size => $chunk_size, suffix => $fastq_suffix);
+                my @outfiles;
+                foreach my $out (@fq_files) {
+                    push(@outfiles, $self->output_file(output_key => 'fastq_files', basename => $out->basename, type => 'fq'));
                 }
+                
                 my $basename = $bam->basename;
                 $basename =~ s/\.bam//;
-                my $out_spec;
-                my @outfiles;
-                
-                if ($paired) {
-                    my $fastq = $self->output_file(
-                        output_key => 'fastq_files',
-                        basename   => "${basename}_1.fastq$p_gz",
-                        type       => 'fq',
-                        metadata   => {
-                            %$fastq_meta,
-                            reads  => $meta->{forward_reads},
-                            paired => 1
-                        }
-                    );
-                    my $reverse = $self->output_file(
-                        output_key => 'fastq_files',
-                        basename   => "${basename}_2.fastq$p_gz",
-                        type       => 'fq',
-                        metadata   => {
-                            %$fastq_meta,
-                            reads  => $meta->{reverse_reads},
-                            paired => 2
-                        }
-                    );
-                    @outfiles = ($fastq, $reverse);
-                    
-                    $fastq->add_metadata({ mate => $reverse->path->stringify });
-                    $reverse->add_metadata({ mate => $fastq->path->stringify });
-                    
-                    $out_spec = 'forward => q[' . $fastq->path . '], reverse => q[' . $reverse->path . ']';
-                }
-                else {
-                    my $fastq = $self->output_file(
-                        output_key => 'fastq_files',
-                        basename   => "${basename}_M.fastq$p_gz",
-                        type       => 'fq',
-                        metadata   => {
-                            %$fastq_meta,
-                            reads           => $meta->{reads},
-                            bases           => $meta->{bases},
-                            avg_read_length => sprintf("%0.2f", $meta->{reads} / $meta->{bases}),
-                            paired          => 0
-                        }
-                    );
-                    @outfiles = ($fastq);
-                    $out_spec = 'single => q[' . $fastq->path . ']';
-                }
-                
                 my $out_log = $self->output_file(temporary => 1, basename => "$basename.log", type => 'txt');
                 push(@outfiles, $out_log);
+                my @fq_paths = map { $_->path } @fq_files;
                 
-                my $this_cmd = "use VRPipe::Steps::bamtofastq; VRPipe::Steps::bamtofastq->bamtofastq(bam => q[$source_bam], $out_spec, bamtofastq_exe => q[$bamtofastq_exe], bamtofastq_opts => q[$bamtofastq_opts], fastqcheck_exe => q[$fastqcheck_exe]);";
+                my $this_cmd = "use VRPipe::Steps::bamtofastq; VRPipe::Steps::bamtofastq->bamtofastq(bam => q[$source_bam], fastqs => [qw(@fq_paths)], bamtofastq_exe => q[$bamtofastq_exe], bamtofastq_opts => q[$bamtofastq_opts], fastqcheck_exe => q[$fastqcheck_exe], chunk_size => q[$chunk_size]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
         };
@@ -202,54 +158,65 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method bamtofastq (ClassName|Object $self: Str|File :$bam!, Str|File :$forward?, Str|File :$reverse?, Str|File :$single?, Str|File :$bamtofastq_exe, Str :$bamtofastq_opts, Str|File :$fastqcheck_exe) {
+    method bamtofastq (ClassName|Object $self: Str|File :$bam!, ArrayRef[Str|File] :$fastqs!, Str|File :$bamtofastq_exe, Str :$bamtofastq_opts, Str|File :$fastqcheck_exe, PositiveInt :$chunk_size!) {
         my $in_file  = VRPipe::File->get(path => $bam);
         my $bam_meta = $in_file->metadata;
         my $basename = $in_file->basename;
         $basename =~ s/\.bam//;
         
-        # get the output path so we can specify the logfile name and -o param
-        my $out_dir;
-        if ($bam_meta->{paired}) {
-            my $fq = VRPipe::File->get(path => $forward);
-            $out_dir = $fq->dir;
-        }
-        else {
-            my $fq = VRPipe::File->get(path => $single);
-            $out_dir = $fq->dir unless $out_dir;
+        #determine the number of reads per fastq split
+        my $splits         = $self->_splits($bam, $chunk_size);
+        my $read_lengths   = $bam_meta->{avg_read_length};
+        my $seqs_per_split = floor($chunk_size / $read_lengths);
+        my $split_args     = '';
+        if ($splits != 1) {
+            $split_args = " split=$seqs_per_split";
         }
         
-        my $p_gz = '';
-        $p_gz = ".gz" if ($bamtofastq_opts =~ /gz=1/);
+        #currently bamtofastq appends .gz to filenames when split option is used,
+        #so we only explicitly add the suffix when fastq files are not chunked:
+        my $suffix = '';
+        if ($bamtofastq_opts =~ /gz=1/ && $splits == 1) {
+            $suffix = ".gz";
+        }
+        
+        my $out_dir   = VRPipe::File->get(path => $fastqs->[0])->dir;
         my $logfile   = "$out_dir/$basename.log";
-        my $out_param = "F=$out_dir/${basename}_1.fastq$p_gz F2=$out_dir/${basename}_2.fastq$p_gz S=$out_dir/${basename}_M.fastq$p_gz";
-        my $cmd       = "$bamtofastq_exe $bamtofastq_opts $out_param filename=$bam 2>$logfile";
+        my $out_param = "F=$out_dir/${basename}_1.fastq$suffix F2=$out_dir/${basename}_2.fastq$suffix S=$out_dir/${basename}_M.fastq$suffix";
+        my $cmd       = "$bamtofastq_exe $bamtofastq_opts $out_param$split_args filename=$bam 2>$logfile";
         $in_file->disconnect;
         system($cmd) && $self->throw("failed to run [$cmd]");
         
-        # determine which output files we need to check
+        # Create additional fastq files if necessary, or get rid of the unneeded empty files
+        #Note: bamtofastq may produce empty files (e.g. empty _M.fq for when paired=1) which
+        #we remove if they are not defined in method split_fastq_outs. It may also produce
+        #extra files e.g. non-empty _M.fq even if paired=1 when the bam contains both paired
+        #and single-ended reads.
         my @out_files;
-        if ($bam_meta->{paired}) {
-            push(@out_files, VRPipe::File->get(path => $forward));
-            push(@out_files, VRPipe::File->get(path => $reverse));
-        }
-        else {
-            push(@out_files, VRPipe::File->get(path => $single));
-        }
-        
-        # Create additional files fastq if necessary, or get rid of the unneeded empty files
-        if ($bam_meta->{paired}) {
-            my $path = $forward;
-            $path =~ s/_1.fastq/_M.fastq/;
-            add_or_rm_fastq($self, $path, $forward, \@out_files);
-        
-        }
-        else {
-            foreach my $n (1, 2) {
-                my $path = $single;
-                $path =~ s/_M.fastq/_$n.fastq/;
-                add_or_rm_fastq($self, $path, $single, \@out_files);
+        my @fq_files = @$fastqs;
+        while ($splits) {
+            my @out_pairs = ();
+            if ($bam_meta->{paired}) {
+                my $forward = shift @fq_files;
+                my $reverse = shift @fq_files;
+                push(@out_pairs, VRPipe::File->get(path => $forward));
+                push(@out_pairs, VRPipe::File->get(path => $reverse));
+                my $path = $forward;
+                $path =~ s/_1.fastq/_M.fastq/;
+                add_or_rm_fastq($self, $path, $forward, \@out_pairs);
+                push(@out_files, @out_pairs);
             }
+            else {
+                my $single = shift @fq_files;
+                push(@out_pairs, VRPipe::File->get(path => $single));
+                foreach my $n (1, 2) {
+                    my $path = $single;
+                    $path =~ s/_M.fastq/_$n.fastq/;
+                    add_or_rm_fastq($self, $path, $single, \@out_pairs);
+                    push(@out_files, @out_pairs);
+                }
+            }
+            $splits--;
         }
         
         # check logfile read count agrees with bam meta
@@ -265,7 +232,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         }
         $logh->close;
         my $last = pop(@lines);
-        unless ($last =~ /MemUsage/) { $self->throw("$logfile doesn't contain runtime stats") }
+        unless ($last =~ /MemUsage/ && $last =~ /wall clock time/) { $self->throw("$logfile does not contain runtime stats") }
         $last = pop(@lines);
         my $total_reads_parsed = $1 if $last =~ /\[V\] (\S+)/;
         
@@ -309,13 +276,11 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             }
             close($fh);
             
-            my $fq_meta = $out_file->metadata;
             # for expected_reads we do not use the 'reads' metadata since that
             # is based on bamcheck forward/reverse reads, which is based on
             # flags, so if flags are wrong, or reads have been removed from
             # input bam, either way resulting in mismatch of forward and reverse
             # reads, we will have discarded some reads.
-            
             $out_file->update_stats_from_disc;
             my $output_lines = $out_file->lines;
             unless ($output_lines == $these_reads) {
@@ -348,33 +313,39 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         # Create additional files if necessary, or get rid of the unneeded empty files
         my ($self, $path, $based_on, $out_files) = @_;
         
-        my $pipe;
-        if ($path =~ /\.gz$/) {
-            $pipe = "(gunzip -c $path | wc -l; echo $path) | xargs -n2 |";
+        #delete the extra_file=$path if it exists and is empty. keep it if it contains data
+        if (-e $path) {
+            my $pipe;
+            if ($path =~ /\.gz$/) {
+                $pipe = "(gunzip -c $path | wc -l; echo $path) | xargs -n2 |";
+            }
+            else {
+                $pipe = "wc -l $path |";
+            }
+            
+            my $file_size;
+            open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
+            while (<$fh>) {
+                unless (/(\S+) $path/) {
+                    foreach my $out_file (@$out_files) {
+                        $out_file->unlink;
+                    }
+                    $self->throw("Couldn't get count from $pipe : $_");
+                }
+                $file_size = $1;
+                last;
+            }
+            if ($file_size == 0) {
+                unless (system("rm $path") == 0) {
+                    foreach my $out_file (@$out_files) {
+                        $out_file->unlink;
+                    }
+                    $self->throw("failed to rm $path");
+                }
+                return;
+            }
         }
         else {
-            $pipe = "wc -l $path |";
-        }
-        
-        my $file_size;
-        open(my $fh, $pipe) || $self->throw("Couldn't open '$pipe': $!");
-        while (<$fh>) {
-            unless (/(\S+) $path/) {
-                foreach my $out_file (@$out_files) {
-                    $out_file->unlink;
-                }
-                $self->throw("Couldn't get count from $pipe : $_");
-            }
-            $file_size = $1;
-            last;
-        }
-        if ($file_size == 0) {
-            unless (system("rm $path") == 0) {
-                foreach my $out_file (@$out_files) {
-                    $out_file->unlink;
-                }
-                $self->throw("failed to rm $path");
-            }
             return;
         }
         
@@ -405,6 +376,8 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             $mate =~ s/_2.fastq/_1.fastq/;
             $fastq_meta->{mate} = $mate;
         }
+        
+        # create the extra_file=$path in dtabase and define it as output file
         my $extra_file = VRPipe::File->create(path => $path, metadata => {%$fastq_meta});
         
         my $step_state = $existing_stepoutputfiles[0]->stepstate;
@@ -414,6 +387,95 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             output_key => 'fastq_files',
         );
         push(@$out_files, $extra_file);
+    }
+    
+    method _splits (ClassName|Object $self: Str|File $bam, PositiveInt $chunk_size) {
+        my $bam_meta       = VRPipe::File->get(path => $bam)->metadata;
+        my $read_lengths   = $bam_meta->{avg_read_length};
+        my $seqs           = $bam_meta->{reads};
+        my $seqs_per_split = floor($chunk_size / $read_lengths);
+        
+        if ($seqs_per_split != 0) {
+            return ceil($seqs / $seqs_per_split / 2);
+        }
+        else {
+            return 1;
+        }
+    }
+    
+    method split_fastq_outs (ClassName|Object $self: Str|Dir :$split_dir!, Str|File :$bam!, PositiveInt :$chunk_size!, Str :$suffix!) {
+        my $splits = $self->_splits($bam, $chunk_size);
+        
+        my $bam_file   = VRPipe::File->get(path => $bam);
+        my $meta       = $bam_file->metadata;
+        my $paired     = $meta->{paired};
+        my $source_bam = $bam_file->path->stringify;
+        my $fastq_meta = { source_bam => $source_bam };
+        foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study split_sequence population continent chrom from to individual project species public_name sample_accession_number)) {
+            if (defined $meta->{$key}) {
+                $fastq_meta->{$key} = $meta->{$key};
+            }
+        }
+        my @outs;
+        my $basename = $bam_file->basename;
+        $basename =~ s/\.bam//;
+        
+        #We expect to generate _1.fq & _2.fq for paired reads and _M.fq for single-ended reads.
+        #if more files are produced by bamtofastq we define them later in method add_or_rm_fastq
+        if ($splits == 1) {
+            if ($paired) {
+                my $forward = VRPipe::File->create(
+                    path => file($split_dir, "${basename}_1.fastq$suffix"),
+                    type => 'fq',
+                    metadata => { %$fastq_meta, paired => 1, chunk => 1 }
+                );
+                my $reverse = VRPipe::File->create(
+                    path => file($split_dir, "${basename}_2.fastq$suffix"),
+                    type => 'fq',
+                    metadata => { %$fastq_meta, paired => 2, chunk => 1 }
+                );
+                @outs = ($forward, $reverse);
+                $forward->add_metadata({ mate => $reverse->path->stringify });
+                $reverse->add_metadata({ mate => $forward->path->stringify });
+            }
+            else {
+                my $single = VRPipe::File->create(
+                    path => file($split_dir, "${basename}_M.fastq$suffix"),
+                    type => 'fq',
+                    metadata => { %$fastq_meta, paired => 0, chunk => 1 }
+                );
+                @outs = ($single);
+            }
+        }
+        else {
+            for my $split_num ("000000" .. sprintf("%06d", $splits - 1)) {
+                if ($paired) {
+                    my $forward = VRPipe::File->create(
+                        path => file($split_dir, "${basename}_1.fastq_$split_num$suffix"),
+                        type => 'fq',
+                        metadata => { %$fastq_meta, paired => 1, chunk => $split_num }
+                    );
+                    my $reverse = VRPipe::File->create(
+                        path => file($split_dir, "${basename}_2.fastq_$split_num$suffix"),
+                        type => 'fq',
+                        metadata => { %$fastq_meta, paired => 2, chunk => $split_num }
+                    );
+                    push(@outs, $forward, $reverse);
+                    $forward->add_metadata({ mate => $reverse->path->stringify });
+                    $reverse->add_metadata({ mate => $forward->path->stringify });
+                }
+                else {
+                    my $single = VRPipe::File->create(
+                        path => file($split_dir, "${basename}_M.fastq_$split_num$suffix"),
+                        type => 'fq',
+                        metadata => { %$fastq_meta, paired => 0, chunk => $split_num }
+                    );
+                    push(@outs, $single);
+                }
+            }
+        }
+        
+        return @outs;
     }
 }
 
