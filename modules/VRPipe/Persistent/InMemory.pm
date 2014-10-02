@@ -430,7 +430,10 @@ class VRPipe::Persistent::InMemory {
         return $self->_redis->del('queue.' . $key);
     }
     
-    method create_session (HashRef $data!, Int :$idle_expiry = 3600, Int :$max_life = 86400) {
+    method create_session (HashRef $data!, Int :$idle_expiry = 86400, Int :$max_life = 432000) {
+        # (the idle_expiry and max_life are very lax by default, designed to
+        #  allow someone to keep a session for a working week if they use the
+        #  session at least once per day during work hours)
         my $redis     = $self->_redis;
         my $random    = Bytes::Random::Secure->new(Bits => 128, NonBlocking => 1);
         my $key       = $random->bytes_hex(16);
