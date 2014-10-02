@@ -329,7 +329,7 @@ class VRPipe::Interface::BackEnd {
                     next if $regex eq '/';
                     if ($path =~ qr{$regex}) {
                         $sub = $this_sub;
-                        push(@sub_args, "$1");
+                        push(@sub_args, "$1") if $1;
                         last;
                     }
                 }
@@ -452,6 +452,14 @@ class VRPipe::Interface::BackEnd {
                     return $graph->json_encode({ errors => ['Posted content was not a hash'] });
                 }
                 
+                # I couldn't get Plack::Middleware::Session to work, and want
+                # the sessions in redis anyway, so I implement my own session
+                # management by passing my own vrpipe_session cookie value if
+                # it exists, then when we return from this fork I check to see
+                # if the returned json had vrpipe_session and set it as a
+                # cookie if so
+                $args->{vrpipe_session} = $req->cookies->{vrpipe_session};
+                
                 my $data;
                 eval { $data = &{$sub}($args, @others); };
                 if ($@) {
@@ -464,7 +472,16 @@ class VRPipe::Interface::BackEnd {
                 my ($json) = @_;
                 my $res = $req->new_response(200);
                 $res->content_type('application/json');
+                
+                my $decoded = $graph->json_decode($json);
+                my $session = delete $decoded->{vrpipe_session} if ref($decoded) eq 'HASH';
+                if ($session) {
+                    $res->cookies->{vrpipe_session} = { value => $session, path => "/" };
+                    $json = $graph->json_encode($decoded);
+                }
+                
                 $res->body($json);
+                
                 $responder->($res->finalize);
             };
         };
