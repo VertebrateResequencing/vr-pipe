@@ -70,7 +70,7 @@ my @s_names2;
 foreach my $stepmember ($mapping_pipeline2->step_members) {
     push(@s_names2, $stepmember->step->name);
 }
-is_deeply \@s_names2, [qw(fasta_index sequence_dictionary bwa_index bam_metadata bamtofastq split_fastq bwa_mem_to_bam bam_merge_lane_splits bam_index)], 'the pipeline has the correct steps';
+is_deeply \@s_names2, [qw(fasta_index sequence_dictionary bwa_index bam_metadata bamtofastq bwa_mem_to_bam bam_merge_lane_splits bam_index)], 'the pipeline has the correct steps';
 
 my $mapping_pipelinesetup2 = VRPipe::PipelineSetup->create(
     name       => 'bam_remapping_with_bwa_mem',
@@ -105,17 +105,17 @@ ok handle_pipeline(), 'pipeline ran ok';
 ## produce the expected metadata if they run correctly.
 for my $setup_num (1, 2) {
     my $bam_step_num = 10; # bam lanes merge step #
-    $bam_step_num = 8 unless ($setup_num == 1);
-    my $suffix = "fastq";
-    $suffix .= ".gz" unless ($setup_num == 1);
-    my $shuf = ".shuf";
+    $bam_step_num = 7 unless ($setup_num == 1);
+    my $bamtofastq_dir = "6_bam_to_fastq"; #used for setup 1 only
+    my $shuf           = ".shuf";
     $shuf = '' unless ($setup_num == 1);
-    my $bamtofastq_dir = "6_bam_to_fastq";
-    $bamtofastq_dir = "5_bamtofastq" unless ($setup_num == 1);
-    my %mapped_fastqs;
-    my @final_bams;
-    my $element_num = 0;
     
+    my %mapped_fastqs;
+    my %source_bam;
+    my @final_bams;
+    my $source_type;
+    my %source_values;
+    my $element_num = 0;
     foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
         if ($lane eq '2822_6') {
             foreach my $ended ('se', 'pe') {
@@ -125,14 +125,15 @@ for my $setup_num (1, 2) {
                 push(@final_bams, VRPipe::File->create(path => $bam));
                 my @fqs = ();
                 if ($ended eq 'se') {
-                    push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.$ended${shuf}_M.$suffix"));
+                    push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.$ended${shuf}_M.fastq"));
                 }
                 else {
                     for my $j (1 .. 2) {
-                        push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.$ended${shuf}_$j.$suffix"));
+                        push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.$ended${shuf}_$j.fastq"));
                     }
                 }
                 $mapped_fastqs{"$lane.$ended"} = join(',', @fqs);
+                $source_bam{"$lane.$ended"} = file("t", "data", "remapping_bams", "$lane.$ended.bam")->absolute;
             }
         }
         else {
@@ -142,73 +143,82 @@ for my $setup_num (1, 2) {
             push(@final_bams, VRPipe::File->create(path => $bam));
             my @fqs = ();
             for my $j (1 .. 2) {
-                push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.pe${shuf}_$j.$suffix"));
+                push(@fqs, file(@output_subdirs, $bamtofastq_dir, "$lane.pe${shuf}_$j.fastq"));
             }
             $mapped_fastqs{$lane} = join(',', @fqs);
+            $source_bam{$lane} = file("t", "data", "remapping_bams", "$lane.pe.bam")->absolute;
         }
+    }
+    if ($setup_num == 1) {
+        $source_type   = "mapped_fastqs";
+        %source_values = %mapped_fastqs;
+    }
+    else {
+        $source_type   = "source_bam";
+        %source_values = %source_bam;
     }
     
     my @final_bam_metas = map { $_->metadata } @final_bams;
     is_deeply [@final_bam_metas],
       [{
-            bases         => 3050,
-            center_name   => 'SC',
-            lane          => '2822_6',
-            library       => 'LIB01',
-            mapped_fastqs => $mapped_fastqs{'2822_6.se'},
-            paired        => 0,
-            platform      => 'ILLUMINA',
-            reads         => 50,
-            sample        => 'SAMPLE01',
-            study         => 'STUDY01'
+            bases        => 3050,
+            center_name  => 'SC',
+            lane         => '2822_6',
+            library      => 'LIB01',
+            $source_type => $source_values{'2822_6.se'},
+            paired       => 0,
+            platform     => 'ILLUMINA',
+            reads        => 50,
+            sample       => 'SAMPLE01',
+            study        => 'STUDY01'
         },
         {
-            bases         => 23000,
-            center_name   => 'SC',
-            lane          => '2822_6',
-            library       => 'LIB01',
-            mapped_fastqs => $mapped_fastqs{'2822_6.pe'},
-            paired        => 1,
-            platform      => 'ILLUMINA',
-            reads         => 400,
-            sample        => 'SAMPLE01',
-            study         => 'STUDY01'
+            bases        => 23000,
+            center_name  => 'SC',
+            lane         => '2822_6',
+            library      => 'LIB01',
+            $source_type => $source_values{'2822_6.pe'},
+            paired       => 1,
+            platform     => 'ILLUMINA',
+            reads        => 400,
+            sample       => 'SAMPLE01',
+            study        => 'STUDY01'
         },
         {
-            bases         => 28750,
-            center_name   => 'SC',
-            lane          => '2822_7',
-            library       => 'LIB01',
-            mapped_fastqs => $mapped_fastqs{'2822_7'},
-            paired        => 1,
-            platform      => 'ILLUMINA',
-            reads         => 500,
-            sample        => 'SAMPLE01',
-            study         => 'STUDY01'
+            bases        => 28750,
+            center_name  => 'SC',
+            lane         => '2822_7',
+            library      => 'LIB01',
+            $source_type => $source_values{'2822_7'},
+            paired       => 1,
+            platform     => 'ILLUMINA',
+            reads        => 500,
+            sample       => 'SAMPLE01',
+            study        => 'STUDY01'
         },
         {
-            bases         => 28750,
-            center_name   => 'SC',
-            lane          => '2823_4',
-            library       => 'LIB02',
-            mapped_fastqs => $mapped_fastqs{'2823_4'},
-            paired        => 1,
-            platform      => 'ILLUMINA',
-            reads         => 500,
-            sample        => 'SAMPLE01',
-            study         => 'STUDY01'
+            bases        => 28750,
+            center_name  => 'SC',
+            lane         => '2823_4',
+            library      => 'LIB02',
+            $source_type => $source_values{'2823_4'},
+            paired       => 1,
+            platform     => 'ILLUMINA',
+            reads        => 500,
+            sample       => 'SAMPLE01',
+            study        => 'STUDY01'
         },
         {
-            bases         => 28750,
-            center_name   => 'SC',
-            lane          => '8324_8',
-            library       => 'LIB03',
-            mapped_fastqs => $mapped_fastqs{'8324_8'},
-            paired        => 1,
-            platform      => 'ILLUMINA',
-            reads         => 500,
-            sample        => 'SAMPLE02',
-            study         => 'STUDY01'
+            bases        => 28750,
+            center_name  => 'SC',
+            lane         => '8324_8',
+            library      => 'LIB03',
+            $source_type => $source_values{'8324_8'},
+            paired       => 1,
+            platform     => 'ILLUMINA',
+            reads        => 500,
+            sample       => 'SAMPLE02',
+            study        => 'STUDY01'
         }
       ],
       "final bam files for setup $setup_num have the correct metadata";

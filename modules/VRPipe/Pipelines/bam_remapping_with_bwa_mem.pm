@@ -51,10 +51,9 @@ class VRPipe::Pipelines::bam_remapping_with_bwa_mem with VRPipe::PipelineRole {
             'bwa_index',             #3
             'bam_metadata',          #4
             'bamtofastq',            #5
-            'split_fastq',           #6
-            'bwa_mem_to_bam',        #7
-            'bam_merge_lane_splits', #8
-            'bam_index',             #9
+            'bwa_mem_to_bam',        #6
+            'bam_merge_lane_splits', #7
+            'bam_index',             #8
         );
     }
     
@@ -63,18 +62,17 @@ class VRPipe::Pipelines::bam_remapping_with_bwa_mem with VRPipe::PipelineRole {
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
             { from_step => 0, to_step => 5, to_key   => 'bam_files' },
             { from_step => 5, to_step => 6, from_key => 'fastq_files', to_key => 'fastq_files' },
-            { from_step => 6, to_step => 7, from_key => 'split_fastq_files', to_key => 'fastq_files' },
-            { from_step => 7, to_step => 8, from_key => 'bam_files', to_key => 'bam_files' },
-            { from_step => 2, to_step => 8, from_key => 'reference_dict', to_key => 'dict_file' },
-            { from_step => 8, to_step => 9, from_key => 'merged_lane_bams', to_key => 'bam_files' }
+            { from_step => 6, to_step => 7, from_key => 'bam_files', to_key => 'bam_files' },
+            { from_step => 2, to_step => 7, from_key => 'reference_dict', to_key => 'dict_file' },
+            { from_step => 7, to_step => 8, from_key => 'merged_lane_bams', to_key => 'bam_files' }
         );
     }
     
     method behaviour_definitions {
         (
-            { after_step => 5, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
-            { after_step => 7, behaviour => 'delete_outputs', act_on_steps => [5, 6], regulated_by => 'cleanup', default_regulation => 1 },
-            { after_step => 8, behaviour => 'delete_outputs', act_on_steps => [7], regulated_by => 'cleanup', default_regulation => 1 }
+            { after_step => 5, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 6, behaviour => 'delete_outputs', act_on_steps => [5], regulated_by => 'cleanup',           default_regulation => 1 },
+            { after_step => 7, behaviour => 'delete_outputs', act_on_steps => [6], regulated_by => 'cleanup',           default_regulation => 1 }
         );
     }
 }
