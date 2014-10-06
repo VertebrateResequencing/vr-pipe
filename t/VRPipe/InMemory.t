@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 153;
+    use Test::Most tests => 164;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -204,10 +204,9 @@ $time = time();
 ok $im->lock('test_lock6', unlock_after => 4), 'lock attempt on a new key worked';
 ok $im->locked('test_lock6'), 'locked() still works immediately after locking';
 $im->block_until_locked('test_lock6', check_every => 1);
-$elapsed = time() - $time;
-$good_time = $elapsed == 0 || $elapsed == 1;
+$elapsed   = time() - $time;
+$good_time = $elapsed <= 1;
 ok $good_time, 'block_until_locked() did not make us wait on a key we just locked ourselves';
-$time = time();
 {
     $fm->start and next;
     $im->block_until_locked('test_lock6', check_every => 1);
@@ -215,7 +214,7 @@ $time = time();
 }
 $fm->wait_all_children;
 $elapsed = time() - $time;
-$good_time = $elapsed == 4 || $elapsed == 5;
+$good_time = $elapsed >= 4 && $elapsed <= 6;
 ok $good_time, 'block_until_locked() made us wait on a key locked by another process';
 ok $im->locked('test_lock6'), 'locked() returns true after waiting on the block';
 
@@ -476,6 +475,23 @@ for (1 .. 7) {
     $got_session_ok++ if ($session && $session->{cat} eq 'dog');
 }
 is $got_session_ok, 6, 'calling get_session within idle_expiry time refreshed the expiry, but it eventually expired after max_life';
+
+# test rate limiting
+is $im->rate_limit('testlimit'), 1, 'rate_limit() returns true the first time';
+is $im->rate_limit('testlimit'), 0, 'rate_limit() returns false the second time';
+sleep(1);
+is $im->rate_limit('testlimit'), 1, 'rate_limit() returns true after waiting a second';
+is $im->rate_limit('testlimit2', punish_excess => 1), 1, 'rate_limit(punish_excess) returns true the first time';
+is $im->rate_limit('testlimit2', punish_excess => 1), 0, 'rate_limit(punish_excess) returns false the second time';
+sleep(1);
+is $im->rate_limit('testlimit2', punish_excess => 1), 0, 'rate_limit(punish_excess) returns false the third time even after waiting a second';
+sleep(3);
+is $im->rate_limit('testlimit2', punish_excess => 1), 1, 'rate_limit(punish_excess) returns true after waiting 3 seconds';
+is $im->rate_limit('testlimit3', per_second    => 2), 1, 'rate_limit(per_second) returns true the first time';
+is $im->rate_limit('testlimit3', per_second    => 2), 1, 'rate_limit(per_second) returns true the second time';
+is $im->rate_limit('testlimit3', per_second    => 2), 0, 'rate_limit(per_second) returns false the second time, since we only allowed 2 per second';
+sleep(1);
+is $im->rate_limit('testlimit3', per_second => 2), 1, 'rate_limit(per_second) returns true the fourth time after waiting a second';
 
 done_testing;
 exit;

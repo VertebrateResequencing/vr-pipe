@@ -501,6 +501,32 @@ class VRPipe::Persistent::InMemory {
         return $self->_redis->del('session.' . $key);
     }
     
+    method rate_limit (Str $key!, Int :$per_second = 1, Bool :$punish_excess = 0) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'rate_limit.' . $key;
+        my $count     = $redis->incr($redis_key);
+        
+        if ($count) {
+            my $expire_time = 1;
+            if ($punish_excess) {
+                # instead of rate limiting to 1 per second, if rate_limit is
+                # called before expiration, we ramp up the expiration time
+                if ($count <= 10) {
+                    $expire_time = $count;
+                }
+                else {
+                    $expire_time = 45;
+                }
+            }
+            $redis->expire($redis_key, $expire_time);
+            return $count <= $per_second ? 1 : 0;
+        }
+        else {
+            # something went wrong in redis, treat it as limit
+            return 0;
+        }
+    }
+    
     method log_stderr {
         my $ok;
         eval {
