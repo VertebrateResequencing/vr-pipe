@@ -111,7 +111,7 @@ class VRPipe::Persistent::Graph {
             
             # connect and get the transaction endpoint
             my $url = $vrp_config->neo4j_server_url();
-            my $tx  = $ua->get($url => $ua_headers);
+            my $tx  = $ua->get("$url" => $ua_headers);
             my $res = $tx->success;
             unless ($res) {
                 my $err = $tx->error;
