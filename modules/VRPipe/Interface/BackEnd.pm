@@ -46,6 +46,7 @@ class VRPipe::Interface::BackEnd {
     use Twiggy::Server;
     use Plack::Request;
     use POSIX qw(setsid setuid);
+    use Fcntl ':mode';
     use Cwd qw(chdir getcwd);
     use Module::Find;
     use VRPipe::Persistent::InMemory;
@@ -151,6 +152,13 @@ class VRPipe::Interface::BackEnd {
         handles => [qw(register_farm_server)]
     );
     
+    has 'inmemory' => (
+        is      => 'ro',
+        isa     => 'VRPipe::Persistent::InMemory',
+        lazy    => 1,
+        builder => '_create_inmemory'
+    );
+    
     has '_warnings' => (
         is      => 'ro',
         isa     => 'ArrayRef',
@@ -180,6 +188,10 @@ class VRPipe::Interface::BackEnd {
     
     method _create_manager {
         return VRPipe::Manager->create();
+    }
+    
+    method _create_inmemory {
+        return VRPipe::Persistent::InMemory->new();
     }
     
     sub BUILD {
@@ -279,7 +291,7 @@ class VRPipe::Interface::BackEnd {
             setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
-            my $im = VRPipe::Persistent::InMemory->new;
+            my $im = $self->inmemory();
             $im->log_stderr;
             
             return 1;
@@ -381,9 +393,10 @@ class VRPipe::Interface::BackEnd {
         return $res;
     }
     
-    method psgi_file_response (Str $path, HashRef $env, ArrayRef :$regexes?, Int :$max_age?) {
+    method psgi_file_response (Str $path, HashRef $env, ArrayRef :$regexes?, Int :$max_age?, Bool :$check_permissions = 0) {
         my $req = Plack::Request->new($env);
         
+        # can I read it?
         my $ok = open(my $fh, $path);
         unless ($ok) {
             my $res = $req->new_response(404);
@@ -395,6 +408,66 @@ class VRPipe::Interface::BackEnd {
                 $res->body('404: ' . "$path could not be opened: $!");
             }
             return $res;
+        }
+        
+        if ($check_permissions) {
+            # is the user allowed to read it?
+            my $session = $req->cookies->{vrpipe_session};
+            my $user;
+            if ($session) {
+                # check redis to see what session data we have for this user
+                my $im           = $self->inmemory();
+                my $session_hash = $im->get_session($session);
+                
+                # if we have data for the supplied session, and if there's a user,
+                # they've previously authenticated successfully
+                if ($session_hash && defined $session_hash->{user}) {
+                    $user = $session_hash->{user};
+                }
+            }
+            unless ($user) {
+                my $res = $req->new_response(403);
+                $res->content_type('text/plain');
+                $res->body('403: For access to files you must first log in.');
+                return $res;
+            }
+            
+            # I can't just su as the user to see if they can read it, so have to
+            # manually check the user and group and permissions on the file vs
+            # the user. I deliberately do not check the parent directories since
+            # I want to give access even when the user couldn't normally read
+            # the file due to non-permissive directories
+            my @stat     = stat($path);
+            my $mode     = $stat[2];
+            my $readable = 0;
+            if ($mode & S_IROTH) {
+                # it's world readable
+                $readable = 1;
+            }
+            else {
+                # see if the user owns the file
+                my ($owner, undef, undef, $owner_gid) = getpwuid($stat[4]);
+                if ($owner eq $user) {
+                    # even if it's not strictly set to be user readable
+                    # according to mode, we still allow access
+                    $readable = 1;
+                }
+                elsif ($mode & S_IRGRP) {
+                    # it's group readable; see if the user belongs in the file's
+                    # group
+                    my ($group, undef, $gid, $members) = getgrgid($stat[5]);
+                    if ($owner_gid == $gid || $members =~ /\b$owner\b/) {
+                        $readable = 1;
+                    }
+                }
+            }
+            
+            unless ($readable) {
+                my $res = $req->new_response(403);
+                $res->content_type('text/plain');
+                $res->body(q[403: You don't have permission to read this file.]);
+                return $res;
+            }
         }
         
         my $bin_mode = -B $path;
@@ -475,7 +548,7 @@ class VRPipe::Interface::BackEnd {
                 
                 my $decoded = $graph->json_decode($json);
                 my $session = delete $decoded->{vrpipe_session} if ref($decoded) eq 'HASH';
-                if ($session) {
+                if (defined $session) {
                     $res->cookies->{vrpipe_session} = { value => $session, path => "/" };
                     $json = $graph->json_encode($decoded);
                 }
