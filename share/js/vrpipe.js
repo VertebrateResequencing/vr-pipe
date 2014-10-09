@@ -141,7 +141,7 @@ function loadExternalKnockoutTemplates(callback) {
         // page load, then we call it every hour if there has been any activity
         // on the page in the last hour
         self.getUserName();
-        self.intervalMilliSeconds = 5000; //3600000;
+        self.intervalMilliSeconds = 3600000;
         self.hadActivity = false;
         $(document.body).bind("mousemove keypress", function(e) {
             self.hadActivity = true;
