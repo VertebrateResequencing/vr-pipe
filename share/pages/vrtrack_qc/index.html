@@ -35,10 +35,19 @@
         <script src="/pages/vrtrack_qc/qc.js"></script>
     </head>
     <body>
+        <div id="nav" class="navbar navbar-default" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <span class="navbar-brand">VRTrack QC</span>
+                </div>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
+            </div>
+        </div>
+        
         <div class="container">
             <div id="qc">
-                <h3>VRTrack QC</h3>
-                
                 <div data-bind="loadingWhen: loading().length">
                     &nbsp;
                 </div>
@@ -164,6 +173,12 @@
         
         <script type="text/javascript">
             var router = new Simrou();
+            
+            // viewmodel for logging in
+            var livm = new ko.LogInViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(livm, $('#nav')[0]);
+            });
             
             // viewmodel for qc
             function QCViewModel() {
@@ -476,7 +491,7 @@
             }
             
             var qcvm = new QCViewModel();
-            ko.applyBindings(qcvm);
+            ko.applyBindings(qcvm, $('#qc')[0]);
             
             router.start('/');
         </script>

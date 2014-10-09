@@ -43,6 +43,7 @@ use VRPipe::Schema;
 use File::Share ':all';
 use Module::Find;
 use DateTime;
+use Authen::Simple::PAM;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -681,6 +682,9 @@ sub start_server {
         '/' => sub {
             $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
         },
+        '/login_template.html' => sub {
+            $backend->psgi_file_response(file($dist_dir, 'login_template.html')->stringify, shift);
+        },
         '/js/(.+\.js)$' => sub {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env, max_age => 525200);
@@ -705,7 +709,7 @@ sub start_server {
         },
         '/file/(.+)$' => sub {
             my ($env, $path) = @_;
-            $backend->psgi_file_response('/' . $path, $env);
+            $backend->psgi_file_response('/' . $path, $env, check_permissions => 1);
         },
         '/rest/status/(.+)$' => sub {
             my ($env, $method) = @_;
@@ -718,6 +722,15 @@ sub start_server {
         '/rest/qc/(.+)$' => sub {
             my ($env, $method) = @_;
             $backend->psgi_nonblocking_json_response($graph, \&qc, $env, $method);
+        },
+        '/rest/authenticate' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&authenticate_via_pam, shift);
+        },
+        '/rest/authenticated_user' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&authenticated_user, shift);
+        },
+        '/rest/deauthenticate_user' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&deauthenticate_user, shift);
         },
         '/dsn' => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
@@ -826,6 +839,79 @@ sub _get_steplimit {
 }
 
 # "page" subs
+sub authenticate_via_pam {
+    my $args = shift;
+    
+    my $auth_hash = authenticated_user($args);
+    
+    if (!$auth_hash->{user} && $args->{user} && $args->{password}) {
+        # user has supplied their username and password and wants to
+        # authenticate for the first time since we started up
+        my $user = $args->{user};
+        
+        # prevent rapid-fire brute-force login attempts; PAM itself
+        # probably prevents brute-force, but I don't know how it's
+        # configured, so I implement this myself
+        return $auth_hash unless $im->rate_limit('authenticate_via_pam.' . $user, punish_excess => 1);
+        
+        my $pam = Authen::Simple::PAM->new(service => "login");
+        if ($pam->authenticate($user, $args->{password})) {
+            # delete any existing session
+            my $session = $args->{vrpipe_session};
+            if ($session) {
+                $im->drop_session($session);
+            }
+            
+            # store the user (implying authentication success) in redis under
+            # a new session (using default lax expiry that allows a session to
+            # last for a working week if user loads a new page once per day and
+            # does not close their browser window)
+            $session = $im->create_session({ user => $user });
+            
+            # return json that says we're successful by presenting the validated
+            # username (just for client presentational purposes), and the
+            # vrpipe_session string which will be placed in the client's cookie
+            $auth_hash->{user}           = $user;
+            $auth_hash->{vrpipe_session} = $session;
+        }
+    }
+    
+    return $auth_hash;
+}
+
+sub authenticated_user {
+    my $args = shift;
+    
+    my $user;
+    
+    my $session = $args->{vrpipe_session};
+    if ($session) {
+        # check redis to see what session data we have for this user
+        my $session_hash = $im->get_session($session);
+        
+        # if we have data for the supplied session, and if there's a user,
+        # they've previously authenticated successfully
+        if ($session_hash && defined $session_hash->{user}) {
+            $user = $session_hash->{user};
+        }
+        else {
+            # their session expired in some way
+            delete $args->{vrpipe_session};
+        }
+    }
+    
+    return { user => $user };
+}
+
+sub deauthenticate_user {
+    my $args    = shift;
+    my $session = $args->{vrpipe_session};
+    if ($session) {
+        $im->drop_session($session);
+    }
+    return { user => undef, vrpipe_session => '' };
+}
+
 sub graph {
     my ($args, $method) = @_;
     

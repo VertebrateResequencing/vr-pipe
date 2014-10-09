@@ -41,19 +41,23 @@
             <div class="container">
                 <div class="navbar-header">
                     <span class="navbar-brand">VRPipe</span>
-                    <ul class="nav navbar-nav nav-tabs" id="tabsections">
-                        <li class="active"><a href="#home" data-toggle="tab">Home</a></li>
-                        <li><a href="#status" data-toggle="tab">Status</a></li>
-                        <li><a href="#graph" data-toggle="tab">Graph</a></li>
-                        
-                        <li class="dropdown">
-                            <a href="#" class="dropdown-toggle" data-toggle="dropdown">Pages <span class="caret"></span></a>
-                            <ul class="dropdown-menu" role="menu" data-bind="foreach: pages">
-                                <li><a data-bind="attr: { href: '/pages/' + $data }, text: $data"></a></li>
-                            </ul>
-                        </li>
-                    </ul>
                 </div>
+                
+                <ul class="nav navbar-nav nav-tabs" id="tabsections">
+                    <li class="active"><a href="#home" data-toggle="tab">Home</a></li>
+                    <li><a href="#status" data-toggle="tab">Status</a></li>
+                    <li><a href="#graph" data-toggle="tab">Graph</a></li>
+                    
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">Pages <span class="caret"></span></a>
+                        <ul class="dropdown-menu" role="menu" data-bind="foreach: pages">
+                            <li><a data-bind="attr: { href: '/pages/' + $data }, text: $data"></a></li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
             </div>
         </div>
         
@@ -61,7 +65,7 @@
             <div class="tab-content">
                 <div id="home" class="tab-pane fade in active">
                     <div class="jumbotron">
-                        <h1>Welcome, friend!</h1>
+                        <h1>Welcome, <span data-bind="text: nvm.username() ? nvm.username() : 'friend'"></span>!</h1>
                         <p>You've successfully connected to your VRPipe server. This web interface will have many more features coming soon; the first two - checking status of your pipeline setups and looking at the graph database - can be accessed using the links in the navigation bar above.</p>
                     </div>
                 </div>
@@ -473,13 +477,27 @@
             // viewmodel for the navbar
             function NavViewModel() {
                 var self = this;
-                self.loading = ko.observableArray();
-                self.errors = ko.observableArray();
+                ko.LogInViewModel.call(self);
                 self.pages = ko.observableArray();
                 vrpipeRestMethod('graph', 'get_pages', {}, self.loading, self.errors, function(data) {
                     self.pages(data);
                 });
             }
+            var nvm = new NavViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(nvm, $('#nav')[0]);
+            });
+            
+            // viewmodel for the home page
+            function HomeViewModel() {
+                var self = this;
+                // we don't actually do anything here, not sure if there is a
+                // better way of doing this, but we have this view model just so
+                // we can bind ko to #home, so that we can display an observable
+                // from NavViewModel
+            }
+            var hvm = new HomeViewModel();
+            ko.applyBindings(hvm, $('#home')[0]);
             
             // viewmodel for status
             function StatusViewModel() {
@@ -720,7 +738,14 @@
                 // page
                 self.updateURL = function() {
                     if (! self.setupIds() && ! self.setupUser() && ! self.displayDefunct() && ! self.displaySummary()) {
-                        location.hash = '/status';
+                        // default the user field to username if they're
+                        // logged in
+                        if (nvm.username()) {
+                            self.setupUser(nvm.username());
+                        }
+                        else {
+                            location.hash = '/status';
+                        }
                     }
                 }
                 
@@ -1294,8 +1319,6 @@
                 });
             }
             
-            var nvm = new NavViewModel();
-            ko.applyBindings(nvm, $('#nav')[0]);
             var svm = new StatusViewModel();
             ko.applyBindings(svm, $('#status')[0]);
             var gvm = new GraphViewModel();

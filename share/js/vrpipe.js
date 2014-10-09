@@ -81,6 +81,106 @@ ko.bindingHandlers.sort = {
     }
 };
 
+// load knockout templates from an external file
+// from http://stackoverflow.com/questions/9480697/using-an-external-template-in-knockoutjs/22902067#22902067
+// use like:
+// <div id="nav">
+//     <script type="text/html" src="/login_template.html" id="login-template"></script>
+//     <div data-bind="template: { name: 'login-template' }"></div>
+// </div>
+// var livm = new ko.LogInViewModel();
+// loadExternalKnockoutTemplates(function() {
+//     ko.applyBindings(livm, $('#nav')[0]);
+// });
+function loadExternalKnockoutTemplates(callback) {
+    var sel = 'script[src][type="text/html"]:not([loaded])';
+    $toload = $(sel);
+    function oncomplete() {
+        this.attr('loaded', true);
+        var $not_loaded = $(sel);
+        if(!$not_loaded.length) {
+            callback();
+        }
+    }
+    ko.utils.arrayForEach($toload, function(elem) {
+        var $elem = $(elem);
+        $elem.load($elem.attr('src'), oncomplete.bind($elem));
+
+    });
+}
+
+// a knockout view model for logging in, which can be 'inherited' in another
+// viewmodel (for eg. your navbar) by doing:
+// ko.LogInViewModel.call(self);
+// Or to just use it directly:
+// var livm = new ko.LogInViewModel(); ko.applyBindings(livm, $('#nav')[0]);
+// If the user successfully authenticates, the username() observable will
+// contain their username.
+// You must have html elements with ids loginUsername, loginPassword,
+// loginSubmit and loginDropdown on your page for this to work. You should
+// show the loginError() observable somewhere as well. Best to just use the
+// login_template.html (see comments for loadExternalKnockoutTemplates).
+(function (ko, undefined) {
+    ko.LogInViewModel = function () {
+        var self = this;
+        self.loading = ko.observableArray();
+        self.errors = ko.observableArray();
+        self.username = ko.observable();
+        self.loginError = ko.observable();
+        
+        self.getUserName = function() {
+            // ajax call to refresh the idle session timeout and populate
+            // username if user has already logged in
+            vrpipeRestMethod('authenticated_user', 'n/a', {}, self.loading, self.errors, function(data) {
+                self.username(data['user']);
+            });
+        }
+        
+        // to set username immediately if logged in, and to keep the session
+        // alive if we are already logged in, first we call getUserName() on
+        // page load, then we call it every hour if there has been any activity
+        // on the page in the last hour
+        self.getUserName();
+        self.intervalMilliSeconds = 5000; //3600000;
+        self.hadActivity = false;
+        $(document.body).bind("mousemove keypress", function(e) {
+            self.hadActivity = true;
+        });
+        self.maintainSession = function() {
+            if (self.hadActivity) {
+                self.getUserName();
+            }
+            self.hadActivity = false;
+        }
+        setInterval(self.maintainSession, self.intervalMilliSeconds);
+        
+        self.login = function() {
+            var user = $("#loginUsername").val();
+            var password = $("#loginPassword").val();
+            if (user && password) {
+                $('#loginSubmit').prop('disabled', true);
+                vrpipeRestMethod('authenticate', 'n/a', { user: user, password: password }, self.loading, self.errors, function(data) {
+                    $('#loginSubmit').prop('disabled', false);
+                    if (data['user']) {
+                        $('#loginDropdown').dropdown('toggle');
+                        self.username(data['user']);
+                    }
+                    else {
+                        self.loginError('Failed; try again?');
+                    }
+                });
+            }
+        }
+        
+        self.logout = function() {
+            vrpipeRestMethod('deauthenticate_user', 'n/a', { }, self.loading, self.errors, function(data) {
+                self.loginError(undefined);
+                self.username(undefined);
+            });
+        }
+    };
+}(ko));
+
 // ajax function to send/get json queries
 var ajax = function(uri, method, loading, error, data) {
     var loadingTimeout;

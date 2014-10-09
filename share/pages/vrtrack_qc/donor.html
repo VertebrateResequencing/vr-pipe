@@ -28,20 +28,31 @@
         <script src="/pages/vrtrack_qc/qc.js"></script>
     </head>
     <body>
-        <div class="container">
-            <h3 id="heading">VRTrack Donor QC<span data-bind="with: donorNode">: <span data-bind="text: properties['example_sample']"></span></span></h3>
-            
-            <div data-bind="loadingWhen: loading().length">
-                &nbsp;
-            </div>
-            
-            <div class="top-margin" id="errors" data-bind="foreach: errors">
-                <div class="alert alert-danger fade in">
-                    <p data-bind="text: $data"></p>
+        <div id="nav" class="navbar navbar-default" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <a href="/pages/vrtrack_qc" class="navbar-brand">VRTrack QC</a>
                 </div>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
             </div>
-            
-            <div id="donorqc">
+        </div>
+        
+        <div class="container">
+            <div id="qc">
+                <h3 id="heading">Donor QC<span data-bind="with: donorNode">: <span data-bind="text: properties['example_sample']"></span></span></h3>
+                
+                <div data-bind="loadingWhen: loading().length">
+                    &nbsp;
+                </div>
+                
+                <div class="top-margin" id="errors" data-bind="foreach: errors">
+                    <div class="alert alert-danger fade in">
+                        <p data-bind="text: $data"></p>
+                    </div>
+                </div>
+                
                 <div class="panel panel-default" data-bind="visible: donorGenderResults().length">
                     <div class="panel-heading">Gender</div>
                     <div class="table-responsive">
@@ -118,6 +129,12 @@
         </div>
         
         <script type="text/javascript">
+            // viewmodel for logging in
+            var livm = new ko.LogInViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(livm, $('#nav')[0]);
+            });
+            
             function QCViewModel() {
                 var self = this;
                 
@@ -161,7 +178,7 @@
             }
             
             var qcvm = new QCViewModel();
-            ko.applyBindings(qcvm);
+            ko.applyBindings(qcvm, $('#qc')[0]);
         </script>
     </body>
 </html>
