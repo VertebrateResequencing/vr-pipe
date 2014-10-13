@@ -325,7 +325,7 @@ class VRPipe::Interface::CmdLine {
     method _build_ua_port_baseurl {
         my $ua       = $self->_ua;
         my $port     = $self->port;
-        my $base_url = 'http://' . hostname_long . ':' . $port;
+        my $base_url = 'https://' . hostname_long . ':' . $port;
         return [$ua, $port, $base_url];
     }
     
