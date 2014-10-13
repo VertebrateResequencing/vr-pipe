@@ -43,7 +43,7 @@ class VRPipe::Interface::BackEnd {
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Config;
     use AnyEvent::Util qw(fork_call);
-    use Twiggy::Server;
+    use Twiggy::Server::TLS;
     use Plack::Request;
     use POSIX qw(setsid setuid);
     use Fcntl ':mode';
@@ -81,6 +81,18 @@ class VRPipe::Interface::BackEnd {
         is     => 'ro',
         isa    => PositiveInt,
         writer => '_set_port'
+    );
+    
+    has 'tls_key' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_tls_key'
+    );
+    
+    has 'tls_cert' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_tls_cert'
     );
     
     has 'dsn' => (
@@ -182,8 +194,12 @@ class VRPipe::Interface::BackEnd {
     }
     
     method _build_psgi_server {
-        my $port = $self->port;
-        return Twiggy::Server->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
+        return Twiggy::Server::TLS->new(
+            # host => `uname -n`, # parse the ip address, use as host? Currently defaults to 0.0.0.0
+            port     => $self->port,
+            tls_key  => $self->tls_key,
+            tls_cert => $self->tls_cert
+        );
     }
     
     method _create_manager {
@@ -209,6 +225,25 @@ class VRPipe::Interface::BackEnd {
             die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
         $self->_set_port($port);
+        
+        # both production and testing will use the same tls key and cert
+        my $tls_dir = $vrp_config->tls_dir;
+        my $tls_key = file($tls_dir, $vrp_config->tls_key);
+        $self->_set_tls_key("$tls_key");
+        my $tls_cert = file($tls_dir, $vrp_config->tls_cert);
+        $self->_set_tls_cert("$tls_cert");
+        
+        if (!-s $tls_key) {
+            # create a private key file and certificate (we don't handle there
+            # being no private key but a certificate; an existing cert will get
+            # overwritten here!)
+            system(qq[openssl req -new -x509 -sha256 -days 3650 -nodes -subj "/C=UK/O=VRPipe/OU=CN=VRPipe" -keyout $tls_key -out $tls_cert]);
+            chmod(0600, $tls_key);
+        }
+        elsif (!-s $tls_cert) {
+            # create a self-signed certificate using the existing key
+            system(qq[openssl req -new -x509 -sha256 -days 3650 -key $tls_key -subj "/C=UK/O=VRPipe/OU=CN=VRPipe" -out $tls_cert]);
+        }
         
         my $umask = $vrp_config->server_umask;
         $self->_set_umask("$umask");

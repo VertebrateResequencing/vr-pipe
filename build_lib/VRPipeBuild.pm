@@ -118,7 +118,7 @@ sub required_modules {
         'Test::Most'                     => 0,
         'Test::Strict'                   => 0,
         'Time::Format'                   => 0,
-        'Twiggy'                         => 0,
+        'Twiggy::TLS'                    => 0,
         'TryCatch'                       => 0
     };
 }
