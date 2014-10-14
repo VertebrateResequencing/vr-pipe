@@ -1026,7 +1026,7 @@
                             displayName = node.properties[uniqueParam];
                         }
                         
-                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId, displayName: shortenString(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
+                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId.toString(), displayName: shortenString(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
                     }
                     
                     self.cy = self.plotCytoscape();
@@ -1118,7 +1118,7 @@
                                     relationshipId: reldata.id
                                 });
                                 
-                                self.cytoscapeOptions.elements.edges.push({ data: { source: start, target: end, type: type } });
+                                self.cytoscapeOptions.elements.edges.push({ data: { source: start.toString(), target: end.toString(), type: type } });
                                 nonRootNodes[end] = 1;
                             }
                         }
