@@ -104,15 +104,18 @@ class VRPipe::Persistent::Graph {
         my $self = shift;
         
         unless ($ua) {
+            my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
+            
             # we use Mojo::UserAgent instead of LWP::UserAgent because LWP has
             # some kind of truncation bug when we try to get very large
             # responses from Neo4J
             $ua = Mojo::UserAgent->new();
             
             # connect and get the transaction endpoint
-            my $url = $vrp_config->neo4j_server_url();
-            my $tx  = $ua->get("$url" => $ua_headers);
-            my $res = $tx->success;
+            my $method_name = $deployment . '_neo4j_server_url';
+            my $url         = $vrp_config->$method_name();
+            my $tx          = $ua->get("$url" => $ua_headers);
+            my $res         = $tx->success;
             unless ($res) {
                 my $err = $tx->error;
                 $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
@@ -130,7 +133,6 @@ class VRPipe::Persistent::Graph {
             $transaction_endpoint = $decode->{transaction} || $self->throw("No transaction endpoint found at $data_endpoint");
             $transaction_endpoint .= '/commit';
             
-            my $deployment = VRPipe::Persistent::SchemaBase->database_deployment;
             if ($deployment eq 'production') {
                 $global_label = "vdp";
             }

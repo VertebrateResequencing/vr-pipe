@@ -268,7 +268,8 @@ class VRPipe::Interface::BackEnd {
         $self->_set_log_file($log_file->stringify);
         $self->_set_log_dir("$log_dir");
         
-        my $neo4j_url = $vrp_config->neo4j_server_url();
+        $method_name = $deployment . '_neo4j_server_url';
+        my $neo4j_url = $vrp_config->$method_name();
         if ($neo4j_url) {
             $self->_set_neo4j_server_url("$neo4j_url");
         }

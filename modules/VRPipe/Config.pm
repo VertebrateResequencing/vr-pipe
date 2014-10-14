@@ -325,9 +325,15 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
-    has neo4j_server_url => (
+    has production_neo4j_server_url => (
         is              => 'rw',
-        question        => 'What is the url of your neo4j server?',
+        question        => 'What is the url of your production neo4j server?',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your testing neo4j server?',
         question_number => ++$question_number
     );
     

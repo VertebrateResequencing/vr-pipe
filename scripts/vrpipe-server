@@ -675,9 +675,6 @@ sub start_server {
     }
     
     # set up the http page requests we'll respond to
-    my $cypherURI       = $backend->neo4j_server_url() . '/db/data/cypher';
-    my $user            = getlogin || getpwuid($<);
-    my $deploymentLabel = $deployment eq 'production' ? 'vdp' : "vdt$user";
     $backend->register_psgi_pages(
         '/' => sub {
             $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
