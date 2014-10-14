@@ -47,7 +47,7 @@ class VRPipe::Pipelines::rna_seq_star_bam_remapping with VRPipe::PipelineRole {
             'sequence_dictionary', #1
             'star_buildgenome',    #2
             'bam_metadata',        #3
-            'bam_to_fastq',        #4
+            'bamtofastq',          #4
             'star_map_fastq',      #5
             'sam_to_fixed_bam',    #6
             'bam_reheader',        #7
