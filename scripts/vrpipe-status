@@ -31,17 +31,151 @@ use VRPipe::Interface::CmdLine;
 my $cmdline = VRPipe::Interface::CmdLine->new(
     description => "See the overall state of active pipeline setups.",
     opt_spec    => [
-        ['setup=s@',       'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }],
-        ['incomplete|i',   'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'],
-        ['brief|b',        'Do not show full config details of each PipelineSetup, just the completion state summary'],
-        ['show_steps',     'Show details of the steps comprising the pipeline for the given --setup(s) (deactivated by --brief)'],
-        ['list|l',         'Just list out the setup names and ids without details'],
-        ['defunct|d',      'Only show a simplified report (ignores -i, -b and -l) on those PipelineSetups that have something fundamentally wrong with them and are candidates for deletion'],
-        ['global_summary', 'Only show an overall summary of how many jobs need to be run vs how many are actually running (ignores all other options, except for a single --setup)']
+        ['setup=s@',     'Only show details for the given PipelineSetup (by id or name); you can repeat this option', { persistent_object => 'PipelineSetup' }],
+        ['incomplete|i', 'Only show details of PipelineSetups that are incomplete (does not affect --list mode)'],
+        ['brief|b',      'Do not show full config details of each PipelineSetup, just the completion state summary'],
+        ['show_steps',   'Show details of the steps comprising the pipeline for the given --setup(s) (deactivated by --brief)'],
+        ['list|l',       'Just list out the setup names and ids without details'],
+        # ['defunct|d',      'Only show a simplified report (ignores -i, -b and -l) on those PipelineSetups that have something fundamentally wrong with them and are candidates for deletion'],
+        # ['global_summary', 'Only show an overall summary of how many jobs need to be run vs how many are actually running (ignores all other options, except for a single --setup)']
     ]
 );
 
-my $response = $cmdline->server_get('/status');
-$cmdline->output($response);
+my $setups      = $cmdline->opts('setup');
+my $user        = $cmdline->opts('user');            # defaults to unix user
+my $incomplete  = $cmdline->opts('incomplete') || 0;
+my $brief       = $cmdline->opts('brief') || 0;
+my $show_steps  = $cmdline->opts('show_steps') || 0;
+my $list        = $cmdline->opts('list') || 0;
+my $deactivated = $cmdline->opts('deactivated') || 0;
+# my $defunct = $cmdline->opts('defunct') || 0;
+# my $global_summary = $cmdline->opts('global_summary') || 0;
+
+my $page = 'status';
+
+# get the desired setup ids
+my $method;
+my $args;
+if ($setups) {
+    $args = { ids_or_name => join(',', @$setups) };
+    $method = 'get_setup_ids_by_id_or_name';
+}
+elsif ($user) {
+    my $complete_mode = $incomplete  ? 'incomplete'          : 'include_complete';
+    my $active_mode   = $deactivated ? 'include_deactivated' : 'active';
+    $args = { user => $user, deactivated => $deactivated, incomplete => $incomplete };
+    $method = 'get_setup_ids_by_user';
+}
+
+my $r = $cmdline->rest_query($page, $method, $args);
+
+# print out desired info on each setup
+$r = $cmdline->rest_query($page, 'get_setups', { setups => $r->{ids} });
+
+foreach my $data (@$r) {
+    # --- Pipeline Setup 'merge mouse exome lung ERP001055 bam files' (id 764 for user sb10) ---
+    my $params = $data->{parameters};
+    my $extra = $params->{active} ? '' : ' currently DEACTIVATED';
+    $cmdline->output(" --- Pipeline Setup '$params->{name}' (id $data->{id} for user $params->{user})$extra [$data->{status}] ---");
+    next if $list;
+    
+    unless ($brief) {
+        # Pipeline: bam_merge_lanes_and_fix_rgs | 4 steps | Tag strip, add/correct RG tags for all records, merge and mark duplicates
+        my $pipeline = $data->{pipeline};
+        my $steps    = $pipeline->{steps};
+        $cmdline->output("Pipeline: $pipeline->{properties}->{name} | $#{$steps} steps | $pipeline->{properties}->{description}");
+        
+        if ($show_steps) {
+            # 1.bam_strip_tags => Description: Strips tags from bam files; Inputs: bam_files; Outputs: tag_stripped_bam_files
+            my $step_num = 1;
+            shift(@$steps); # the first one is the datasource
+            my ($hash, $order);
+            foreach my $step (@$steps) {
+                my $sp      = $step->{properties};
+                my $inputs  = join(', ', @{ $sp->{inputs} }) || 'n/a';
+                my $outputs = join(', ', @{ $sp->{outputs} }) || 'n/a';
+                my $key     = "$step_num.$sp->{name}";
+                $hash->{$key} = "Description: $sp->{description}; Inputs: $inputs; Outputs: $outputs";
+                push(@$order, $key);
+                $step_num++;
+            }
+            $cmdline->display_hash($hash, key_order => $order);
+        }
+        
+        # PipelineSetup options:
+        #    bam_merge_keep_single_paired_separate => 1
+        if (keys %{ $data->{options} }) {
+            $cmdline->display_hash($data->{options}, name => 'PipelineSetup options');
+        }
+        else {
+            $cmdline->output("(used with no/default options)");
+        }
+        
+        # PipelineSetup output root: /lustre/scratch105/vrpipe/results
+        $cmdline->output("PipelineSetup output root: $params->{output_root}");
+        
+        # Output file unix group: default
+        my $unix_group = $params->{unix_group} || 'default';
+        $cmdline->output("Output file unix group: $unix_group");
+        
+        # DataSource: 606 | vrpipe | group_by_metadata | 268[7]
+        #     filter => study#ERP001055
+        my $ds = $data->{datasource};
+        $cmdline->output("DataSource: $ds->{id} | $ds->{parameters}->{type} | $ds->{parameters}->{method} | $ds->{parameters}->{source}");
+        if (keys %{ $ds->{options} }) {
+            $cmdline->display_hash($ds->{options});
+        }
+        else {
+            $cmdline->output("(used with no/default options)");
+        }
+        
+        $cmdline->output("\n");
+    }
+    
+    # There are a total of 57 Data Elements in the datasource to work on, and 11 elements are incomplete
+    my $num_steps = $#{ $data->{pipeline}->{steps} };
+    my $progs     = $data->{progressions};
+    my ($total_elements, $incomplete_elements, $complete_steps) = (0, 0, 0, 0);
+    foreach my $prog (@$progs) {
+        my $num_els = $prog->{num_elements};
+        $total_elements += $num_els;
+        $incomplete_elements += $num_els unless ($prog->{status} eq 'complete' && $prog->{step} == $num_steps);
+        $complete_steps += ($num_els * $prog->{step}) if $prog->{status} eq 'complete';
+    }
+    $cmdline->output("There are a total of $total_elements Data Elements in the datasource to work on, and $incomplete_elements elements are incomplete");
+    
+    # Breakdown:
+    #    | 0 | 1 | 2 | 3 | 4 |
+    #    ----- [10 (17.54%)] unknown
+    $cmdline->output("Breakdown:");
+    $cmdline->output('    | ' . join(' | ', (0 .. $num_steps)) . ' |');
+    foreach my $prog (@$progs) {
+        my $dashes;
+        for (0 .. $prog->{step}) {
+            $dashes .= '-' x length($_);
+            $dashes .= '-- ';
+        }
+        $cmdline->output("     $dashes [$prog->{num_elements} ($prog->{percent}%)] $prog->{status}");
+    }
+    
+    # Pipeline currently 80.70% complete (184 / 228 steps completed)
+    my $total_steps = $total_elements * $num_steps;
+    $cmdline->output("Pipeline currently $data->{progress_percent}% complete ($complete_steps / $total_steps steps completed)");
+    
+    if (defined $data->{warnings}) {
+        $cmdline->output("\nWarnings:");
+        foreach my $warning (@{ $data->{warnings} }) {
+            $cmdline->output("    $warning");
+        }
+    }
+    if (defined $data->{errors}) {
+        $cmdline->output("\nErrors:");
+        foreach my $error (@{ $data->{errors} }) {
+            $cmdline->output("    $error");
+        }
+    }
+    
+    $cmdline->output("------\n\n");
+}
 
 exit;

@@ -173,7 +173,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 }
                 
                 foreach my $file_id (@files_to_forget) {
-                    $self->pipelinesetup->log_event("Deleting StepOutputFile for " . VRPipe::File->get(id => $file_id)->path . " because output_files() call with a new hash did not have this file in it", dataelement => $self->dataelement, stepstate => $self->id);
+                    $self->pipelinesetup->log_event("Deleting StepOutputFile for " . VRPipe::File->get(id => $file_id)->path . " because output_files() call with a new hash did not have this file in it", dataelement => $self->dataelement->id, stepstate => $self->id);
                     VRPipe::StepOutputFile->get(stepstate => $self, file => $file_id, output_key => $key)->delete;
                 }
             }

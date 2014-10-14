@@ -51,6 +51,9 @@ use warnings;
 use base 'Test::DBIx::Class';
 use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::InMemory;
+use VRPipe::Persistent::Graph;
+use Module::Find;
+use VRPipe::Schema;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
@@ -124,6 +127,18 @@ sub _initialize_schema {
     
     my $im = VRPipe::Persistent::InMemory->new;
     $im->_redis->flushdb;
+    my $graph = VRPipe::Persistent::Graph->new;
+    $graph->drop_database;
+    
+    # also add or update all graph database schemas
+    foreach my $module (findallmod(VRPipe::Schema)) {
+        eval "require $module;";
+        unless ($@) {
+            my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
+            $type || next;
+            VRPipe::Schema->create($type, update_schemas_in_db => 1);
+        }
+    }
     
     return $class->SUPER::_initialize_schema($config);
 }

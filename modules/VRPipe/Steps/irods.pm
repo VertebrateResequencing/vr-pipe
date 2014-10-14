@@ -34,6 +34,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::irods with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     has 'irods_exes' => (
         is      => 'ro',
         isa     => 'HashRef',
@@ -169,10 +171,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
         }
         
+        my $meta;
         if ($add_metadata) {
-            my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
             $dest_file->add_metadata($meta, replace_data => 1);
         }
+        
+        # relate source file to dest file in the graph database
+        $self->relate_input_to_output($source, 'imported', $dest_file->path->stringify, $meta ? $meta : ());
     }
     
     method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {
