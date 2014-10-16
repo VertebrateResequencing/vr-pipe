@@ -404,7 +404,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 # redirecting output to files
                 $self->pid($$);
                 $self->host(hostname());
-                $self->user(getlogin || getpwuid($<));
+                $self->user(scalar(getpwuid($<)));
                 $self->update;
                 
                 # get all info from db and disconnect before using the info below

@@ -137,7 +137,8 @@ class VRPipe::Persistent::Graph {
                 $global_label = "vdp";
             }
             else {
-                my $user = getlogin || getpwuid($<);
+                my $user = getpwuid($<);
+                $user || $self->throw("Could not determine user, so can't write anything to the graph database");
                 $global_label = "vdt$user";
             }
             $schema_labels = qq[`$global_label`:`Schema`];
