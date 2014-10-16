@@ -498,6 +498,7 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
             }
             else {
                 my ($key, @items) = split(/\t/, $_);
+                next if $key eq 'CHK';
                 $self->throw("'$key' sections are not understood! Is this really a bamcheck file?") unless exists $mapping{$key};
                 
                 my $method = "_push_$key";
