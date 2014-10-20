@@ -414,10 +414,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my (%sample_meta, %studies);
         foreach my $sample (values $nodes{Sample}) {
-            my $sid             = $sample->{id};
-            my ($study_node_id) = @{ $rels{$sid} };
-            my $study_node      = $nodes{Study}->{$study_node_id};
-            my $study_id        = $study_node->{properties}->{id};
+            my $sid = $sample->{id};
+            my @study_ids;
+            foreach my $study_node_id (@{ $rels{$sid} }) {
+                my $study_node = $nodes{Study}->{$study_node_id};
+                my $study_id   = $study_node->{properties}->{id};
+                push(@study_ids, $study_id);
+            }
+            my $study_id = join(',', sort { $a <=> $b } @study_ids);
             $studies{$study_id}++;
             my $props = $sample->{properties};
             $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid];
@@ -425,7 +429,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my $largest_study;
         if (keys %studies > 1) {
-            ($largest_study) = sort { $studies{$b} <=> $studies{$a} || $a <=> $b } keys %studies;
+            ($largest_study) = sort { $studies{$b} <=> $studies{$a} || $a cmp $b } keys %studies;
         }
         
         my @results;
@@ -435,16 +439,20 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             foreach my $sample_id (@{ $rels{$did} }) {
                 push(@samples_meta, $sample_meta{$sample_id});
             }
-            my ($sample1_meta, $sample2_meta) = sort { $a->[3] <=> $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
+            my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
             
             if ($largest_study) {
                 # we're only interested in samples of the largest study vs
                 # all other samples in the largest study, and comparisons
                 # between samples in different studies when one of them is from
                 # the largest study and the other has the same public_name
-                if ($sample1_meta->[3] != $largest_study || $sample2_meta->[3] != $largest_study) {
-                    next if $sample1_meta->[3] != $largest_study && $sample2_meta->[3] != $largest_study;
-                    next unless $sample1_meta->[1] eq $sample2_meta->[1];
+                if ($sample1_meta->[3] ne $largest_study || $sample2_meta->[3] ne $largest_study) {
+                    if ($sample1_meta->[3] ne $largest_study && $sample2_meta->[3] ne $largest_study) {
+                        next;
+                    }
+                    unless ($sample1_meta->[1] eq $sample2_meta->[1]) {
+                        next;
+                    }
                 }
             }
             
@@ -452,7 +460,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             push(@results, { type => 'discordance', discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample1_node_id => $sample1_meta->[4], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3], sample2_node_id => $sample2_meta->[4] });
         }
         
-        @results = sort { $a->{sample1_study} <=> $b->{sample1_study} || $a->{sample2_study} <=> $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
+        @results = sort { $a->{sample1_study} cmp $b->{sample1_study} || $a->{sample2_study} cmp $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
         
         return \@results;
     }
