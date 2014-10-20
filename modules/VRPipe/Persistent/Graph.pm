@@ -160,8 +160,10 @@ class VRPipe::Persistent::Graph {
         my $return_history_nodes = $args->{return_history_nodes};
         
         my $post_content = { statements => [] };
+        my $example_cypher;
         foreach (@$array) {
             my ($cypher, $params) = @$_;
+            $example_cypher = $cypher;
             push(
                 @{ $post_content->{statements} },
                 {
@@ -178,7 +180,7 @@ class VRPipe::Persistent::Graph {
             my $res = $tx->success;
             unless ($res) {
                 my $err = $tx->error;
-                $self->throw('[' . $err->{code} . '] ' . $err->{message});
+                $self->throw('[' . $err->{code} . '] ' . " [$example_cypher] " . $err->{message});
             }
             $decode = $json->decode($res->body);
             
@@ -186,11 +188,11 @@ class VRPipe::Persistent::Graph {
             if (@$errors) {
                 my $error = $errors->[0];
                 if ($error->{code} =~ /CouldNotCommit|TransientError/) {
-                    warn "retrying cypher due to: ", '[' . $error->{code} . '] ' . $error->{message}, "\n";
+                    warn "retrying cypher [$example_cypher] due to: ", '[' . $error->{code} . '] ' . $error->{message}, "\n";
                     sleep(1);
                 }
                 else {
-                    $self->throw('[' . $error->{code} . '] ' . $error->{message});
+                    $self->throw('[' . $error->{code} . '] ' . " [$example_cypher] " . $error->{message});
                 }
             }
             else {
