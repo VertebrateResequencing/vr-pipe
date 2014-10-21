@@ -145,6 +145,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # before we go fetch a file, check the md5 matches what we're expecting
         my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum);
         my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;
+        $expected_md5 = $irodschksum if ref($expected_md5);        # if we have multiple expected_md5 in an array ref, it can't really be the expected md5 of this file
         unless ($irodschksum eq $expected_md5) {
             $dest_file->unlink;
             $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
