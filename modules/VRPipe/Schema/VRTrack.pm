@@ -276,7 +276,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             $nodes{ $node->{label} }->{ $node->{id} } = $node;
         }
         
-        foreach my $donor (values $nodes{Donor}) {
+        foreach my $donor (values %{ $nodes{Donor} }) {
             my ($most_recent_date, @controls, $shortest);
             foreach my $sample_id (@{ $rels{ $donor->{id} } || next }) {
                 my $s_props = $nodes{Sample}->{$sample_id}->{properties};
