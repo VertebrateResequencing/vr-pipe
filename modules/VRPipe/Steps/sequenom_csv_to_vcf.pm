@@ -380,14 +380,10 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
         # index it
         system("$bcftools index $vcf") && die "Failed to index $vcf\n";
         
-        # graph db currently optional
-        my $vrtrack;
-        eval { $vrtrack = VRPipe::Schema->create('VRTrack'); };
-        if ($vrtrack) {
-            my $output_file_in_graph = $vrtrack->add_file($vcf);
-            $self->relate_input_to_output($csv, 'converted', $output_file_in_graph);
-            $vrtrack->add('Gender', { source_gender_md5 => $vrtrack->md5sum("$type.$gender"), source => $type, gender => $gender }, incoming => { type => 'gender', node => $output_file_in_graph });
-        }
+        my $vrtrack              = VRPipe::Schema->create('VRTrack');
+        my $output_file_in_graph = $vrtrack->add_file($vcf);
+        $self->relate_input_to_output($csv, 'converted', $output_file_in_graph);
+        $vrtrack->add('Gender', { source_gender_md5 => $vrtrack->md5sum("$type.$gender"), source => $type, gender => $gender }, incoming => { type => 'gender', node => $output_file_in_graph });
     }
 }
 

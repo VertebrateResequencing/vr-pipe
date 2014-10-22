@@ -78,14 +78,10 @@ while (my $sub_dir = $pages_dir->next) {
     next unless -e $index;
     push(@pages, $sub_dir->basename);
 }
-my $pages = [sort @pages];
-my %pages = map { $_ => 1 } @pages;
-my $graph = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
-my ($vrtrack, $vrtrack_error);
-eval { $vrtrack = VRPipe::Schema->create('VRTrack'); }; # graph db currently optional
-if ($@) {
-    $vrtrack_error = $@;
-}
+my $pages   = [sort @pages];
+my %pages   = map { $_ => 1 } @pages;
+my $graph   = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
+my $vrtrack = VRPipe::Schema->create('VRTrack');
 
 my $command = shift;
 unless ($command) {
@@ -1564,7 +1560,7 @@ sub qc {
     my ($args, $method) = @_;
     
     unless ($vrtrack) {
-        return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?", $vrtrack_error] };
+        return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?"] };
     }
     
     my $data;

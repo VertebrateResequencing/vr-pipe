@@ -127,19 +127,16 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         $output_file->update_stats_from_disc;
         
         # graph db currently optional
-        my $vrtrack;
-        eval { $vrtrack = VRPipe::Schema->create('VRTrack'); };
-        my ($output_file_in_graph, $graph);
-        if ($vrtrack) {
-            $output_file_in_graph = $vrtrack->add_file($output_path);
-            $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
-            $graph = $vrtrack->graph;
-        }
+        my $vrtrack              = VRPipe::Schema->create('VRTrack');
+        my $output_file_in_graph = $vrtrack->add_file($output_path);
+        $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
+        my $graph = $vrtrack->graph;
         my $count = 0;
         my $fh    = $output_file->openr;
         my %pairs;
         my $sample_source;
         my (@node_props, @rel_details);
+        
         while (<$fh>) {
             if (/^MD\s+(\S+)\s+(\S+)/) {
                 my $md     = $1;
@@ -149,7 +146,7 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                     $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
                 }
             }
-            elsif ($vrtrack && /^CN\s/) {
+            elsif (/^CN\s/) {
                 chomp;
                 my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
                 # there could be multiple rows with the same pair of samples and

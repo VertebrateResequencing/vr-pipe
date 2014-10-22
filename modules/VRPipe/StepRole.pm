@@ -1044,12 +1044,7 @@ role VRPipe::StepRole {
     # where we can find out the stepstate id from an env var) will give the
     # desired association
     method result_nodes (ClassName|Object $self: ArrayRef $nodes, Object $ss?) {
-        # the graph db is currently optional, so allow for a failure to connect
-        unless (defined $graph) {
-            eval { $graph = VRPipe::Schema->create('VRPipe'); };
-            $graph ||= 0;
-        }
-        return unless $graph;
+        $graph ||= VRPipe::Schema->create('VRPipe');
         
         unless ($ss) {
             if (defined $ENV{VRPIPE_STEPSTATE}) {
@@ -1075,12 +1070,7 @@ role VRPipe::StepRole {
     }
     
     method relate_input_to_output (ClassName|Object $self: Str|Object $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
-        # the graph db is currently optional, so allow for a failure to connect
-        unless (defined $graph) {
-            eval { $graph = VRPipe::Schema->create('VRPipe'); };
-            $graph ||= 0;
-        }
-        return unless $graph;
+        $graph ||= VRPipe::Schema->create('VRPipe');
         
         my $input_file  = ref($input)  ? $input  : $graph->add('File', { path => $input });
         my $output_file = ref($output) ? $output : $graph->add('File', { path => $output });
