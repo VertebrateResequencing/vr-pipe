@@ -110,6 +110,7 @@ class VRPipe::Persistent::Graph {
             # some kind of truncation bug when we try to get very large
             # responses from Neo4J
             $ua = Mojo::UserAgent->new();
+            $ua->connect_timeout(60)->inactivity_timeout(0)->request_timeout(0);
             
             # connect and get the transaction endpoint
             my $method_name = $deployment . '_neo4j_server_url';
