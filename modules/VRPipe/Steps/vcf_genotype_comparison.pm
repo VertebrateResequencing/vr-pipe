@@ -126,7 +126,6 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
         
-        # graph db currently optional
         my $vrtrack              = VRPipe::Schema->create('VRTrack');
         my $output_file_in_graph = $vrtrack->add_file($output_path);
         $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
