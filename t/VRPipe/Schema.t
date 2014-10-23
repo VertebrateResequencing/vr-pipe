@@ -4,9 +4,10 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 78;
+    use Test::Most tests => 88;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
+    use_ok('VRPipe::File');
 }
 
 ok my $schema = VRPipe::Schema->create('VRTrack'), 'able to create a schema instance';
@@ -189,6 +190,32 @@ is $vrpipe->get('File', { path => '/bar/horse' }), undef, 'getting a non-existin
 is $gotten_file->path, '/bar/horse.txt', 'there is a working path method on FileSystemElements';
 ok my $new_location = $gotten_file->move('/zar/horse.txt'), 'there is also a working move method';
 is_deeply [$new_location->node_id, $new_location->path], [$gotten_file->node_id, '/zar/horse.txt'], 'the move worked correctly';
+my $tmp_dir     = $vrpipe->tempdir();
+my $source_path = file($tmp_dir, 'source')->stringify;
+my $vrfile      = VRPipe::File->create(path => $source_path);
+my $fh          = $vrfile->openw;
+print $fh "source\n";
+$vrfile->close;
+my $sym_path   = file($tmp_dir, 'sym')->stringify;
+my $cp_path    = file($tmp_dir, 'copy')->stringify;
+my $symcp_path = file($tmp_dir, 'symcopy')->stringify;
+my $graph_file = $vrpipe->path_to_filesystemelement($source_path);
+my $vrsym = VRPipe::File->create(path => $sym_path);
+ok $vrfile->symlink($vrsym), 'created a symlink of a file';
+ok $vrfile->copy(VRPipe::File->create(path => $cp_path)), 'created a copy of a file';
+ok $vrsym->copy(VRPipe::File->create(path => $symcp_path)), 'created a copy of a symlink';
+@related = $graph_file->related(outgoing => { max_depth => 2, namespace => 'VRPipe', label => 'FileSystemElement', type => 'symlink|copy' });
+is_deeply {
+    map { $_->path => 1 } @related;
+}, { $sym_path => 1, $cp_path => 1, $symcp_path => 1 }, 'there are corresponding nodes in the graph related to the source filesystemelement node';
+is $vrpipe->parent_filesystemelement($sym_path)->node_id,   $graph_file->node_id, 'parent_filesystemelement() worked on a symlink path';
+is $vrpipe->parent_filesystemelement($cp_path)->node_id,    $graph_file->node_id, 'parent_filesystemelement() worked on a copy path';
+is $vrpipe->parent_filesystemelement($symcp_path)->node_id, $graph_file->node_id, 'parent_filesystemelement() worked on a symlink copy path';
+my $tmp_sub_dir = dir($tmp_dir, 'sub');
+$vrpipe->make_path($tmp_sub_dir);
+my $mv_path = file($tmp_sub_dir, 'move')->stringify;
+ok $vrfile->move(VRPipe::File->create(path => $mv_path)), 'moved a file';
+is_deeply [$vrpipe->parent_filesystemelement($sym_path)->node_id, $vrpipe->parent_filesystemelement($cp_path)->node_id, $vrpipe->parent_filesystemelement($symcp_path)->node_id, $vrpipe->parent_filesystemelement($sym_path)->path, $graph_file->path], [$graph_file->node_id, $graph_file->node_id, $graph_file->node_id, $mv_path, $mv_path], 'after moving the source file the graph of source and symlink and copy is still correct';
 
 # make a traditional mysql vrpipe StepState so we can test that
 # ensure_state_hierarchy() can represent the same thing in the graph database

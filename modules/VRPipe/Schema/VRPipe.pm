@@ -289,6 +289,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         # we store the absolute path as a property on the node, but that could
         # theoretically become de-synced with reality; this returns and sets the
         # correct current absolute path
+        $file->update_from_db; # to get the latest basename
         my @dirs = $file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' });
         @dirs = reverse(@dirs);
         shift(@dirs);
@@ -309,6 +310,40 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         $dir->relate_to($source, 'contains', selfish => 1);
         $source->add_properties({ basename => $file->basename, path => $dest });
         return $source;
+    }
+    
+    method _duplicate_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str $relation) {
+        unless (ref($source)) {
+            $source = $self->path_to_filesystemelement($source, only_get => 1);
+            $source || return;
+        }
+        
+        my $file = file($dest);
+        $self->throw("$dest must be absolute") unless $file->is_absolute;
+        my $dup = $self->path_to_filesystemelement($file->stringify);
+        $source->relate_to($dup, $relation);
+        return $dup;
+    }
+    
+    method symlink_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
+        return $self->_duplicate_filesystemelement($source, $dest, 'symlink');
+    }
+    
+    method copy_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
+        return $self->_duplicate_filesystemelement($source, $dest, 'copy');
+    }
+    
+    method parent_filesystemelement (ClassName|Object $self: Str|Object $child) {
+        unless (ref($child)) {
+            $child = $self->path_to_filesystemelement($child, only_get => 1);
+            $child || return;
+        }
+        
+        my @related = $child->related(incoming => { max_depth => 500, leftmost => 1, namespace => 'VRPipe', label => 'FileSystemElement', type => 'symlink|copy' });
+        if (@related == 1) {
+            return $related[0];
+        }
+        return $child;
     }
     
     # can't get around to work, so the else will copy/paste from SchemaRole :(

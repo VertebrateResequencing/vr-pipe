@@ -65,6 +65,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use File::Copy;
     use Cwd qw(abs_path);
     use Filesys::DfPortable;
+    use VRPipe::Schema;
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
@@ -154,6 +155,13 @@ class VRPipe::File extends VRPipe::Persistent {
         is_nullable => 1
     );
     
+    has _vrpipe_schema => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_vrpipe_schema',
+    );
+    
     has _opened_for_writing => (
         is      => 'rw',
         isa     => 'Bool',
@@ -164,6 +172,10 @@ class VRPipe::File extends VRPipe::Persistent {
         is  => 'rw',
         isa => 'Maybe[IO::File|FileHandle]'
     );
+    
+    method _build_vrpipe_schema {
+        return VRPipe::Schema->create('VRPipe');
+    }
     
     method check_file_existence_on_disc (File $path?) {
         $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
@@ -579,6 +591,10 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->moved_to($dest);
             $self->update;
             $self->remove; # to update stats and _lines and actually delete us
+            
+            # update the graph db if the source was in the graph
+            $self->_vrpipe_schema->move_filesystemelement($self->path->stringify, $dest->path->stringify);
+            
             return 1;
         }
         else {
@@ -623,11 +639,14 @@ class VRPipe::File extends VRPipe::Persistent {
             $dest->add_metadata($self->metadata);
             $dest->parent($self);
             $dest->update;
+            
+            # update the graph db if the source was in the graph
+            $self->_vrpipe_schema->symlink_filesystemelement($self->path->stringify, $dest->path->stringify);
         }
     }
     
     method update_symlink (VRPipe::File $dest) {
-        # if the symlink was removed from disk by a outside of
+        # if the symlink was removed from disk by a process outside of
         # vrpipe, then don't replace the non-existant
         # file with a new symlink.
         # don't check $dest->e because the destination of the
@@ -915,6 +934,10 @@ class VRPipe::File extends VRPipe::Persistent {
             }
             
             $dest->add_metadata($self->metadata);
+            
+            # update the graph db if the source was in the graph
+            $self->_vrpipe_schema->copy_filesystemelement($self->path->stringify, $dest->path->stringify);
+            
             return 1;
         }
     }
