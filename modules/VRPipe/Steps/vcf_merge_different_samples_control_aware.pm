@@ -84,15 +84,18 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
                 push @input_set, $vcf_file;
             }
             
+            my $merged_basename = 'merged.vcf.gz';
+            
             unless ($control_sample) {
                 my $this_cmd = "use VRPipe::Steps::vcf_merge_different_samples_control_aware; VRPipe::Steps::vcf_merge_different_samples_control_aware->exit_without_control(input_files => [qw(@input_set)]);";
+                $self->output_file(output_key => 'merged_vcf', basename => $merged_basename,          type => 'vcf');
+                $self->output_file(output_key => 'vcf_index',  basename => $merged_basename . '.csi', type => 'bin');
                 $self->dispatch_vrpipecode($this_cmd, $self->new_requirements(memory => 100, time => 1));
                 return;
             }
             
             my $merged_meta = $self->combined_metadata($self->inputs->{vcf_files});
             $merged_meta->{$control_key} = $control_sample;
-            my $merged_basename = 'merged.vcf.gz';
             $self->_merge($bcftools_exe, $bcfopts, \@input_set, $merged_basename, 'merged_vcf', 'vcf', $merged_meta, 'vcf_index');
         };
     }
