@@ -67,7 +67,7 @@ class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'plot-polysomy',
                     version => 0,
-                    summary => "plot-polysomy -o \$png_file \@[title:dir]"
+                    summary => "plot-polysomy -o \$png_file [title\@dir ...]"
                 )
             );
             
@@ -75,8 +75,7 @@ class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
             foreach my $file (@{ $self->inputs->{dist_files} }) {
                 my $dist  = $file->metadata;
                 my $query = $dist->{sample};
-                $query =~ s/:/_/g; #create safe string
-                push(@args, "$query:" . $file->dir);
+                push(@args, "$query\@" . $file->dir);
             }
             
             my $vcf = $self->inputs->{vcf_files};

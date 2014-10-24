@@ -44,19 +44,14 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 'bcftools'
             ),
-            bcftools_query_options => VRPipe::StepOption->create(
-                description   => 'options to bcftools query, excluding -f and -s. bcftools is run to extract B-allele frequencies from input VCF files in order to be used by polysomy algorithm.',
+            bcftools_polysomy_options => VRPipe::StepOption->create(
+                description   => 'options to bcftools polysomy, excluding -o and -s',
                 optional      => 1,
-                default_value => "-r 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22"
+                default_value => '-t ^MT,Y'
             ),
             control_metadata_key => VRPipe::StepOption->create(
                 description   => 'the metadata key to check on the input files to extract the sample identifier of the control from',
                 default_value => 'sample_control'
-            ),
-            polysomy_exe => VRPipe::StepOption->create(
-                description   => 'path to your polysomy exe',
-                optional      => 1,
-                default_value => 'polysomy'
             ),
         };
     }
@@ -78,18 +73,17 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
             
             my $cmk           = $options->{control_metadata_key};
             my $bcftools_exe  = $options->{bcftools_exe};
-            my $bcftools_opts = $options->{bcftools_query_options};
-            my $polysomy_exe  = $options->{polysomy_exe};
+            my $bcftools_opts = $options->{bcftools_polysomy_options};
             
-            if ($bcftools_opts =~ /\s-[fs]\s/) {
-                $self->throw("bcftools_options should not include -f or -s");
+            if ($bcftools_opts =~ /\s-[os]\s/) {
+                $self->throw("bcftools_polysomy_options should not include -o or -s");
             }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
                     version => 0,
-                    summary => "bcftools query merged.vcf.gz -f'[%CHROM\\t%BAF\\n]' -s \$control_sample $bcftools_opts \$vcf | polysomy -o \$outdir"
+                    summary => "bcftools polysomy \$vcf -s \$control_sample $bcftools_opts -o \$outdir"
                 )
             );
             
@@ -124,7 +118,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     my $vcf_path  = $vcf->path;
                     my $dist_path = $dist_file->path;
                     
-                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query], polysomy => q[$polysomy_exe]);";
+                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 
                 }
@@ -162,11 +156,11 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!, Str :$polysomy!) {
+    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!) {
         my $vcf_file  = VRPipe::File->get(path => $vcf);
         my $dist_file = VRPipe::File->get(path => $dist);
         
-        my $cmd_line = "$bcftools query -f'[%CHROM\\t%BAF\\n]' -s $query $bcftools_opts " . $vcf_file->path . " | $polysomy -o " . $dist_file->dir;
+        my $cmd_line = "$bcftools polysomy " . $vcf_file->path . " $bcftools_opts -s $query -o " . $dist_file->dir;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $self->throw("File $dist doesn't exist..") unless -e $dist;
