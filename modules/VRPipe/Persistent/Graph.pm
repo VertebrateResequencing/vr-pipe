@@ -110,6 +110,7 @@ class VRPipe::Persistent::Graph {
             # some kind of truncation bug when we try to get very large
             # responses from Neo4J
             $ua = Mojo::UserAgent->new();
+            $ua->connect_timeout(60)->inactivity_timeout(0)->request_timeout(0);
             
             # connect and get the transaction endpoint
             my $method_name = $deployment . '_neo4j_server_url';
@@ -691,7 +692,9 @@ class VRPipe::Persistent::Graph {
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
     # namespace, label, properties}, where the later 3 are result node specs and
     # with depths defaulting to 1 and others defaulting to undef; none supplied
-    # defaults to undirected {min_depth => 1, max_depth => 1}
+    # defaults to undirected {min_depth => 1, max_depth => 1}. There is also a
+    # left/rightmost boolean that combined with max_depth over 1 will return
+    # just the left (for incoming) or right (for outgoing) most node in the path.
     # This returns hash of nodes and relationships for use by frontends;
     # related_nodes() calls this and returns just a list of nodes
     sub related {
@@ -709,12 +712,16 @@ class VRPipe::Persistent::Graph {
         }
         else {
             my (%all_properties, @return);
+            my $most = '';
             my $left = '';
             if ($incoming) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
                 $left = "(l$result_node_spec)-[$type*$min_depth..$max_depth]->";
                 push(@return, 'l');
                 $all_properties{left} = $properties if $properties;
+                if ($incoming->{leftmost} && $max_depth > 1) {
+                    $most = "AND NOT (l)<-[$type]-($result_node_spec) ";
+                }
             }
             my $right = '';
             if ($outgoing) {
@@ -722,6 +729,9 @@ class VRPipe::Persistent::Graph {
                 $right = "-[$type*$min_depth..$max_depth]->(r$result_node_spec)";
                 push(@return, 'r');
                 $all_properties{right} = $properties if $properties;
+                if ($outgoing->{rightmost} && $max_depth > 1) {
+                    $most = "AND NOT (r)-[$type]->($result_node_spec) ";
+                }
             }
             
             my $return;
@@ -731,13 +741,13 @@ class VRPipe::Persistent::Graph {
             else {
                 $return = 'p';
             }
-            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id RETURN $return", keys %all_properties ? \%all_properties : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
+            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id ${most}RETURN $return", keys %all_properties ? \%all_properties : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
         }
     }
     
     sub _related_nodes_hashref_parse {
         my ($self, $hashref, $param_key) = @_;
-        my $type = $hashref->{type} ? ":`$hashref->{type}`" : '';
+        my $type = $hashref->{type} ? ':' . join('|', map { "`$_`" } split(/\|/, $hashref->{type})) : '';
         my $min_depth = defined $hashref->{min_depth} ? $hashref->{min_depth} : 1;
         my $max_depth = $hashref->{max_depth} || $min_depth || 1;
         my $result_node_spec = '';

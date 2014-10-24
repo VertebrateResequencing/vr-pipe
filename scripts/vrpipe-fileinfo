@@ -36,6 +36,8 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[Specify which file(s) you want to know about by supplying at least one of these options (which operate additively):]],
         ['path=s@', 'Get info on the file at this absolute path. Can be repeated'],
         ['AND/OR'],
+        ['fofn|f=s@', 'Get info on the files listed in a file of filenames. Can be repeated'],
+        ['AND/OR'],
         ['search_by_metadata|m=s@', 'Get info on files with matching metadata. Use the form "key:value", where key or value can contain the % symbol to represent 0 or more of any character, eg. "sample:HG%"; "key" and ":value" by themselves can also be used. Can be repeated, in which case files must match all the criteria given'],
         ['AND/OR'],
         ['setup=s@', 'Get info on the (existing) output files of this PipelineSetup (id or name). Can be repeated', { persistent_object => 'PipelineSetup' }],
@@ -54,6 +56,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['cmd_lines',   'Show the real complete command lines that were executed in order to generate the file'],
         ['time',        'Show the total wall time that the cmd_lines took to run, in seconds'],
         ['metadata:s',  'Show the metadata associated with the file; optionally you can supply a comma separated list of metadata keys to restrict the output'],
+        ['no_header',   'Do not print the header when display=tab'],
         ['lines',       'Show the number of lines in the file'],
         ['size',        'Show the size of the file in bytes'],
         ['md5',         'Show the md5 checksum for the file (if it has been previously calculated)'],
@@ -68,11 +71,12 @@ my $frontend = VRPipe::FrontEnd->new(
 
 my $include_withdrawn = $frontend->opts('include_withdrawn');
 my @paths             = $frontend->option_was_set('path') ? @{ $frontend->opts('path') } : ();
+my @fofns             = $frontend->option_was_set('fofn') ? @{ $frontend->opts('fofn') } : ();
 my @meta_search       = $frontend->option_was_set('search_by_metadata') ? @{ $frontend->opts('search_by_metadata') } : ();
 my @setups            = $frontend->option_was_set('setup') ? @{ $frontend->opts('setup') } : ();
 my @steps             = $frontend->option_was_set('step') ? @{ $frontend->opts('step') } : ();
-unless (@paths || @meta_search || @setups) {
-    $frontend->die_with_error("--path or --search_by_metadata or --setup is required");
+unless (@paths || @fofns || @meta_search || @setups) {
+    $frontend->die_with_error("--path or --fofn or --search_by_metadata or --setup is required");
 }
 if (@steps && !@setups) {
     $frontend->die_with_error("--step makes no sense without --setup");
@@ -90,6 +94,7 @@ if ($do_tab && $do_metadata && !$desired_metadata) {
     $display_type = 'report';
 }
 my $unresolved = $frontend->option_was_set('unresolved');
+my $no_header  = $frontend->option_was_set('no_header');
 my $show_all   = $frontend->option_was_set('include_removed');
 
 my %output_types;
@@ -154,6 +159,34 @@ foreach my $path (@paths) {
             last if $limit_count >= $limit;
         }
     }
+}
+
+# handle --fofns
+foreach my $fofn (@fofns) {
+    $matches_needed++;
+    
+    open my $fh, "<$fofn" || $frontend->error("Could not open fofn $fofn");
+    while (my $path = <$fh>) {
+        chomp $path;
+        $path = file($path)->absolute;
+        my ($file) = VRPipe::File->search({ path => $path });
+        unless ($file) {
+            $frontend->error("VRPipe does not know about $path; ignoring");
+        }
+        else {
+            $file = $unresolved ? $file : $file->resolve(not_symlinks => 1);
+            my $fid = $file->id;
+            unless (exists $files{$fid}) {
+                $files{$fid} = [1, $file];
+                $path_files{$fid} = 1;
+                $limit_count++;
+            }
+            if ($do_path_limiting) {
+                last if $limit_count >= $limit;
+            }
+        }
+    }
+    close $fh || $frontend->error("Could not close fofn $fofn");
 }
 
 # handle --search_by_metadata
@@ -297,8 +330,29 @@ if (@setups) {
         my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => $include_withdrawn);
         while (my $estates = $estates_pager->next) {
             foreach my $element_state (@$estates) {
-                # get output files
                 my $element = $element_state->dataelement;
+                
+                # get element input files (step "0")
+                if (exists $desired_steps{numbers}->{0}) {
+                    my $files = $element->files;
+                    
+                    foreach my $file (@$files) {
+                        $file = $unresolved ? $file : $file->resolve(not_symlinks => 1);
+                        my $fid = $file->id;
+                        unless (exists $added_by_setup{$fid}) {
+                            $files{$fid}          = [($files{$fid}->[0] || 0) + 1, $file];
+                            $added_by_setup{$fid} = 1;
+                            $file_to_de{$fid}     = $element if ($output_types{dataelement} || $output_types{input_file});
+                            $limit_count++ if ($files{$fid}->[0] == $matches_needed && ($show_all || $file->s));
+                        }
+                        
+                        if ($limit) {
+                            last LIMIT_BREAK if $limit_count >= $limit;
+                        }
+                    }
+                }
+                
+                # get step output files
                 foreach my $stepm (@allowed_step_members) {
                     my ($stepstate) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
                     $stepstate || next;
@@ -337,7 +391,7 @@ my @desired_metadata_keys;
 if ($desired_metadata) {
     @desired_metadata_keys = split(',', $desired_metadata);
 }
-if ($do_tab) {
+if ($do_tab && !$no_header) {
     my $header = join("\t", 'path', @tab_cols);
     
     if (@desired_metadata_keys) {

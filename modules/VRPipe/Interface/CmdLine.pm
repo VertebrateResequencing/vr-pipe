@@ -140,6 +140,7 @@ class VRPipe::Interface::CmdLine {
     
     method _build_ua {
         my $ua = Mojo::UserAgent->new(timeout => 200, agent => 'VRPipe-Client');
+        $ua->connect_timeout(60)->inactivity_timeout(0)->request_timeout(0);
         return $ua;
     }
     
