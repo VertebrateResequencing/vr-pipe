@@ -244,12 +244,17 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
                 }
                 
                 # store the parsed stats in a Bam_Stats node attached to the
-                # file
+                # file; because they are given an automatic new uuid as the
+                # primary identifier for the node, we always end up adding a
+                # new bam_stats node instead of updating an existing one. So we
+                # store the current date so the user can pick the most recent
+                # one
                 my $bs = $vrtrack->add(
                     'Bam_Stats',
                     {
                         mode    => $mode,
                         options => $opts,
+                        date    => time(),
                         %stats
                     },
                     incoming => { type => 'summary_stats', node => $vrfile }

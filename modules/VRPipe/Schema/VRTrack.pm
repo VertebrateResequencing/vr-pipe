@@ -142,7 +142,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label          => 'Bam_Stats',
                 unique         => [qw(uuid)],
-                required       => [qw(mode options), 'raw total sequences'],
+                required       => [qw(mode options date), 'raw total sequences'],
                 allow_anything => 1
             },
             
