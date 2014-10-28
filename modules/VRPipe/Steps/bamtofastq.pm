@@ -84,6 +84,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             if ($bamtofastq_opts =~ /\s(F|F2|S|O|O2|filename|fasta|split)=/) {
                 $self->throw("bamtofastq_opts should not include F=, F2=, S=, O=, O2=, filename=, fasta= or split= options!");
             }
+            $self->throw("Negative values cannot be used for fastq_chunk_size!") unless $chunk_size >= 0;
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
@@ -158,7 +159,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method bamtofastq (ClassName|Object $self: Str|File :$bam!, ArrayRef[Str|File] :$fastqs!, Str|File :$bamtofastq_exe, Str :$bamtofastq_opts, Str|File :$fastqcheck_exe, PositiveInt :$chunk_size!) {
+    method bamtofastq (ClassName|Object $self: Str|File :$bam!, ArrayRef[Str|File] :$fastqs!, Str|File :$bamtofastq_exe, Str :$bamtofastq_opts, Str|File :$fastqcheck_exe, Int :$chunk_size!) {
         my $in_file  = VRPipe::File->get(path => $bam);
         my $bam_meta = $in_file->metadata;
         my $basename = $in_file->basename;
@@ -389,7 +390,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         push(@$out_files, $extra_file);
     }
     
-    method _splits (ClassName|Object $self: Str|File $bam, PositiveInt $chunk_size) {
+    method _splits (ClassName|Object $self: Str|File $bam, Int $chunk_size) {
         my $bam_meta       = VRPipe::File->get(path => $bam)->metadata;
         my $read_lengths   = $bam_meta->{avg_read_length};
         my $seqs           = $bam_meta->{reads};
@@ -403,7 +404,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         }
     }
     
-    method split_fastq_outs (ClassName|Object $self: Str|Dir :$split_dir!, Str|File :$bam!, PositiveInt :$chunk_size!, Str :$suffix!) {
+    method split_fastq_outs (ClassName|Object $self: Str|Dir :$split_dir!, Str|File :$bam!, Int :$chunk_size!, Str :$suffix!) {
         my $splits = $self->_splits($bam, $chunk_size);
         
         my $bam_file   = VRPipe::File->get(path => $bam);
