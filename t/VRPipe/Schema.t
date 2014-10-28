@@ -33,9 +33,10 @@ ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming
 throws_ok { $schema->add('Foo', { foo => 'bar' }) } qr/'Foo' isn't a valid label for schema VRTrack/, 'add() throws when given an invalid label';
 throws_ok { $schema->add('Sample', { id => '1' }) } qr/Parameter 'name' must be supplied/, 'add() throws when not given a required parameter';
 throws_ok { $schema->add('Sample', { name => 's2', foo => 'bar' }) } qr/Property 'foo' supplied, but that isn't defined in the schema for VRTrack::Sample/, 'add() throws when given an invalid parameter';
-ok my $bs = $schema->add('Bam_Stats', { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar' }), 'arbitrary parameters can be supplied to a label defined with allow_anything => 1';
+my $bs_date = time();
+ok my $bs = $schema->add('Bam_Stats', { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar', date => $bs_date }), 'arbitrary parameters can be supplied to a label defined with allow_anything => 1';
 ok $bs->add_properties({ cat => 'banana' }), 'add_properties() also worked with an arbitrary parameter';
-is_deeply $bs->{properties}, { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar', cat => 'banana' }, 'We really do store whatever on a allow_anything label';
+is_deeply $bs->{properties}, { uuid => 'uuid', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => 'bar', cat => 'banana', date => $bs_date }, 'We really do store whatever on a allow_anything label';
 
 ok my $lib1 = $schema->get('Library', { id => 'l1' }), 'get() method worked';
 ok @libs = $schema->get('Library'), 'get() method worked with no properties arg';
@@ -97,8 +98,8 @@ $sample = $schema->add('Sample', { name => 's1', created_date => 12 });
 $sample = $schema->add('Sample', { name => 's1', created_date => undef });
 is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'pn1', supplier_name => 'supn1', created_date => 12 }], 'add() with null values for properties does not unset previously set properties';
 # also check it works on allow_anything labels
-my $fooless_bs = $schema->add('Bam_Stats', { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => undef });
-is_deeply $fooless_bs->{properties}, { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100 }, 'add() with null values for properties does not add those properties for an allow_anything label';
+my $fooless_bs = $schema->add('Bam_Stats', { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100, foo => undef, date => $bs_date });
+is_deeply $fooless_bs->{properties}, { uuid => 'uuid2', mode => 'mode', options => 'opts', 'raw total sequences' => 100, date => $bs_date }, 'add() with null values for properties does not add those properties for an allow_anything label';
 
 # test that we can get the latest data if another process updates a property
 is $lib1->tag, 'ATG', 'tag starts out as ATG';
@@ -147,7 +148,7 @@ like $uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'create_uuid() worked';
 is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
 
 # unique uuid properties auto-fill if not supplied
-ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', 'raw total sequences' => 100 }), 'could add a new node without supplying its unique value when the unique is a uuid';
+ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', 'raw total sequences' => 100, date => $bs_date }), 'could add a new node without supplying its unique value when the unique is a uuid';
 like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
 is $bam_stats->raw_total_sequences(), 100, 'we can call a property method that has spaces in the name';
 
@@ -205,9 +206,8 @@ ok $vrfile->symlink($vrsym), 'created a symlink of a file';
 ok $vrfile->copy(VRPipe::File->create(path => $cp_path)), 'created a copy of a file';
 ok $vrsym->copy(VRPipe::File->create(path => $symcp_path)), 'created a copy of a symlink';
 @related = $graph_file->related(outgoing => { max_depth => 2, namespace => 'VRPipe', label => 'FileSystemElement', type => 'symlink|copy' });
-is_deeply {
-    map { $_->path => 1 } @related;
-}, { $sym_path => 1, $cp_path => 1, $symcp_path => 1 }, 'there are corresponding nodes in the graph related to the source filesystemelement node';
+my %expected = map { $_->path => 1 } @related;
+is_deeply \%expected, { $sym_path => 1, $cp_path => 1, $symcp_path => 1 }, 'there are corresponding nodes in the graph related to the source filesystemelement node';
 is $vrpipe->parent_filesystemelement($sym_path)->node_id,   $graph_file->node_id, 'parent_filesystemelement() worked on a symlink path';
 is $vrpipe->parent_filesystemelement($cp_path)->node_id,    $graph_file->node_id, 'parent_filesystemelement() worked on a copy path';
 is $vrpipe->parent_filesystemelement($symcp_path)->node_id, $graph_file->node_id, 'parent_filesystemelement() worked on a symlink copy path';
