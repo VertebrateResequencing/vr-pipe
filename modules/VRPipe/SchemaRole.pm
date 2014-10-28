@@ -68,7 +68,12 @@ role VRPipe::SchemaRole {
     use VRPipe::Persistent::Graph;
     use Digest::MD5 qw(md5_hex);
     
-    my $graph = VRPipe::Persistent::Graph->new();
+    has 'graph' => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_graph'
+    );
     
     has 'schemas' => (
         is      => 'ro',
@@ -134,8 +139,12 @@ role VRPipe::SchemaRole {
         return $namespace;
     }
     
+    method _build_graph {
+        return VRPipe::Persistent::Graph->new();
+    }
+    
     method add_schemas (Bool :$update_schemas_in_db = 0) {
-        my $graph     = VRPipe::Persistent::Graph->new();
+        my $graph     = $self->graph;
         my $namespace = $self->namespace;
         
         foreach my $def (@{ $self->schemas }) {
@@ -211,10 +220,6 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method graph {
-        return $graph;
-    }
-    
     method _get_and_bless_nodes (Str $label!, Str $graph_method!, HashRef|ArrayRef[HashRef] $properties?, HashRef $extra_graph_args?) {
         my $namespace = $self->namespace;
         unless ($self->valid_label($label)) {
@@ -255,7 +260,7 @@ role VRPipe::SchemaRole {
             }
         }
         
-        my @nodes = $graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), $namespace eq 'PropertiesWithHistory' ? (return_history_nodes => 1) : (), %{ $extra_graph_args || {} });
+        my @nodes = $self->graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), $namespace eq 'PropertiesWithHistory' ? (return_history_nodes => 1) : (), %{ $extra_graph_args || {} });
         
         # bless the nodes into the appropriate class
         foreach my $node (@nodes) {
@@ -293,6 +298,7 @@ role VRPipe::SchemaRole {
     }
     
     method delete ($node) {
+        my $graph = $self->graph;
         my ($history_data, $im, $lock_key);
         if ($node->_keep_history) {
             # also delete any PropertyGroup nodes attached which hold our history
@@ -321,7 +327,7 @@ role VRPipe::SchemaRole {
     }
     
     method create_uuid (ClassName|Object $self:) {
-        return $graph->create_uuid();
+        return VRPipe::Persistent::Graph->create_uuid();
     }
     
     method md5sum (Str $str) {
@@ -329,11 +335,11 @@ role VRPipe::SchemaRole {
     }
     
     method date_to_epoch (Str $date) {
-        return $graph->date_to_epoch($date);
+        return $self->graph->date_to_epoch($date);
     }
     
     method cypher_labels (Str $label) {
-        return $graph->_labels($self->namespace, $label);
+        return $self->graph->_labels($self->namespace, $label);
     }
 }
 
