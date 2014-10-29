@@ -125,17 +125,15 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $vcf_file    = VRPipe::File->get(path => $vcf_path);
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
-        
         my $vrtrack              = VRPipe::Schema->create('VRTrack');
         my $output_file_in_graph = $vrtrack->add_file($output_path);
         $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
         my $graph = $vrtrack->graph;
-        my $count = 0;
+        
         my $fh    = $output_file->openr;
+        my $count = 0;
         my %pairs;
         my $sample_source;
-        my (@node_props, @rel_details);
-        
         while (<$fh>) {
             if (/^MD\s+(\S+)\s+(\S+)/) {
                 my $md     = $1;
@@ -164,8 +162,6 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                     $unique = $this_unique;
                     last;
                 }
-                
-                push(@node_props, { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth });
                 
                 # before we can store the result we need to find the sample
                 # nodes in the graph database under the VRTrack schema;
@@ -197,6 +193,7 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                     }
                 }
                 
+                my @incoming = ({ type => 'discordance', node => $output_file_in_graph });
                 foreach my $identifer ($sample_i, $sample_j) {
                     my $sample_props;
                     if ($sample_source eq 'public_name+sample') {
@@ -207,25 +204,23 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                         $sample_props = { name => $identifer };
                     }
                     
-                    push(@rel_details, { from => { namespace => 'VRTrack', label => 'Sample', properties => $sample_props }, to => { namespace => 'VRTrack', label => 'Discordance', properties => { sample_pair => $unique } }, type => 'genotype_comparison_discordance' });
+                    push(@incoming, { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => $sample_props }, type => 'genotype_comparison_discordance' });
                 }
+                
+                # we add in enqueue mode which doesn't add straight away, but
+                # only when we call dispatch_queue() every 10000 loops - for
+                # database efficiency
+                $vrtrack->add('Discordance', { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth }, incoming => \@incoming, enqueue => 1);
                 
                 $count++;
                 if ($count == 10000) {
-                    $vrtrack->add('Discordance', \@node_props, incoming => { type => 'discordance', node => $output_file_in_graph });
-                    $graph->create_mass_relationships(\@rel_details);
-                    $count       = 0;
-                    @node_props  = ();
-                    @rel_details = ();
+                    $vrtrack->dispatch_queue;
+                    $count = 0;
                 }
             }
         }
         $output_file->close;
-        
-        if (@node_props) {
-            $vrtrack->add('Discordance', \@node_props, incoming => { type => 'discordance', node => $output_file_in_graph });
-            $graph->create_mass_relationships(\@rel_details);
-        }
+        $vrtrack->dispatch_queue;
     }
 }
 

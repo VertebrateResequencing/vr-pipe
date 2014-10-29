@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 68;
+    use Test::Most tests => 74;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -222,5 +222,13 @@ $graph->drop_schema(namespace => 'Foo', label => 'Bar');
 
 # test the date_to_epoch utility method
 is $graph->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() worked';
+
+# test adding nodes in enqueue mode
+ok !$graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }, enqueue => 1), 'add_node(enqueue => 1) returns nothing';
+ok !$graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }), 'it did not add a node to the database';
+ok !$graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue2' }, enqueue => 1), 'add_node(enqueue => 1) worked again';
+ok my @queued = $graph->dispatch_queue(), 'could call dispatch_queue()';
+is_deeply [sort map { $graph->node_property($_, 'sanger_id') } @queued], ['enqueue1', 'enqueue2'], 'dispatch_queue() returned the enqueued nodes';
+is_deeply [sort map { $graph->node_property($_, 'sanger_id') } ($graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }), $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue2' }))], ['enqueue1', 'enqueue2'], 'after dispatch_queue() the enqueued nodes are in the database';
 
 exit;

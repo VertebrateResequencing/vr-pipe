@@ -220,7 +220,9 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method _get_and_bless_nodes (Str $label!, Str $graph_method!, HashRef|ArrayRef[HashRef] $properties?, HashRef $extra_graph_args?) {
+    sub _get_and_bless_nodes {
+        my ($self, $label, $graph_method, $properties, $extra_graph_args) = @_;
+        
         my $namespace = $self->namespace;
         unless ($self->valid_label($label)) {
             $self->throw("'$label' isn't a valid label for schema $namespace");
@@ -262,6 +264,10 @@ role VRPipe::SchemaRole {
         
         my @nodes = $self->graph->$graph_method(namespace => $namespace, label => $label, $props ? (properties => $props, ($graph_method eq 'add_nodes' ? (update => 1) : ())) : (), $namespace eq 'PropertiesWithHistory' ? (return_history_nodes => 1) : (), %{ $extra_graph_args || {} });
         
+        if ($graph_method eq 'add_nodes' && $extra_graph_args && $extra_graph_args->{enqueue}) {
+            return;
+        }
+        
         # bless the nodes into the appropriate class
         foreach my $node (@nodes) {
             bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
@@ -275,9 +281,15 @@ role VRPipe::SchemaRole {
         }
     }
     
-    method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
-        my $history_props;
-        my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
+    sub add {
+        my ($self, $label, $properties, %opts) = @_;
+        my $enqueue  = $opts{enqueue} || 0;
+        my $incoming = $opts{incoming};
+        my $outgoing = $opts{outgoing};
+        
+        my @nodes = $self->_get_and_bless_nodes($label, 'add_nodes', $properties, { enqueue => $enqueue, $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : () });
+        
+        return if $enqueue;
         
         if ($self->_is_historical($label)) {
             foreach my $node (@nodes) {
@@ -290,6 +302,40 @@ role VRPipe::SchemaRole {
         }
         else {
             return $nodes[0];
+        }
+    }
+    
+    method dispatch_queue {
+        my @nodes = $self->graph->dispatch_queue;
+        
+        if (@nodes) {
+            my $namespace = $nodes[0]->{namespace};
+            my $label     = $nodes[0]->{label};
+            
+            my $blessed = 0;
+            if ($self->_is_historical($label)) {
+                foreach my $node (@nodes) {
+                    bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
+                    $node->_maintain_property_history(0);
+                }
+                $blessed = 1;
+            }
+            
+            if (defined wantarray()) {
+                unless ($blessed) {
+                    foreach my $node (@nodes) {
+                        bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
+                    }
+                }
+                
+                if (wantarray()) {
+                    return @nodes;
+                }
+                else {
+                    return $nodes[0];
+                }
+            }
+            return;
         }
     }
     

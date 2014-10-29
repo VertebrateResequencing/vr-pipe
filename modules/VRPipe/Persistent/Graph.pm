@@ -100,6 +100,17 @@ class VRPipe::Persistent::Graph {
         default => 0
     );
     
+    has '_collected' => (
+        is      => 'ro',
+        traits  => ['Array'],
+        isa     => 'ArrayRef',
+        default => sub { [] },
+        handles => {
+            '_collect'          => 'push',
+            '_empty_collection' => 'clear'
+        }
+    );
+    
     sub BUILD {
         my $self = shift;
         
@@ -174,6 +185,7 @@ class VRPipe::Persistent::Graph {
                 }
             );
         }
+        #warn "cypher: $example_cypher (plus ", scalar($#{$array}), " similar)\n";
         
         my $decode;
         for (1 .. 20) {
@@ -379,7 +391,11 @@ class VRPipe::Persistent::Graph {
         return 0;
     }
     
-    method get_schema (Str :$namespace!, Str :$label!) {
+    sub get_schema {
+        my ($self, %opts) = @_;
+        my $namespace = $opts{namespace};
+        my $label     = $opts{label};
+        
         my $dsl = $self->_deployment_specific_label($namespace, $label);
         if (exists $schemas->{$dsl}) {
             return @{ $schemas->{$dsl} };
@@ -450,7 +466,17 @@ class VRPipe::Persistent::Graph {
     # in/outgoing HashRef is { type => 'type', node => $node }
     # instead of node you can have node_spec => { namespace => ..., label => ..., properties => { ... } }
     # to have multiple in/outgoing, supply an array ref of those hashrefs
-    method add_nodes (Str :$namespace!, Str :$label!, ArrayRef[HashRef[Str]] :$properties!, Bool :$update = 0, Bool :$return_history_nodes = 0, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
+    sub add_nodes {
+        my ($self, %opts) = @_;
+        my $namespace            = $opts{namespace};
+        my $label                = $opts{label};
+        my $properties           = $opts{properties};
+        my $update               = $opts{update} || 0;
+        my $return_history_nodes = $opts{return_history_nodes} || 0;
+        my $incoming             = $opts{incoming};
+        my $outgoing             = $opts{outgoing};
+        my $enqueue              = $opts{enqueue} || 0;
+        
         my ($labels, $param_map);
         my $set = '';
         if ($update) {
@@ -505,12 +531,31 @@ class VRPipe::Persistent::Graph {
             push(@to_run, [$cypher, { 'param' => $prop, %{$extra_params} }]);
         }
         
+        if ($enqueue) {
+            $self->_collect(@to_run);
+            return;
+        }
+        
         if (defined wantarray()) {
             return @{ $self->_run_cypher(\@to_run, { return_history_nodes => $return_history_nodes })->{nodes} };
         }
         else {
             $self->_run_cypher(\@to_run);
         }
+    }
+    
+    method dispatch_queue {
+        my @nodes;
+        if (defined wantarray()) {
+            @nodes = @{ $self->_run_cypher($self->_collected, { return_history_nodes => 0 })->{nodes} };
+        }
+        else {
+            $self->_run_cypher($self->_collected);
+        }
+        
+        $self->_empty_collection;
+        
+        return @nodes;
     }
     
     sub _add_rel_cypher {
@@ -551,8 +596,17 @@ class VRPipe::Persistent::Graph {
         return ($merge, $match);
     }
     
-    method add_node (Str :$namespace!, Str :$label!, HashRef[Str] :$properties!, Bool :$update = 0, HashRef|ArrayRef[HashRef] :$incoming?, HashRef|ArrayRef[HashRef] :$outgoing?) {
-        my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], update => $update, $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
+    sub add_node {
+        my ($self, %opts) = @_;
+        my $namespace  = $opts{namespace};
+        my $label      = $opts{label};
+        my $properties = $opts{properties};
+        my $update     = $opts{update} || 0;
+        my $incoming   = $opts{incoming};
+        my $outgoing   = $opts{outgoing};
+        my $enqueue    = $opts{enqueue} || 0;
+        
+        my ($node) = $self->add_nodes(namespace => $namespace, label => $label, properties => [$properties], enqueue => $enqueue, update => $update, $incoming ? (incoming => $incoming) : (), $outgoing ? (outgoing => $outgoing) : ());
         return $node;
     }
     
@@ -575,7 +629,8 @@ class VRPipe::Persistent::Graph {
         return $nodes[0];
     }
     
-    method node_id (HashRef|Object $node!) {
+    sub node_id {
+        my ($self, $node) = @_;
         if (defined $node->{id}) {
             return $node->{id};
         }

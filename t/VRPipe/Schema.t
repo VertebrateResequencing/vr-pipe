@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 88;
+    use Test::Most tests => 96;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -169,6 +169,23 @@ is $eshsam2, undef, 'and the new sample was not created';
 $schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample2', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1', enforce => 1);
 $eshsam2 = $schema->get('Sample', { name => 'esh_sample2' });
 is_deeply [sort { $a <=> $b } map { $_->node_id } $eshlane->related(incoming => { max_depth => 10 })], [$eshlib->node_id, $eshstu->node_id, $eshgro->node_id, $eshtax->node_id, $eshsam2->node_id], 'ensure_sequencing_hierarchy(enforce => 1) DID change the hierarchy when a different sample was supplied';
+
+# test add() in enqueue mode, and that it maintains history as normal
+ok !$schema->add('Sample', { name => 'enqueue1', public_name => 'enqueue1_public_a' }, enqueue => 1), 'add(enqueue => 1) returns nothing';
+ok !$schema->get('Sample', { name => 'enqueue1' }), 'it did not add a node to the database';
+ok !$schema->add('Sample', { name => 'enqueue2' }, enqueue => 1), 'add(enqueue => 1) worked again';
+ok my @queued = $schema->dispatch_queue(), 'could call dispatch_queue()';
+is_deeply [sort map { $_->name() } @queued], ['enqueue1', 'enqueue2'], 'dispatch_queue() returned the enqueued nodes';
+my @expected_queue = ($schema->get('Sample', { name => 'enqueue1' }), $schema->get('Sample', { name => 'enqueue2' }));
+is_deeply [sort map { $_->name() } @expected_queue], ['enqueue1', 'enqueue2'], 'after dispatch_queue() the enqueued nodes are in the database';
+$schema->add('Sample', { name => 'enqueue1', public_name => 'enqueue1_public_b' }, enqueue => 1);
+$schema->add('Sample', { name => 'enqueue2' }, enqueue => 1);
+$schema->add('Sample', { name => 'enqueue3' }, enqueue => 1);
+$schema->dispatch_queue();
+my @second_queue = ($schema->get('Sample', { name => 'enqueue1' }), $schema->get('Sample', { name => 'enqueue2' }), $schema->get('Sample', { name => 'enqueue3' }));
+is_deeply [[sort map { $_->name() } @second_queue], [sort map { $_->node_id() } @second_queue], $second_queue[0]->public_name], [['enqueue1', 'enqueue2', 'enqueue3'], [$expected_queue[0]->node_id, $expected_queue[1]->node_id, $second_queue[2]->node_id], 'enqueue1_public_b'], 'dispatch_queue() was able to update, leave alone and add a new node';
+@history = $second_queue[0]->property_history();
+is_deeply [$history[0]->{properties}->{public_name}, $history[1]->{properties}->{public_name}], ['enqueue1_public_b', 'enqueue1_public_a'], 'history was maintained on a node updated via dispatch_queue()';
 
 # test some VRPipe-specific things
 my $vrpipe = VRPipe::Schema->create('VRPipe');
