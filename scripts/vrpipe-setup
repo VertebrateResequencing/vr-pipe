@@ -29,6 +29,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 use POSIX qw(getgroups);
 use VRPipe::StepStatsUtil;
+use VRPipe::Persistent::InMemory;
 
 my $frontend = VRPipe::FrontEnd->new(
     description => "Setup a new pipeline, or alter the configuration of an existing one.",
@@ -232,6 +233,10 @@ if ($setup) {
                 }
             }
         }
+        
+        # force unlock the redis lock
+        my $im = VRPipe::Persistent::InMemory->new();
+        $im->_redis->del("lock.datasource." . $datasource->id);
         
         $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
