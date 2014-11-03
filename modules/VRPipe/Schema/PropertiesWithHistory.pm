@@ -142,7 +142,10 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
             }
         }
         
-        return unless $changed;
+        unless ($changed) {
+            $node->unlock unless $locked_by_me;
+            return;
+        }
         
         # make a new property group and attach to (potentially new) property
         # nodes in the final grouping
