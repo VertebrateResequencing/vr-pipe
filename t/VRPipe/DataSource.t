@@ -628,6 +628,16 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     $de_to_withdraw->withdrawn(1);
     $de_to_withdraw->update;
     is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 after withdrawing one of the include_in_all_elements setup elements';
+    
+    # pretend ps1's datasource uses DataSourceRole's
+    # _start_over_elements_due_to_file_metadata_change() and 2 files changed
+    # to test that we only start_over ps5's elements once... I don't know how
+    # to actually test for that without looking at debug output, hence these
+    # tests are commented out but behaved as desired after solving this problem
+    # $ps5->trigger();
+    # my $anti_repeat_store = {};;
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.bam))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.cat))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
 }
 
 # author-only tests for the irods datasource

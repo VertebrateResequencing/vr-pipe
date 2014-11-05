@@ -424,12 +424,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         
         my $did = $self->_datasource_id;
         my @element_args;
+        my $anti_repeat_store = {};
         foreach my $result (@$results) {
             my $result_hash = { paths => $result->{paths}, $group_name => $result->{$group_name} };
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($result->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($result, \@changed_details);
+                $self->_start_over_elements_due_to_file_metadata_change($result, \@changed_details, $anti_repeat_store);
             }
         }
         $self->_create_elements(\@element_args);

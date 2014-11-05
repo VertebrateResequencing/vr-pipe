@@ -546,6 +546,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my $did = $self->_datasource_id;
         my @element_args;
         my @changed_details;
+        my $anti_repeat_store = {};
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
             my $new_metadata = $files->{$path};
             delete $new_metadata->{vrpipe_irods_order};
@@ -593,7 +594,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             my $result_hash = { paths => [$file_abs_path], irods_path => $path };
             if ($changed) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
-                $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details);
+                $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
             }
             push(@element_args, { datasource => $did, result => $result_hash });

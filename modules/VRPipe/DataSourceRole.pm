@@ -143,7 +143,9 @@ role VRPipe::DataSourceRole {
         VRPipe::DataElement->bulk_create_or_update(map { $_->{withdrawn} = 0 unless defined $_->{withdrawn}; $_; } @$e_args);
     }
     
-    method _start_over_elements_due_to_file_metadata_change (HashRef $result, ArrayRef $changed_details) {
+    # $anti_repeat_store is just an empty hash ref that you must supply; define
+    # it before a loop that calls this method
+    method _start_over_elements_due_to_file_metadata_change (HashRef $result, ArrayRef $changed_details, HashRef $anti_repeat_store) {
         # 'changed' is based on file metadata changing, and the file may
         # have had its metadata applied in some other pipeline for some
         # other datasource. We'll start_from_scratch all affected
@@ -179,7 +181,9 @@ role VRPipe::DataSourceRole {
         foreach my $element (values %elements) {
             foreach my $estate ($element->element_states) {
                 $estate->pipelinesetup->log_event("$type DataSource will call start_from_scratch because file metadata changed [$changed_details]", dataelement => $estate->dataelement->id);
-                $estate->start_from_scratch;
+                #*** shouldn't we work out exactly which steps used the input
+                # file and along the chain?
+                $estate->start_from_scratch(anti_repeat_store => $anti_repeat_store);
             }
         }
         
