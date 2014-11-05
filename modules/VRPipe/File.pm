@@ -63,6 +63,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
     use File::Copy;
+    use Fcntl ':mode';
     use Cwd qw(abs_path);
     use Filesys::DfPortable;
     use VRPipe::Schema;
@@ -909,7 +910,9 @@ class VRPipe::File extends VRPipe::Persistent {
             $success = symlink($dst, $dp);
         }
         else {
-            $success = File::Copy::copy($sp, $dp);
+            # File::Copy::copy and similar do not preserve ownership, so we use
+            # unix cp -p instead, which is --preserve=mode,ownership,timestamps
+            $success = !system("cp -p $sp $dp");
         }
         $dest->update_stats_from_disc;
         
@@ -937,6 +940,28 @@ class VRPipe::File extends VRPipe::Persistent {
             
             # update the graph db if the source was in the graph
             $self->_vrpipe_schema->copy_filesystemelement($self->path->stringify, $dest->path->stringify);
+            
+            # if the source file was in a world-readable directory, make sure
+            # the dest file's parent dirs are all world-readable
+            my $dir = $self->dir;
+            if ($dir ne $dest->dir) {
+                my @stat = stat($dir);
+                if ($stat[2] & S_IROTH) {
+                    $dir = $dest->dir;
+                    my %dirs;
+                    $dirs{$dir} = 1;
+                    my $num_parents = $dir->dir_list;
+                    for (1 .. $num_parents) {
+                        $dir = $dir->parent;
+                        $dirs{$dir} = 1;
+                    }
+                    open(my $pipe, "| xargs chmod -f o+rX");
+                    foreach my $dir (keys %dirs) {
+                        print $pipe $dir, "\n";
+                    }
+                    close($pipe);
+                }
+            }
             
             return 1;
         }
