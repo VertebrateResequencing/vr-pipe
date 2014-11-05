@@ -203,7 +203,7 @@ is $triggered_once_count, scalar(@ss_ids), 'all stepstates only triggered the ne
 # at once
 SKIP: {
     my $host = hostname();
-    skip "author-only 1000 submission tests", 3 unless $host eq 'uk10k-1-1-01' && $ENV{VRPIPE_OPTIONAL_TESTS};
+    skip "author-only 1000 submission tests", 3 unless $host eq 'vr-2-2-02' && $ENV{VRPIPE_OPTIONAL_TESTS};
     
     # long after the above problems were resolved, it was found that a bam_index
     # pipeline fell over when given a datasource of ~3000 dataelements where
