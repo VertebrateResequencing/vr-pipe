@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 115;
+    use Test::Most tests => 121;
     use VRPipeTest;
     use TestPipelines;
     
@@ -200,6 +200,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'group_all',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => {}
@@ -214,6 +228,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource with group_all method and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata group_all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'grouped_by_metadata',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => { metadata_keys => 'study|sample' }
@@ -225,6 +253,20 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, result_with_inflated_paths($element));
 }
 is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[2]], group => 'ERP000979|JB951' }, { paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'grouped_by_metadata',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { metadata_keys => 'study|sample', filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata grouped_by_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata + filtering';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->create(
