@@ -51,11 +51,6 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                 description => 'options to shapeit, exclude options that concern input/output file definition',
                 optional    => 1,
             ),
-            vcf_gensample_exe => VRPipe::StepOption->create(
-                description   => 'path to your vcf-gensample exe',
-                optional      => 1,
-                default_value => 'vcf-gensample'
-            ),
             tabix_exe => VRPipe::StepOption->create(
                 description   => 'path to your tabix exe',
                 optional      => 1,
@@ -64,11 +59,6 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             ref_vcf => VRPipe::StepOption->create(
                 description => 'path to a reference VCF which may contain the string "{CHROM}" that will be expanded to chromosome names (if multiple VCFs are specified, only the first one is used with shapeit)',
                 optional    => 1,
-            ),
-            min_AC => VRPipe::StepOption->create(
-                description   => 'skip sites with the number of alternate alleles smaller than min_AC',
-                optional      => 0,
-                default_value => 0,
             ),
             genetic_map => VRPipe::StepOption->create(
                 description   => 'path to your genetic map files (may contain the string "{CHROM}" which will be expanded)',
@@ -105,12 +95,10 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $shapeit_exe       = $options->{shapeit_exe};
-            my $shapeit_opts      = $options->{shapeit_options};
-            my $tabix_exe         = $options->{tabix_exe};
-            my $bcftools_exe      = $options->{bcftools_exe};
-            my $vcf_gensample_exe = $options->{vcf_gensample_exe};
-            my $min_AC            = $options->{min_AC};
+            my $shapeit_exe  = $options->{shapeit_exe};
+            my $shapeit_opts = $options->{shapeit_options};
+            my $tabix_exe    = $options->{tabix_exe};
+            my $bcftools_exe = $options->{bcftools_exe};
             
             if ($shapeit_opts =~ /\s--(input-|output-|include-|thread)\s/) {
                 $self->throw("shapeit_options should not include --input-* or --output-* or --include-* or --thread");
@@ -141,8 +129,8 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $to      = $chunk[2];
                     my $sub_dir = $chr;
                     
-                    my $in_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-${to}_haps.gz", type => 'bin', temporary => 1);
-                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-${to}_samples", type => 'txt', temporary => 1);
+                    my $in_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.gen.gz",  type => 'bin', temporary => 1);
+                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.samples", type => 'txt', temporary => 1);
                     
                     my $out_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.haps.gz", type => 'bin', temporary => 1);
                     my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.samples", type => 'txt', temporary => 1);
@@ -168,7 +156,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
                     my @outfiles = ($in_haps_file, $in_sample_file, $out_haps_file, $out_sample_file, $log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
-                    my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], vcf_gensample => q[$vcf_gensample_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map], min_AC => q[$min_AC]);";
+                    my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 
                 }
@@ -221,7 +209,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
         return $path;
     }
     
-    method run_shapeit (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$shapeit!, Str :$shapeit_opts!, Str :$vcf_gensample!, Str :$tabix!, Str :$gen_map!, Str :$min_AC!) {
+    method run_shapeit (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$shapeit!, Str :$shapeit_opts!, Str :$bcftools!, Str :$tabix!, Str :$gen_map!) {
         my @region = @{$chunk};
         my $chr    = $region[0];
         my $from   = $region[1];
@@ -235,24 +223,23 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             my @ref_vcfs = split(/\s+/, $ref_vcf);
             my $ref_file = VRPipe::File->get(path => $ref_vcfs[0]);
             my $refdir = $ref_file->dir;
-            $ref = "--input-ref $refdir/$chr/$from-${to}_haps.gz $refdir/$chr/$from-${to}_legend.gz $refdir/$chr/$from-${to}_samples";
+            $ref = "--input-ref $refdir/$chr/$from-${to}.hap.gz $refdir/$chr/$from-${to}.legend.gz $refdir/$chr/$from-${to}.samples";
             $ref .= " --include-snp $refdir/$chr/$from-$to.ref.sites";
             $self->throw("files $refdir/$chr/$from-${to}* missing") unless -e "$refdir/$chr/$from-$to.ref.sites";
         }
         
-        #my $min_ac = $min_AC ? "-m $min_AC" : '';
-        my $cmd_line = "$vcf_gensample -m $min_AC -r $chr:$from-$to -o $outdir/01.vcf_to_shapeit.$from-$to $in_vcf";
+        my $cmd_line = "$bcftools convert -r $chr:$from-$to --gensample $outdir/01.vcf_to_shapeit.$from-$to $in_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-${to}_haps.gz $outdir/01.vcf_to_shapeit.$from-${to}_samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
+        my $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
         $out_file->disconnect;
         my $failed = system($shapeit_cmd);
         # if shapeit fails in first attempt due to strand mismatch, then rerun with --exclude-snp option
         if ($failed) {
             if (-e "$outdir/02.shapeit.$from-$to.snp.strand.exclude") {
                 $ref .= " --exclude-snp $outdir/02.shapeit.$from-$to.snp.strand.exclude";
-                $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-${to}_haps.gz $outdir/01.vcf_to_shapeit.$from-${to}_samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
+                $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
                 $out_file->disconnect;
                 system($shapeit_cmd) && $self->throw("failed to run [$shapeit_cmd]");
             }
@@ -261,7 +248,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             }
         }
         
-        $cmd_line = "$vcf_gensample -r $chr:$from-$to -a $outdir/02.shapeit.$from-$to $in_vcf | bgzip -c > $out_vcf && $tabix -p vcf $out_vcf";
+        $cmd_line = "$bcftools convert --hapsample2vcf $outdir/02.shapeit.$from-$to.haps.gz,$outdir/02.shapeit.$from-$to.samples -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
