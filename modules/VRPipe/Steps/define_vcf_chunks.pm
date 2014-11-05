@@ -70,11 +70,6 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
                 description => 'regions to include (format should follow chr:start-end seperated by comma)',
                 optional    => 1,
             ),
-            min_AC => VRPipe::StepOption->create(
-                description   => 'skip sites with the number of alternate alleles smaller than min_AC',
-                optional      => 0,
-                default_value => 0,
-            ),
             bcftools_exe => VRPipe::StepOption->create(
                 description   => 'path to your bcftools exe',
                 optional      => 1,
@@ -111,7 +106,6 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
             my $regions       = $options->{regions};
             my $bcftools_exe  = $options->{bcftools_exe};
             my $tabix_exe     = $options->{tabix_exe};
-            my $min_AC        = $options->{min_AC};
             
             if ($chunk_by_ref && !defined $ref_vcf) {
                 $self->throw("chunk_by_ref is set to 1 while ref_vcf is not given!");
@@ -124,7 +118,7 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
                 foreach my $region (@regions) {
                     my $bed_file = $self->output_file(output_key => 'bed_files', basename => "$region.bed", type => 'txt');
                     my $bed_path = $bed_file->path;
-                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], in_path => q[$in_file_path], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe], min_AC => q[$min_AC]);";
+                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], in_path => q[$in_file_path], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe]);";
                     my $req      = $self->new_requirements(memory => 1000, time => 1);
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bed_file] });
                 }
@@ -174,13 +168,12 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
         }
     }
     
-    method define_chunks (ClassName|Object $self: Str|File :$outfile!, Str :$in_path!, Str :$region!, Str :$buffer_nsites!, Str :$chunk_nsites!, Str :$max_chr_len!, Str :$bcftools!, Str :$min_AC!) {
+    method define_chunks (ClassName|Object $self: Str|File :$outfile!, Str :$in_path!, Str :$region!, Str :$buffer_nsites!, Str :$chunk_nsites!, Str :$max_chr_len!, Str :$bcftools!) {
         my $tot_sites = $buffer_nsites + $chunk_nsites;
         my (@chunks, @buffer);
         $in_path = $self->expand_chrom($in_path, $region);
-        #my $min_ac = $min_AC ? "-c $min_AC" : '';
         if ($region eq '.') { $region = ''; }
-        my $cmd = "$bcftools view -c $min_AC -g ^miss $in_path $region |";
+        my $cmd = "$bcftools view -g ^miss $in_path $region |";
         open(my $in, $cmd) or $self->throw("$cmd: $!");
         while (my $line = <$in>) {
             if (substr($line, 0, 1) eq '#') { next; }

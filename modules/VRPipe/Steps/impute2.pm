@@ -51,15 +51,15 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                 optional      => 1,
                 default_value => '-Ne 20000 -k 80 -allow_large_regions'
             ),
-            vcf_impute2_exe => VRPipe::StepOption->create(
-                description   => 'path to your vcf-impute2 exe',
+            bcftools_exe => VRPipe::StepOption->create(
+                description   => 'path to your bcftools exe',
                 optional      => 1,
-                default_value => 'vcf-impute2'
+                default_value => 'bcftools'
             ),
-            vcf_impute2_options => VRPipe::StepOption->create(
-                description   => 'options to vcf-impute2, mainly genotype confidence as GT will be used when likelihoods (GL or PL) are not available',
+            vcf_GL_tag => VRPipe::StepOption->create(
+                description   => 'genotype likelihood tag in the VCF (e.g. PL, GL or GT) to be used for imputation',
                 optional      => 1,
-                default_value => '--GT-confidence 1.0'
+                default_value => 'GT'
             ),
             tabix_exe => VRPipe::StepOption->create(
                 description   => 'path to your tabix exe',
@@ -69,11 +69,6 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             ref_vcf => VRPipe::StepOption->create(
                 description => 'path to a reference VCF that will be passed to impute2 via -h and -l options (may contain the string "{CHROM}"). When multiple reference panels are given, the pipeline will run impute2 with the -merge_ref_panels option.',
                 optional    => 1,
-            ),
-            phased_only => VRPipe::StepOption->create(
-                description   => 'include only fully phased sites from the reference panel',
-                optional      => 1,
-                default_value => 0
             ),
             genetic_map => VRPipe::StepOption->create(
                 description   => 'path to your genetic map files (may contain the string "{CHROM}" which will be expanded)',
@@ -105,13 +100,12 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $impute2_exe      = $options->{impute2_exe};
-            my $impute2_opts     = $options->{impute2_options};
-            my $tabix_exe        = $options->{tabix_exe};
-            my $vcf_impute2_exe  = $options->{vcf_impute2_exe};
-            my $phased_only      = $options->{phased_only};
-            my $vcf_impute2_opts = $options->{vcf_impute2_options};
-            my $ref_vcf          = $options->{ref_vcf};
+            my $impute2_exe  = $options->{impute2_exe};
+            my $impute2_opts = $options->{impute2_options};
+            my $tabix_exe    = $options->{tabix_exe};
+            my $bcftools_exe = $options->{bcftools_exe};
+            my $ref_vcf      = $options->{ref_vcf};
+            my $vcf_GL_tag   = $options->{vcf_GL_tag};
             
             if ($impute2_opts =~ /\s-(buffer|m|int|h|l|g|sample_g|o)\s/) {
                 $self->throw("impute2_options should not include --buffer, -m, -h, -l, -g, -int, -o or -sample_g");
@@ -143,8 +137,8 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $sub_dir = $chr;
                     
                     my @outfiles       = ();
-                    my $in_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-${to}.impute_gts.gz", type => 'bin', temporary => 1);
-                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-${to}.impute_samples", type => 'txt', temporary => 1);
+                    my $in_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.gen.gz", type => 'bin', temporary => 1);
+                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.samples", type => 'txt', temporary => 1);
                     
                     my $out_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.gz",        type => 'bin', temporary => 1);
                     my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_samples", type => 'txt', temporary => 1);
@@ -171,7 +165,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $time = int(500 * (1 + ($N_haps - 80) / 80) * (1 + ($Markers - 5000) / 5000)); #seconds
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
-                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], vcf_impute2 => q[$vcf_impute2_exe], vcf_impute2_opts => q[$vcf_impute2_opts], tabix => q[$tabix_exe], gen_map => q[$gen_map], phased_only => q[$phased_only]);";
+                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map], vcf_GL_tag => q[$vcf_GL_tag]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
                 close($fh);
@@ -223,7 +217,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         return $path;
     }
     
-    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$vcf_impute2!, Str :$vcf_impute2_opts!, Str :$tabix!, Str :$gen_map!, Str :$phased_only!) {
+    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$bcftools!, Str :$tabix!, Str :$gen_map!, Str :$vcf_GL_tag!) {
         my @region = @{$chunk};
         my $chr    = $region[0];
         my $from   = $region[1];
@@ -232,8 +226,6 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         my $out_file = VRPipe::File->get(path => $out_vcf);
         my $outdir = $out_file->dir;
         
-        $phased_only = $phased_only ? '-p' : '';
-        
         my $ref   = '';
         my $known = '';
         if ($ref_vcf) {
@@ -241,20 +233,18 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             foreach my $ref_path (@ref_vcfs) {
                 my $ref_file = VRPipe::File->get(path => $ref_path);
                 my $refdir = $ref_file->dir;
-                $ref .= " -h $refdir/$chr/$from-${to}_haps.gz -l $refdir/$chr/$from-${to}_legend.gz";
+                $ref .= " -h $refdir/$chr/$from-${to}.hap.gz -l $refdir/$chr/$from-${to}.legend.gz";
                 $self->throw("files $refdir/$chr/$from-${to}* missing") unless -e "$refdir/$chr/$from-$to.ref.sites";
-                #reference haps/legend files should already exist so we don't use -k option with vcf-impute2
-                #$known .= " -k $ref_path";
             }
             $ref .= " -merge_ref_panels" unless @ref_vcfs == 1;
         }
         
-        my $cmd_line = "$vcf_impute2 -c v2i -r $chr:$from-$to -i $in_vcf $phased_only -l $known -o $outdir/01.vcf_to_impute2.$from-$to $vcf_impute2_opts";
+        my $cmd_line = "$bcftools convert --tag $vcf_GL_tag -r $chr:$from-$to --gensample $outdir/01.vcf_to_impute2.$from-$to $in_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $out         = "$outdir/02.impute2.$from-$to";
-        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref -g $outdir/01.vcf_to_impute2.$from-${to}.impute_gts.gz -sample_g $outdir/01.vcf_to_impute2.$from-${to}.impute_samples -o $out >> $out.log";
+        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref -g $outdir/01.vcf_to_impute2.$from-$to.gen.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.samples -o $out >> $out.log";
         $out_file->disconnect;
         system($impute2_cmd) && $self->throw("failed to run [$impute2_cmd]");
         
@@ -269,7 +259,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         $fh->close;
         if (@warns > @info * 0.1) { $self->throw("Too many warnings, better to check this: ${out}_warnings"); }
         
-        $cmd_line = "$vcf_impute2 -c i2v -r $chr:$from-$to -i $in_vcf -o $out | bgzip -c > $out_vcf && $tabix -p vcf $out_vcf";
+        $cmd_line = "$bcftools convert --gensample2vcf $out.gz,${out}_samples -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         

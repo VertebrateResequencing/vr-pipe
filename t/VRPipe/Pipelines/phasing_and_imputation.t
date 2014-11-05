@@ -8,7 +8,7 @@ BEGIN {
     use Test::Most tests => 6;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        required_exe => [qw(vcf-gensample bcftools tabix bgzip)]
+        required_exe => [qw(bcftools tabix bgzip)]
     );
     use TestPipelines;
 }
@@ -64,7 +64,7 @@ SKIP: {
 
 SKIP: {
     my $num_tests = 3;
-    skip "impute2 test disabled without impute2 and vcf-impute2 in your path", $num_tests unless can_execute('impute2') && can_execute('vcf-impute2');
+    skip "impute2 test disabled without impute2 in your path", $num_tests unless can_execute('impute2');
     
     my $output_dir = get_output_dir('impute2');
     # check pipeline has correct steps
