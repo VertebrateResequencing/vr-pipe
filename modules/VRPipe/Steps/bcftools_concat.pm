@@ -103,8 +103,8 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 my %seen;
                 my @meta_chrs = map  { $_->metadata->{chrom} } @{ $self->inputs->{vcf_files} };
                 my @chrs      = grep { !$seen{$_}++ } @meta_chrs;
-                my @vcf_files = ();
                 foreach my $chr (@chrs) {
+                    my @vcf_files = ();
                     foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                         if ($vcf_file->metadata->{chrom} eq $chr) {
                             push(@vcf_files, $vcf_file);
