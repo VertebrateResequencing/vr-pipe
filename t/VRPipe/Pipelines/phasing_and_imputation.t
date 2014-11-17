@@ -56,7 +56,7 @@ SKIP: {
     my @final_files;
     foreach my $element (@{ get_elements($shapeit_setup->datasource) }) {
         my @output_dirs = output_subdirs($element->id, $shapeit_setup->id);
-        push(@final_files, file(@output_dirs, '4_bcftools_concat', 'merged.chr20.vcf.gz.csi'));
+        push(@final_files, file(@output_dirs, '4_bcftools_concat', 'merged.chr20.vcf.gz.tbi'));
     }
     ok handle_pipeline(@final_files), 'shapeit pipeline ran ok';
 
@@ -96,7 +96,7 @@ SKIP: {
     my @final_files;
     foreach my $element (@{ get_elements($impute2_setup->datasource) }) {
         my @output_dirs = output_subdirs($element->id, $impute2_setup->id);
-        push(@final_files, file(@output_dirs, '4_bcftools_concat', 'merged.vcf.gz.csi'));
+        push(@final_files, file(@output_dirs, '4_bcftools_concat', 'merged.vcf.gz.tbi'));
     }
     ok handle_pipeline(@final_files), 'impute2 pipeline ran ok';
 
