@@ -135,6 +135,9 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $out_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.haps.gz", type => 'bin', temporary => 1);
                     my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.samples", type => 'txt', temporary => 1);
                     
+                    my $int_bcf_file  = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf",     type => 'bin', temporary => 1);
+                    my $int_bcf_index = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf.csi", type => 'bin', temporary => 1);
+                    
                     my $log_file       = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.shapeit.$from-$to.log",                type => 'txt');
                     my $snp_mm_file    = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.shapeit.$from-$to.snp.mm",             type => 'txt');
                     my $ind_mm_file    = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.shapeit.$from-$to.ind.mm",             type => 'txt');
@@ -155,7 +158,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $time = int(200 * (1 + 0.5 * ($N_haps - 100) / 100) * (1 + 4 * ($samples - 100) / 100) * (1 + 0.5 * ($Markers - 5000) / 5000)); #seconds
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
-                    my @outfiles = ($in_haps_file, $in_sample_file, $out_haps_file, $out_sample_file, $log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
+                    my @outfiles = ($in_haps_file, $in_sample_file, $out_haps_file, $out_sample_file, $int_bcf_file, $int_bcf_index, $log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
                     my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 
@@ -232,14 +235,15 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
+        my $out         = "$outdir/02.shapeit.$from-$to";
+        my $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $out.haps.gz $out.samples --output-log $out.log";
         $out_file->disconnect;
         my $failed = system($shapeit_cmd);
         # if shapeit fails in first attempt due to strand mismatch, then rerun with --exclude-snp option
         if ($failed) {
-            if (-e "$outdir/02.shapeit.$from-$to.snp.strand.exclude") {
-                $ref .= " --exclude-snp $outdir/02.shapeit.$from-$to.snp.strand.exclude";
-                $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $outdir/02.shapeit.$from-$to.haps.gz $outdir/02.shapeit.$from-$to.samples --output-log $outdir/02.shapeit.$from-$to.log";
+            if (-e "$out.snp.strand.exclude") {
+                $ref .= " --exclude-snp $out.snp.strand.exclude";
+                $shapeit_cmd = "$shapeit $shapeit_opts $ref --input-map $gen_map --input-gen $outdir/01.vcf_to_shapeit.$from-$to.gen.gz $outdir/01.vcf_to_shapeit.$from-$to.samples --output-max $out.haps.gz $out.samples --output-log $out.log";
                 $out_file->disconnect;
                 system($shapeit_cmd) && $self->throw("failed to run [$shapeit_cmd]");
             }
@@ -248,7 +252,11 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             }
         }
         
-        $cmd_line = "$bcftools convert --hapsample2vcf $outdir/02.shapeit.$from-$to.haps.gz,$outdir/02.shapeit.$from-$to.samples -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
+        $cmd_line = "$bcftools convert --hapsample2vcf $out.haps.gz,$out.samples -Ob -o $out.bcf && $bcftools index $out.bcf";
+        $out_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $cmd_line = "$bcftools annotate -r $chr:$from-$to -c -FMT/GT -a $out.bcf $in_vcf -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         

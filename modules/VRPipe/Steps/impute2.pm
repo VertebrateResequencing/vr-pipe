@@ -143,6 +143,11 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $out_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.gz",        type => 'bin', temporary => 1);
                     my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_samples", type => 'txt', temporary => 1);
                     
+                    my $int_bcf_file     = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf",            type => 'bin', temporary => 1);
+                    my $int_bcf_index    = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf.csi",        type => 'bin', temporary => 1);
+                    my $int_concat_file  = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf",     type => 'bin', temporary => 1);
+                    my $int_concat_index = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf.csi", type => 'bin', temporary => 1);
+                    
                     my $log_file         = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.impute2.$from-$to.log",              type => 'txt');
                     my $warnings_file    = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.impute2.$from-${to}_warnings",       type => 'txt');
                     my $summary_file     = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.impute2.$from-${to}_summary",        type => 'txt');
@@ -157,7 +162,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $gen_map = $self->expand_chrom($options->{genetic_map}, $chr);
                     my $ref_path = $self->expand_chrom($ref_vcf, $chr);
                     
-                    push(@outfiles, ($in_gt_file, $in_sample_file, $out_gt_file, $out_sample_file, $log_file, $warnings_file, $summary_file, $info_file, $sample_info_file, $out_vcf, $out_tbi));
+                    push(@outfiles, ($in_gt_file, $in_sample_file, $out_gt_file, $out_sample_file, $int_bcf_file, $int_bcf_index, $int_concat_file, $int_concat_index, $log_file, $warnings_file, $summary_file, $info_file, $sample_info_file, $out_vcf, $out_tbi));
                     
                     ## Time was observed to scale linearly with number of markers (M*2 => T*2) and number of template haplotypes (K*2 => T*2), even though relationship with K is known to be superlinear or quadratic for large K. We estimate the time given it takes 500 sd to run with M=5000 and K=80
                     my $Markers = $chunk[3];
@@ -244,7 +249,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $out         = "$outdir/02.impute2.$from-$to";
-        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref -g $outdir/01.vcf_to_impute2.$from-$to.gen.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.samples -o $out >> $out.log";
+        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref -g $outdir/01.vcf_to_impute2.$from-$to.gen.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.samples -o $out > $out.log";
         $out_file->disconnect;
         system($impute2_cmd) && $self->throw("failed to run [$impute2_cmd]");
         
@@ -259,7 +264,15 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         $fh->close;
         if (@warns > @info * 0.1) { $self->throw("Too many warnings, better to check this: ${out}_warnings"); }
         
-        $cmd_line = "$bcftools convert --gensample2vcf $out.gz,${out}_samples -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
+        $cmd_line = "$bcftools convert --gensample2vcf $out.gz,${out}_samples -Ob -o $out.bcf && $bcftools index $out.bcf";
+        $out_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $cmd_line = "$bcftools concat -r $chr:$from-$to -aD $out.bcf $in_vcf -Ob -o $out.concat.bcf && $bcftools index $out.concat.bcf";
+        $out_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $cmd_line = "$bcftools annotate -r $chr:$from-$to -c ID,QUAL,FILTER,INFO,^FMT/GT,^FMT/GP -a $in_vcf $out.concat.bcf -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
