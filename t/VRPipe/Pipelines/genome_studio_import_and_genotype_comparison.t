@@ -6,26 +6,13 @@ use File::Copy;
 use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 31;
+    use Test::Most tests => 30;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip bcftools)]
     );
     use TestPipelines;
-    
-    use_ok('VRTrack::Factory');
 }
-
-# create an empty vrtrack db
-my %cd = VRTrack::Factory->connection_details('rw');
-open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
-print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-foreach my $sql (VRTrack::VRTrack->schema()) {
-    print $mysqlfh $sql;
-}
-close($mysqlfh);
 
 my $output_dir = get_output_dir('genome_studio');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
@@ -42,22 +29,22 @@ my $ds = VRPipe::DataSource->create(
     }
 );
 
-my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_irods_and_download_files');
+my $pipeline = VRPipe::Pipeline->create(name => 'irods_analysis_files_download');
 
 my $setup1 = VRPipe::PipelineSetup->create(
-    name        => 'gtc populate',
+    name        => 'gtc import',
     datasource  => $ds,
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        vrtrack_db                 => $ENV{VRPIPE_VRTRACK_TESTDB},
         vrlane_storage_dir         => $irods_dir,
         irods_download_input_files => 1
     }
 );
 
 my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/coreex_hips_20140620.fcr.txt.gz'));
-ok handle_pipeline(@analysis_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok and got the analysis files';
+warn "hello a\n";
+ok handle_pipeline(@analysis_files), 'irods_analysis_files_download pipeline ran ok and got the analysis files';
 $setup1->active(0);
 $setup1->update;
 
@@ -83,7 +70,7 @@ my $split_convert_setup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
         method  => 'all',
-        source  => 'gtc populate[2:input_files]',
+        source  => 'gtc import[1:input_files]',
         options => {}
     ),
     output_root => $output_dir,
@@ -95,7 +82,7 @@ my $split_convert_setup = VRPipe::PipelineSetup->create(
     }
 );
 
-my @samples    = qw(HPSI1013i-garx_2_QC1Hip-2193 HPSI1013i-garx_QC1Hip-2191 HPSI1013i-funy_1_QC1Hip-2196 HPSI1013i-garx_1_QC1Hip-2192 HPSI0813i-uaqe_QC1Hip-2188 HPSI1013i-funy_QC1Hip-2195 HPSI0813i-uaqe_2_QC1Hip-2190 HPSI0613i-dium_3_QC1Hip-2224 HPSI1013i-funy_2_QC1Hip-2197 HPSI0813i-uaqe_1_QC1Hip-2189 HPSI1013i-garx_3_QC1Hip-2194 HPSI1013i-funy_3_QC1Hip-2198);
+my @samples    = qw(HPSI1013i-garx_2_QC1Hip-2193 HPSI1013pf-garx_QC1Hip-2191 HPSI1013i-funy_1_QC1Hip-2196 HPSI1013i-garx_1_QC1Hip-2192 HPSI0813pf-uaqe_QC1Hip-2188 HPSI1013pf-funy_QC1Hip-2195 HPSI0813i-uaqe_2_QC1Hip-2190 HPSI0613i-dium_3_QC1Hip-2224 HPSI1013i-funy_2_QC1Hip-2197 HPSI0813i-uaqe_1_QC1Hip-2189 HPSI1013i-garx_3_QC1Hip-2194 HPSI1013i-funy_3_QC1Hip-2198);
 my $element_id = 12;
 my @genotype_files;
 my @vcf_files;
@@ -141,7 +128,7 @@ is_deeply $meta,
     infinium_sample         => '344265_F04_QC1Hip-2193',
     infinium_well           => 'F04',
     irods_analysis_files    => [qw(/archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/coreex_hips_20140620.fcr.txt.gz  /archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/genotyping.db)],
-    irods_local_storage_dir => '/lustre/scratch105/vrpipe_testing/ym3/pipelines_test_output/genome_studio/irods_import',
+    irods_local_storage_dir => $irods_dir,
     irods_path              => '/archive/GAPI/gen/infinium/00/d2/cd/9439653037_R06C01.gtc',
     md5                     => '00d2cd3e5df1fd5fc73476458a75107b',
     public_name             => 'HPSI1013i-garx_2',
@@ -204,7 +191,7 @@ foreach my $element_id (25 .. 28) {
         $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0613i-dium_3_QC1Hip-2224'];
     }
     elsif ($group eq '750c3684-c29d-4ead-b8fb-3d9ded319b83') {
-        $expected{genotype_maximum_deviation} = ['=>', 1, 'HPSI0813i-uaqe_1_QC1Hip-2189'];
+        $expected{genotype_maximum_deviation} = ['>=', 1, 'HPSI0813i-uaqe_1_QC1Hip-2189'];
     }
     elsif ($group eq 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86') {
         $expected{genotype_maximum_deviation} = ['>=', 10, 'HPSI1013i-garx_1_QC1Hip-2192'];
@@ -250,7 +237,7 @@ my $fofn_ds = VRPipe::DataSource->create(
 # also uses files from the genome studio import
 SKIP: {
     my $num_tests = 4;
-    skip "hipsci cnv calling tests disabled without plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('bcftools cnv') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
+    skip "hipsci cnv calling tests disabled without plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('bcftools') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
     
     $output_dir = get_output_dir('polysomy_cnv_caller');
     
@@ -284,7 +271,7 @@ SKIP: {
     ok handle_pipeline(@merged_vcfs, @summary_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
     
     my $cnv_vrfile = VRPipe::File->get(path => $summary_files[0]);
-    is $cnv_vrfile->meta_value('sample_control'), 'HPSI1013i-funy_QC1Hip-2195', 'sample_control metadata exists on the file';
+    is $cnv_vrfile->meta_value('sample_control'), 'HPSI1013pf-funy_QC1Hip-2195', 'sample_control metadata exists on the file';
 }
 
 # we'll also take the opportunity to test the loh caller pipeline, since that
@@ -334,7 +321,7 @@ SKIP: {
     is $created_empty, 1, 'it also produced empty result files for the good cohorts';
     
     my $loh_vrfile = VRPipe::File->get(path => $loh_files_with_results[0]);
-    is $loh_vrfile->meta_value('sample_control'), 'HPSI1013i-garx_QC1Hip-2191', 'sample_control metadata exists on the file';
+    is $loh_vrfile->meta_value('sample_control'), 'HPSI1013pf-garx_QC1Hip-2191', 'sample_control metadata exists on the file';
 }
 
 finish;
