@@ -160,6 +160,7 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
         my $actual_recrods = $out_file->num_records;
         
         if ($actual_recrods == $expected_records) {
+            $self->relate_input_to_output($in_path, 'loh_calls', $out_path);
             return 1;
         }
         else {
