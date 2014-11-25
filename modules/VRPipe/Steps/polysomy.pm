@@ -120,9 +120,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     
                     my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
-                
                 }
-            
             }
         };
     }
@@ -171,6 +169,12 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
             my $chrs_str = $query . ":" . join(",", @chrs);
             $vcf_file->merge_metadata({ polysomy_chrs => $chrs_str });
         }
+        
+        my $dist_path = $dist_file->path->stringify;
+        $self->relate_input_to_output($vcf_file->path->stringify, 'polysomy_dist', $dist_path);
+        my $plot_path = $dist_path;
+        $plot_path =~ s/\.dat$/.py/;
+        $self->relate_input_to_output($vcf_file->path->stringify, 'polysomy_plot', $plot_path);
         
         return 1;
     }

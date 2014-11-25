@@ -140,11 +140,14 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
                 
                 #$self->output_file(basename => $basename, type => 'vcf', temporary => 1);
                 
-                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $meta)->path;
-                $self->output_file(output_key => 'tbi_files', basename => $basename . '.tbi', type => 'tbi');
+                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename,          type => 'vcf', metadata => $meta)->path;
+                my $tbi_file_path = $self->output_file(output_key => 'tbi_files', basename => $basename . '.tbi', type => 'tbi')->path;
                 my $fcr_file_path = $fcr_file->path;
                 
                 $self->dispatch(["cat $fcr_file_path | $fcr_to_vcf -b $bcftools -a $map_file$s -o $outdir", $req]);
+                
+                $self->relate_input_to_output($fcr_file_path->stringify, 'converted', $vcf_file_path->stringify);
+                $self->relate_input_to_output($vcf_file_path->stringify, 'indexed',   $tbi_file_path->stringify);
             }
         };
     }

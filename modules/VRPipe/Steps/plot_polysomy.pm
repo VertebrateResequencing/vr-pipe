@@ -71,19 +71,20 @@ class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
                 )
             );
             
+            my $merged_meta = $self->combined_metadata($self->inputs->{dist_files});
+            my $png_file_path = $self->output_file(output_key => 'png_file', basename => 'copy_numbers.png', type => 'png', metadata => $merged_meta)->path->stringify;
+            
             my @args;
             foreach my $file (@{ $self->inputs->{dist_files} }) {
                 my $dist  = $file->metadata;
                 my $query = $dist->{sample};
                 push(@args, "$query\@" . $file->dir);
+                
+                $self->relate_input_to_output($file->path->stringify, 'copy_number_plot', $png_file_path);
             }
             
-            my $vcf = $self->inputs->{vcf_files};
-            
-            my $merged_meta = $self->combined_metadata($self->inputs->{dist_files});
-            my $png_file    = $self->output_file(output_key => 'png_file', basename => 'copy_numbers.png', type => 'png', metadata => $merged_meta);
-            my $req         = $self->new_requirements(memory => 1000, time => 1);
-            my $cmd_line    = "$plot_polysomy_exe -o " . $png_file->path . " @args";
+            my $req = $self->new_requirements(memory => 1000, time => 1);
+            my $cmd_line = "$plot_polysomy_exe -o $png_file_path @args";
             $self->dispatch([$cmd_line, $req]);
         };
     }

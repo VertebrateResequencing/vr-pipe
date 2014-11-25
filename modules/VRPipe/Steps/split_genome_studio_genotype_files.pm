@@ -105,6 +105,9 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
                 my $header_cmd            = $reheader_penncnv ? "$zgrep_exe $header_regex $reheader_penncnv > $sample_genotype_file " : "$this_grep_exe $header_regex $multi_sample_fcr_file > $sample_genotype_file ";
                 my $cmd_line              = $header_cmd . qq[&& $this_grep_exe "$fcr_sample\\s" $multi_sample_fcr_file >> $sample_genotype_file];
                 $self->dispatch([$cmd_line, $req]);
+                
+                $self->relate_input_to_output($multi_sample_fcr_file,     'grepped',    $sample_genotype_file->stringify);
+                $self->relate_input_to_output($gtc_file->path->stringify, 'instigated', $sample_genotype_file->stringify);
             }
         };
     }

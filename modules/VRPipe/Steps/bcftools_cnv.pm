@@ -109,7 +109,8 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 }
                 close($fh);
                 
-                my $meta = $vcf->metadata;
+                my $meta     = $vcf->metadata;
+                my $vcf_path = $vcf->path->stringify;
                 
                 my $control = $meta->{$cmk};
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
@@ -132,6 +133,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     foreach my $chr (@chroms) {
                         my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "plot.$control.$query.chr$chr.png", type => 'png', metadata => $meta);
                         push(@outfiles, $png_file);
+                        $self->relate_input_to_output($vcf_path, 'cnv_plot', $png_file->path->stringify, { chr => $chr, control_sample => $control, query_sample => $query });
                     }
                     
                     foreach my $sample (($control, $query)) {
@@ -140,13 +142,12 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                         $self->output_file(sub_dir => $sub_dir, basename => "cn.$sample.tab",      type => 'txt', temporary => 1);
                     }
                     
-                    my $vcf_path     = $vcf->path;
                     my $summary_path = $summary_file->path;
                     my $plot_path    = $plot_file->path;
+                    $self->relate_input_to_output($vcf_path, 'cnv_summary', $summary_path->stringify);
                     
                     my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
-                
                 }
             }
         };
@@ -220,7 +221,6 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         
         return 1;
     }
-
 }
 
 1;

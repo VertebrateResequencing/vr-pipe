@@ -77,15 +77,17 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
                 )
             );
             
+            my $merged_meta = $self->combined_metadata($self->inputs->{summary_files});
+            my $cmp_file_path = $self->output_file(output_key => 'cmp_file', basename => 'combined_cnvs.txt', type => 'txt', metadata => $merged_meta)->path->stringify;
+            
             my @dirs;
             foreach my $file (@{ $self->inputs->{summary_files} }) {
                 push(@dirs, $file->dir);
+                $self->relate_input_to_output($file->path->stringify, 'combined', $cmp_file_path);
             }
-            my $merged_meta = $self->combined_metadata($self->inputs->{summary_files});
-            my $cmp_file = $self->output_file(output_key => 'cmp_file', basename => 'combined_cnvs.txt', type => 'txt', metadata => $merged_meta);
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
-            my $cmd_line = "$cmp_cnvs_exe $cmp_cnvs_opts @dirs > " . $cmp_file->path;
+            my $cmd_line = "$cmp_cnvs_exe $cmp_cnvs_opts @dirs > $cmp_file_path";
             $self->dispatch([$cmd_line, $req]);
         };
     }
@@ -113,7 +115,6 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
     method max_simultaneous {
         return 0;            # meaning unlimited
     }
-
 }
 
 1;
