@@ -79,22 +79,58 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
             case 'donor_qc':
                 var donorGenderResults = subargs['donorGenderResults'];
                 var donorInternalDiscordance = subargs['donorInternalDiscordance'];
+                var donorCopyNumberSummary = subargs['donorCopyNumberSummary'];
+                var donorAberrantRegions = subargs['donorAberrantRegions'];
+                var donorAberrantPolysomy = subargs['donorAberrantPolysomy'];
+                var donorCopyNumberPlot = subargs['donorCopyNumberPlot'];
                 donorGenderResults.removeAll();
                 donorInternalDiscordance.removeAll();
+                donorCopyNumberSummary.removeAll();
+                donorAberrantRegions.removeAll();
+                donorAberrantPolysomy.removeAll();
+                donorCopyNumberPlot(undefined);
                 var genderArr = [];
                 var discArr = [];
+                var cnsArr = [];
+                var arArr = [];
+                var apArr = [];
+                
                 for (var i = 0; i < data.length; i++) {
                     var result = data[i];
                     var type = result['type'];
-                    if (type == 'gender') {
-                        genderArr.push(result);
-                    }
-                    else if (type == 'discordance') {
-                        discArr.push(result);
+                    delete result['type'];
+                    switch (type) {
+                        case 'gender':
+                            genderArr.push(result);
+                            break;
+                        case 'discordance':
+                            discArr.push(result);
+                            break;
+                        case 'copy_number_summary':
+                            cnsArr.push(result);
+                            break;
+                        case 'aberrant_regions':
+                            arArr.push(result);
+                            break;
+                        case 'aberrant_polysomy':
+                            for (var key in result) {
+                                if (key != 'chr' && result.hasOwnProperty(key)) {
+                                    result[key] = '/file' + result[key];
+                                }
+                            }
+                            apArr.push(result);
+                            break;
+                        case 'copy_number_plot':
+                            donorCopyNumberPlot('/file' + result['plot']);
+                            break;
                     }
                 }
+                
                 donorGenderResults(genderArr);
                 donorInternalDiscordance(discArr);
+                donorCopyNumberSummary(cnsArr);
+                donorAberrantRegions(arArr);
+                donorAberrantPolysomy(apArr);
                 break;
             
             case 'sample_discordance':

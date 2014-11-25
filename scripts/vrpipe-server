@@ -682,7 +682,7 @@ sub start_server {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env, max_age => 525200);
         },
-        '/css/(.+\.css)$' => sub {
+        '/css/(.+\.(?:css|png|gif))$' => sub {
             my ($env, $basename) = @_;
             $backend->psgi_file_response(file($dist_dir, 'css', $basename)->stringify, $env, max_age => 525200);
         },
@@ -1692,7 +1692,10 @@ sub qc {
             # get the gender info for all samples from this donor
             my $g_results = $vrtrack->donor_gender_results($donor);
             
-            $data = [@$d_results, @$g_results];
+            # get the copy number/polysomy results for this donor
+            my $c_results = $vrtrack->donor_cnv_results($donor);
+            
+            $data = [@$d_results, @$g_results, @$c_results];
         }
         else {
             $data = { errors => ["donor node id must be supplied to donor_qc()"] };
