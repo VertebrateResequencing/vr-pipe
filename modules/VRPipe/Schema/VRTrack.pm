@@ -41,6 +41,7 @@ use VRPipe::Base;
 
 class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     use DateTime;
+    use Sort::Naturally;
     my $vrpipe_schema;
     
     method schema_definitions {
@@ -564,6 +565,89 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         @results = sort { ($b->{discordance} < 3 && $b->{num_of_sites} > 15 ? 1 : 0) <=> ($a->{discordance} < 3 && $a->{num_of_sites} > 15 ? 1 : 0) || $b->{num_of_sites} - $b->{discordance} <=> $a->{num_of_sites} - $a->{discordance} || $a->{sample_study} <=> $b->{sample_study} || $b->{sample_control} <=> $a->{sample_control} || $a->{sample_public_name} cmp $b->{sample_public_name} } @results;
         
         return \@results;
+    }
+    
+    method donor_cnv_results (Int $donor) {
+        # the combine_bcftools_cnvs step generates a text file but doesn't
+        # parse it and store the results on nodes attached to the sample,
+        # because we wanted the flexibility of the file format changing and
+        # being able to display anything in a table.
+        # Instead we just parse the file just-in-time here when someone wants
+        # the results.
+        # Also get the cnv plots and copy number plot.
+        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf) WHERE id(donor) = {donor}.id WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) return distinct combined_cnvs, cnv_plots, copy_number_plot";
+        my $graph      = $self->graph;
+        my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        my %cnv_plot_paths;
+        my $combined_cnvs_path;
+        my $copy_number_plot_path;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            my $basename = $graph->node_property($node, 'basename');
+            my $path     = $graph->node_property($node, 'path');
+            next unless -s $path;
+            if ($basename eq 'combined_cnvs.txt') {
+                $combined_cnvs_path = $path;
+            }
+            elsif ($basename eq 'copy_numbers.png') {
+                $copy_number_plot_path = $path;
+            }
+            else {
+                my $chr    = $graph->node_property($node, 'chr');
+                my $sample = $graph->node_property($node, 'query_sample');
+                $cnv_plot_paths{$chr}->{$sample} = $path;
+            }
+        }
+        
+        # parse $combined_cnvs_path
+        if (open(my $ifh, '<', $combined_cnvs_path)) {
+            my (@samples, %results, %done_chrs, @results);
+            while (<$ifh>) {
+                next if /^#/;
+                chomp;
+                my @cols = split;
+                if ($cols[0] eq 'SM') {
+                    @samples = @cols[1 .. $#cols];
+                }
+                elsif ($cols[0] eq 'RG') {
+                    my %cn;
+                    my $chr = $cols[1];
+                    foreach my $i (7 .. $#cols) {
+                        my $sample = $samples[$i - 6];
+                        $cn{"$sample CN"} = $cols[$i];
+                        $cn{"$sample Graph"} = $cnv_plot_paths{$chr}->{$sample} if $cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample};
+                    }
+                    push(@results, { type => 'aberrant_regions', chr => $chr, start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], %cn });
+                    $done_chrs{$chr} = 1;
+                }
+                else {
+                    foreach my $i (1 .. $#cols) {
+                        $results{ $samples[$i - 1] }->{ $cols[0] } = $cols[$i];
+                    }
+                }
+            }
+            close($ifh);
+            
+            foreach my $chr (keys %done_chrs) {
+                delete $cnv_plot_paths{$chr};
+            }
+            foreach my $chr (nsort(keys %cnv_plot_paths)) {
+                my $s_hash = $cnv_plot_paths{$chr};
+                my %plots;
+                foreach my $sample (@samples) {
+                    $plots{$sample} = $s_hash->{$sample} if $s_hash->{$sample};
+                }
+                push(@results, { type => 'aberrant_polysomy', chr => $chr, %plots });
+            }
+            
+            while (my ($sample, $data) = each %results) {
+                push(@results, { type => 'copy_number_summary', sample => $sample, %$data });
+            }
+            
+            push(@results, { type => 'copy_number_plot', plot => $copy_number_plot_path });
+            
+            return \@results;
+        }
     }
 }
 
