@@ -62,6 +62,11 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 description => 'after vcf-concat, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
                 optional    => 1
             ),
+            tabix_exe => VRPipe::StepOption->create(
+                description   => 'path to your tabix exe',
+                optional      => 1,
+                default_value => 'tabix'
+            ),
         };
     }
     
@@ -84,6 +89,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
         return sub {
             my $self          = shift;
             my $options       = $self->options;
+            my $tabix_exe     = $options->{tabix_exe};
             my $bcftools_exe  = $options->{bcftools_exe};
             my $bcftools_opts = $options->{bcftools_concat_opts};
             my $sites_only    = $options->{concat_sites_only};
@@ -103,8 +109,8 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 my %seen;
                 my @meta_chrs = map  { $_->metadata->{chrom} } @{ $self->inputs->{vcf_files} };
                 my @chrs      = grep { !$seen{$_}++ } @meta_chrs;
-                my @vcf_files = ();
                 foreach my $chr (@chrs) {
+                    my @vcf_files = ();
                     foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                         if ($vcf_file->metadata->{chrom} eq $chr) {
                             push(@vcf_files, $vcf_file);
@@ -115,10 +121,10 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                     $merge_list->create_fofn(\@sorted_vcf_files);
                     my $concat_meta     = $self->common_metadata(\@vcf_files);
                     my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.chr$chr.vcf.gz", type => 'vcf', metadata => $concat_meta);
-                    my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.chr$chr.vcf.gz.csi", type => 'bin');
+                    my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.chr$chr.vcf.gz.tbi", type => 'bin');
                     my $merge_list_path = $merge_list->path;
                     my $concat_vcf_path = $concat_vcf->path;
-                    my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index $concat_vcf_path];
+                    my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $tabix_exe -f -p vcf $concat_vcf_path];
                     $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list, $vcf_index] }]);
                 }
             }
@@ -128,10 +134,10 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 $merge_list->create_fofn(\@sorted_vcf_files);
                 my $concat_meta     = $self->common_metadata($self->inputs->{vcf_files});
                 my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
-                my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.csi", type => 'bin');
+                my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.tbi", type => 'bin');
                 my $merge_list_path = $merge_list->path;
                 my $concat_vcf_path = $concat_vcf->path;
-                my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index $concat_vcf_path];
+                my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $tabix_exe -f -p vcf $concat_vcf_path];
                 $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list, $vcf_index] }]);
             }
         
