@@ -22,9 +22,8 @@ my $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'archive',
     options => {
-        file_query      => q[study_id = 2624 and type = gtc and beadchip = 9439653037],
-        local_root_dir  => $irods_dir,
-        update_interval => 99999999
+        file_query     => q[study_id = 2624 and type = gtc and beadchip = 9439653037],
+        local_root_dir => $irods_dir
     }
 );
 

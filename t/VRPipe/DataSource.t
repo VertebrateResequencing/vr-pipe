@@ -761,8 +761,9 @@ SKIP: {
         method  => 'all',
         source  => 'uk10k',
         options => {
-            file_query     => q[study_id = 2623],
-            local_root_dir => $output_root
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 5
         }
       ),
       'could create another irods datasource';

@@ -94,9 +94,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # checksum
         my $im              = VRPipe::Persistent::InMemory->new;
         my $options         = $self->options;
-        my $update_interval = $options->{update_interval} || $VRPipe::Persistent::InMemory::deployment eq 'production' ? 1440 : 0; # in mins
-        $update_interval *= 60;                                                                                                    # in seconds
-        $update_interval ||= 5;                                                                                                    # for testing
+        my $update_interval = $options->{update_interval} || $VRPipe::Persistent::InMemory::deployment eq 'production' ? 1440 : 999999; # in mins
+        $update_interval *= 60;                                                                                                         # in seconds
         my $lock_key         = 'irods_datasource.' . $self->_datasource_id;
         my $locked           = $im->lock($lock_key, unlock_after => $update_interval);
         my $current_checksum = $self->_changed_marker;
