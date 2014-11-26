@@ -410,7 +410,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         unless (defined $nodes{Sample}) {
-            $self->throw("donor node id $donor had no samples; is it really the node id of a donor?");
+            return;
         }
         
         my (%sample_meta, %studies);
@@ -605,7 +605,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         # parse $combined_cnvs_path
-        if (open(my $ifh, '<', $combined_cnvs_path)) {
+        if ($combined_cnvs_path && open(my $ifh, '<', $combined_cnvs_path)) {
             my (@samples, %results, %done_chrs, @results);
             while (<$ifh>) {
                 next if /^#/;
@@ -663,6 +663,46 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             
             return \@results;
         }
+    }
+    
+    method donor_pluritest_results (Int $donor) {
+        # the pluritest_plot_gene_expression step generates a text file but
+        # doesn't parse it and store the results on nodes attached to the
+        # sample, because we wanted the flexibility of the file format changing
+        # and being able to display anything in a table. Instead we just parse
+        # the file just-in-time here when someone wants the results. Also get
+        # the pluritest plots.
+        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat OPTIONAL MATCH (reformat)-[:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[:pluritest_summary]->(summary) return distinct plots, summary";
+        my $graph      = $self->graph;
+        my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        my @results;
+        my $plu_path;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            my $basename = $graph->node_property($node, 'basename');
+            my $path     = $graph->node_property($node, 'path');
+            next unless -s $path;
+            if ($basename eq 'pluritest.csv') {
+                $plu_path = $path;
+            }
+            else {
+                push(@results, { type => 'pluritest_plot', path => $path });
+            }
+        }
+        @results = sort { ncmp($a->{path}, $b->{path}) } @results;
+        
+        # parse $plu_path
+        if ($plu_path && open(my $ifh, '<', $plu_path)) {
+            <$ifh>; # header line
+            while (<$ifh>) {
+                chomp;
+                my ($sample, $raw, $logitp, $novelty, $nov_logitp, $rmsd) = split(/,/, $_);
+                push(@results, { type => 'pluritest_summary', sample => $sample, pluri_raw => $raw, pluri_logit_p => $logitp, novelty => $novelty, novelty_logit_p => $nov_logitp, rmsd => $rmsd });
+            }
+            close($ifh);
+        }
+        
+        return \@results if @results;
     }
 }
 

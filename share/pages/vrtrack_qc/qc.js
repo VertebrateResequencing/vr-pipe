@@ -84,6 +84,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var donorAberrantPolysomy = subargs['donorAberrantPolysomy'];
                 var donorCopyNumberPlot = subargs['donorCopyNumberPlot'];
                 var donorLOHCalls = subargs['donorLOHCalls'];
+                var donorPluritestSummary = subargs['donorPluritestSummary'];
+                var donorPluritestPlots = subargs['donorPluritestPlots'];
                 donorGenderResults.removeAll();
                 donorInternalDiscordance.removeAll();
                 donorCopyNumberSummary.removeAll();
@@ -91,12 +93,16 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 donorAberrantPolysomy.removeAll();
                 donorCopyNumberPlot(undefined);
                 donorLOHCalls.removeAll();
+                donorPluritestSummary.removeAll();
+                donorPluritestPlots.removeAll();
                 var genderArr = [];
                 var discArr = [];
                 var cnsArr = [];
                 var arArr = [];
                 var apArr = [];
                 var lohArr = [];
+                var psArr = [];
+                var ppArr = [];
                 
                 for (var i = 0; i < data.length; i++) {
                     var result = data[i];
@@ -129,6 +135,12 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         case 'loh_calls' :
                             lohArr.push(result);
                             break;
+                        case 'pluritest_summary' :
+                            psArr.push(result);
+                            break;
+                        case 'pluritest_plot':
+                            ppArr.push('/file' + result['path']);
+                            break;
                     }
                 }
                 
@@ -138,6 +150,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 donorAberrantRegions(arArr);
                 donorAberrantPolysomy(apArr);
                 donorLOHCalls(lohArr);
+                donorPluritestSummary(psArr);
+                donorPluritestPlots(ppArr);
                 break;
             
             case 'sample_discordance':

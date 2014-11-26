@@ -1688,14 +1688,19 @@ sub qc {
         if ($donor) {
             # get the discordance results between all samples from this donor
             my $d_results = $vrtrack->donor_discordance_results($donor);
+            push(@$data, @$d_results) if $d_results;
             
             # get the gender info for all samples from this donor
             my $g_results = $vrtrack->donor_gender_results($donor);
+            push(@$data, @$g_results) if $g_results;
             
             # get the copy number/polysomy/loh results for this donor
             my $c_results = $vrtrack->donor_cnv_results($donor);
+            push(@$data, @$c_results) if $c_results;
             
-            $data = [@$d_results, @$g_results, @$c_results];
+            # get the pluritest results for this donor
+            my $p_results = $vrtrack->donor_pluritest_results($donor);
+            push(@$data, @$p_results) if $p_results;
         }
         else {
             $data = { errors => ["donor node id must be supplied to donor_qc()"] };
