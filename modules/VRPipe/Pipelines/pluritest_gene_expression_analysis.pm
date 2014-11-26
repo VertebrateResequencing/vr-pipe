@@ -11,11 +11,11 @@ and ancillary data for analysis of pluripotency.
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+John Maslen <jm23@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
