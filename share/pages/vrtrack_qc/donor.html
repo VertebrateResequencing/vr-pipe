@@ -127,7 +127,7 @@
                 <div class="panel panel-default" data-bind="visible: donorPluritestPlots().length">
                     <div class="panel-heading">Pluritest Plots</div>
                     <div style="padding: 5px" data-bind="foreach: donorPluritestPlots">
-                        <a class="fancybox" data-bind="attr: { href: $data }"><img class="img_thumb" data-bind="attr: { src: $data }"></a>
+                        <a class="fancybox" data-bind="attr: { href: path }"><img data-bind="attr: { src: path }, css: { img_thumb_big: display_size == 'big', img_thumb: display_size == 'small' }"></a>
                     </div>
                 </div>
                 

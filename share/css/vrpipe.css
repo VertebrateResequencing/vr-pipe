@@ -50,6 +50,10 @@
     width: 100px;
     height: 100px;
 }
+.img_thumb_big {
+    width: 350px;
+    height: 350px;
+}
 
 dl {
     border: 3px double #ccc;

@@ -139,7 +139,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                             psArr.push(result);
                             break;
                         case 'pluritest_plot':
-                            ppArr.push('/file' + result['path']);
+                            result['path'] = '/file' + result['path'];
+                            ppArr.push(result);
                             break;
                     }
                 }

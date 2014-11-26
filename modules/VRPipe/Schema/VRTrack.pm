@@ -686,10 +686,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 $plu_path = $path;
             }
             else {
-                push(@results, { type => 'pluritest_plot', path => $path });
+                push(@results, { type => 'pluritest_plot', path => $path, display_size => $basename =~ /image03/ ? 'big' : 'small' });
             }
         }
-        @results = sort { ncmp($a->{path}, $b->{path}) } @results;
+        @results = sort { ncmp($b->{path}, $a->{path}) } @results;
         
         # parse $plu_path
         if ($plu_path && open(my $ifh, '<', $plu_path)) {
