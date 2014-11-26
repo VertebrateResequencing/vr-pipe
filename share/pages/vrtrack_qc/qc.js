@@ -83,17 +83,20 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var donorAberrantRegions = subargs['donorAberrantRegions'];
                 var donorAberrantPolysomy = subargs['donorAberrantPolysomy'];
                 var donorCopyNumberPlot = subargs['donorCopyNumberPlot'];
+                var donorLOHCalls = subargs['donorLOHCalls'];
                 donorGenderResults.removeAll();
                 donorInternalDiscordance.removeAll();
                 donorCopyNumberSummary.removeAll();
                 donorAberrantRegions.removeAll();
                 donorAberrantPolysomy.removeAll();
                 donorCopyNumberPlot(undefined);
+                donorLOHCalls.removeAll();
                 var genderArr = [];
                 var discArr = [];
                 var cnsArr = [];
                 var arArr = [];
                 var apArr = [];
+                var lohArr = [];
                 
                 for (var i = 0; i < data.length; i++) {
                     var result = data[i];
@@ -123,6 +126,9 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         case 'copy_number_plot':
                             donorCopyNumberPlot('/file' + result['plot']);
                             break;
+                        case 'loh_calls' :
+                            lohArr.push(result);
+                            break;
                     }
                 }
                 
@@ -131,6 +137,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 donorCopyNumberSummary(cnsArr);
                 donorAberrantRegions(arArr);
                 donorAberrantPolysomy(apArr);
+                donorLOHCalls(lohArr);
                 break;
             
             case 'sample_discordance':

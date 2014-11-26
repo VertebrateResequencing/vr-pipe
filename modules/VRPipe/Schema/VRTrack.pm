@@ -574,14 +574,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # being able to display anything in a table.
         # Instead we just parse the file just-in-time here when someone wants
         # the results.
-        # Also get the cnv plots and copy number plot.
-        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf) WHERE id(donor) = {donor}.id WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) return distinct combined_cnvs, cnv_plots, copy_number_plot";
+        # Also get the cnv plots and copy number plot, and loh text file results
+        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf) WHERE id(donor) = {donor}.id WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) OPTIONAL MATCH (vcf)-[:loh_calls]->(loh_calls) return distinct combined_cnvs, cnv_plots, copy_number_plot, loh_calls";
         my $graph      = $self->graph;
         my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
         my %cnv_plot_paths;
         my $combined_cnvs_path;
         my $copy_number_plot_path;
+        my ($loh_path, $loh_control_sample);
         foreach my $node (@{ $graph_data->{nodes} }) {
             my $basename = $graph->node_property($node, 'basename');
             my $path     = $graph->node_property($node, 'path');
@@ -591,6 +592,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             elsif ($basename eq 'copy_numbers.png') {
                 $copy_number_plot_path = $path;
+            }
+            elsif ($basename eq 'merged.txt') {
+                $loh_path = $path;
+                $loh_control_sample = $graph->node_property($node, 'control_sample');
             }
             else {
                 my $chr    = $graph->node_property($node, 'chr');
@@ -645,6 +650,16 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             
             push(@results, { type => 'copy_number_plot', plot => $copy_number_plot_path });
+            
+            if ($loh_path && open($ifh, '<', $loh_path)) {
+                my @calls;
+                while (<$ifh>) {
+                    chomp;
+                    my ($chr, $start, $end, $sample, $count) = split(/\t/, $_);
+                    push(@calls, { type => 'loh_calls', chr => $chr, start => $start, end => $end, sample => $sample, control_sample => $loh_control_sample, count => $count });
+                }
+                push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
+            }
             
             return \@results;
         }
