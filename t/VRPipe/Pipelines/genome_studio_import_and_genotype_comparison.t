@@ -3,7 +3,6 @@ use strict;
 use warnings;
 use Path::Class;
 use File::Copy;
-use Data::Dumper;
 
 BEGIN {
     use Test::Most tests => 30;
@@ -43,7 +42,6 @@ my $setup1 = VRPipe::PipelineSetup->create(
 );
 
 my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/coreex_hips_20140620.fcr.txt.gz'));
-warn "hello a\n";
 ok handle_pipeline(@analysis_files), 'irods_analysis_files_download pipeline ran ok and got the analysis files';
 $setup1->active(0);
 $setup1->update;
