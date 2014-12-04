@@ -53,6 +53,11 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                 description   => 'the metadata key to check on the input files to extract the sample identifier of the control from',
                 default_value => 'sample_control'
             ),
+            python_exe => VRPipe::StepOption->create(
+                description   => 'path to your python exe',
+                optional      => 1,
+                default_value => 'python'
+            ),
         };
     }
     
@@ -74,6 +79,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
             my $cmk           = $options->{control_metadata_key};
             my $bcftools_exe  = $options->{bcftools_exe};
             my $bcftools_opts = $options->{bcftools_polysomy_options};
+            my $python_exe    = $options->{python_exe};
             
             if ($bcftools_opts =~ /\s-[os]\s/) {
                 $self->throw("bcftools_polysomy_options should not include -o or -s");
@@ -115,10 +121,17 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     $plot_file->add_metadata({ sample => $query });
                     
                     my @outfiles  = ($plot_file, $dist_file);
-                    my $vcf_path  = $vcf->path;
+                    my $vcf_path  = $vcf->path->stringify;
                     my $dist_path = $dist_file->path;
                     
-                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query]);";
+                    my @chroms = (1 .. 22, ("X", "Y", "MT"));
+                    foreach my $chr (@chroms) {
+                        my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "dist.chr$chr.png", type => 'png', metadata => $meta);
+                        push(@outfiles, $png_file);
+                        $self->relate_input_to_output($vcf_path, 'dist_plot', $png_file->path->stringify);
+                    }
+                    
+                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query], python => q[$python_exe]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
             }
@@ -139,6 +152,13 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                 max_files   => 1,
                 description => 'output dist.py file from polysomy',
             ),
+            png_files => VRPipe::StepIODefinition->create(
+                type            => 'png',
+                min_files       => 0,
+                max_files       => -1,
+                description     => 'output plots by chr from polysomy',
+                check_existence => 0,
+            ),
         };
     }
     
@@ -154,26 +174,31 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!) {
+    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!, Str :$python!) {
         my $vcf_file  = VRPipe::File->get(path => $vcf);
         my $dist_file = VRPipe::File->get(path => $dist);
+        my $dist_path = $dist_file->path->stringify;
+        my $plot_path = $dist_path;
+        $plot_path =~ s/\.dat$/.py/;
         
         my $cmd_line = "$bcftools polysomy " . $vcf_file->path . " $bcftools_opts -s $query -o " . $dist_file->dir;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $self->throw("File $dist doesn't exist..") unless -e $dist;
         
+        #identify chrs with abnormal copy numbers, store them in metadata and plot their BAF distribution
         my @chrs = `awk '{if(\$1==\"CN\" && \$3!=2.0)print \$2}' $dist`;
         if (@chrs) {
             chomp(@chrs);
             my $chrs_str = $query . ":" . join(",", @chrs);
             $vcf_file->merge_metadata({ polysomy_chrs => $chrs_str });
+            foreach my $chr (@chrs) {
+                my $cmd_line = "$python $plot_path -d $chr";
+                system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+            }
         }
         
-        my $dist_path = $dist_file->path->stringify;
         $self->relate_input_to_output($vcf_file->path->stringify, 'polysomy_dist', $dist_path);
-        my $plot_path = $dist_path;
-        $plot_path =~ s/\.dat$/.py/;
         $self->relate_input_to_output($vcf_file->path->stringify, 'polysomy_plot', $plot_path);
         
         return 1;
