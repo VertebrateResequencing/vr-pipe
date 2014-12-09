@@ -130,7 +130,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
             }
             else {
                 my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
-                my @sorted_vcf_files = sort { $a->metadata->{from} <=> $b->metadata->{from} } @{ $self->inputs->{vcf_files} };
+                my @sorted_vcf_files = sort { $a->metadata->{chrom} <=> $b->metadata->{chrom} || $a->metadata->{from} <=> $b->metadata->{from} } @{ $self->inputs->{vcf_files} };
                 $merge_list->create_fofn(\@sorted_vcf_files);
                 my $concat_meta     = $self->common_metadata($self->inputs->{vcf_files});
                 my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
