@@ -119,11 +119,19 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                             cnsArr.push(result);
                             break;
                         case 'aberrant_regions':
+                            for (var key in result) {
+                                if (key == 'graph' && result.hasOwnProperty(key)) {
+                                    result[key] = '/file' + result[key];
+                                    if (result[key] == '/filenull') {
+                                        result[key] = '-none-';
+                                    }
+                                }
+                            }
                             arArr.push(result);
                             break;
                         case 'aberrant_polysomy':
                             for (var key in result) {
-                                if (key != 'chr' && result.hasOwnProperty(key)) {
+                                if (key == 'graph' && result.hasOwnProperty(key)) {
                                     result[key] = '/file' + result[key];
                                 }
                             }

@@ -188,13 +188,32 @@
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
-                                <tr data-bind="foreach: dARColumnNames">
-                                    <th data-bind="sort: { arr: $parent.donorAberrantRegions, prop: $data }"><span data-bind="text: $data"></span></th>
-                                </tr>
+                                <th>Sample</th>
+                                <th>Graph</th>
+                                <th>Copy Number</th>
+                                <th>Chr</th>
+                                <th>Start</th>
+                                <th>End</th>
+                                <th>Length</th>
+                                <th>Quality</th>
                             </thead>
                             <tbody data-bind="foreach: donorAberrantRegions">
-                                <tr data-bind="foreach: $parent.dARColumnNames">
-                                    <td data-bind="text: $parent[$data]"></td>
+                                <tr>
+                                    <td data-bind="text: sample"></td>
+                                    <td>
+                                        <!-- ko if: graph == '-none-' -->
+                                            <span data-bind="text: graph"></span>
+                                        <!-- /ko -->
+                                        <!-- ko if: graph != '-none-' -->
+                                            <a class="fancybox" data-bind="attr: { href: graph }"><img class="img_thumb" data-bind="attr: { src: graph }"></a>
+                                        <!-- /ko -->
+                                    </td>
+                                    <td data-bind="text: cn"></td>
+                                    <td data-bind="text: chr"></td>
+                                    <td data-bind="text: start"></td>
+                                    <td data-bind="text: end"></td>
+                                    <td data-bind="text: length"></td>
+                                    <td data-bind="text: quality"></td>
                                 </tr>
                             </tbody>
                         </table>
@@ -203,27 +222,26 @@
                 
                 <div class="panel panel-default" data-bind="visible: donorCopyNumberPlot">
                     <div class="panel-heading">Copy Number by Chromosome</div>
-                    <a class="fancybox" data-bind="attr: { href: donorCopyNumberPlot }"><img class="img_thumb" data-bind="attr: { src: donorCopyNumberPlot }"></a>
+                    <a class="fancybox" data-bind="attr: { href: donorCopyNumberPlot }"><img class="img_thumb_big" data-bind="attr: { src: donorCopyNumberPlot }"></a>
                 </div>
                 
                 <div class="panel panel-default" data-bind="visible: donorAberrantPolysomy().length">
-                    <div class="panel-heading">CNV Aberrant Regions</div>
+                    <div class="panel-heading">CNV Aberrant Polysomy</div>
                     <div class="table-responsive">
                         <table class="table table-striped table-hover">
                             <thead>
-                                <tr data-bind="foreach: dAPColumnNames">
-                                    <th data-bind="sort: { arr: $parent.donorAberrantPolysomy, prop: $data }"><span data-bind="text: $data"></span></th>
+                                <tr>
+                                    <th>Sample</th>
+                                    <th>Chr</th>
+                                    <th>Graph</th>
                                 </tr>
                             </thead>
                             <tbody data-bind="foreach: donorAberrantPolysomy">
-                                <tr data-bind="foreach: $parent.dAPColumnNames">
+                                <tr>
+                                    <td data-bind="text: sample"></td>
+                                    <td data-bind="text: chr"></td>
                                     <td>
-                                        <!-- ko if: $data == 'chr' -->
-                                            <span data-bind="text: $parent[$data]"></span>
-                                        <!-- /ko -->
-                                        <!-- ko ifnot: $data == 'chr' -->
-                                            <a class="fancybox" data-bind="attr: { href: $parent[$data] }"><img class="img_thumb" data-bind="attr: { src: $parent[$data] }"></a>
-                                        <!-- /ko -->
+                                        <a class="fancybox" data-bind="attr: { href: graph }"><img class="img_thumb" data-bind="attr: { src: graph }"></a>
                                     </td>
                                 </tr>
                             </tbody>
@@ -308,26 +326,6 @@
                         
                         getQCGraphData('donor_qc', { donor: +newValue['id'] }, { donorGenderResults: self.donorGenderResults, donorInternalDiscordance: self.donorInternalDiscordance, donorCopyNumberSummary: self.donorCopyNumberSummary, donorAberrantRegions: self.donorAberrantRegions, donorAberrantPolysomy: self.donorAberrantPolysomy, donorCopyNumberPlot: self.donorCopyNumberPlot, donorLOHCalls: self.donorLOHCalls, donorPluritestPlots: self.donorPluritestPlots, donorPluritestSummary: self.donorPluritestSummary }, self.loading, self.errors);
                     }
-                });
-                
-                // dynamic view table columns
-                self.dARColumnNames = ko.computed(function () {
-                    if (self.donorAberrantRegions().length === 0) return [];
-                    var props = [];
-                    var obj = self.donorAberrantRegions()[0];
-                    for (var name in obj) {
-                        props.push(name);
-                    }
-                    return props;
-                });
-                self.dAPColumnNames = ko.computed(function () {
-                    if (self.donorAberrantPolysomy().length === 0) return [];
-                    var props = [];
-                    var obj = self.donorAberrantPolysomy()[0];
-                    for (var name in obj) {
-                        props.push(name);
-                    }
-                    return props;
                 });
                 
                 // when a sample in the gender table is clicked on, open a

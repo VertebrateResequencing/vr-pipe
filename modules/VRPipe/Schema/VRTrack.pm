@@ -615,14 +615,11 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     @samples = @cols[1 .. $#cols];
                 }
                 elsif ($cols[0] eq 'RG') {
-                    my %cn;
                     my $chr = $cols[1];
                     foreach my $i (7 .. $#cols) {
                         my $sample = $samples[$i - 6];
-                        $cn{"$sample CN"} = $cols[$i];
-                        $cn{"$sample Graph"} = $cnv_plot_paths{$chr}->{$sample} if $cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample};
+                        push(@results, { type => 'aberrant_regions', chr => $chr, start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], sample => $sample, cn => $cols[$i], graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample}) ? $cnv_plot_paths{$chr}->{$sample} : undef });
                     }
-                    push(@results, { type => 'aberrant_regions', chr => $chr, start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], %cn });
                     $done_chrs{$chr} = 1;
                 }
                 else {
@@ -638,11 +635,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             foreach my $chr (nsort(keys %cnv_plot_paths)) {
                 my $s_hash = $cnv_plot_paths{$chr};
-                my %plots;
                 foreach my $sample (@samples) {
-                    $plots{$sample} = $s_hash->{$sample} if $s_hash->{$sample};
+                    push(@results, { type => 'aberrant_polysomy', chr => $chr, graph => $s_hash->{$sample}, sample => $sample }) if $s_hash->{$sample};
                 }
-                push(@results, { type => 'aberrant_polysomy', chr => $chr, %plots });
             }
             
             while (my ($sample, $data) = each %results) {
