@@ -673,6 +673,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my @results;
         my $plu_path;
+        my %basename_to_order = ('pluritest_image02.png' => 1,     'pluritest_image03c.png' => 2,     'pluritest_image03.png' => 3,       'pluritest_image02a.png' => 4,       'pluritest_image01.png' => 5);
+        my %basename_to_size  = ('pluritest_image02.png' => 'big', 'pluritest_image03c.png' => 'big', 'pluritest_image03.png' => 'small', 'pluritest_image02a.png' => 'small', 'pluritest_image01.png' => 'small');
         foreach my $node (@{ $graph_data->{nodes} }) {
             my $basename = $graph->node_property($node, 'basename');
             my $path     = $graph->node_property($node, 'path');
@@ -681,10 +683,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 $plu_path = $path;
             }
             else {
-                push(@results, { type => 'pluritest_plot', path => $path, display_size => $basename =~ /image03/ ? 'big' : 'small' });
+                push(@results, { type => 'pluritest_plot', path => $path, display_size => $basename_to_size{$basename}, order => $basename_to_order{$basename} });
             }
         }
-        @results = sort { ncmp($b->{path}, $a->{path}) } @results;
+        @results = sort { $a->{order} <=> $b->{order} } @results;
         
         # parse $plu_path
         my @summary_results;
