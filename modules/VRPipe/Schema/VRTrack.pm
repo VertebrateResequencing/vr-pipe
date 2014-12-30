@@ -640,8 +640,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 }
             }
             
-            while (my ($sample, $data) = each %results) {
-                push(@results, { type => 'copy_number_summary', sample => $sample, %$data });
+            foreach my $sample (sort { $a cmp $b } keys %results) {
+                push(@results, { type => 'copy_number_summary', sample => $sample, %{ $results{$sample} } });
             }
             
             push(@results, { type => 'copy_number_plot', plot => $copy_number_plot_path });
@@ -653,7 +653,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     my ($chr, $start, $end, $sample, $count) = split(/\t/, $_);
                     push(@calls, { type => 'loh_calls', chr => $chr, start => $start, end => $end, sample => $sample, control_sample => $loh_control_sample, count => $count });
                 }
-                push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
+                push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || $a->{sample} cmp $b->{sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
             }
             
             return \@results;
@@ -687,15 +687,18 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         @results = sort { ncmp($b->{path}, $a->{path}) } @results;
         
         # parse $plu_path
+        my @summary_results;
         if ($plu_path && open(my $ifh, '<', $plu_path)) {
             <$ifh>; # header line
             while (<$ifh>) {
                 chomp;
                 my ($sample, $raw, $logitp, $novelty, $nov_logitp, $rmsd) = split(/,/, $_);
-                push(@results, { type => 'pluritest_summary', sample => $sample, pluri_raw => $raw, pluri_logit_p => $logitp, novelty => $novelty, novelty_logit_p => $nov_logitp, rmsd => $rmsd });
+                $sample =~ s/^"|"$//g;
+                push(@summary_results, { type => 'pluritest_summary', sample => $sample, pluri_raw => $raw, pluri_logit_p => $logitp, novelty => $novelty, novelty_logit_p => $nov_logitp, rmsd => $rmsd });
             }
             close($ifh);
         }
+        push(@results, sort { $a->{sample} cmp $b->{sample} } @summary_results);
         
         return \@results if @results;
     }
