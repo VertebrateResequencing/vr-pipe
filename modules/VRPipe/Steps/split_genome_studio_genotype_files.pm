@@ -42,9 +42,10 @@ use VRPipe::Base;
 class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  {
     method options_definition {
         return {
-            zgrep_exe        => VRPipe::StepOption->create(description => 'full path to zgrep command that is used to retrieve the header and sample data from the gzipped genome studio genotyping data file', optional => 1, default_value => 'zgrep'),
-            header_regex     => VRPipe::StepOption->create(description => 'regex of a field in the header line of the gzipped genome studio genotype file that is used to retrieve the header using zgrep',     optional => 1, default_value => 'Allele1'),
-            reheader_penncnv => VRPipe::StepOption->create(description => 'optionally, header the genotype file with a penncnv-friendly format',                                                                optional => 1)
+            zgrep_exe                     => VRPipe::StepOption->create(description => 'full path to zgrep command that is used to retrieve the header and sample data from the gzipped genome studio genotyping data file', optional => 1, default_value => 'zgrep'),
+            header_regex                  => VRPipe::StepOption->create(description => 'regex of a field in the header line of the gzipped genome studio genotype file that is used to retrieve the header using zgrep',     optional => 1, default_value => 'Allele1'),
+            reheader_penncnv              => VRPipe::StepOption->create(description => 'optionally, header the genotype file with a penncnv-friendly format',                                                                optional => 1),
+            fcr_sample_name_from_metadata => VRPipe::StepOption->create(description => 'sample metadata to match sample names used in the fcr file',                                                                         optional => 1, default_value => 'infinium_sample')
         };
     }
     
@@ -83,7 +84,7 @@ class VRPipe::Steps::split_genome_studio_genotype_files  with VRPipe::StepRole  
             foreach my $gtc_file (@{ $self->inputs->{gtc_files} }) {
                 my $meta           = $gtc_file->metadata;
                 my $sample         = $meta->{sample};
-                my $fcr_sample     = $meta->{infinium_sample};
+                my $fcr_sample     = $meta->{ $options->{fcr_sample_name_from_metadata} };
                 my $analysis_files = $meta->{irods_analysis_files};
                 my $fcr_file;
                 if (ref($analysis_files)) {
