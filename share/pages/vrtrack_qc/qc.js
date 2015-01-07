@@ -78,7 +78,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
             
             case 'donor_qc':
                 var donorGenderResults = subargs['donorGenderResults'];
-                var donorInternalDiscordance = subargs['donorInternalDiscordance'];
+                var donorFluidigmDiscordance = subargs['donorFluidigmDiscordance'];
+                var donorGenotypingDiscordance = subargs['donorGenotypingDiscordance'];
                 var donorCopyNumberSummary = subargs['donorCopyNumberSummary'];
                 var donorAberrantRegions = subargs['donorAberrantRegions'];
                 var donorAberrantPolysomy = subargs['donorAberrantPolysomy'];
@@ -87,7 +88,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var donorPluritestSummary = subargs['donorPluritestSummary'];
                 var donorPluritestPlots = subargs['donorPluritestPlots'];
                 donorGenderResults.removeAll();
-                donorInternalDiscordance.removeAll();
+                donorFluidigmDiscordance.removeAll();
+                donorGenotypingDiscordance.removeAll();
                 donorCopyNumberSummary.removeAll();
                 donorAberrantRegions.removeAll();
                 donorAberrantPolysomy.removeAll();
@@ -96,7 +98,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 donorPluritestSummary.removeAll();
                 donorPluritestPlots.removeAll();
                 var genderArr = [];
-                var discArr = [];
+                var discFArr = [];
+                var discGArr = [];
                 var cnsArr = [];
                 var arArr = [];
                 var apArr = [];
@@ -112,8 +115,11 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         case 'gender':
                             genderArr.push(result);
                             break;
-                        case 'discordance':
-                            discArr.push(result);
+                        case 'discordance_fluidigm':
+                            discFArr.push(result);
+                            break;
+                        case 'discordance_genotyping':
+                            discGArr.push(result);
                             break;
                         case 'copy_number_summary':
                             cnsArr.push(result);
@@ -154,7 +160,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 }
                 
                 donorGenderResults(genderArr);
-                donorInternalDiscordance(discArr);
+                donorFluidigmDiscordance(discFArr);
+                donorGenotypingDiscordance(discGArr);
                 donorCopyNumberSummary(cnsArr);
                 donorAberrantRegions(arArr);
                 donorAberrantPolysomy(apArr);
