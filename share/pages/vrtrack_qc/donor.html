@@ -175,7 +175,7 @@
                                 </tr>
                             </thead>
                             <tbody data-bind="foreach: donorGenotypingDiscordance">
-                                <tr data-bind="css: { warning: discordance >= 3 && discordance < 10, danger: discordance >= 10 }">
+                                <tr data-bind="css: { warning: discordance >= 1000 && discordance < 10000, danger: discordance >= 10000 }">
                                     <td style="cursor: pointer" data-bind="text: sample1_name, click: $parent.openFirstSampleDiscordance"></td>
                                     <td data-bind="text: sample1_public_name"></td>
                                     <td data-bind="text: sample1_control"></td>
