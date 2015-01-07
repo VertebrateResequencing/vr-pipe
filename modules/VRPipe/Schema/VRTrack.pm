@@ -396,11 +396,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # get the discordance results between all samples from the given donor
     method donor_discordance_results (Int $donor) {
         my $study_labels = $self->cypher_labels('Study');
-        my $setup_labels = VRPipe::Schema->create('VRPipe')->cypher_labels('PipelineSetup');
-        # we'll need to split the results based on what setup created them, and
-        # also exclude results for withdrawn dataelements
-        my $cypher = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) WITH discordance, sample, ssr, sdr MATCH (setup:$setup_labels)-[stepstater:stepstate]->(ssnode)-[rr:result]->(fse)-[dr:discordance]->(discordance) MATCH (ssnode)-[der:dataelement]->(de)RETURN DISTINCT discordance, sample, ssr, sdr, setup, stepstater, ssnode, rr, fse, dr, der, de";
-        my $graph_data = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        my $cypher       = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) RETURN DISTINCT discordance, sample, ssr, sdr";
+        my $graph_data   = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
         my %rels;
         foreach my $rel (@{ $graph_data->{relationships} }) {
@@ -414,20 +411,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         unless (defined $nodes{Sample}) {
             return;
-        }
-        
-        # dataelements in the graph database currently do not have withdrawn
-        # status on them because it's not synced with the canonical
-        # representation in the MySQL database, so we check MySQL now for each
-        # dataelement. The result is noted for the StepState since that is what
-        # Discordance is linked to.
-        # PipelineSetup --[stepstate]--> StepState --[result]--> FileSystemElement --[discordance]--> Discordance
-        #                                StepState -->[dataelement]--> DataElement
-        my %withdrawn_stepstates;
-        foreach my $de (values %{ $nodes{DataElement} }) {
-            VRPipe::DataElement->get(id => $de->{properties}->{sql_id})->withdrawn || next;
-            my ($ssid) = @{ $rels{ $de->{id} } };
-            $withdrawn_stepstates{$ssid} = 1;
         }
         
         my (%sample_meta, %studies);
@@ -451,22 +434,13 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         my @results;
-        DISC: while (my ($did, $disc) = each %{ $nodes{Discordance} }) {
+        while (my ($did, $disc) = each %{ $nodes{Discordance} }) {
             my @samples_meta;
             foreach my $sample_id (@{ $rels{$did} }) {
                 push(@samples_meta, $sample_meta{$sample_id} || next);
             }
             @samples_meta == 2 || next;
             my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
-            
-            # ignore results from withdrawn dataelements
-            foreach my $id (@{ $rels{$did} }) {
-                $nodes{FileSystemElement}->{$id} || next;
-                foreach my $ssid (@{ $rels{$id} }) {
-                    $nodes{StepState}->{$ssid} || next;
-                    next DISC if exists $withdrawn_stepstates{$ssid};
-                }
-            }
             
             my $props = $disc->{properties};
             my $type = $props->{num_of_sites} > 100 ? 'discordance_genotyping' : 'discordance_fluidigm';
