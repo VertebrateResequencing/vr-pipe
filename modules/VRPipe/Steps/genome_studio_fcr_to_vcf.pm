@@ -122,15 +122,26 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             );
             
             foreach my $fcr_file (@{ $self->inputs->{fcr_files} }) {
-                my $meta = $fcr_file->metadata;
-                
+                my $meta                 = $fcr_file->metadata;
+                my $fh                   = $fcr_file->openr;
+                my $header               = <$fh>;
+                my $line                 = <$fh>;
+                my @fields               = split(/\t/, $line);
+                my $true_infinium_sample = $fields[1];
+                $fh->close;
                 my $outdir = $meta->{sample};
                 my $basename;
                 my $s = '';
+                
                 if ($src_key && @dst_keys && defined $meta->{$src_key} && defined $meta->{ $dst_keys[0] }) {
                     my $dst_vals = join('_', map { $meta->{$_} || 'undef' } @dst_keys);
-                    $s        = " -s $meta->{$src_key}:$dst_vals";
-                    $outdir   = $dst_vals;
+                    if ($src_key eq "infinium_sample" && $meta->{$src_key} ne $true_infinium_sample) {
+                        $s = " -s $true_infinium_sample:$dst_vals";
+                    }
+                    else {
+                        $s = " -s $meta->{$src_key}:$dst_vals";
+                    }
+                    $outdir = $dst_vals;
                     $basename = file($outdir, "$outdir.vcf.gz")->stringify;
                 }
                 else {
