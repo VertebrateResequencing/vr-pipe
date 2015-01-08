@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 96;
+    use Test::Most tests => 99;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -253,5 +253,19 @@ is scalar(@related), 21, 'all the related nodes were also created';
 # test VRTrack schema's add_file method, which passes through to VRPipe schema
 ok my $vrtrack_file = $schema->add_file('/bar/snake.txt'), 'add_file() method on the VRTrack schema worked';
 is $vrtrack_file->path, '/bar/snake.txt', 'the path() method worked on what that returned';
+
+# check there are no issues supplying ints versus strings to unique values
+$schema->add('Study', { id => 2625,   name => 'str_vs_int_test', accession => 'svitacc' });
+$schema->add('Study', { id => '2625', name => 'str_vs_int_test', accession => 'svitacc' });
+my @studies = $schema->get("Study", { name => 'str_vs_int_test' });
+is scalar(@studies), 1, 'providing int or string as the unique when adding a node only results in 1 new node';
+my $s_via_int = $schema->get("Study", { id => 2625 });
+my $s_via_str = $schema->get("Study", { id => '2625' });
+is_deeply [$s_via_int ? $s_via_int->{id} : 0, $s_via_str ? $s_via_str->{id} : 0], [$studies[0]->{id}, $studies[0]->{id}], 'a study can be gotten via its unique id as an int or a string';
+# also check there are no issues supplying strings with colons in them
+$schema->add('Study', { id => 2626, name => 'Study ERP006001: Deep sequencing of HGDP samples on the Illumina X10', accession => 'colon' });
+$schema->add('Study', { id => 2626, name => 'Study ERP006001: Deep sequencing of HGDP samples on the Illumina X10', accession => 'colon' });
+my $study = $schema->get("Study", { id => 2626 });
+is_deeply $study->{properties}, { id => 2626, name => 'Study ERP006001: Deep sequencing of HGDP samples on the Illumina X10', accession => 'colon' }, 'colons in strings do not break nodes';
 
 exit;

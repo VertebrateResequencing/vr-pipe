@@ -176,6 +176,15 @@ class VRPipe::Persistent::Graph {
         foreach (@$array) {
             my ($cypher, $params) = @$_;
             $example_cypher = $cypher;
+            if ($params) {
+                # stringify all values, because Neo4J treats an int and string
+                # of the same number as unique so you could get duplicate nodes
+                while (my ($p, $hash) = each %$params) {
+                    foreach my $key (keys %$hash) {
+                        $hash->{$key} = "$hash->{$key}";
+                    }
+                }
+            }
             push(
                 @{ $post_content->{statements} },
                 {
