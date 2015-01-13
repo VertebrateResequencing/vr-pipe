@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 99;
+    use Test::Most tests => 100;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -267,5 +267,9 @@ $schema->add('Study', { id => 2626, name => 'Study ERP006001: Deep sequencing of
 $schema->add('Study', { id => 2626, name => 'Study ERP006001: Deep sequencing of HGDP samples on the Illumina X10', accession => 'colon' });
 my $study = $schema->get("Study", { id => 2626 });
 is_deeply $study->{properties}, { id => 2626, name => 'Study ERP006001: Deep sequencing of HGDP samples on the Illumina X10', accession => 'colon' }, 'colons in strings do not break nodes';
+
+# check that fixes for the above didn't break cypher queries with node ids
+my $donor = $schema->add('Donor', { id => 'd1' }, outgoing => { type => 'has', node => $sample });
+ok my $extra_info_node = $schema->get_node_by_id_with_extra_info('Donor', $donor->{id});
 
 exit;
