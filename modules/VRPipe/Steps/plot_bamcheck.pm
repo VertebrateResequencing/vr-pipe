@@ -126,7 +126,7 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
             bamcheck_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamcheck, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 10,
                 max_files   => -1
             )
         };
