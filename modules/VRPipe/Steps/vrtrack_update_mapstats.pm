@@ -55,7 +55,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             bamcheck_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamcheck, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 10,
                 max_files   => -1,
                 metadata    => {
                     source_bam => 'the bam file this plot was made from',
