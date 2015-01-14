@@ -48,7 +48,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return [
             # general
             {
-                label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analysis the same way
+                label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analyse the same way
                 unique => [qw(name)]
             },
             {
