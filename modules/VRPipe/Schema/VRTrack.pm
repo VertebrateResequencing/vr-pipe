@@ -668,8 +668,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # sample, because we wanted the flexibility of the file format changing
         # and being able to display anything in a table. Instead we just parse
         # the file just-in-time here when someone wants the results. Also get
-        # the pluritest plots.
-        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat OPTIONAL MATCH (reformat)-[:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[:pluritest_summary]->(summary) return distinct plots, summary";
+        # the pluritest plots. We make sure to get only the latest results
+        # based on coming from the most recently created stepstate
+        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat MATCH (stepstate)-[sr:result]->(reformat) WITH stepstate, sr, reformat ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH reformat OPTIONAL MATCH (reformat)-[rp:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[rs:pluritest_summary]->(summary) RETURN distinct plots, summary";
         my $graph      = $self->graph;
         my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
