@@ -48,7 +48,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return [
             # general
             {
-                label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analysis the same way
+                label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analyse the same way
                 unique => [qw(name)]
             },
             {
@@ -576,16 +576,22 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # being able to display anything in a table.
         # Instead we just parse the file just-in-time here when someone wants
         # the results.
-        # Also get the cnv plots and copy number plot, and loh text file results
-        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf) WHERE id(donor) = {donor}.id WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) OPTIONAL MATCH (vcf)-[:loh_calls]->(loh_calls) return distinct combined_cnvs, cnv_plots, copy_number_plot, loh_calls";
-        my $graph      = $self->graph;
-        my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        # Also get the cnv plots and copy number plot, and loh text file
+        # results. We make sure to get only the latest results by getting those
+        # attached to the most recently created StepState
+        my $cypher = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf)-[:cnv_summary|polysomy_dist]->() WHERE id(donor) = {donor}.id WITH vcf MATCH (stepstate)-[sr:result]->(vcf) WITH stepstate, sr, vcf ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) RETURN DISTINCT combined_cnvs, cnv_plots, copy_number_plot ";
+        # loh text file is attached to a different merged vcf
+        my $cypher2 = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf)-[:loh_calls]->() WHERE id(donor) = {donor}.id WITH vcf MATCH (stepstate)-[sr:result]->(vcf) WITH stepstate, sr, vcf ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH vcf OPTIONAL MATCH (vcf)-[:loh_calls]->(loh_calls) RETURN DISTINCT loh_calls";
+        
+        my $graph       = $self->graph;
+        my $graph_data  = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        my $graph_data2 = $graph->_run_cypher([[$cypher2, { donor => { id => $donor } }]]);
         
         my %cnv_plot_paths;
         my $combined_cnvs_path;
         my $copy_number_plot_path;
         my ($loh_path, $loh_control_sample);
-        foreach my $node (@{ $graph_data->{nodes} }) {
+        foreach my $node (@{ $graph_data->{nodes} }, @{ $graph_data2->{nodes} }) {
             my $basename = $graph->node_property($node, 'basename');
             my $path     = $graph->node_property($node, 'path');
             next unless -s $path;
@@ -668,8 +674,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # sample, because we wanted the flexibility of the file format changing
         # and being able to display anything in a table. Instead we just parse
         # the file just-in-time here when someone wants the results. Also get
-        # the pluritest plots.
-        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat OPTIONAL MATCH (reformat)-[:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[:pluritest_summary]->(summary) return distinct plots, summary";
+        # the pluritest plots. We make sure to get only the latest results
+        # based on coming from the most recently created stepstate
+        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat MATCH (stepstate)-[sr:result]->(reformat) WITH stepstate, sr, reformat ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH reformat OPTIONAL MATCH (reformat)-[rp:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[rs:pluritest_summary]->(summary) RETURN distinct plots, summary";
         my $graph      = $self->graph;
         my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         

@@ -251,6 +251,15 @@ role VRPipe::SchemaRole {
                 }
             }
             
+            # all property values need to be stringified because Neo4J treats an
+            # int and string of the same number as unique so you could get
+            # duplicate nodes otherwise
+            foreach my $p (@$props) {
+                foreach my $key (keys %{$p}) {
+                    $p->{$key} = "$p->{$key}";
+                }
+            }
+            
             if ($graph_method eq 'get_nodes') {
                 $props = $properties;
             }

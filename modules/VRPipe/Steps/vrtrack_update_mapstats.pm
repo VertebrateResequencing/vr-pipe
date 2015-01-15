@@ -55,7 +55,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             bamcheck_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamcheck, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 10,
                 max_files   => -1,
                 metadata    => {
                     source_bam => 'the bam file this plot was made from',
@@ -84,7 +84,8 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 my $bam_path        = $bam_file->path;
                 my $lane            = $bam_file->metadata->{lane};
                 my $these_bam_plots = $bam_plots{$bam_path};
-                my $cmd             = "use VRPipe::Steps::vrtrack_update_mapstats; VRPipe::Steps::vrtrack_update_mapstats->update_mapstats(db => q[$db], bam => q[$bam_path], lane => q[$lane], targets_mode => $targeted_mode, plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
+                $these_bam_plots ||= $bam_plots{ $bam_file->resolve->path };
+                my $cmd = "use VRPipe::Steps::vrtrack_update_mapstats; VRPipe::Steps::vrtrack_update_mapstats->update_mapstats(db => q[$db], bam => q[$bam_path], lane => q[$lane], targets_mode => $targeted_mode, plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
