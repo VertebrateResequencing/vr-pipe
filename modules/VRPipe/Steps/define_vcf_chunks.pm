@@ -110,6 +110,9 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
             if ($chunk_by_ref && !defined $ref_vcf) {
                 $self->throw("chunk_by_ref is set to 1 while ref_vcf is not given!");
             }
+            if ($chunk_by_ref && $ref_vcf =~ /{CHROM}/ && !defined $regions) {
+                $self->throw("Option regions is required when ref_vcf contains the string {CHROM}");
+            }
             
             my @ref_vcfs = split(/\s+/, $ref_vcf);
             foreach my $in_vcf (@{ $self->inputs->{vcf_files} }) {
