@@ -5,11 +5,12 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 121;
+    use Test::Most tests => 125;
     use VRPipeTest;
     use TestPipelines;
     
     use_ok('VRPipe::DataSourceFactory');
+    use_ok('VRPipe::Schema');
 }
 
 # list
@@ -525,7 +526,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $vrpipe_ds->_changed_marker, undef, 'vrpipe changed marker starts out undefined';
     my $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '2ac25fb69c8eda2a27dd365bd531d13b', 'vrpipe changed marker got set after elements call';
+    is $vrpipe_ds->_changed_marker, '16e80f05c8d5aabea6f51165cb884958', 'vrpipe changed marker got set after elements call';
     is $ps2_element_count, 0, 'since ps1 has completed no elements, ps2 has no elements';
     
     # now make a vrpipe ds and setup that relies on both ps1 and ps2
@@ -541,7 +542,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $group_ds->_changed_marker, undef, 'group changed marker starts out undefined';
     my $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '1ad98ff0de2294b7f085afbe63019bd5', 'group changed marker got set after elements call';
+    is $group_ds->_changed_marker, '94bc93ad88f62c61a16b2ecc44e6702a', 'group changed marker got set after elements call';
     is $ps3_element_count, 0, 'since ps1 and ps2 have completed no elements, ps3 has no elements';
     
     # complete a single ps1 dataelement
@@ -550,20 +551,20 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     get_elements($fofn_ds);
     is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker unchanged after completing 1 ps1 element';
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker changed after completing 1 ps1 element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker changed after completing 1 ps1 element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, 'aa41d2f4c899fa5b4fc8c0d19f32048f', 'group changed marker changed after completing 1 ps1 element';
+    is $group_ds->_changed_marker, 'acc9847ff1fb7d835175a233de398040', 'group changed marker changed after completing 1 ps1 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are incomplete, ps3 has no elements';
     
     # complete a single ps2 dataelement
     my ($ps2_de1) = VRPipe::DataElement->search({ datasource => $vrpipe_ds->id });
     $ps2->trigger(dataelement => $ps2_de1);
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker unchanged after completing its element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker unchanged after completing its element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '7cbec880d86bbc41ab65f65fd233d8b8', 'group changed marker changed after completing 1 ps2 element';
+    is $group_ds->_changed_marker, '5117e85f2294cbdeb107186d80d7d9ec', 'group changed marker changed after completing 1 ps2 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are still incomplete, ps3 has no elements';
     
     # complete all of ps1, then trigger all 3 setups simultaneously
@@ -576,8 +577,14 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     }
     $fm->wait_all_children;
     
-    $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, 'efc81219f56d7c2ed7838431e0ebac35', 'vrpipe changed marker changed after ps1 completed';
+    my @ps1_file_paths;
+    $ps2_element_count = 0;
+    foreach my $element (@{ get_elements($vrpipe_ds) }) {
+        $ps2_element_count++;
+        push(@ps1_file_paths, map { @{ $_->{paths} } } result_with_inflated_paths($element));
+    }
+    
+    is $vrpipe_ds->_changed_marker, 'b3ed212622b776f82d266ea1d239db08', 'vrpipe changed marker changed after ps1 completed';
     is $ps2_element_count, 3, 'since ps1 has completed 3 elements, ps2 has 3 elements';
     
     # there was a bug that meant the following test would fail due to elements
@@ -665,7 +672,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     # test that the include_in_all_elements datasource update when the include
     # setup(s) change
-    is $iiae_ds->_changed_marker, 'dc4663ec1645a5298ec7ea94983d143f', 'ps5 changed marker starts as expected';
+    is $iiae_ds->_changed_marker, 'd47a47b55efab92995dde298dd54706d', 'ps5 changed marker starts as expected';
     is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0';
     $de_to_withdraw->withdrawn(1);
     $de_to_withdraw->update;
@@ -680,6 +687,29 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     # my $anti_repeat_store = {};;
     # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.bam))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
     # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.cat))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    
+    # test the filter and graph_filter options of the vrpipe datasource
+    my $schema    = VRPipe::Schema->create("VRTrack");
+    my @ps1_nodes = map { $schema->add_file($_) } @ps1_file_paths;
+    my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_withdrawn => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
+    my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_withdrawn => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
+    my $vrsample3 = $schema->add("Sample", { name => "sample3" }, outgoing => { node => $ps1_nodes[2], type => 'has' });
+    my @ps1_files = map { VRPipe::File->get(path => $_) } @ps1_file_paths;
+    $ps1_files[1]->add_metadata({ filtkey => 'filtvalue' });
+    my $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_withdrawn#0' }
+    );
+    my @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 0, 'filter and graph_filter options cancel can each other out';
+    $ps1_files[2]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 1, 'filter and graph_filter options can work together correctly';
+    $ps1_files[0]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 2, 'graph_filter with a 0 value can get both 0 value and unset properties';
 }
 
 # author-only tests for the irods datasource
