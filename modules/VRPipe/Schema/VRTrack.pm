@@ -645,12 +645,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my @results;
         $self->_handle_discordance_cypher($cypher, 'sample', $sample, \@results, 'sample_discordance_fluidigm');
         
-        # now get discordance results from genotyping. This path is specific to
-        # use of the genome_studio_split_and_convert_to_vcf +
-        # vcf_merge_and_compare_genotypes pipelines
-        $cypher = "MATCH (sample)-[:placed]->(section)-[:processed]->(irodsgtc)-[:imported]->(locatlgtc)-[:instigated]->(fcr)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) WHERE id(sample) = {sample}.id WITH gtypex MATCH (stepstate)-[sr:result]->(gtypex) WITH stepstate, sr, gtypex ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH gtypex MATCH (allsamples)-[:placed]->(section)-[:processed]->(irodsgtc)-[:imported]->(locatlgtc)-[:instigated]->(fcr)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) RETURN DISTINCT allsamples, gtypex";
-        $self->_handle_discordance_cypher($cypher, 'sample', $sample, \@results, 'sample_discordance_genotyping');
-        
         @results = sort { ($b->{discordance} < 3 && $b->{num_of_sites} > 15 ? 1 : 0) <=> ($a->{discordance} < 3 && $a->{num_of_sites} > 15 ? 1 : 0) || $b->{num_of_sites} - $b->{discordance} <=> $a->{num_of_sites} - $a->{discordance} || $b->{sample_control} <=> $a->{sample_control} || $a->{sample_public_name} cmp $b->{sample_public_name} } @results;
         
         return \@results;
