@@ -153,13 +153,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 unique  => [qw(source_gender_md5)],
                 indexed => [qw(source gender)]
             },
-            
-            # genotype comparison results
-            {
-                label    => 'Discordance',
-                unique   => [qw(sample_pair)],
-                required => [qw(discordance num_of_sites avg_min_depth)]
-            },
         ];
     }
     
@@ -393,11 +386,37 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $node;
     }
     
-    # get the discordance results between all samples from the given donor
+    # get the discordance results between all samples from the given donor.
+    # these used to be stored as nodes in the graph db, but writing them all to
+    # db was killing neo4j, so now we just get the gtypex file and parse it for
+    # the results we need
     method donor_discordance_results (Int $donor) {
         my $study_labels = $self->cypher_labels('Study');
-        my $cypher       = "MATCH (donor)-[:sample]->(sample)-[:genotype_comparison_discordance]->(discordance) WHERE id(donor) = {donor}.id WITH donor,sample,discordance MATCH (discordance)<-[:genotype_comparison_discordance]-(sample2)<-[:sample]-(donor) WHERE sample <> sample2 WITH sample, discordance MATCH (study:$study_labels)-[ssr:member]->(sample)-[sdr:genotype_comparison_discordance]->(discordance) RETURN DISTINCT discordance, sample, ssr, sdr";
-        my $graph_data   = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        # first we get discordance results from sequenom/fluidigm; this path is
+        # specific to use of the sequenom_import_from_irods_and_covert_to_vcf +
+        # vcf_merge_and_compare_genotypes pipelines
+        my $cypher = "MATCH (donor)-[:sample]->(sample)-[:processed]->(irodscsv)-[:imported]->(csv)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) WHERE id(donor) = {donor}.id WITH gtypex MATCH (stepstate)-[sr:result]->(gtypex) WITH stepstate, sr, gtypex ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH gtypex MATCH (donor)-[:sample]->(sample) WHERE id(donor) = {donor}.id WITH gtypex, sample MATCH (study:$study_labels)-[ssr:member]->(sample) RETURN DISTINCT gtypex, sample, study, ssr";
+        
+        my @results;
+        $self->_handle_discordance_cypher($cypher, 'donor', $donor, \@results, 'discordance_fluidigm');
+        
+        # now get discordance results from genotyping. This path is specific to
+        # use of the genome_studio_split_and_convert_to_vcf +
+        # vcf_merge_and_compare_genotypes pipelines
+        $cypher = "MATCH (donor)-[:sample]->(sample)-[:placed]->(section)-[:processed]->(irodsgtc)-[:imported]->(locatlgtc)-[:instigated]->(fcr)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) WHERE id(donor) = {donor}.id WITH gtypex MATCH (stepstate)-[sr:result]->(gtypex) WITH stepstate, sr, gtypex ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH gtypex MATCH (donor)-[:sample]->(sample) WHERE id(donor) = {donor}.id WITH gtypex, sample MATCH (study:$study_labels)-[ssr:member]->(sample) RETURN DISTINCT gtypex, sample, study, ssr";
+        $self->_handle_discordance_cypher($cypher, 'donor', $donor, \@results, 'discordance_genotyping');
+        
+        @results = sort { $a->{sample1_study} cmp $b->{sample1_study} || $a->{sample2_study} cmp $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
+        
+        return \@results;
+    }
+    
+    method _handle_discordance_cypher (Str $cypher, Str $identifier, Int $node_id, ArrayRef $results, Str $type) {
+        my $check_largest_study = $type eq 'discordance_fluidigm';
+        my $require_sample      = $identifier eq 'sample';
+        my $graph               = $self->graph;
+        my $graph_data          = $graph->_run_cypher([[$cypher, { $identifier => { id => $node_id } }]]);
         
         my %rels;
         foreach my $rel (@{ $graph_data->{relationships} }) {
@@ -413,7 +432,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             return;
         }
         
-        my (%sample_meta, %studies);
+        my (%sample_meta, %studies, @sample_regex, %allowed_samples);
         while (my ($sid, $sample) = each %{ $nodes{Sample} }) {
             my @study_ids;
             foreach my $study_node_id (@{ $rels{$sid} }) {
@@ -421,51 +440,140 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 my $study_id   = $study_node->{properties}->{id};
                 push(@study_ids, $study_id);
             }
-            my $study_id = join(',', sort { $a <=> $b } @study_ids);
+            my $study_id = join(',', sort { $a <=> $b } @study_ids) || 0;
             $studies{$study_id}++;
             my $props = $sample->{properties};
-            next if $props->{qc_withdrawn};
+            if ($require_sample) {
+                if ($sid == $node_id) {
+                    push(@sample_regex, $props->{name}, $props->{public_name});
+                }
+                else {
+                    next if $props->{qc_withdrawn};
+                }
+            }
+            else {
+                next if $props->{qc_withdrawn};
+                push(@sample_regex, $props->{name}, $props->{public_name});
+            }
             $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid];
+            $allowed_samples{'public_name+sample'}->{ $props->{public_name} . '_' . $props->{name} } = $sid;
+            $allowed_samples{sample}->{ $props->{name} } = $sid;
         }
+        my $sample_regex = join('|', @sample_regex);
+        $sample_regex = qr/$sample_regex/;
         
         my $largest_study;
         if (keys %studies > 1) {
             ($largest_study) = sort { $studies{$b} <=> $studies{$a} || $a cmp $b } keys %studies;
         }
         
-        my @results;
-        while (my ($did, $disc) = each %{ $nodes{Discordance} }) {
-            my @samples_meta;
-            foreach my $sample_id (@{ $rels{$did} }) {
-                push(@samples_meta, $sample_meta{$sample_id} || next);
-            }
-            @samples_meta == 2 || next;
-            my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
+        my $gtypex_path;
+        while (my ($id, $node) = each %{ $nodes{FileSystemElement} }) {
+            $gtypex_path = $graph->node_property($node, 'path');
+            last;
+        }
+        return unless -s $gtypex_path;
+        open(my $ifh, '<', $gtypex_path) || return;
+        
+        my $sample_source;
+        CN: while (<$ifh>) {
+            next unless /^CN\s/;
+            next unless $sample_regex;
+            chomp;
+            my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
             
-            my $props = $disc->{properties};
-            my $type = $props->{num_of_sites} > 100 ? 'discordance_genotyping' : 'discordance_fluidigm';
-            
-            if ($largest_study && $type eq 'discordance_fluidigm') {
-                # we're only interested in samples of the largest study vs
-                # all other samples in the largest study, and comparisons
-                # between samples in different studies when one of them is from
-                # the largest study and the other has the same public_name
-                if ($sample1_meta->[3] ne $largest_study || $sample2_meta->[3] ne $largest_study) {
-                    if ($sample1_meta->[3] ne $largest_study && $sample2_meta->[3] ne $largest_study) {
-                        next;
+            # we're only interested in lines where both samples are samples
+            # that belong to our donor and neither are qc_withdrawn.
+            # complication is that the sample names in the file could be
+            # name, public_name or some combination of both (or indeed
+            # anything else).
+            # for now we try out the obvious possibilities until found
+            unless (defined $sample_source) {
+                my $sample;
+                if ($sample_i =~ $sample_regex) {
+                    $sample = $sample_i;
+                }
+                else {
+                    $sample = $sample_j;
+                }
+                
+                my $sample_node;
+                if ($sample =~ /^(.+)_([^_]+)$/) {
+                    # public_name+sample
+                    $sample_node = $self->get('Sample', { public_name => $1, name => $2 });
+                    if ($sample_node) {
+                        $sample_source = 'public_name+sample';
                     }
-                    unless ($sample1_meta->[1] eq $sample2_meta->[1]) {
-                        next;
+                }
+                if (!$sample_node) {
+                    # sample
+                    $sample_node = $self->get('Sample', { name => $sample });
+                    if ($sample_node) {
+                        $sample_source = 'sample';
+                    }
+                }
+                if (!$sample_node) {
+                    # ... give up for now
+                    $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
+                }
+            }
+            
+            my @samples_meta;
+            if (defined $sample_source) {
+                # there could be multiple rows with the same pair of samples; in
+                # the file they are uniqufied by adding some number prefix to
+                # one of the samples, but we need to get rid of that to match
+                # up the names
+                $sample_i =~ s/^\d+\://;
+                $sample_j =~ s/^\d+\://;
+                
+                if ($require_sample) {
+                    my $sid1 = $allowed_samples{$sample_source}->{$sample_i};
+                    my $sid2 = $allowed_samples{$sample_source}->{$sample_j};
+                    next CN unless ($sid1 == $node_id || $sid2 == $node_id);
+                    foreach my $sid ($sid1, $sid2) {
+                        push(@samples_meta, $sample_meta{$sid});
+                    }
+                }
+                else {
+                    foreach my $sample ($sample_i, $sample_j) {
+                        next CN unless exists $allowed_samples{$sample_source}->{$sample};
+                        push(@samples_meta, $sample_meta{ $allowed_samples{$sample_source}->{$sample} });
                     }
                 }
             }
             
-            push(@results, { type => $type, discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample1_node_id => $sample1_meta->[4], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3], sample2_node_id => $sample2_meta->[4] });
+            if ($require_sample) {
+                my $sample_meta;
+                foreach my $meta (@samples_meta) {
+                    next if $meta->[4] == $node_id;
+                    $sample_meta = $meta;
+                }
+                
+                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2], sample_node_id => $sample_meta->[4] });
+            }
+            else {
+                my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
+                
+                if ($check_largest_study && $largest_study) {
+                    # we're only interested in samples of the largest study vs
+                    # all other samples in the largest study, and comparisons
+                    # between samples in different studies when one of them is from
+                    # the largest study and the other has the same public_name
+                    if ($sample1_meta->[3] ne $largest_study || $sample2_meta->[3] ne $largest_study) {
+                        if ($sample1_meta->[3] ne $largest_study && $sample2_meta->[3] ne $largest_study) {
+                            next;
+                        }
+                        unless ($sample1_meta->[1] eq $sample2_meta->[1]) {
+                            next;
+                        }
+                    }
+                }
+                
+                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample1_name => $sample1_meta->[0], sample1_public_name => $sample1_meta->[1], sample1_control => $sample1_meta->[2], sample1_study => $sample1_meta->[3], sample1_node_id => $sample1_meta->[4], sample2_name => $sample2_meta->[0], sample2_public_name => $sample2_meta->[1], sample2_control => $sample2_meta->[2], sample2_study => $sample2_meta->[3], sample2_node_id => $sample2_meta->[4] });
+            }
         }
-        
-        @results = sort { $a->{sample1_study} cmp $b->{sample1_study} || $a->{sample2_study} cmp $b->{sample2_study} || $b->{sample1_control} <=> $a->{sample1_control} || $b->{sample2_control} <=> $a->{sample2_control} || $a->{sample1_public_name} cmp $b->{sample1_public_name} || $a->{sample2_public_name} cmp $b->{sample2_public_name} } @results;
-        
-        return \@results;
+        close($ifh);
     }
     
     # get the gender info for all samples from this donor
@@ -522,49 +630,28 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     }
     
     # get the discordance results between this sample and all others, along with
-    # any donor info to apply to those other samples
+    # any donor info to apply to those other samples.
+    # these used to be stored as nodes in the graph db, but writing them all to
+    # db was killing neo4j, so now we just get the gtypex file and grep it for
+    # the results we need
     method sample_discordance_results (Int $sample) {
-        my $cypher = "MATCH (sample)-[:genotype_comparison_discordance]->(discordance)<-[od_rel:genotype_comparison_discordance]-(other_sample) WHERE id(sample) = {sample}.id ";
-        $cypher .= $self->sample_extra_info_match_cypher('other_sample') . ',discordance,od_rel';
-        my $graph_data = $self->graph->_run_cypher([[$cypher, { sample => { id => $sample } }]]);
+        my $study_labels = $self->cypher_labels('Study');
         
-        my %rels;
-        foreach my $rel (@{ $graph_data->{relationships} }) {
-            push(@{ $rels{ $rel->{endNode} } }, $rel->{startNode});
-        }
-        
-        my %nodes;
-        foreach my $node (@{ $graph_data->{nodes} }) {
-            $nodes{ $node->{label} }->{ $node->{id} } = $node;
-        }
-        
-        unless (defined $nodes{Discordance}) {
-            return { errors => ["sample node id $sample had no discordance results; is it really the node id of a sample?"] };
-        }
-        my $other_samples = $self->add_extra_info_to_samples($graph_data);
-        
-        my %sample_meta;
-        foreach my $sample (@$other_samples) {
-            my $sid   = $sample->{id};
-            my $props = $sample->{properties};
-            $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control} || 0, $props->{study_id}, $props->{donor_node_id}, $sid];
-        }
+        # first we get discordance results from sequenom/fluidigm; this path is
+        # specific to use of the sequenom_import_from_irods_and_covert_to_vcf +
+        # vcf_merge_and_compare_genotypes pipelines
+        my $cypher = "MATCH (sample)-[:processed]->(irodscsv)-[:imported]->(csv)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) WHERE id(sample) = {sample}.id WITH gtypex MATCH (stepstate)-[sr:result]->(gtypex) WITH stepstate, sr, gtypex ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH gtypex MATCH (allsamples)-[:processed]->(irodscsv)-[:imported]->(csv)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) RETURN DISTINCT allsamples, gtypex";
         
         my @results;
-        foreach my $disc (values $nodes{Discordance}) {
-            my $did = $disc->{id};
-            my $sample_meta;
-            foreach my $sample_id (@{ $rels{$did} }) {
-                $sample_meta = $sample_meta{$sample_id};
-                # there should only be 1 of these...
-                last;
-            }
-            
-            my $props = $disc->{properties};
-            push(@results, { discordance => $props->{discordance}, num_of_sites => $props->{num_of_sites}, avg_min_depth => $props->{avg_min_depth}, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2], sample_study => $sample_meta->[3], donor_node_id => $sample_meta->[4], sample_node_id => $sample_meta->[5] });
-        }
+        $self->_handle_discordance_cypher($cypher, 'sample', $sample, \@results, 'sample_discordance_fluidigm');
         
-        @results = sort { ($b->{discordance} < 3 && $b->{num_of_sites} > 15 ? 1 : 0) <=> ($a->{discordance} < 3 && $a->{num_of_sites} > 15 ? 1 : 0) || $b->{num_of_sites} - $b->{discordance} <=> $a->{num_of_sites} - $a->{discordance} || $a->{sample_study} <=> $b->{sample_study} || $b->{sample_control} <=> $a->{sample_control} || $a->{sample_public_name} cmp $b->{sample_public_name} } @results;
+        # now get discordance results from genotyping. This path is specific to
+        # use of the genome_studio_split_and_convert_to_vcf +
+        # vcf_merge_and_compare_genotypes pipelines
+        $cypher = "MATCH (sample)-[:placed]->(section)-[:processed]->(irodsgtc)-[:imported]->(locatlgtc)-[:instigated]->(fcr)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) WHERE id(sample) = {sample}.id WITH gtypex MATCH (stepstate)-[sr:result]->(gtypex) WITH stepstate, sr, gtypex ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH gtypex MATCH (allsamples)-[:placed]->(section)-[:processed]->(irodsgtc)-[:imported]->(locatlgtc)-[:instigated]->(fcr)-[:converted]->(sample_vcf)-[:merged]->(merged_vcf)-[:genotypes_compared]->(gtypex) RETURN DISTINCT allsamples, gtypex";
+        $self->_handle_discordance_cypher($cypher, 'sample', $sample, \@results, 'sample_discordance_genotyping');
+        
+        @results = sort { ($b->{discordance} < 3 && $b->{num_of_sites} > 15 ? 1 : 0) <=> ($a->{discordance} < 3 && $a->{num_of_sites} > 15 ? 1 : 0) || $b->{num_of_sites} - $b->{discordance} <=> $a->{num_of_sites} - $a->{discordance} || $b->{sample_control} <=> $a->{sample_control} || $a->{sample_public_name} cmp $b->{sample_public_name} } @results;
         
         return \@results;
     }
