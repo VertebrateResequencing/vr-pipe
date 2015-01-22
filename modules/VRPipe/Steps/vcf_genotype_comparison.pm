@@ -128,7 +128,6 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $vrtrack              = VRPipe::Schema->create('VRTrack');
         my $output_file_in_graph = $vrtrack->add_file($output_path);
         $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
-        my $graph = $vrtrack->graph;
         
         my $fh    = $output_file->openr;
         my $count = 0;
@@ -143,84 +142,8 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                     $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
                 }
             }
-            elsif (/^CN\s/) {
-                chomp;
-                my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
-                # there could be multiple rows with the same pair of samples and
-                # we need a unique identifier for each one; in the file they are
-                # uniqufied by adding some number prefix to one of the samples,
-                # but we don't like that
-                $sample_i =~ s/^\d+\://;
-                $sample_j =~ s/^\d+\://;
-                my $unique = join('.', sort ($sample_i, $sample_j));
-                my $i = 0;
-                while (1) {
-                    $i++;
-                    my $this_unique = $unique . '.' . $i;
-                    next if exists $pairs{$this_unique};
-                    $pairs{$this_unique} = 1;
-                    $unique = $this_unique;
-                    last;
-                }
-                
-                # before we can store the result we need to find the sample
-                # nodes in the graph database under the VRTrack schema;
-                # complication is that the sample names in the file could be
-                # name, public_name or some combination of both (or indeed
-                # anything else). Further problem is that since this is a
-                # wrapped cmd, we can't even pass in the info of what was used
-                # as an argument... for now we try out the obvious possibilities
-                # until found
-                unless (defined $sample_source) {
-                    my $sample_node;
-                    if ($sample_i =~ /^(.+)_([^_]+)$/) {
-                        # public_name+sample
-                        $sample_node = $vrtrack->get('Sample', { public_name => $1, name => $2 });
-                        if ($sample_node) {
-                            $sample_source = 'public_name+sample';
-                        }
-                    }
-                    if (!$sample_node) {
-                        # sample
-                        $sample_node = $vrtrack->get('Sample', { name => $sample_i });
-                        if ($sample_node) {
-                            $sample_source = 'sample';
-                        }
-                    }
-                    if (!$sample_node) {
-                        # ... give up for now
-                        $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
-                    }
-                }
-                
-                my @incoming = ({ type => 'discordance', node => $output_file_in_graph });
-                foreach my $identifer ($sample_i, $sample_j) {
-                    my $sample_props;
-                    if ($sample_source eq 'public_name+sample') {
-                        my ($public_name, $sample) = $identifer =~ /^(.+)_([^_]+)$/;
-                        $sample_props = { public_name => $public_name, name => $sample };
-                    }
-                    elsif ($sample_source eq 'sample') {
-                        $sample_props = { name => $identifer };
-                    }
-                    
-                    push(@incoming, { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => $sample_props }, type => 'genotype_comparison_discordance' });
-                }
-                
-                # we add in enqueue mode which doesn't add straight away, but
-                # only when we call dispatch_queue() every 10000 loops - for
-                # database efficiency
-                $vrtrack->add('Discordance', { sample_pair => $unique, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth }, incoming => \@incoming, enqueue => 1);
-                
-                $count++;
-                if ($count == 10000) {
-                    $vrtrack->dispatch_queue;
-                    $count = 0;
-                }
-            }
         }
         $output_file->close;
-        $vrtrack->dispatch_queue;
     }
 }
 
