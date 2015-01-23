@@ -372,17 +372,42 @@ sub start_server {
                             return;
                         }
                         
-                        # make sure we have a setups handler running for our
-                        # farm. since our setups handler will run on a node
+                        # make sure we have setups handlers running for our
+                        # farm. each one will grab a certain number of setups
+                        # based on datasources that we will queue.
+                        # since our setups handler will run on a node
                         # and needs access to the t directory when testing, we
                         # will cd to the git root first for scheduler that need
                         # to
+                        my $ds_handler_queue = 'ds_for_handlers.' . $farm;
+                        $im->drop_queue($ds_handler_queue);
                         my $shcmd = "$handler_path --mode setups --farm $farm";
-                        $scheduler->ensure_running(
-                            cmd => $shcmd,
-                            $deployment eq 'testing' ? (cwd => $cwd) : (),
-                            requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
-                        );
+                        my %ds_queued;
+                        foreach my $setup (@setups) {
+                            my $ds = $setup->datasource;
+                            next if $ds->noted('grabbed');
+                            my $ds_id = $ds->id;
+                            next if $ds_queued{$ds_id};
+                            $im->enqueue($ds_handler_queue, $ds_id);
+                            $ds_queued{$ds_id} = 1;
+                        }
+                        my $num_setup_handlers_needed = keys %ds_queued;
+                        if ($num_setup_handlers_needed) {
+                            $scheduler->ensure_running(
+                                cmd   => $shcmd,
+                                count => $num_setup_handlers_needed,
+                                $deployment eq 'testing' ? (cwd => $cwd) : (),
+                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
+                            );
+                            #*** at the moment we create an initial flood of way
+                            # too many setup handlers; the first few that run
+                            # should grab all the available datasources, the
+                            # remainder should find they have no setups to work
+                            # on and kill themselves, and the next loop of this
+                            # should not enter this if because there are no
+                            # ungrabbed ds to queue. It's wonky but will suffice
+                            # for now
+                        }
                         
                         # make sure we have sufficient submission handlers
                         # running...
