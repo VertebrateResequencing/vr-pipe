@@ -383,15 +383,49 @@ sub start_server {
                         $im->drop_queue($ds_handler_queue);
                         my $shcmd = "$handler_path --mode setups --farm $farm";
                         my %ds_queued;
+                        my $grabbed = 0;
+                        my %ds_wanted;
                         foreach my $setup (@setups) {
                             my $ds = $setup->datasource;
-                            next if $ds->noted('grabbed');
+                            $ds_wanted{ $ds->id } = 1;
+                            if ($ds->noted('grabbed')) {
+                                $grabbed++;
+                                next;
+                            }
                             my $ds_id = $ds->id;
                             next if $ds_queued{$ds_id};
                             $im->enqueue($ds_handler_queue, $ds_id);
                             $ds_queued{$ds_id} = 1;
                         }
-                        my $num_setup_handlers_needed = keys %ds_queued;
+                        
+                        # based on number of datasources that need work and
+                        # the number that have already been grabbed, pick
+                        # an appropriate number of handlers that should be
+                        # running
+                        my $num_setup_handlers_needed = 0;
+                        my $max_setup_handlers        = $max_subs ? int($max_subs / 2) : 500;
+                        my $ds_wanted                 = keys %ds_wanted;
+                        if ($ds_wanted) {
+                            if ($grabbed) {
+                                my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_setup_handlers);
+                                my $grabbed_per_handler = floor($grabbed / $already_running);
+                                $num_setup_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
+                                
+                                if ($num_setup_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
+                                    $num_setup_handlers_needed = $already_running + 1;
+                                }
+                                if ($num_setup_handlers_needed > $max_setup_handlers) {
+                                    $num_setup_handlers_needed = $max_setup_handlers;
+                                }
+                            }
+                            else {
+                                # nothing being grabbed yet suggests we have
+                                # no handlers running at all, so we'll start
+                                # with 1 to see how many that grabs
+                                $num_setup_handlers_needed = 1;
+                            }
+                        }
+                        
                         if ($num_setup_handlers_needed) {
                             $scheduler->ensure_running(
                                 cmd   => $shcmd,
@@ -399,14 +433,6 @@ sub start_server {
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
                                 requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
                             );
-                            #*** at the moment we create an initial flood of way
-                            # too many setup handlers; the first few that run
-                            # should grab all the available datasources, the
-                            # remainder should find they have no setups to work
-                            # on and kill themselves, and the next loop of this
-                            # should not enter this if because there are no
-                            # ungrabbed ds to queue. It's wonky but will suffice
-                            # for now
                         }
                         
                         # make sure we have sufficient submission handlers
