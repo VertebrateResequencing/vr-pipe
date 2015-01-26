@@ -474,6 +474,9 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                     $self->warn("unexpected SN line $orig_method");
                     next;
                 }
+                if ($value eq '-nan') {
+                    $value = 0;
+                }
                 $self->$method($value);
                 $saw++;
             }
