@@ -303,6 +303,11 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     $vrfile = VRPipe::File->create(path => $file_abs_path, type => $vrpipe_filetype)->original;
                 }
                 
+                my $individual = $lane_info{individual_alias} || $lane_info{individual}; #*** should we make the alias preference an option?
+                if ($individual eq 'change_me') {
+                    $individual = $lane_info{individual};
+                }
+                
                 my $new_metadata = {
                     expected_md5 => $file->md5,
                     center_name  => $lane_info{centre},
@@ -310,12 +315,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     study        => $lane_info{study},
                     $lane_info{species} ? (species => $lane_info{species}) : (),
                     population  => $lane_info{population},
-                    individual  => $lane_info{individual_alias} || $lane_info{individual}, #*** should we make the alias preference an option?
+                    individual  => $individual,
                     sample      => $lane_info{sample},
                     platform    => $lane_info{seq_tech},
                     library     => $lane_info{library},
                     lane        => $lane_info{lane},
-                    withdrawn   => $lane_info{withdrawn} || 0,                             #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
+                    withdrawn   => $lane_info{withdrawn} || 0,   #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
                     insert_size => $lane_info{insert_size} || 0,
                     reads       => $file->raw_reads || 0,
                     bases       => $file->raw_bases || 0,
