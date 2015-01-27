@@ -107,23 +107,34 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
             my $bcftools_exe  = $options->{bcftools_exe};
             my $tabix_exe     = $options->{tabix_exe};
             
-            if ($chunk_by_ref && !defined $ref_vcf) {
-                $self->throw("chunk_by_ref is set to 1 while ref_vcf is not given!");
-            }
-            if ($chunk_by_ref && $ref_vcf =~ /{CHROM}/ && !defined $regions) {
-                $self->throw("Option regions is required when ref_vcf contains the string {CHROM}");
+            my $vcf_to_chunk;
+            if ($chunk_by_ref) {
+                if ($ref_vcf) {
+                    my @ref_vcfs = split(/\s+/, $ref_vcf);
+                    $vcf_to_chunk = $ref_vcfs[0];
+                    if ($vcf_to_chunk =~ /{CHROM}/ && !defined $regions) {
+                        $self->throw("option regions is required when ref_vcf contains the string {CHROM}");
+                    }
+                }
+                else {
+                    $self->throw("chunk_by_ref is set to 1 while ref_vcf is not given!");
+                }
             }
             
-            my @ref_vcfs = split(/\s+/, $ref_vcf);
             foreach my $in_vcf (@{ $self->inputs->{vcf_files} }) {
-                my $in_file_path = $chunk_by_ref && defined $ref_vcf ? $ref_vcfs[0] : $in_vcf->path->stringify;
-                my @regions = $self->define_regions($in_file_path, $regions, $tabix_exe);
+                $vcf_to_chunk = $in_vcf->path->stringify unless (defined $vcf_to_chunk);
+                my @regions = $self->define_regions($vcf_to_chunk, $regions, $tabix_exe);
+                my @vcf_path = split(/\//, $vcf_to_chunk);
+                pop @vcf_path;
                 foreach my $region (@regions) {
-                    my $bed_file = $self->output_file(output_key => 'bed_files', basename => "$region.bed", type => 'txt');
+                    my $chr = $region;
+                    $chr =~ s/:.*$//;
+                    my $outdir = join('/', @vcf_path) . "/$chr";
+                    my $bed_file = $self->output_file(output_dir => "$outdir", output_key => 'bed_files', basename => "$region.${chunk_nsites}_$buffer_nsites.bed", type => 'txt');
                     my $bed_path = $bed_file->path;
-                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], in_path => q[$in_file_path], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe]);";
+                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], in_path => q[$vcf_to_chunk], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe]);";
                     my $req      = $self->new_requirements(memory => 1000, time => 1);
-                    $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bed_file] });
+                    $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bed_file], block_and_skip_if_ok => 1 });
                 }
             }
         };
