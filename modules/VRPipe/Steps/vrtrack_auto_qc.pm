@@ -291,7 +291,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 my $min = $auto_qc_min_ins_to_del_ratio;
                 $status = 1;
                 $reason = "The Ins/Del ratio is greater than $min ($inum/$dnum).";
-                if (!$inum or $inum / $dnum < $min) {
+                if ($dnum && (!$inum or $inum / $dnum < $min)) {
                     $status = 0;
                     $reason = "The Ins/Del ratio is smaller than $min ($inum/$dnum).";
                 }
