@@ -26,7 +26,7 @@ ok my $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'uk10k',                      # my personal copy identical to what you'd get using seq, except that they're MT-only
     options => {
-        file_query     => q[study_id = 2547 and type = bam and target = 1 and manual_qc like "%"],
+        file_query     => q[study_id = 2547 and type = cram and target = 1 and manual_qc like "%"],
         local_root_dir => $irods_dir
     }
   ),
@@ -41,7 +41,7 @@ is $results, 4, 'got correct number of bams from irods datasource';
 my $in_db = 0;
 my $vr_file;
 my $irods_test_data_dir = '/uk10k/home/sb10#Sanger1/vrpipe_irods_test_data';
-foreach my $basename ('9417_4#1.MT.bam', '9417_4#2.MT.bam', '9417_4#3.MT.bam', '9417_4#4.MT.bam') {
+foreach my $basename ('9417_4#1.MT.cram', '9417_4#2.MT.cram', '9417_4#3.MT.cram', '9417_4#4.MT.cram') {
     $vr_file = $schema->get_file("$irods_test_data_dir/$basename");
     $in_db++ if $vr_file;
 }
@@ -71,10 +71,11 @@ VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $import_qc_pipeline,
     options     => {
-        reference_fasta         => $ref_fa,
-        reference_assembly_name => 'GRCm38',
-        reference_species       => 'Mus musculus',
-        samtools_stats_options  => '-q 20',
+        reference_fasta           => $ref_fa,
+        reference_assembly_name   => 'GRCm38',
+        reference_species         => 'Mus musculus',
+        samtools_stats_options    => '-q 20',
+        irods_convert_cram_to_bam => '/software/vertres/bin-external/samtools-1.1/bin/samtools',
         #exome_targets_file      => file(qw(t data pombe_ref.fa.targets))->absolute->stringify,
         cleanup => 1
     }
@@ -103,25 +104,23 @@ my $meta = $vr_imported_bam_file->properties(flatten_parents => 1);
 foreach my $key (qw(datasource_uuid uuid filesystemelement_uuid stepstate_uuid filesystemelement_basename filesystemelement_path dataelement_uuid stepstate_sql_id)) {
     delete $meta->{$key};
 }
+
 is_deeply $meta,
   {
     'vrtrack_lane_run'            => '9417',
     'vrtrack_library_id'          => '6784054',
-    'datasource_sql_id'           => '1',
     'filesystemelement_target'    => '1',
     'vrtrack_alignment_reference' => '/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa',
-    'datasource_method'           => 'all_with_warehouse_metadata',
     'vrtrack_study_id'            => '2547',
     'vrtrack_taxon_common_name'   => 'Mouse',
     'vrtrack_sample_name'         => 'MEK_res_4',
     'vrtrack_sample_id'           => '1571703',
-    'dataelement_sql_id'          => '4',
     'vrtrack_library_center_name' => 'SC',
     'vrtrack_sample_created_date' => 1361433109,
     'vrtrack_library_name'        => 'MEK_res_4 6784054',
-    'vrtrack_lane_total_reads'    => '62535326',
+    'vrtrack_lane_total_reads'    => '185893',
     'filesystemelement_manual_qc' => '1',
-    'filesystemelement_md5'       => '3a44f834f2edc0f89278327dd6dbcff2',
+    'filesystemelement_md5'       => '8986c7b7fe50b8a102ad445d5f864e55',
     'vrtrack_study_name'          => 'De novo and acquired resistance to MEK inhibitors ',
     'vrtrack_lane_is_paired_read' => '1',
     'vrtrack_taxon_id'            => '10090',
@@ -131,13 +130,11 @@ is_deeply $meta,
     'vrtrack_lane_lane'           => '4',
     'vrtrack_group_name'          => 'all_studies',
     'vrtrack_lane_unique'         => '9417_4#4.MT',
-    'datasource_source'           => 'uk10k',
     'pipelinesetup_name'          => 'mouse import and qc',
     'basename'                    => '9417_4#4.MT.bam',
     'path'                        => "$irods_dir$irods_test_data_dir/9417_4#4.MT.bam",
     'vrtrack_library_tag'         => 'AGTGGTCA',
     'pipelinesetup_output_root'   => $output_dir,
-    'datasource_type'             => 'irods',
     'vrtrack_library_platform'    => 'ILLUMINA',
     'pipelinesetup_user'          => 'vr-pipe'
   },
@@ -147,7 +144,8 @@ ok my ($stats_file) = $vr_imported_bam_file->related(outgoing => { type => 'pars
 ok my ($bam_stats) = $stats_file->related(outgoing => { type => 'summary_stats', namespace => 'VRTrack', label => 'Bam_Stats' }), 'there was a bam_stats node attached to the stats file';
 my $bs_props = $bam_stats->properties;
 delete $bs_props->{uuid};
-is_deeply $bam_stats->properties, { "bases trimmed" => "5832", "average quality" => "36.0", "mode" => "normal", "is sorted" => "1", "reads mapped after rmdup" => 166309, "mismatches" => "15501", "reads duplicated" => "19584", "bases of 2X coverage" => 16299, "bases of 10X coverage" => 15510, "bases of 5X coverage" => 16299, "raw total sequences" => 185893, "reads paired" => "185893", "maximum length" => "75", "insert size average" => "203.9", "non-primary alignments" => "0", "reads mapped and paired" => "184802", "reads after rmdup" => 166309, "bases of 1X coverage" => 16301, "bases duplicated" => "1468800", "bases of 50X coverage" => 13337, "average length" => "75", "1st fragments" => "93259", "reads properly paired" => "183082", "options" => "-r $ref_fa -q 20", "outward oriented pairs" => "510", "bases of 100X coverage" => 13085, "bases mapped (cigar)" => "13923850", "reads unmapped" => "0", "bases mapped" => 13941975, "filtered sequences" => "0", "inward oriented pairs" => "91580", "pairs with other orientation" => "0", "sequences" => "185893", "bases after rmdup" => 12473175, "reads MQ0" => "39911", "bases mapped after rmdup" => 12456960, "insert size standard deviation" => "82.3", "pairs on different chromosomes" => "233", "mean coverage" => "413.57", "reads mapped" => 185893, "bases of 20X coverage" => 13950, "error rate" => "1.113270e-03", "last fragments" => "92634", "reads QC failed" => "0", "total length" => 13941975 }, 'the bam_stats node had the correct stats';
+delete $bs_props->{date};
+is_deeply $bam_stats->properties, { "bases trimmed" => "5832", "average quality" => "36.0", "mode" => "normal", "is sorted" => "1", "reads mapped after rmdup" => 166309, "mismatches" => "15501", "reads duplicated" => "19584", "bases of 2X coverage" => 16299, "bases of 10X coverage" => 15510, "bases of 5X coverage" => 16299, "raw total sequences" => 185893, "reads paired" => "185893", "maximum length" => "75", "insert size average" => "203.9", "non-primary alignments" => "0", "reads mapped and paired" => "184802", "reads after rmdup" => 166309, "bases of 1X coverage" => 16301, "bases duplicated" => "1468800", "bases of 50X coverage" => 13337, "average length" => "75", "1st fragments" => "93259", "reads properly paired" => "183082", "options" => "-r $ref_fa -q 20", "outward oriented pairs" => "510", "bases of 100X coverage" => 13085, "bases mapped (cigar)" => "13923850", "reads unmapped" => "0", "bases mapped" => 13941975, "filtered sequences" => "0", "inward oriented pairs" => "91580", "pairs with other orientation" => "0", "sequences" => "185893", "bases after rmdup" => 12473175, "reads MQ0" => "39911", "bases mapped after rmdup" => 12456960, "insert size standard deviation" => "82.2", "pairs on different chromosomes" => "233", "mean coverage" => "413.57", "reads mapped" => 185893, "bases of 20X coverage" => 13950, "error rate" => "1.113270e-03", "last fragments" => "92634", "reads QC failed" => "0", "total length" => 13941975 }, 'the bam_stats node had the correct stats';
 my @plots = $stats_file->related(outgoing => { type => 'bamstats_plot' });
 is scalar(@plots), 12, 'all the plots were attached to the stats file';
 
