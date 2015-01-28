@@ -271,7 +271,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         
         # number of insertions vs deletions
         if (defined $auto_qc_max_ins_to_del_ratio || defined $auto_qc_min_ins_to_del_ratio) {
-            my ($inum, $dnum);
+            my ($inum, $dnum) = (0, 0);
             my $counts = $bc->indel_dist();
             for my $row (@$counts) {
                 $inum += $$row[1];
@@ -395,26 +395,28 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             
             # Get median and max of indel fwd/rev cycle counts
             my $counts = $bc->indel_cycles();
-            my (@vals, @med, @max);
-            for my $row (@$counts) {
+            if ($counts && @$counts) {
+                my (@vals, @med, @max);
+                for my $row (@$counts) {
+                    for (my $i = 0; $i < 4; $i++) {
+                        push @{ $vals[$i] }, $$row[$i + 1];
+                    }
+                }
                 for (my $i = 0; $i < 4; $i++) {
-                    push @{ $vals[$i] }, $$row[$i + 1];
+                    my @sorted = sort { $a <=> $b } @{ $vals[$i] };
+                    my $n = int(scalar @sorted / 2);
+                    $med[$i] = $sorted[$n];
+                    $max[$i] = $sorted[-1];
                 }
-            }
-            for (my $i = 0; $i < 4; $i++) {
-                my @sorted = sort { $a <=> $b } @{ $vals[$i] };
-                my $n = int(scalar @sorted / 2);
-                $med[$i] = $sorted[$n];
-                $max[$i] = $sorted[-1];
-            }
-            
-            for (my $i = 0; $i < 4; $i++) {
-                if ($max[$i] > $auto_qc_max_ic_above_median * $med[$i]) {
-                    $status = 0;
-                    $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
+                
+                for (my $i = 0; $i < 4; $i++) {
+                    if ($max[$i] > $auto_qc_max_ic_above_median * $med[$i]) {
+                        $status = 0;
+                        $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
+                    }
                 }
+                push @qc_status, { test => 'InDels per Cycle', status => $status, reason => $reason };
             }
-            push @qc_status, { test => 'InDels per Cycle', status => $status, reason => $reason };
         }
         
         # now output the results
