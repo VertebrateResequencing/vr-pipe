@@ -176,10 +176,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $meta;
         if ($converted_cram_to_bam) {
             # we can't confirm based on md5, so check based on num records
+            # (this number may not exist outside Sanger, and within Sanger it
+            #  does not include secondary or supplementary reads, so we do no
+            #  check if not present and need greater than or equal the
+            #  number of reads expected)
             my $actual = $dest_file->num_records;
             $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
             my $expected = $meta->{total_reads};
-            unless ($expected == $actual) {
+            if ($expected && ($expected > $actual)) {
                 $dest_file->unlink;
                 $self->throw("we converted $source -> $dest, but the bam had $actual reads instead of $expected; deleted");
             }
