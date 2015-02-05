@@ -286,8 +286,8 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             
             my @files;
             foreach my $file (@{ $lane->files }) {
-                my $file_type = $file->type;
-                next unless $file_type =~ /^($file_type)$/;
+                my $this_type = $file->type;
+                next unless $this_type =~ /^($file_type)$/;
                 
                 my ($file_abs_path, $vrfile);
                 if ($file_type eq "5") {
