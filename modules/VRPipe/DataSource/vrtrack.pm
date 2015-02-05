@@ -290,7 +290,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 next unless $this_type =~ /^($file_type)$/;
                 
                 my ($file_abs_path, $vrfile);
-                if ($file_type eq "5") {
+                if ($this_type eq "5") {
                     my $file_name = $file->name;
                     my ($fid) = $file_name =~ /VRPipe::File::(\d+)/;
                     $fid || $self->throw("file " . $file->id . " was type 5, but did not have a VRPipe::File name (was '$file_name')");
@@ -299,7 +299,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 else {
                     $file_abs_path = file($local_root_dir, $file->name)->stringify;
-                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $file_type_to_type{$file_type})->original;
+                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $file_type_to_type{$this_type})->original;
                 }
                 
                 my $individual = $lane_info{individual_alias} || $lane_info{individual}; #*** should we make the alias preference an option?
