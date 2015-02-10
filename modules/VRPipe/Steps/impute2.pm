@@ -75,6 +75,11 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                 optional      => 0,
                 default_value => '/nfs/users/nfs_p/pd3/sandbox/svn/impute2/ALL_1000G_phase1interim_jun2011_impute/genetic_map_chr{CHROM}_combined_b37.txt'
             ),
+            bgzip_exe => VRPipe::StepOption->create(
+                description   => 'path to the bgzip executable',
+                optional      => 1,
+                default_value => 'bgzip'
+            ),
         };
     }
     
@@ -103,6 +108,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             my $impute2_exe  = $options->{impute2_exe};
             my $impute2_opts = $options->{impute2_options};
             my $tabix_exe    = $options->{tabix_exe};
+            my $bgzip_exe    = $options->{bgzip_exe};
             my $bcftools_exe = $options->{bcftools_exe};
             my $ref_vcf      = $options->{ref_vcf};
             my $vcf_GL_tag   = $options->{vcf_GL_tag};
@@ -125,6 +131,12 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             my $meta    = $in_vcf->metadata;
             my $in_path = $in_vcf->path;
             
+            my $header_file = $self->output_file(output_key => 'info_files', basename => "scores.hdr", type => 'txt');
+            my $hdr = $header_file->openw;
+            print $hdr "##INFO=<ID=IMP2,Number=3,Type=Float,Description=\"IMPUTE2 scores: exp_freq_a1, info, certainty\">";
+            $hdr->close;
+            my $header_path = $header_file->path;
+            
             foreach my $bed_file (@{ $self->inputs->{bed_files} }) {
                 my $fh = $bed_file->openr;
                 while (<$fh>) {
@@ -136,17 +148,19 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $to      = $chunk[2];
                     my $sub_dir = $chr;
                     
-                    my @outfiles       = ();
-                    my $in_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.gen.gz", type => 'bin', temporary => 1);
-                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.samples", type => 'txt', temporary => 1);
+                    my @outfiles = ();
                     
-                    my $out_gt_file     = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.gz",        type => 'bin', temporary => 1);
-                    my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_samples", type => 'txt', temporary => 1);
-                    
-                    my $int_bcf_file     = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf",            type => 'bin', temporary => 1);
-                    my $int_bcf_index    = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf.csi",        type => 'bin', temporary => 1);
-                    my $int_concat_file  = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf",     type => 'bin', temporary => 1);
-                    my $int_concat_index = $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf.csi", type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.gen.gz",     type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.samples",    type => 'txt', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.gz",                type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_samples",         type => 'txt', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf",               type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf.csi",           type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf",        type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.concat.bcf.csi",    type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_info.bed",        type => 'txt', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_info.bed.gz",     type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_info.bed.gz.tbi", type => 'bin', temporary => 1);
                     
                     my $log_file         = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.impute2.$from-$to.log",              type => 'txt');
                     my $warnings_file    = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.impute2.$from-${to}_warnings",       type => 'txt');
@@ -162,7 +176,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $gen_map = $self->expand_chrom($options->{genetic_map}, $chr);
                     my $ref_path = $self->expand_chrom($ref_vcf, $chr);
                     
-                    push(@outfiles, ($in_gt_file, $in_sample_file, $out_gt_file, $out_sample_file, $int_bcf_file, $int_bcf_index, $int_concat_file, $int_concat_index, $log_file, $warnings_file, $summary_file, $info_file, $sample_info_file, $out_vcf, $out_tbi));
+                    push(@outfiles, ($log_file, $warnings_file, $summary_file, $info_file, $sample_info_file, $out_vcf, $out_tbi));
                     
                     ## Time was observed to scale linearly with number of markers (M*2 => T*2) and number of template haplotypes (K*2 => T*2), even though relationship with K is known to be superlinear or quadratic for large K. We estimate the time given it takes 500 sd to run with M=5000 and K=80
                     my $Markers = $chunk[3];
@@ -170,7 +184,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $time = int(500 * (1 + ($N_haps - 80) / 80) * (1 + ($Markers - 5000) / 5000)); #seconds
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
-                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map], vcf_GL_tag => q[$vcf_GL_tag]);";
+                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], bgzip => q[$bgzip_exe], gen_map => q[$gen_map], vcf_GL_tag => q[$vcf_GL_tag], header_file => q[$header_path]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
                 close($fh);
@@ -222,7 +236,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         return $path;
     }
     
-    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$bcftools!, Str :$tabix!, Str :$gen_map!, Str :$vcf_GL_tag!) {
+    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$bcftools!, Str :$tabix!, Str :$bgzip!, Str :$gen_map!, Str :$vcf_GL_tag!, Str :$header_file!) {
         my @region = @{$chunk};
         my $chr    = $region[0];
         my $from   = $region[1];
@@ -264,6 +278,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         $fh->close;
         if (@warns > @info * 0.1) { $self->throw("Too many warnings, better to check this: ${out}_warnings"); }
         
+        # convert impute2 genotypes to bcf format
         $cmd_line = "$bcftools convert --gensample2vcf $out.gz,${out}_samples -Ob -o $out.bcf && $bcftools index $out.bcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
@@ -272,7 +287,24 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        $cmd_line = "$bcftools annotate -r $chr:$from-$to -c ID,QUAL,FILTER,INFO,^FMT/GT,^FMT/GP -a $in_vcf $out.concat.bcf -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
+        # convert impute2 info scores to bed format
+        $fh = $info_file->openr;
+        my $info_bed_file = VRPipe::File->get(path => "${out}_info.bed");
+        my $bfh = $info_bed_file->openw;
+        while (<$fh>) {
+            next if ($_ =~ /certainty/);
+            my @scores = split(/\s+/, $_);
+            my $str    = $scores[2] - 1;
+            my $end    = $scores[2];
+            print $bfh "$chr\t$str\t$end\t$scores[3],$scores[4],$scores[5]\n";
+        }
+        $bfh->close;
+        $fh->close;
+        $cmd_line = "cat ${out}_info.bed | $bgzip -c > ${out}_info.bed.gz && $tabix -p bed ${out}_info.bed.gz";
+        $out_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $cmd_line = "$bcftools annotate -r $chr:$from-$to -c ID,QUAL,FILTER,INFO,^FMT/GT,^FMT/GP -a $in_vcf -Ou $out.concat.bcf | $bcftools annotate -c CHROM,FROM,TO,IMP2 -h $header_file -a ${out}_info.bed.gz -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
