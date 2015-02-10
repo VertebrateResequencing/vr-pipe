@@ -86,7 +86,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         if ($type eq 'txt' || $type eq 'bin' || $type eq 'any') {
             ($type) = $basename =~ /\.([^\.]+)$/;
         }
-        if ($type eq 'bam' && $meta->{total_reads} < 1000) {
+        if ($type =~ /bam|cram/ && $meta->{total_reads} < 1000) {
             # ignore ~empty bam files
             return 1;
         }
@@ -108,7 +108,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         $file->add_metadata({ lane => $lane }, replace_data => 1) if $file->meta_value('lane');
         $file->disconnect;
         
-        my %type_to_vrtrack_type = (bam => 4, gtc => 7, idat => 8);
+        my %type_to_vrtrack_type = (bam => 4, cram => 6, gtc => 7, idat => 8);
         
         my $vrtrack = $self->get_vrtrack(db => $db);
         
@@ -160,7 +160,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 # fill out lane details we might have at this point
                 $vrlane->raw_reads($meta->{total_reads}) if exists $meta->{total_reads};
                 $vrlane->is_paired($meta->{is_paired_read} ? 1 : 0) if exists $meta->{is_paired_read};
-                unless ($type eq 'bam') {
+                unless ($type =~ /bam|cram/) {
                     my $analysis_uuid = $meta->{analysis_uuid};
                     if ($analysis_uuid) {
                         if (ref($analysis_uuid)) {
@@ -214,7 +214,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 
                 # get/create the library
                 my ($library_name, $library_ssid, $library_tag_sequence);
-                if ($type eq 'bam') {
+                if ($type eq 'bam' || $type eq 'cram') {
                     $library_name = $meta->{library};
                     $library_ssid = $meta->{library_id};
                 }

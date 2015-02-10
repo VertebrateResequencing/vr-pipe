@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012,2014 Genome Research Limited.
+Copyright (c) 2012,2014,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -91,7 +91,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return 15;
     }
     
-    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!) {
+    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!, Str|File :$samtools_for_cram_to_bam?) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -122,7 +122,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
             my $irods_file = join('/', ($path, $filename));
             
-            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum);
+            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum, $samtools_for_cram_to_bam ? (samtools_for_cram_to_bam => $samtools_for_cram_to_bam) : ());
         }
         else {
             $self->throw("A file with basename $basename could not be found in iRods zone $zone");
@@ -138,7 +138,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?) {
+    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?, Str|File :$samtools_for_cram_to_bam?) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -151,10 +151,18 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
         }
         
-        # -K: checksum
-        # -Q: use UDP rather than TCP
-        # -f: force overwrite
-        my $failed = $self->run_irods_command("$iget -K -f $source $dest");
+        my $failed;
+        my $converted_cram_to_bam = 0;
+        if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
+            $failed                = $self->run_irods_command("$iget $source - | $samtools_for_cram_to_bam view -b - > $dest");
+            $converted_cram_to_bam = 1;
+        }
+        else {
+            # -K: checksum
+            # -Q: use UDP rather than TCP
+            # -f: force overwrite
+            $failed = $self->run_irods_command("$iget -K -f $source $dest");
+        }
         
         $dest_file->update_stats_from_disc;
         if ($failed) {
@@ -165,21 +173,44 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # correct permissions, just in case
         chmod 0664, $dest;
         
-        # double-check the md5 (iget -K doesn't always work?)
-        my $ok = $dest_file->verify_md5(file($dest), $expected_md5);
-        unless ($ok) {
-            $dest_file->unlink;
-            $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
+        my $meta;
+        if ($converted_cram_to_bam) {
+            # we can't confirm based on md5, so check based on num records
+            # (this number may not exist outside Sanger, and within Sanger it
+            #  does not include secondary or supplementary reads, so we do no
+            #  check if not present and need greater than or equal the
+            #  number of reads expected)
+            my $actual = $dest_file->num_records;
+            $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            my $expected = $meta->{total_reads};
+            if ($expected && ($expected > $actual)) {
+                $dest_file->unlink;
+                $self->throw("we converted $source -> $dest, but the bam had $actual reads instead of $expected; deleted");
+            }
+        }
+        else {
+            # double-check the md5 (iget -K doesn't always work?)
+            my $ok = $dest_file->verify_md5(file($dest), $expected_md5);
+            unless ($ok) {
+                $dest_file->unlink;
+                $self->throw("we got $source -> $dest, but the md5 checksum did not match; deleted");
+            }
         }
         
-        my $meta;
         if ($add_metadata) {
-            $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            $meta ||= $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            
+            # correct the md5 if we converted the file
+            if ($converted_cram_to_bam && defined $meta->{md5}) {
+                $dest_file->update_md5();
+                $meta->{md5} = $dest_file->md5();
+            }
+            
             $dest_file->add_metadata($meta, replace_data => 1);
         }
         
         # relate source file to dest file in the graph database
-        $self->relate_input_to_output($source, 'imported', $dest_file->path->stringify, $meta ? $meta : ());
+        $self->relate_input_to_output($source, 'imported', $dest_file->path->stringify);
     }
     
     method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {

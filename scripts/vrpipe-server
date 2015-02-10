@@ -383,20 +383,21 @@ sub start_server {
                         $im->drop_queue($ds_handler_queue);
                         my $shcmd = "$handler_path --mode setups --farm $farm";
                         my %ds_queued;
-                        my $grabbed = 0;
+                        my %grabbed;
                         my %ds_wanted;
                         foreach my $setup (@setups) {
-                            my $ds = $setup->datasource;
-                            $ds_wanted{ $ds->id } = 1;
+                            my $ds    = $setup->datasource;
+                            my $ds_id = $ds->id;
+                            $ds_wanted{$ds_id} = 1;
                             if ($ds->noted('grabbed')) {
-                                $grabbed++;
+                                $grabbed{$ds_id} = $ds;
                                 next;
                             }
-                            my $ds_id = $ds->id;
                             next if $ds_queued{$ds_id};
                             $im->enqueue($ds_handler_queue, $ds_id);
                             $ds_queued{$ds_id} = 1;
                         }
+                        my $grabbed = keys %grabbed;
                         
                         # based on number of datasources that need work and
                         # the number that have already been grabbed, pick
@@ -408,14 +409,27 @@ sub start_server {
                         if ($ds_wanted) {
                             if ($grabbed) {
                                 my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_setup_handlers);
-                                my $grabbed_per_handler = floor($grabbed / $already_running);
-                                $num_setup_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
-                                
-                                if ($num_setup_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
-                                    $num_setup_handlers_needed = $already_running + 1;
+                                if ($already_running) {
+                                    my $grabbed_per_handler = floor($grabbed / $already_running);
+                                    $grabbed_per_handler ||= 1;
+                                    $num_setup_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
+                                    
+                                    if ($num_setup_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
+                                        $num_setup_handlers_needed = $already_running + 1;
+                                    }
+                                    if ($num_setup_handlers_needed > $max_setup_handlers) {
+                                        $num_setup_handlers_needed = $max_setup_handlers;
+                                    }
                                 }
-                                if ($num_setup_handlers_needed > $max_setup_handlers) {
-                                    $num_setup_handlers_needed = $max_setup_handlers;
+                                else {
+                                    # nothing's running but we still have
+                                    # grabbed datasources - handlers must have
+                                    # been killed such that they didn't release
+                                    # their grabbed note; clear them all now
+                                    foreach my $ds (values %grabbed) {
+                                        $ds->forget_note('grabbed');
+                                    }
+                                    $num_setup_handlers_needed = 1;
                                 }
                             }
                             else {
