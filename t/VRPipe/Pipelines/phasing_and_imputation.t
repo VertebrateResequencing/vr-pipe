@@ -42,7 +42,6 @@ SKIP: {
             source => file(qw(t data imputation.vcf.fofn)),
         ),
         options => {
-            ref_vcf              => $ref_vcf,
             chunk_nsites         => 1000,
             buffer_nsites        => 200,
             shapeit_options      => '--seed 123456789',
@@ -88,7 +87,7 @@ SKIP: {
             ref_vcf       => $ref_vcf,
             chunk_by_ref  => 1,
             chunk_nsites  => 1000,
-            buffer_nsites => 200,
+            buffer_nsites => 200
         },
         output_root => $output_dir
     );

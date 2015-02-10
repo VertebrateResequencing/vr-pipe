@@ -129,14 +129,12 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $to      = $chunk[2];
                     my $sub_dir = $chr;
                     
-                    my $in_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.gen.gz",  type => 'bin', temporary => 1);
-                    my $in_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.samples", type => 'txt', temporary => 1);
-                    
-                    my $out_haps_file   = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.haps.gz", type => 'bin', temporary => 1);
-                    my $out_sample_file = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.samples", type => 'txt', temporary => 1);
-                    
-                    my $int_bcf_file  = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf",     type => 'bin', temporary => 1);
-                    my $int_bcf_index = $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf.csi", type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.gen.gz",  type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_shapeit.$from-$to.samples", type => 'txt', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.haps.gz",        type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.samples",        type => 'txt', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf",            type => 'bin', temporary => 1);
+                    $self->output_file(sub_dir => $sub_dir, basename => "02.shapeit.$from-$to.bcf.csi",        type => 'bin', temporary => 1);
                     
                     my $log_file       = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.shapeit.$from-$to.log",                type => 'txt');
                     my $snp_mm_file    = $self->output_file(sub_dir => $sub_dir, output_key => 'info_files', basename => "02.shapeit.$from-$to.snp.mm",             type => 'txt');
@@ -158,7 +156,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $time = int(200 * (1 + 0.5 * ($N_haps - 100) / 100) * (1 + 4 * ($samples - 100) / 100) * (1 + 0.5 * ($Markers - 5000) / 5000)); #seconds
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
-                    my @outfiles = ($in_haps_file, $in_sample_file, $out_haps_file, $out_sample_file, $int_bcf_file, $int_bcf_index, $log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
+                    my @outfiles = ($log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
                     my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 
