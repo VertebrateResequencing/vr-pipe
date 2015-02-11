@@ -75,15 +75,22 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
             my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
-            my $samtools = $options->{samtools_exe};
+            my $samtools         = $options->{samtools_exe};
+            my $samtools_version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+            my $fixmate_extra    = '';
+            if ($samtools_version =~ /^(\d+)\.\d+/) {
+                if ($1 > 0) {
+                    $fixmate_extra = ' -O bam';
+                }
+            }
             
             my $u = $options->{uncompressed_fixed_bam_output} ? ' -u' : ' -b';
             my $t = $options->{fixed_bam_seq_from_reference} ? ' -T $reference_fasta' : '';
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
-                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                    summary => "samtools view -bSu \$sam_file$t | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd$u - \$reference_fasta > \$fixed_bam_file"
+                    version => $samtools_version,
+                    summary => "samtools view -bSu \$sam_file$t | samtools sort -n -o - samtools_nsort_tmp | samtools fixmate$fixmate_extra /dev/stdin /dev/stdout | samtools sort -o - samtools_csort_tmp | samtools fillmd$u - \$reference_fasta > \$fixed_bam_file"
                 )
             );
             
@@ -108,7 +115,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
                 my $cprefix  = file($bam_dir, $prefix_base . '.samtools_csort_tmp');
                 
                 my $tr = $options->{fixed_bam_seq_from_reference} ? " -T $ref" : '';
-                my $this_cmd = "$samtools view -bSu $sam_path$tr | $samtools sort -n -o - $nprefix | $samtools fixmate /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd$u - $ref > $bam_path";
+                my $this_cmd = "$samtools view -bSu $sam_path$tr | $samtools sort -n -o - $nprefix | $samtools fixmate$fixmate_extra /dev/stdin /dev/stdout | $samtools sort -o - $cprefix | $samtools fillmd$u - $ref > $bam_path";
                 
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::sam_to_fixed_bam', 'fix_and_check', [$this_cmd, $req, { output_files => [$bam_file] }]);
             }
@@ -149,7 +156,7 @@ class VRPipe::Steps::sam_to_fixed_bam with VRPipe::StepRole {
         my $bam_file = VRPipe::File->get(path => $bam_path);
         
         $bam_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        system('set -o pipefail; ' . $cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $expected_reads = $sam_file->metadata->{reads};
         $bam_file->update_stats_from_disc(retries => 3);
