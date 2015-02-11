@@ -42,7 +42,7 @@ use VRPipe::Base;
 
 class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     our $correct_magic = [qw(037 213 010 004 000 000 000 000 000 377 006 000 102 103 002 000)];
-    our $u_magic       = [qw(102 101 115 001 270 000 000 000 100 110 104 011 126 116 072 061)];
+    our $u_magic       = [qw(102 101 115 001)];                                                # bam1; the rest is variable
     
     my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     
