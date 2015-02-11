@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011,2012,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -93,14 +93,22 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
             my $separate      = $options->{bam_merge_keep_single_paired_separate};
             my $dict_path     = $self->inputs->{dict_file}->[0]->path;
             
-            if ($samtools_opts =~ /\s-[hb]\s/) {
-                $self->throw("samtools options should not include -h or -b");
+            if ($samtools_opts =~ /\s-\S*?[hbcp]\s/) {
+                $self->throw("samtools options should not include -h,-b,-c or -p");
             }
+            
+            my $samtools_version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+            if ($samtools_version =~ /^(\d+)\.\d+/) {
+                if ($1 > 0) {
+                    $samtools_opts .= ' -cp';
+                }
+            }
+            $samtools_opts =~ s/^\s+//;
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
-                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                    version => $samtools_version,
                     summary => "samtools merge $samtools_opts -h \$header_file \$output_file \@bam_files"
                 )
             );
@@ -208,7 +216,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     );
                 }
                 
-                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], samtools_opts => q[$samtools_opts], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)]);";
+                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], samtools_opts => q[$samtools_opts], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)] );";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@ofiles });
             }
         };
