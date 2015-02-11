@@ -42,13 +42,19 @@ use VRPipe::Base;
 
 class VRPipe::FileType::bam extends VRPipe::FileType::bin {
     our $correct_magic = [qw(037 213 010 004 000 000 000 000 000 377 006 000 102 103 002 000)];
+    our $u_magic       = [qw(102 101 115 001 270 000 000 000 100 110 104 011 126 116 072 061)];
     
     my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
     
     around check_type {
         $self->$orig || return 0;
         my $file = $self->file;
-        $self->check_magic($file, $correct_magic) || return 0;
+        my $ok = $self->check_magic($file, $correct_magic);
+        
+        unless ($ok) {
+            # it might be an uncompressed bam
+            $self->check_magic($file, $u_magic) || return 0;
+        }
         
         # unfortunately bgzip produces the same magic, so we'll incorrectly
         # validate compressed VCFs. One way to get around this is to decompress
