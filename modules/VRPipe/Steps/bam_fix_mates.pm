@@ -62,7 +62,7 @@ class VRPipe::Steps::bam_fix_mates extends VRPipe::Steps::picard {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'picard',
                     version => $self->picard_version(),
-                    summary => 'java $jvm_args -jar FixMateInformation.jar INPUT=$bam_file OUTPUT=$fixmate_bam_file ' . $fixmate_options
+                    summary => 'java $jvm_args -jar ' . $fixmates_jar . ' INPUT=$bam_file OUTPUT=$fixmate_bam_file ' . $fixmate_options
                 )
             );
             
