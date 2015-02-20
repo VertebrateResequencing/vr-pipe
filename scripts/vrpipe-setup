@@ -295,7 +295,7 @@ if ($setup) {
             my $methods = $reg->{$regulator}->{methods};
             while (my ($method, $steps) = each %$methods) {
                 push(@methods, $method);
-                foreach my $step (%$steps) {
+                foreach my $step (keys %$steps) {
                     $steps{$step} = 1;
                 }
             }
