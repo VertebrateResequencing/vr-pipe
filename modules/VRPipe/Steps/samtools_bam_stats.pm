@@ -204,6 +204,12 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
                 while (<$fh>) {
                     if (/^SN\s+([^:]+):\s+(\S+)/) {
                         $stats{$1} = $2;
+                        
+                        # store reads metadata on the file for compatibility
+                        # with old steps
+                        if ($1 eq 'raw total sequences') {
+                            $bam_file->add_metadata({ reads => $2 });
+                        }
                     }
                 }
                 $stats_file->close;
