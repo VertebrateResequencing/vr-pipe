@@ -35,6 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
     use VRPipe::Parser;
+    use VRPipe::Schema;
     
     around options_definition {
         return {
@@ -109,7 +110,10 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 type        => 'txt',
                 description => 'bamcheck files',
                 max_files   => -1,
-                metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
+                metadata    => {
+                    lane     => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    optional => ['lane']
+                }
             )
         };
     }
@@ -125,9 +129,34 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             # bamcheck file might have been made for a different bam (eg.
             # imported bam, whilst the input bam is an improved bam), so we
             # can't use source_bam metadata here
-            my %by_lane;
+            my (%by_lane, $schema);
             foreach my $file (@{ $self->inputs->{bam_files} }, @{ $self->inputs->{bamcheck_files} }) {
-                push(@{ $by_lane{ $file->metadata->{lane} } }, $file->path);
+                my $lane = $file->metadata->{lane};
+                
+                unless ($lane) {
+                    # modern steps don't store stuff in ->metadata(); check the
+                    # graph db instead
+                    $schema ||= VRPipe::Schema->create("VRPipe");
+                    my $file_graph_node = $schema->get('File', { path => $file->path->stringify });
+                    if ($file_graph_node) {
+                        my ($lane_node) = $schema->graph->related_nodes(
+                            $file_graph_node,
+                            incoming => {
+                                namespace => 'VRTrack',
+                                label     => 'Lane',
+                                max_depth => 4
+                            }
+                        );
+                        if ($lane_node) {
+                            $lane = $schema->graph->node_property($lane_node, "unique");
+                        }
+                    }
+                }
+                unless ($lane) {
+                    $self->throw("file " . $file->path . " lacks lane metadata");
+                }
+                
+                push(@{ $by_lane{$lane} }, $file->path);
             }
             
             while (my ($lane, $files) = each %by_lane) {
