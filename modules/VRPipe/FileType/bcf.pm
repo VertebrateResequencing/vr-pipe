@@ -1,12 +1,13 @@
 use VRPipe::Base;
 
 class VRPipe::FileType::bcf extends VRPipe::FileType::bin {
-    our $correct_magic = [qw(037 213 010 004 000 000 000 000 000 377 006 000 102 103 002)];
+    our $correct_magic     = [qw(102 103 106 002)];
+    our $old_correct_magic = [qw(037 213 010 004 000 000 000 000 000 377 006 000 102 103 002)];
     
     around check_type {
         $self->$orig || return 0;
         my $file = $self->file;
-        $self->check_magic($file, $correct_magic) || return 0;
+        $self->check_magic($file, $correct_magic) || $self->check_magic($file, $old_correct_magic) || return 0;
         
         # unfortunately bgzip and bams have the same magic, so we'll incorrectly
         # validate compressed VCFs. One way to get around this is to decompress
