@@ -571,7 +571,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                     #*** need a very quick way of checking number of files that
                     # pass the filter and graph_filter; the below is probably
                     # too slow?
-                    my $files = $self->_all_datasource_files([$setup_id]);
+                    my $files = $self->_all_datasource_files([$setup_id], $sources);
                     
                     foreach my $file (@$files) {
                         my $pass = $self->_file_filter($file, $filter_after_grouping, $krs, $gfs, $vrpipe_graph_schema, $graph);
@@ -587,8 +587,8 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         return $digest;
     }
     
-    method _all_datasource_files (Maybe[ArrayRef[Int]] $setup_ids?) {
-        my $sources = $self->vrpipe_sources;
+    method _all_datasource_files (Maybe[ArrayRef[Int]] $setup_ids?, Maybe[HashRef] $sources?) {
+        $sources   ||= $self->vrpipe_sources;
         $setup_ids ||= [sort keys %{$sources}];
         
         my @all_files;
