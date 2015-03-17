@@ -22,7 +22,7 @@ foreach my $stepmember ($star_pipeline->step_members) {
     push(@sb_names, $stepmember->step->name);
 }
 
-is_deeply \@sb_names, [qw(sequence_dictionary star_buildgenome bam_metadata bamtofastq star_map_fastq sam_to_fixed_bam bam_reheader bam_index)], 'the rna_seq_star_bam_remapping pipeline has the correct steps';
+is_deeply \@sb_names, [qw(sequence_dictionary star_buildgenome bam_metadata bamtofastq star_map_fastq bam_to_fixed_bam bam_reheader bam_index)], 'the rna_seq_star_bam_remapping pipeline has the correct steps';
 
 my $ref_fasta_orig = file(qw(t data human_g1k_v37.chr20.fa));
 my $ref_dir = dir($output_dir, 'ref');
