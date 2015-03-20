@@ -1,0 +1,5 @@
+path	individual	sample
+t/data/coxy33_input.bam	coxy33	coxy33_input
+t/data/coxy33_k27ac.bam	coxy33	coxy33_k27ac
+t/data/coxy33_k27me3.bam	coxy33	coxy33_k27me3
+t/data/coxy33_k4me3.bam	coxy33	coxy33_k4me3
