@@ -86,6 +86,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
             }
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => '', version => '', summary => q[$cmd_line]));
             
+            my $sub_dir = 'a';
             foreach my $in_bam (@{ $self->inputs->{bam_files} }) {
                 my $out_meta = {};
                 my $in_meta  = $in_bam->metadata;
@@ -94,14 +95,17 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 }
                 $out_meta->{source_bam} = $in_bam->path;
                 my $basename = ($in_meta->{$sample_key}) ? $in_meta->{$sample_key} : "processed";
-                my $out_bam     = $self->output_file(output_key => 'bam_files', basename => $basename . ".bam", type => 'bam', metadata => $out_meta);
+                my $out_bam = $self->output_file(sub_dir => $sub_dir, output_key => 'bam_files', basename => $basename . ".bam", type => 'bam', metadata => $out_meta);
+                ++$sub_dir;
                 my $this_cmd    = $cmd_line;
                 my $input_path  = $in_bam->path;
                 my $output_path = $out_bam->path;
+                my $output_dir  = $out_bam->dir;
                 $this_cmd =~ s/\$input_bam/$input_path/;
                 $this_cmd =~ s/\$output_bam/$output_path/;
+                my $cmd_line = "cd $output_dir; " . $this_cmd;
                 my $req = $self->new_requirements(memory => 500, time => 1);
-                $self->dispatch([$this_cmd, $req, { output_files => [$out_bam] }]);
+                $self->dispatch([$cmd_line, $req, { output_files => [$out_bam] }]);
             }
         };
     }
