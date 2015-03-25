@@ -108,10 +108,10 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 }
             }
             
-            my $ctrl_str = "";
+            my $control_bam;
             foreach my $sample (keys %input_bams) {
                 if ($sample =~ /$control_regex/i) {
-                    $ctrl_str = " -c " . $input_bams{$sample}->path;
+                    $control_bam = $input_bams{$sample}->path;
                 }
             }
             
@@ -139,10 +139,11 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 #my $bedGraph3_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_pvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
                 #my $bedGraph4_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_qvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
                 push(@outfiles, ($bedGraph1_file, $bedGraph2_file)); #,$bedGraph3_file,$bedGraph4_file));
-                
-                my $req = $self->new_requirements(memory => 2000, time => 1);
-                my $this_cmd = "$macs2_exe callpeak$ctrl_str -t " . $input_bam->path . " -n $sample -B $macs2_options";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::macs_callpeak', 'run_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
+                my $req      = $self->new_requirements(memory => 2000, time => 1);
+                my $bam_path = $input_bam->path;
+                my $xls_path = $xls_file->path;
+                my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], control => q[$control_bam], chip => q[$bam_path], macs2_options =>q[$macs2_options], sample => q[$sample], output => q[$xls_path]);";
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
         };
     }
@@ -192,15 +193,21 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         return 0;          # meaning unlimited
     }
     
-    method run_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in, $sample) = $cmd_line =~ /-t (\S+) -n (\S+)/;
-        my $input_bam = VRPipe::File->get(path => file("$in")->absolute);
-        
+    method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$control!, Str :$chip!, Str :$macs2_options!, Str :$sample!, Str :$output!) {
+        my $input_bam = VRPipe::File->get(path => file($chip));
+        my $ctrl_str = "";
+        if ($control) {
+            $ctrl_str = " -c $control";
+        }
+        my $cmd_line = "$macs2 callpeak$ctrl_str -t $chip -n $sample -B $macs2_options";
         $input_bam->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        if (-e file("${sample}_model.r")) {
-            my $this_cmd = $self->r_cmd_prefix . " ${sample}_model.r";
+        my $output_file = VRPipe::File->get(path => file($output));
+        my $R_script    = $output_file->dir . "/${sample}_model.r";
+        my $R_file      = VRPipe::File->get(path => file($R_script));
+        if ($R_file->e) {
+            my $this_cmd = $self->r_cmd_prefix . " $R_script";
             $input_bam->disconnect;
             system($this_cmd) && $self->throw("failed to run [$this_cmd]");
         }
