@@ -307,6 +307,36 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has tls_dir => (
+        is              => 'rw',
+        question        => q[Where are (or should be) your server private TLS key and certificate files stored? (it is up to you to properly secure these files; they should only be readable by the user who will run vrpipe-server)],
+        question_number => ++$question_number
+    );
+    
+    has tls_key => (
+        is              => 'rw',
+        question        => q[What is the basename of your PEM-format server private TLS key file? (if it does not exist in the previously specified directory, a key will be generated the first time vrpipe-server is run)],
+        question_number => ++$question_number
+    );
+    
+    has tls_cert => (
+        is              => 'rw',
+        question        => q[What is the basename your PEM-format server TLS certificate file? (if it does not exist in the previously specified directory, a self-signed certificate will be generated the first time vrpipe-server is run)],
+        question_number => ++$question_number
+    );
+    
+    has production_neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your production neo4j server?',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your testing neo4j server?',
+        question_number => ++$question_number
+    );
+    
     has server_umask => (
         is              => 'rw',
         question        => 'When the VRPipe server runs, what should its file creation mask (umask) be?',

@@ -29,6 +29,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::FrontEnd;
 use POSIX qw(getgroups);
 use VRPipe::StepStatsUtil;
+use VRPipe::Persistent::InMemory;
 
 my $frontend = VRPipe::FrontEnd->new(
     description => "Setup a new pipeline, or alter the configuration of an existing one.",
@@ -39,8 +40,8 @@ my $frontend = VRPipe::FrontEnd->new(
         [q[(--extra_options can also be used here; see below)]],
         [],
         [q[To alter an existing PipelineSetup you will need to know its name or id; you can find these using:]],
-        ['list|l',   'Just list out the setup names and ids, so you can subsequently rerun using --setup'],
-        ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => getlogin || getpwuid($<) }],
+        ['list|l', 'Just list out the setup names and ids, so you can subsequently rerun using --setup'],
+        ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => scalar(getpwuid($<)) }],
         [],
         [q[To alter an existing PipelineSetup:]],
         ['setup=s',       'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }],
@@ -233,6 +234,10 @@ if ($setup) {
             }
         }
         
+        # force unlock the redis lock
+        my $im = VRPipe::Persistent::InMemory->new();
+        $im->_redis->del("lock.datasource." . $datasource->id);
+        
         $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
     }
     else {
@@ -290,7 +295,7 @@ if ($setup) {
             my $methods = $reg->{$regulator}->{methods};
             while (my ($method, $steps) = each %$methods) {
                 push(@methods, $method);
-                foreach my $step (%$steps) {
+                foreach my $step (keys %$steps) {
                     $steps{$step} = 1;
                 }
             }

@@ -34,6 +34,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_update {
+    use VRPipe::Schema;
+    
     around options_definition {
         return {
             %{ $self->$orig },
@@ -55,11 +57,12 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             bamcheck_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamcheck, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 10,
                 max_files   => -1,
                 metadata    => {
                     source_bam => 'the bam file this plot was made from',
-                    caption    => 'the caption of this plot'
+                    caption    => 'the caption of this plot',
+                    optional   => [qw(source_bam caption)]
                 }
             )
         };
@@ -73,9 +76,47 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             my $targeted_mode = $opts->{exome_targets_file} ? 1 : 0;
             my $req           = $self->new_requirements(memory => 500, time => 1);
             
-            my %bam_plots;
+            my (%bam_plots, $schema);
             foreach my $plot_file (@{ $self->inputs->{bamcheck_plots} }) {
                 my $source_bam = $plot_file->metadata->{source_bam};
+                
+                unless ($source_bam) {
+                    # modern steps don't store stuff in ->metadata(); check the
+                    # graph db instead
+                    $schema ||= VRPipe::Schema->create("VRPipe");
+                    my $plot_graph_node = $schema->get('File', { path => $plot_file->path->stringify });
+                    if ($plot_graph_node) {
+                        my ($stats_node) = $schema->graph->related_nodes(
+                            $plot_graph_node,
+                            incoming => {
+                                namespace => 'VRPipe',
+                                label     => 'FileSystemElement',
+                                type      => 'bamstats_plot',
+                                max_depth => 1
+                            }
+                        );
+                        if ($stats_node) {
+                            my ($bam_node) = $schema->graph->related_nodes(
+                                $stats_node,
+                                incoming => {
+                                    namespace => 'VRPipe',
+                                    label     => 'FileSystemElement',
+                                    type      => 'parsed',
+                                    max_depth => 1
+                                }
+                            );
+                            if ($bam_node) {
+                                bless $bam_node, "VRPipe::Schema::VRPipe::FileSystemElement";
+                                $source_bam = $bam_node->path;
+                            }
+                        }
+                    }
+                }
+                
+                unless ($source_bam) {
+                    $self->throw("plot file " . $plot_file->path . " had no source_bam metadata");
+                }
+                
                 $bam_plots{$source_bam}->{dir} = $plot_file->dir;
                 push(@{ $bam_plots{$source_bam}->{files} }, $plot_file->basename);
             }
@@ -84,7 +125,8 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 my $bam_path        = $bam_file->path;
                 my $lane            = $bam_file->metadata->{lane};
                 my $these_bam_plots = $bam_plots{$bam_path};
-                my $cmd             = "use VRPipe::Steps::vrtrack_update_mapstats; VRPipe::Steps::vrtrack_update_mapstats->update_mapstats(db => q[$db], bam => q[$bam_path], lane => q[$lane], targets_mode => $targeted_mode, plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
+                $these_bam_plots ||= $bam_plots{ $bam_file->resolve->path };
+                my $cmd = "use VRPipe::Steps::vrtrack_update_mapstats; VRPipe::Steps::vrtrack_update_mapstats->update_mapstats(db => q[$db], bam => q[$bam_path], lane => q[$lane], targets_mode => $targeted_mode, plot_dir => q[$these_bam_plots->{dir}], plots => [qw[@{$these_bam_plots->{files}}]]);";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -97,12 +139,75 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
     method update_mapstats (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!, Bool :$targets_mode?) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta = $bam_file->metadata;
-        my %plot_files;
+        my (%plot_files, $schema);
         foreach my $plot_basename (@$plots) {
             my $file = VRPipe::File->get(path => file($plot_dir, $plot_basename));
-            $plot_files{ $file->path } = $file->metadata->{caption};
+            my $caption = $file->metadata->{caption};
+            
+            unless ($caption) {
+                # modern steps don't store stuff in ->metadata(); check the
+                # graph db instead
+                $schema ||= VRPipe::Schema->create("VRPipe");
+                my $plot_graph_node = $schema->get('File', { path => $file->path->stringify });
+                $caption = $schema->graph->node_property($plot_graph_node, "caption") if $plot_graph_node;
+            }
+            unless ($caption) {
+                die $file->path, " had no caption metadata\n";
+            }
+            
+            $plot_files{ $file->path } = $caption;
         }
         $bam_file->disconnect;
+        
+        my $meta_key_prefix = $targets_mode ? 'targeted_' : '';
+        unless (defined $meta->{ $meta_key_prefix . 'bases_mapped_c' }) {
+            # check the graph db for the stats
+            $schema ||= VRPipe::Schema->create("VRPipe");
+            my $bam_graph_node = $schema->get('File', { path => $bam_file->path->stringify });
+            if ($bam_graph_node) {
+                my ($stats_node) = $schema->graph->related_nodes(
+                    $bam_graph_node,
+                    outgoing => {
+                        namespace => 'VRTrack',
+                        label     => 'Bam_Stats',
+                        max_depth => 3
+                    }
+                );
+                
+                if ($stats_node) {
+                    my $graph = $schema->graph;
+                    
+                    $meta->{ $meta_key_prefix . 'filtered_reads' }     = $graph->node_property($stats_node, 'filtered sequences');
+                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'raw total sequences');
+                    $meta->{ $meta_key_prefix . 'bases' }              = $graph->node_property($stats_node, 'total length');
+                    $meta->{ $meta_key_prefix . 'reads_mapped' }       = $graph->node_property($stats_node, 'reads mapped');
+                    $meta->{ $meta_key_prefix . 'reads_paired' }       = $graph->node_property($stats_node, 'reads paired');
+                    $meta->{ $meta_key_prefix . 'bases_mapped_c' }     = $graph->node_property($stats_node, 'bases mapped (cigar)');
+                    $meta->{ $meta_key_prefix . 'error_rate' }         = $graph->node_property($stats_node, 'error rate');
+                    $meta->{ $meta_key_prefix . 'rmdup_reads_mapped' } = $graph->node_property($stats_node, 'reads mapped after rmdup');
+                    $meta->{ $meta_key_prefix . 'rmdup_bases_mapped' } = $graph->node_property($stats_node, 'bases mapped after rmdup');
+                    $meta->{ $meta_key_prefix . 'bases_trimmed' }      = $graph->node_property($stats_node, 'bases trimmed');
+                    $meta->{ $meta_key_prefix . 'mean_insert_size' }   = $graph->node_property($stats_node, 'insert size average');
+                    $meta->{ $meta_key_prefix . 'sd_insert_size' }     = $graph->node_property($stats_node, 'insert size standard deviation');
+                    
+                    if ($targets_mode) {
+                        foreach my $cov (1, 2, 5, 10, 20, 50, 100) {
+                            $meta->{"targeted_bases_of_${cov}X_coverage"} = $graph->node_property($stats_node, "bases of ${$cov}X coverage");
+                        }
+                        #*** not sure what these look like in the samtools stats file
+                        # $meta->{targeted_mean_coverage} = $graph->node_property($stats_node, '');
+                        # $meta->{targeted_bases_mapped_c} = $graph->node_property($stats_node, '');
+                    }
+                    
+                    $meta->{bases}           = $graph->node_property($stats_node, 'total length');
+                    $meta->{reads}           = $graph->node_property($stats_node, 'raw total sequences');
+                    $meta->{paired}          = $graph->node_property($stats_node, 'reads properly paired') ? 1 : 0;
+                    $meta->{avg_read_length} = $graph->node_property($stats_node, 'average length');
+                }
+            }
+            
+            die "No stats found for " . $bam_file->path . "\n" unless exists $meta->{ $meta_key_prefix . 'bases_mapped_c' };
+        }
         
         # do we need to sanity check the .dict file vs the SQ lines in the bam
         # header?
@@ -119,8 +224,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                     #*** do we need to fill in mapper and assembly?
                 }
                 
-                # fill in the mapstats based on our bam metadata
-                my $meta_key_prefix = $targets_mode ? 'targeted_' : '';
+                # fill in the mapstats based on our metadata
                 
                 $mapstats->raw_reads($meta->{ $meta_key_prefix . 'filtered_reads' } || $meta->{ $meta_key_prefix . 'reads' });
                 my $raw_bases = $meta->{ $meta_key_prefix . 'bases' };

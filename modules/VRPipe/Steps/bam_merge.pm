@@ -127,7 +127,7 @@ class VRPipe::Steps::bam_merge extends VRPipe::Steps::picard {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'picard',
                     version => $self->picard_version(),
-                    summary => 'java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam ' . $opts
+                    summary => 'java $jvm_args -jar ' . $merge_jar . ' INPUT=$bam_file(s) OUTPUT=$merged_bam ' . $opts
                 )
             );
             

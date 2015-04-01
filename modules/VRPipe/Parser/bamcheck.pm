@@ -43,6 +43,8 @@ VRPipe::Parser::bamcheck - parse bamcheck files
     $val = $pars->inward_oriented_pairs();
     $val = $pars->outward_oriented_pairs();
     $val = $pars->pairs_with_other_orientation();
+    $val = $pars->reads_properly_paired();
+    $val = $pars->reads_mapped_and_paired();
     
     # COV lines give the coverage:
     my $cov_hash = $pars->coverage(); # keys are coverage in bp, vals are counts
@@ -161,6 +163,18 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         is     => 'ro',
         isa    => 'Int',
         writer => '_reads_paired'
+    );
+    
+    has 'reads_properly_paired' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_reads_properly_paired'
+    );
+    
+    has 'reads_mapped_and_paired' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_reads_mapped_and_paired'
     );
     
     has 'reads_duplicated' => (
@@ -460,6 +474,9 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                     $self->warn("unexpected SN line $orig_method");
                     next;
                 }
+                if ($value eq '-nan') {
+                    $value = 0;
+                }
                 $self->$method($value);
                 $saw++;
             }
@@ -484,6 +501,7 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
             }
             else {
                 my ($key, @items) = split(/\t/, $_);
+                next if $key eq 'CHK';
                 $self->throw("'$key' sections are not understood! Is this really a bamcheck file?") unless exists $mapping{$key};
                 
                 my $method = "_push_$key";

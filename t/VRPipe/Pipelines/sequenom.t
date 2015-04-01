@@ -83,8 +83,8 @@ foreach my $element_id (21 .. 27) {
     if ($individual eq '20f8a331-69ac-4510-94ab-e3a69c50e46f') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0813i-ffdb_4_QC1Hip-2";
         $expected{calculated_gender}          = 'M';
-        $expected{sample}                     = undef;
-        $expected{public_name}                = undef;
+        $expected{sample}                     = [qw(QC1Hip-1 QC1Hip-2)];
+        $expected{public_name}                = [qw(HPSI0813i-ffdb_3 HPSI0813i-ffdb_4)];
     }
     elsif ($individual eq '3d52354f-8d84-457d-a668-099a758f0e7b') {
         $expected{genotype_maximum_deviation} = '0.000000:HPSI0913i-lofv_33_QC1Hip-4';
@@ -101,26 +101,26 @@ foreach my $element_id (21 .. 27) {
     elsif ($individual eq '693c8457-7595-40bd-a533-22934b02c4b7') {
         $expected{genotype_maximum_deviation} = "3424.528302:HPSI0813i-piun_QC1Hip-1992";
         $expected{calculated_gender}          = 'F';
-        $expected{sample}                     = undef;
-        $expected{public_name}                = undef;
+        $expected{sample}                     = [qw(QC1Hip-1993 QC1Hip-1995 QC1Hip-1992 QC1Hip-1994)];
+        $expected{public_name}                = [qw(HPSI0813i-piun_1 HPSI0813i-piun_3 HPSI0813i-piun HPSI0813i-piun_2)];
     }
     elsif ($individual eq '9284dc86-5454-473e-b557-dcc783590fa7') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0513i-cuau_1_QC1Hip-2001";
         $expected{calculated_gender}          = 'F';
-        $expected{sample}                     = undef;
-        $expected{public_name}                = undef;
+        $expected{sample}                     = [qw(QC1Hip-2000 QC1Hip-2002 QC1Hip-2003 QC1Hip-2001)];
+        $expected{public_name}                = [qw(HPSI0513i-cuau HPSI0513i-cuau_2 HPSI0513i-cuau_3 HPSI0513i-cuau_1)];
     }
     elsif ($individual eq 'e423ea7c-64b7-43e3-8909-bf290c3846c0') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0713i-kaks_2_QC1Hip-1990";
         $expected{calculated_gender}          = 'M';
-        $expected{sample}                     = undef;
-        $expected{public_name}                = undef;
+        $expected{sample}                     = [qw(QC1Hip-1989 QC1Hip-1991 QC1Hip-1988 QC1Hip-1990)];
+        $expected{public_name}                = [qw(HPSI0713i-kaks_1 HPSI0713i-kaks_3 HPSI0713i-kaks HPSI0713i-kaks_2)];
     }
     elsif ($individual eq 'fde0774b-cecd-45d0-9d72-49bd257dd232') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0513i-coio_2_QC1Hip-1998";
         $expected{calculated_gender}          = 'F';
-        $expected{sample}                     = undef;
-        $expected{public_name}                = undef;
+        $expected{sample}                     = [qw(QC1Hip-1997 QC1Hip-1999 QC1Hip-1996 QC1Hip-1998)];
+        $expected{public_name}                = [qw(HPSI0513i-coio_1 HPSI0513i-coio_3 HPSI0513i-coio HPSI0513i-coio_2)];
     }
     push(@expected_metadata, \%expected);
 }
@@ -131,7 +131,14 @@ foreach my $vcf_path (@merged_vcf_files) {
     my $meta = VRPipe::File->get(path => $vcf_path)->metadata;
     my $expected = shift @expected_metadata;
     foreach my $key (qw(sample_cohort genotype_maximum_deviation calculated_gender sample public_name)) {
-        is $meta->{$key}, $expected->{$key}, "$key metadata was correct for one of the merged VCF files";
+        my $got = ref $meta->{$key}     ? [sort(@{ $meta->{$key} })]    : $meta->{$key};
+        my $exp = ref $expected->{$key} ? [sort @{ $expected->{$key} }] : $expected->{$key};
+        if (ref $exp) {
+            is_deeply $got, $exp, "$key metadata was correct for one of the merged VCF files";
+        }
+        else {
+            is $got, $exp, "$key metadata was correct for one of the merged VCF files";
+        }
     }
 }
 

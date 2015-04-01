@@ -156,7 +156,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             # do something like have 'reads' metadata be only for targeted
             # regions, since that is used when processing bams to ensure no
             # truncation
-            $new_meta->{ $hash_key_prefix . 'reads' }            = $parser->raw_total_sequences || $parser->sequences;
+            $new_meta->{ $hash_key_prefix . 'reads' }            = $parser->sequences;
             $new_meta->{ $hash_key_prefix . 'filtered_reads' }   = $parser->sequences;
             $new_meta->{ $hash_key_prefix . 'reads_mapped' }     = $parser->reads_mapped;
             $new_meta->{ $hash_key_prefix . 'bases' }            = $parser->total_length;
@@ -248,6 +248,16 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                     $md5 = $bam_file->md5;
                 }
                 $new_meta->{lane} = $md5;
+            }
+            
+            # in case total raw (untargetted) reads and bases not set, calculate
+            # these now for the benefit of steps that check read count for
+            # corruption checks
+            unless ($new_meta->{reads}) {
+                $new_meta->{reads} = $existing_meta->{reads} || $bam_file->num_records;
+            }
+            unless ($new_meta->{bases}) {
+                $new_meta->{bases} = $existing_meta->{bases} || ($new_meta->{reads} * $new_meta->{ $hash_key_prefix . 'avg_read_length' });
             }
             
             $bam_file->add_metadata($new_meta);

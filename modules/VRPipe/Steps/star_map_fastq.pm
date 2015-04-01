@@ -13,7 +13,7 @@ Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014-15 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -97,7 +97,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             my $star_sample   = $options->{star_sample_name_from_metadata};
             my $ref           = file($options->{reference_fasta});
             
-            if ($star_map_opts =~ /runMode|genomeDir|readFilesIn/) {
+            if ($star_map_opts =~ /runMode|genomeDir|readFilesIn|outSAMtype/) {
                 $self->throw("star_map_options should not include the input fastq(s) and genome directory path");
             }
             
@@ -120,52 +120,49 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 my @fqs = map { $_->path } @{ $fastqs{$lane} };
                 my $fq_meta = $self->common_metadata($fastqs{$lane});
                 # add metadata and construct readgroup info
-                my $sam_meta = {
+                my $bam_meta = {
                     lane   => $lane,
                     paired => 1,
                 };
                 my $rg_arg = 'ID:' . $lane;
                 if (defined $fq_meta->{library}) {
                     my $lb = $fq_meta->{library};
-                    $sam_meta->{library} = $lb;
+                    $bam_meta->{library} = $lb;
                     $rg_arg .= ' LB:' . $self->command_line_safe_string($lb);
                 }
                 if (defined $fq_meta->{$star_sample}) {
                     my $sm = $fq_meta->{$star_sample};
-                    $sam_meta->{sample} = $sm;
+                    $bam_meta->{sample} = $sm;
                     $rg_arg .= ' SM:' . $self->command_line_safe_string($sm);
                 }
                 if (defined $fq_meta->{insert_size}) {
                     my $pi = $fq_meta->{insert_size};
-                    $sam_meta->{insert_size} = $pi;
+                    $bam_meta->{insert_size} = $pi;
                     $rg_arg .= ' PI:' . sprintf("%0.0f", $pi);
                 }
                 if (defined $fq_meta->{center_name}) {
                     my $cn = $fq_meta->{center_name};
-                    $sam_meta->{center_name} = $cn;
+                    $bam_meta->{center_name} = $cn;
                     $rg_arg .= ' CN:' . $self->command_line_safe_string($cn);
                 }
                 if (defined $fq_meta->{platform}) {
                     my $pl = $fq_meta->{platform};
-                    $sam_meta->{platform} = $pl;
+                    $bam_meta->{platform} = $pl;
                     $rg_arg .= ' PL:' . $self->command_line_safe_string($pl);
                 }
                 if (defined $fq_meta->{study}) {
                     my $ds = $fq_meta->{study};
-                    $sam_meta->{study} = $ds;
+                    $bam_meta->{study} = $ds;
                     $rg_arg .= ' DS:' . $self->command_line_safe_string($ds);
                 }
                 if (defined $fq_meta->{analysis_group}) {
-                    $sam_meta->{analysis_group} = $fq_meta->{analysis_group};
+                    $bam_meta->{analysis_group} = $fq_meta->{analysis_group};
                 }
                 if (defined $fq_meta->{population}) {
-                    $sam_meta->{population} = $fq_meta->{population};
+                    $bam_meta->{population} = $fq_meta->{population};
                 }
                 
-                my $sam_file = $self->output_file(
-                    output_key => 'star_sam_files', basename => "Aligned.out.sam", type => 'txt',
-                    metadata   => $sam_meta
-                );
+                my $bam_file = $self->output_file(output_key => 'bam_files', basename => "Aligned.out.bam", type => 'bam', metadata => $bam_meta);
                 $self->output_file(output_key => 'tab_file', basename => 'SJ.out.tab', type => 'txt');
                 foreach (qw(Log.progress.out Log.out Log.final.out)) {
                     $self->output_file(output_key => 'log_files', basename => $_, type => 'txt');
@@ -178,8 +175,8 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 my $memory         = int((10 * $size + 6 * 4**$SAindexBases + $buffer * $cpus) / 1024 / 1024); #MB
                 my $req = $self->new_requirements(memory => $memory, time => 1200, $cpus ? (cpus => $cpus) : ());
                 
-                my $cmd = $star_exe . " --genomeDir " . $ref->dir . " --readFilesIn " . join(' ', @fqs) . " --outSAMattrRGline " . $rg_arg . " " . $star_map_opts;
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::star_map_fastq', 'map_and_check', [$cmd, $req, { output_files => [$sam_file] }]);
+                my $cmd = $star_exe . " --genomeDir " . $ref->dir . " --readFilesIn " . join(' ', @fqs) . " --outSAMattrRGline " . $rg_arg . " --outSAMtype BAM Unsorted " . $star_map_opts;
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::star_map_fastq', 'map_and_check', [$cmd, $req, { output_files => [$bam_file] }]);
             }
         
         };
@@ -187,10 +184,10 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
     
     method outputs_definition {
         return {
-            star_sam_files => VRPipe::StepIODefinition->create(
-                type        => 'txt',
+            bam_files => VRPipe::StepIODefinition->create(
+                type        => 'bam',
                 max_files   => -1,
-                description => 'mapped sam file per endedness and lane',
+                description => 'mapped bam file per endedness and lane',
                 metadata    => {
                     lane           => 'lane name (a unique identifer for this sequencing run, aka read group)',
                     library        => 'library name',
@@ -232,7 +229,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
     }
     
     method map_and_check (ClassName|Object $self: Str $cmd_line) {
-        my $sam_file = VRPipe::File->get(path => file('Aligned.out.sam')->absolute);
+        my $bam_file = VRPipe::File->get(path => file('Aligned.out.bam')->absolute);
         
         my @fq_paths = my ($fq_1_path, $fq_2_path) = $cmd_line =~ /--readFilesIn (\S+) (\S+)/;
         ($fq_1_path && $fq_2_path) || $self->throw("cmd_line [$cmd_line] had no --readFilesIn output specified");
@@ -244,22 +241,25 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             $expected_reads += $meta->{reads};
         }
         
-        $sam_file->disconnect;
+        $bam_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        $sam_file->update_stats_from_disc(retries => 3);
+        $bam_file->update_stats_from_disc(retries => 3);
         
-        my $sam_path = $sam_file->path;
-        my $reads    = `grep -v ^@ $sam_path | wc -l`;
-        chomp $reads;
-        $sam_file->add_metadata({ reads => $reads });
+        my $actual_reads = $bam_file->num_records;
+        $bam_file->add_metadata({ reads => $actual_reads });
         
-        if ($reads > $expected_reads || $cmd_line !~ /outSAMunmapped\s+Within/) {
-            return 1;
+        if ($cmd_line =~ /outSAMunmapped\s+Within/) {
+            if ($actual_reads == $expected_reads) {
+                return 1;
+            }
+            else {
+                $bam_file->unlink;
+                $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the bam file, yet there were $expected_reads reads in the fastq file(s)");
+            }
         }
         else {
-            $sam_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $reads reads were generated in the sam file, yet there were $expected_reads reads in the fastq file(s)");
+            return 1; #don't do any checks
         }
     }
     

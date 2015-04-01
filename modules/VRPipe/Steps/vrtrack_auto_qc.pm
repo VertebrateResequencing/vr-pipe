@@ -35,6 +35,7 @@ use VRPipe::Base;
 
 class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
     use VRPipe::Parser;
+    use VRPipe::Schema;
     
     around options_definition {
         return {
@@ -109,7 +110,10 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 type        => 'txt',
                 description => 'bamcheck files',
                 max_files   => -1,
-                metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
+                metadata    => {
+                    lane     => 'lane name (a unique identifer for this sequencing run, aka read group)',
+                    optional => ['lane']
+                }
             )
         };
     }
@@ -125,9 +129,34 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             # bamcheck file might have been made for a different bam (eg.
             # imported bam, whilst the input bam is an improved bam), so we
             # can't use source_bam metadata here
-            my %by_lane;
+            my (%by_lane, $schema);
             foreach my $file (@{ $self->inputs->{bam_files} }, @{ $self->inputs->{bamcheck_files} }) {
-                push(@{ $by_lane{ $file->metadata->{lane} } }, $file->path);
+                my $lane = $file->metadata->{lane};
+                
+                unless ($lane) {
+                    # modern steps don't store stuff in ->metadata(); check the
+                    # graph db instead
+                    $schema ||= VRPipe::Schema->create("VRPipe");
+                    my $file_graph_node = $schema->get('File', { path => $file->path->stringify });
+                    if ($file_graph_node) {
+                        my ($lane_node) = $schema->graph->related_nodes(
+                            $file_graph_node,
+                            incoming => {
+                                namespace => 'VRTrack',
+                                label     => 'Lane',
+                                max_depth => 4
+                            }
+                        );
+                        if ($lane_node) {
+                            $lane = $schema->graph->node_property($lane_node, "unique");
+                        }
+                    }
+                }
+                unless ($lane) {
+                    $self->throw("file " . $file->path . " lacks lane metadata");
+                }
+                
+                push(@{ $by_lane{$lane} }, $file->path);
             }
             
             while (my ($lane, $files) = each %by_lane) {
@@ -271,7 +300,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         
         # number of insertions vs deletions
         if (defined $auto_qc_max_ins_to_del_ratio || defined $auto_qc_min_ins_to_del_ratio) {
-            my ($inum, $dnum);
+            my ($inum, $dnum) = (0, 0);
             my $counts = $bc->indel_dist();
             for my $row (@$counts) {
                 $inum += $$row[1];
@@ -291,7 +320,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                 my $min = $auto_qc_min_ins_to_del_ratio;
                 $status = 1;
                 $reason = "The Ins/Del ratio is greater than $min ($inum/$dnum).";
-                if (!$inum or $inum / $dnum < $min) {
+                if ($dnum && (!$inum or $inum / $dnum < $min)) {
                     $status = 0;
                     $reason = "The Ins/Del ratio is smaller than $min ($inum/$dnum).";
                 }
@@ -395,26 +424,28 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
             
             # Get median and max of indel fwd/rev cycle counts
             my $counts = $bc->indel_cycles();
-            my (@vals, @med, @max);
-            for my $row (@$counts) {
+            if ($counts && @$counts) {
+                my (@vals, @med, @max);
+                for my $row (@$counts) {
+                    for (my $i = 0; $i < 4; $i++) {
+                        push @{ $vals[$i] }, $$row[$i + 1];
+                    }
+                }
                 for (my $i = 0; $i < 4; $i++) {
-                    push @{ $vals[$i] }, $$row[$i + 1];
+                    my @sorted = sort { $a <=> $b } @{ $vals[$i] };
+                    my $n = int(scalar @sorted / 2);
+                    $med[$i] = $sorted[$n];
+                    $max[$i] = $sorted[-1];
                 }
-            }
-            for (my $i = 0; $i < 4; $i++) {
-                my @sorted = sort { $a <=> $b } @{ $vals[$i] };
-                my $n = int(scalar @sorted / 2);
-                $med[$i] = $sorted[$n];
-                $max[$i] = $sorted[-1];
-            }
-            
-            for (my $i = 0; $i < 4; $i++) {
-                if ($max[$i] > $auto_qc_max_ic_above_median * $med[$i]) {
-                    $status = 0;
-                    $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
+                
+                for (my $i = 0; $i < 4; $i++) {
+                    if ($max[$i] > $auto_qc_max_ic_above_median * $med[$i]) {
+                        $status = 0;
+                        $reason = "Some indels per cycle exceed ${auto_qc_max_ic_above_median}X of the median";
+                    }
                 }
+                push @qc_status, { test => 'InDels per Cycle', status => $status, reason => $reason };
             }
-            push @qc_status, { test => 'InDels per Cycle', status => $status, reason => $reason };
         }
         
         # now output the results

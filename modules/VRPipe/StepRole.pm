@@ -45,9 +45,12 @@ role VRPipe::StepRole {
     use Digest::MD5;
     use VRPipe::StepStatsUtil;
     use VRPipe::Persistent::InMemory;
+    use VRPipe::Schema;
     use Cwd 'abs_path';
     use File::stat;
     use Fcntl qw(:mode);
+    
+    our $graph;
     
     method name {
         my $class = ref($self);
@@ -1030,6 +1033,53 @@ role VRPipe::StepRole {
         }
         
         return $override_options;
+    }
+    
+    # a step can use normal VRPipe::Schema methods to create whatever graph
+    # nodes it likes to store some results, but these will not be associated
+    # with the stepstate (the pipelinesetup, datalement and step) that created
+    # them; supplying the result nodes to this sub (either in the body_sub where
+    # we created the Step as an instance with step_state passed to new(), or
+    # while running as a Job from code made by dispatch_vrpipecode/wrapped_cmd
+    # where we can find out the stepstate id from an env var) will give the
+    # desired association
+    method result_nodes (ClassName|Object $self: ArrayRef $nodes, Object $ss?) {
+        $graph ||= VRPipe::Schema->create('VRPipe');
+        
+        unless ($ss) {
+            if (defined $ENV{VRPIPE_STEPSTATE}) {
+                $ss = VRPipe::StepState->get(id => $ENV{VRPIPE_STEPSTATE});
+            }
+            elsif (ref($self)) {
+                $ss = $self->step_state;
+            }
+            else {
+                return;
+            }
+        }
+        
+        # if and when we stop using MySQL and switch completely to the graph db,
+        # there will already be a stepstate node in the graph connected to
+        # pipelinesetup etc, but for now we'll create the appropriate hierarchy
+        # right now
+        my $graph_ss = $graph->ensure_state_hierarchy($ss);
+        
+        foreach my $result_node (@$nodes) {
+            $graph_ss->relate_to($result_node, 'result');
+        }
+    }
+    
+    method relate_input_to_output (ClassName|Object $self: Str|Object $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
+        $graph ||= VRPipe::Schema->create('VRPipe');
+        
+        my $input_file  = ref($input)  ? $input  : $graph->add('File', { path => $input });
+        my $output_file = ref($output) ? $output : $graph->add('File', { path => $output });
+        if ($output_file_meta) {
+            $output_file->add_properties($output_file_meta);
+        }
+        
+        $input_file->relate_to($output_file, $type);
+        $self->result_nodes([$output_file]);
     }
 }
 

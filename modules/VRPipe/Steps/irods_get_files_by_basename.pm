@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012,2014 Genome Research Limited.
+Copyright (c) 2012,2014,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -45,6 +45,11 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                 description   => 'the zone (top level directory) where your data is stored in iRODs',
                 optional      => 1,
                 default_value => 'seq'
+            ),
+            irods_convert_cram_to_bam => VRPipe::StepOption->create(
+                description   => "when getting a cram file from irods, convert it to a bam file; 0 turns this off, the absolute path to a samtools v1+ executable turns this on",
+                optional      => 1,
+                default_value => 0
             )
         };
     }
@@ -68,28 +73,38 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
         return sub {
             my $self = shift;
             
-            my $opts    = $self->options;
-            my $zone    = $opts->{irods_get_zone};
-            my $iget    = $opts->{iget_exe};
-            my $iquest  = $opts->{iquest_exe};
-            my $ichksum = $opts->{ichksum_exe};
+            my $opts             = $self->options;
+            my $zone             = $opts->{irods_get_zone};
+            my $iget             = $opts->{iget_exe};
+            my $iquest           = $opts->{iquest_exe};
+            my $ichksum          = $opts->{ichksum_exe};
+            my $samtools         = $opts->{irods_convert_cram_to_bam};
+            my $cram_to_bam_mode = $samtools && -x $samtools;
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $file (@{ $self->inputs->{basenames} }) {
                 if (!$file->s) {
                     # download to the path of our input file, which doesn't
                     # exist yet
-                    my $basename = $file->basename;
-                    my $meta     = $file->metadata;
-                    my $dest     = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $basename, type => $file->type, metadata => $meta)->path;
+                    my $basename        = $file->basename;
+                    my $meta            = $file->metadata;
+                    my $output_basename = $basename;
+                    my $output_type     = $file->type;
+                    my $extra           = '';
+                    if ($cram_to_bam_mode && $basename =~ /\.cram$/) {
+                        $output_basename =~ s/\.cram$/.bam/;
+                        $output_type = 'bam';
+                        $extra       = ", samtools_for_cram_to_bam => q[$samtools]";
+                    }
+                    my $dest = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $output_basename, type => $output_type, metadata => $meta)->path;
                     
                     # if we have the full irods path, get the file directly,
                     # otherwise search for it by basename
                     if ($meta->{irods_path}) {
-                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file(source => q[$meta->{irods_path}], dest => q[$dest], iget => q[$iget], ichksum => q[$ichksum]);], $req);
+                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file(source => q[$meta->{irods_path}], dest => q[$dest], iget => q[$iget], ichksum => q[$ichksum]$extra);], $req);
                     }
                     else {
-                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file_by_basename(basename => q[$basename], dest => q[$dest], zone => q[$zone], iget => q[$iget], iquest => q[$iquest], ichksum => q[$ichksum]);], $req);
+                        $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_get_files_by_basename; VRPipe::Steps::irods_get_files_by_basename->get_file_by_basename(basename => q[$basename], dest => q[$dest], zone => q[$zone], iget => q[$iget], iquest => q[$iquest], ichksum => q[$ichksum]$extra);], $req);
                     }
                 }
                 else {

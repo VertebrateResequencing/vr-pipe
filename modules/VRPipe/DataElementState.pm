@@ -69,7 +69,16 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
-    method start_from_scratch (ArrayRef[PositiveInt] $step_numbers?) {
+    # supply $anti_repeat_store if calling this method in a (nested) loop to
+    # avoid starting_from_scratch the same things more than once; it should be
+    # an empty hashref defined before your loop starts
+    method start_from_scratch (ArrayRef[PositiveInt] :$step_numbers?, HashRef :$anti_repeat_store?) {
+        if ($anti_repeat_store && exists $anti_repeat_store->{ $self->id }) {
+            # we've already started this des from scratch in same caller's loop,
+            # so just return
+            return;
+        }
+        
         my $do_our_steps = 0;
         my %step_numbers;
         if ($step_numbers && @$step_numbers > 0) {
@@ -129,8 +138,14 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         }
         foreach my $child (@children) {
             $child->pipelinesetup->log_event("DataElementState->start_from_scratch for des " . $self->id . " called start_from_scratch on us because we are its child", dataelement => $child->dataelement->id);
-            $child->start_from_scratch();
+            $child->start_from_scratch($anti_repeat_store ? (anti_repeat_store => $anti_repeat_store) : ());
             $child->withdraw; # withdraw the child - it will be unwithdrawn when the parent has been rerun
+        }
+        
+        if ($anti_repeat_store) {
+            # note that we've started this des from scratch within the caller's
+            # loop, so that we won't do it again in that same loop
+            $anti_repeat_store->{ $self->id } = 1;
         }
         
         $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);

@@ -56,7 +56,8 @@ my $cmdline = VRPipe::FrontEnd->new(
     ]
 );
 
-my $max_forks = Sys::CPU::cpu_count();
+my $max_forks = int(Sys::CPU::cpu_count() / 2);
+$max_forks ||= 1;
 my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 
 # initialize the VRPipe backend
@@ -122,7 +123,28 @@ sub handle_setups {
         my @setups = ();
         eval {
             unless ($debug) { $fs->locked || die "no farmserver" }
-            @setups = $single_setup ? ($single_setup) : VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+            if ($single_setup) {
+                @setups = ($single_setup);
+            }
+            else {
+                # the server has queued datasources that need handling; grab as
+                # many as we can cope with and note that we grabbed them so the
+                # server doesn't reque them
+                my $already_handling = keys %setups;
+                unless ($already_handling == $max_forks) {
+                    my $start = $already_handling + 1;
+                    for ($start .. $max_forks) {
+                        my $ds_id = $im->dequeue('ds_for_handlers.' . $farm);
+                        last unless $ds_id;
+                        my @these_setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm, datasource => $ds_id }, { prefetch => ['datasource', 'pipeline'] });
+                        redo unless @these_setups;
+                        foreach my $setup (@these_setups) {
+                            $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
+                            push(@setups, $setup);
+                        }
+                    }
+                }
+            }
         };
         if ($@) {
             if ($@ =~ /no farmserver/) {
@@ -133,18 +155,34 @@ sub handle_setups {
             }
         }
         else {
-            if (@setups) {
+            my %all_setups = map { $_->id => $_ } @setups;
+            while (my ($id, $setup) = each %setups) {
+                $all_setups{$id} = $setup;
+            }
+            my @all_setups = values %all_setups;
+            
+            if (@all_setups) {
                 # remove handling and watchers for setups no longer active/
                 # controlled by our farm
-                my %current_setup_ids = map { $_->id => 1 } @setups;
-                foreach my $stored_setup_id (keys %setups) {
-                    unless (exists $current_setup_ids{$stored_setup_id}) {
-                        my $ds_id = $setups{$stored_setup_id}->datasource->id;
+                while (my ($stored_setup_id, $stored_setup) = each %setups) {
+                    $stored_setup->reselect_values_from_db;
+                    my $active     = $stored_setup->active;
+                    my $controller = $stored_setup->controlling_farm;
+                    
+                    if ($active && ($controller eq $farm)) {
+                        $stored_setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
+                    }
+                    else {
+                        my $ds_id = $stored_setup->datasource->id;
                         $datasource_watchers{$ds_id}->{count}--;
                         delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
                         delete $setup_watchers{$stored_setup_id};
                         delete $setups{$stored_setup_id};
+                        $stored_setup->datasource->forget_note('grabbed');
                     }
+                }
+                unless (@setups || keys %setups) {
+                    exit_handler("There are no longer any more setups to handle for farm $farm");
                 }
                 
                 # trigger new setups, in parallel
@@ -171,6 +209,7 @@ sub handle_setups {
                 };
                 
                 foreach my $setup (@setups) {
+                    $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
                     my $sid = $setup->id;
                     next if exists $setups{$sid};
                     $setups{$sid} = $setup;
@@ -208,10 +247,10 @@ sub handle_setups {
                 # after all the setups have completed
                 if ($deployment eq 'testing' && !($debug && $single_setup)) {
                     my $completed = 0;
-                    foreach my $setup (@setups) {
+                    foreach my $setup (@all_setups) {
                         $completed++ if $setup->currently_complete;
                     }
-                    exit_handler("All the setups are currently complete") if $completed == @setups;
+                    exit_handler("All the setups are currently complete") if $completed == @all_setups;
                 }
                 
                 # create a watcher for each setup's datasource to keep it
@@ -430,6 +469,10 @@ sub handle_setups {
     # run the event loop
     $im->log("The setups handler for farm $farm is now running.");
     EV::run;
+    
+    foreach my $grabbed_setup (values %setups) {
+        $grabbed_setup->datasource->forget_note('grabbed');
+    }
     
     $im->log("The setups handler for farm $farm is now exiting!");
     kill_remaining_children();

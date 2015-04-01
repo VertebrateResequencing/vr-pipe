@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -42,317 +42,28 @@ class VRPipe::Interface::BackEnd {
     use Module::Find;
     use VRPipe::Persistent::SchemaBase;
     use VRPipe::Config;
-    use AnyEvent::ForkManager;
-    use Twiggy::Server;
+    use AnyEvent::Util qw(fork_call);
+    use Twiggy::Server::TLS;
     use Plack::Request;
-    use XML::LibXSLT;
-    use XML::LibXML;
     use POSIX qw(setsid setuid);
+    use Fcntl ':mode';
     use Cwd qw(chdir getcwd);
     use Module::Find;
     use VRPipe::Persistent::InMemory;
     
-    my $xsl_html = <<'XSL';
-<?xml version="1.0" encoding="ISO-8859-1"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-<xsl:output method="html"/>
-
-<xsl:template match="/">
-    <html>
-        <head>
-            <title><xsl:value-of select="/interface/title"/></title>
-            
-            <style type="text/css">
-                dl {
-                    font-size: 9pt
-                }
-                dl dt {
-                    background:#99CCFF;
-                    color:#fff;
-                    float:left;
-                    font-weight:bold;
-                    margin-right:10px;
-                    padding:5px;
-                    width:65px;
-                }
-                dl dd {
-                    margin:2px 0;
-                    padding:5px 0;
-                }
-            </style>
-        </head>
-        
-        <body>
-            <xsl:apply-templates/>  
-        </body>
-    </html>
-</xsl:template>
-
-<xsl:template match="/interface/error">
-    <p style="color:red"><xsl:value-of select="."/></p>
-</xsl:template>
-
-<xsl:template match="/interface/warning"/>
-
-<xsl:template match="/interface/title">
-    <h1><xsl:value-of select="."/></h1>
-    
-    <xsl:for-each select="/interface/warning">
-        <p><span style="background-color:yellow"><xsl:value-of select="."/></span></p>
-    </xsl:for-each>
-</xsl:template>
-
-<xsl:template match="/interface/response_line">
-    <p><xsl:value-of select="."/></p>
-</xsl:template>
-
-<xsl:template match="objects">
-    <table border="1">
-        <thead>
-            <tr bgcolor="#9acd32">
-                <xsl:for-each select="./object[1]/attribute">
-                    <th><xsl:value-of select="@name"/></th>
-                </xsl:for-each>
-            </tr>
-        </thead>
-        <tbody>
-            <xsl:apply-templates select="object"/>
-        </tbody>
-    </table>
-</xsl:template>
-
-<xsl:template match="object">
-    <tr>
-        <xsl:apply-templates select="attribute"/>
-    </tr>
-</xsl:template>
-
-<xsl:template match="attribute[object]">
-    <td>
-        <dl class="object_attribs">
-            <xsl:for-each select="./object/attribute">
-                <dt><xsl:value-of select="@name"/></dt>
-                <dd>
-                    <xsl:choose>
-                        <xsl:when test="./object">
-                            <xsl:value-of select="./object/attribute[@name='id']"/>
-                        </xsl:when>
-                        <xsl:when test="./hash">
-                            <xsl:for-each select="./hash/pair">
-                                <b><xsl:value-of select="@key"/>: </b><xsl:value-of select="."/><br/>
-                            </xsl:for-each>
-                        </xsl:when>
-                        <xsl:otherwise>
-                            <xsl:value-of select="."/>
-                        </xsl:otherwise>
-                    </xsl:choose>
-                </dd>
-            </xsl:for-each>
-        </dl>
-    </td>
-</xsl:template>
-
-<xsl:template match="attribute[hash]">
-    <td>
-        <xsl:apply-templates select="hash"/>
-    </td>
-</xsl:template>
-
-<xsl:template match="attribute">
-    <td>
-        <xsl:value-of select="."/>
-    </td>
-</xsl:template>
-
-<xsl:template match="hash">
-    <dl class="hash">
-        <xsl:apply-templates select="pair"/>
-    </dl>
-</xsl:template>
-
-<xsl:template match="pair">
-    <dt><xsl:value-of select="@key"/></dt>
-    <dd><xsl:value-of select="."/></dd>
-</xsl:template>
-
-</xsl:stylesheet>
-XSL
-    
-    my $xsl_plain = <<'XSL';
-<?xml version="1.0" encoding="ISO-8859-1"?>
-<xsl:stylesheet version="1.0" xmlns:xsl="http://www.w3.org/1999/XSL/Transform">
-<xsl:output method="text"/>
-
-<xsl:template match="/">
-    <xsl:apply-templates/>
-</xsl:template>
-
-<xsl:template match="/interface/error">
-    <xsl:value-of select="."/><xsl:text>
-</xsl:text>
-</xsl:template>
-
-<xsl:template match="/interface/title"/>
-
-<xsl:template match="/interface/warning">
-    <xsl:value-of select="."/><xsl:text>
-</xsl:text>
-</xsl:template>
-
-<xsl:template match="/interface/response_line">
-    <xsl:value-of select="."/><xsl:text>
-</xsl:text>
-</xsl:template>
-
-<xsl:template match="objects">
-    <xsl:apply-templates select="object"/>
-</xsl:template>
-
-<xsl:template match="object[@class='PipelineSetup']">
-    <xsl:text> --- Pipeline Setup '</xsl:text>
-    <xsl:value-of select="./attribute[@name='name']"/>
-    <xsl:text>' (id </xsl:text>
-    <xsl:value-of select="./attribute[@name='id']"/>
-    <xsl:text> for user </xsl:text>
-    <xsl:value-of select="./attribute[@name='user']"/>
-    <xsl:text>)</xsl:text>
-    <xsl:if test="./attribute[@name='active'] = 0">
-        <xsl:text> currently DEACTIVATED</xsl:text>
-    </xsl:if>
-    <xsl:text> ---
-</xsl:text>
-    
-    <xsl:if test="(@display_mode!='list') and (@display_mode!='defunct')">
-        <xsl:if test="@display_mode='full'">
-            <xsl:text>Pipeline: </xsl:text>
-            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='name']"/>
-            <xsl:text> | </xsl:text>
-            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='num_steps']"/>
-            <xsl:text> steps | </xsl:text>
-            <xsl:value-of select="./attribute[@name='pipeline']/object/attribute[@name='description']"/>
-            <xsl:text>
-</xsl:text>
-            <xsl:choose>
-                <xsl:when test="./attribute[@name='steps']/hash">
-                    <xsl:apply-templates select="./attribute[@name='steps']/hash/pair"/>
-                </xsl:when>
-            </xsl:choose>
-            <xsl:text>PipelineSetup options:
-</xsl:text>
-            <xsl:choose>
-                <xsl:when test="./attribute[@name='options']/hash">
-                    <xsl:apply-templates select="./attribute[@name='options']/hash/pair"/>
-                </xsl:when>
-                <xsl:otherwise>
-                    <xsl:value-of select="./attribute[@name='options']"/>
-                    <xsl:text>
-</xsl:text>
-                </xsl:otherwise>
-            </xsl:choose>
-            <xsl:text>PipelineSetup output root: </xsl:text>
-            <xsl:value-of select="./attribute[@name='output_root']"/>
-            <xsl:text>
-</xsl:text>
-            <xsl:text>Output file unix group: </xsl:text>
-            <xsl:value-of select="./attribute[@name='unix_group']"/>
-            <xsl:text>
-</xsl:text>
-            <xsl:text>DataSource: </xsl:text>
-            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='id']"/>
-            <xsl:text> | </xsl:text>
-            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='type']"/>
-            <xsl:text> | </xsl:text>
-            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='method']"/>
-            <xsl:text> | </xsl:text>
-            <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='source']"/>
-            <xsl:text>
-</xsl:text>
-            <xsl:choose>
-                <xsl:when test="./attribute[@name='datasource']/object/attribute[@name='options']/hash">
-                    <xsl:apply-templates select="./attribute[@name='datasource']/object/attribute[@name='options']/hash/pair"/>
-                </xsl:when>
-                <xsl:otherwise>
-                    <xsl:value-of select="./attribute[@name='datasource']/object/attribute[@name='options']"/>
-                    <xsl:text>
-</xsl:text>
-                </xsl:otherwise>
-            </xsl:choose>
-            
-            <xsl:text>
-</xsl:text>
-        </xsl:if>
-        
-        <xsl:text>There are a total of </xsl:text>
-        <xsl:value-of select="./attribute[@name='elements_total']"/>
-        <xsl:text> Data Elements in the datasource to work on, and </xsl:text>
-        <xsl:value-of select="./attribute[@name='elements_incomplete']"/>
-        <xsl:text> elements are incomplete
-</xsl:text>
-        <xsl:choose>
-            <xsl:when test="./attribute[@name='steps_completed']">
-                <xsl:text>Breakdown:
-</xsl:text>
-                <xsl:for-each select="./attribute[@name='steps_completed']/hash/pair">
-                    <xsl:text>    </xsl:text>
-                    <xsl:value-of select="@key"/>
-                    <xsl:text> steps completed => </xsl:text>
-                    <xsl:value-of select="."/>
-                    <xsl:text>
-</xsl:text>
-                </xsl:for-each>
-                <xsl:value-of select="./attribute[@name='completion']/@explanation"/>
-                
-                <xsl:if test="./attribute[@name='submission_state']">
-                    <xsl:text>
-                    
-Current submission state:
-</xsl:text>
-                    <xsl:apply-templates select="./attribute[@name='submission_state']/hash/pair"/>
-                </xsl:if>
-            </xsl:when>
-            <xsl:otherwise>
-                <xsl:value-of select="./attribute[@name='completion']/@explanation"/>
-                <xsl:text>
-</xsl:text>
-            </xsl:otherwise>
-        </xsl:choose>
-        
-        <xsl:if test="./attribute[@name='problems']">
-            <xsl:value-of select="./attribute[@name='problems']"/>
-            <xsl:text>
-</xsl:text>
-        </xsl:if>
-        
-        <xsl:text>------
-
-</xsl:text>
-    </xsl:if>
-    <xsl:if test="@display_mode='defunct'">
-        <xsl:if test="./attribute[@name='problems']">
-            <xsl:value-of select="./attribute[@name='problems']"/>
-            <xsl:text>
-</xsl:text>
-        </xsl:if>
-    </xsl:if>
-</xsl:template>
-
-<xsl:template match="pair">
-    <xsl:text>    </xsl:text>
-    <xsl:value-of select="@key"/>
-    <xsl:text> => </xsl:text>
-    <xsl:value-of select="."/>
-    <xsl:text>
-</xsl:text>
-</xsl:template>
-
-</xsl:stylesheet>
-XSL
-    
-    my $parser = XML::LibXML->new();
-    my $xslt   = XML::LibXSLT->new();
-    our %display_format_to_stylesheet = (
-        html  => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_html)),
-        plain => $xslt->parse_stylesheet($parser->load_xml(string => $xsl_plain))
+    my %extension_to_content_type = (
+        gif  => 'image/gif',
+        jpg  => 'image/jpeg',
+        png  => 'image/png',
+        csv  => 'text/csv',
+        html => 'text/html',
+        js   => 'text/javascript',
+        css  => 'text/css',
+        txt  => 'text/plain',
+        zip  => 'application/zip',
+        gzip => 'application/gzip',
+        pdf  => 'application/pdf',
+        bin  => 'application/octet-stream'
     );
     
     has 'deployment' => (
@@ -372,10 +83,28 @@ XSL
         writer => '_set_port'
     );
     
+    has 'tls_key' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_tls_key'
+    );
+    
+    has 'tls_cert' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_tls_cert'
+    );
+    
     has 'dsn' => (
         is     => 'ro',
         isa    => 'Str',
         writer => '_set_dsn'
+    );
+    
+    has 'neo4j_server_url' => (
+        is     => 'ro',
+        isa    => 'Str',
+        writer => '_set_neo4j_server_url'
     );
     
     has 'scheduler' => (
@@ -435,6 +164,13 @@ XSL
         handles => [qw(register_farm_server)]
     );
     
+    has 'inmemory' => (
+        is      => 'ro',
+        isa     => 'VRPipe::Persistent::InMemory',
+        lazy    => 1,
+        builder => '_create_inmemory'
+    );
+    
     has '_warnings' => (
         is      => 'ro',
         isa     => 'ArrayRef',
@@ -458,12 +194,20 @@ XSL
     }
     
     method _build_psgi_server {
-        my $port = $self->port;
-        return Twiggy::Server->new(port => $port); # host `uname -n`; parse the ip address, use as host? Currently defaults to 0.0.0.0
+        return Twiggy::Server::TLS->new(
+            # host => `uname -n`, # parse the ip address, use as host? Currently defaults to 0.0.0.0
+            port     => $self->port,
+            tls_key  => $self->tls_key,
+            tls_cert => $self->tls_cert
+        );
     }
     
     method _create_manager {
         return VRPipe::Manager->create();
+    }
+    
+    method _create_inmemory {
+        return VRPipe::Persistent::InMemory->new();
     }
     
     sub BUILD {
@@ -481,6 +225,25 @@ XSL
             die "VRPipe SiteConfig had no port specified for $method_name\n";
         }
         $self->_set_port($port);
+        
+        # both production and testing will use the same tls key and cert
+        my $tls_dir = $vrp_config->tls_dir;
+        my $tls_key = file($tls_dir, $vrp_config->tls_key);
+        $self->_set_tls_key("$tls_key");
+        my $tls_cert = file($tls_dir, $vrp_config->tls_cert);
+        $self->_set_tls_cert("$tls_cert");
+        
+        if (!-s $tls_key) {
+            # create a private key file and certificate (we don't handle there
+            # being no private key but a certificate; an existing cert will get
+            # overwritten here!)
+            system(qq[openssl req -new -x509 -sha256 -days 3650 -nodes -subj "/C=UK/O=VRPipe/OU=CN=VRPipe" -keyout $tls_key -out $tls_cert]);
+            chmod(0600, $tls_key);
+        }
+        elsif (!-s $tls_cert) {
+            # create a self-signed certificate using the existing key
+            system(qq[openssl req -new -x509 -sha256 -days 3650 -key $tls_key -subj "/C=UK/O=VRPipe/OU=CN=VRPipe" -out $tls_cert]);
+        }
         
         my $umask = $vrp_config->server_umask;
         $self->_set_umask("$umask");
@@ -504,6 +267,12 @@ XSL
         my $log_file = file($log_dir, 'vrpipe-server.' . $log_basename . '.log');
         $self->_set_log_file($log_file->stringify);
         $self->_set_log_dir("$log_dir");
+        
+        $method_name = $deployment . '_neo4j_server_url';
+        my $neo4j_url = $vrp_config->$method_name();
+        if ($neo4j_url) {
+            $self->_set_neo4j_server_url("$neo4j_url");
+        }
         
         require VRPipe::Persistent::Schema;
     }
@@ -558,7 +327,7 @@ XSL
             setuid($self->uid) if $deployment eq 'production';
             
             # reopen STDERR for logging purposes
-            my $im = VRPipe::Persistent::InMemory->new;
+            my $im = $self->inmemory();
             $im->log_stderr;
             
             return 1;
@@ -596,12 +365,29 @@ XSL
         my $app = sub {
             my $env = shift; # PSGI env
             
-            my $req  = Plack::Request->new($env);
-            my $page = $req->path_info;
-            my $sub  = $pages{$page} || sub { $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $env); };
+            my $req      = Plack::Request->new($env);
+            my $path     = $req->path_info;
+            my @sub_args = ($env);
+            my $sub      = $pages{$path};
+            
+            unless ($sub) {
+                # see if the path matches any of the pages as a regex
+                while (my ($regex, $this_sub) = each %pages) {
+                    next unless $regex;
+                    next if $regex eq '/';
+                    if ($path =~ qr{$regex}) {
+                        $sub = $this_sub;
+                        push(@sub_args, "$1") if $1;
+                        last;
+                    }
+                }
+                keys %pages;
+            }
+            
+            $sub ||= sub { $self->psgi_text_response(404, 'plain', '404: requested page (' . $req->request_uri . ') is not valid', $env); };
             
             my $return;
-            eval { $return = &{$sub}($env); };
+            eval { $return = &{$sub}(@sub_args); };
             if ($@) {
                 my $err = $@;
                 chomp($err);
@@ -624,7 +410,7 @@ XSL
             else {
                 $res = $req->new_response(500);
                 $res->content_type('text/plain');
-                my $message = "page $page unexpectedly returned a non-reference";
+                my $message = "page $path unexpectedly returned a non-reference";
                 $self->log($message);
                 $res->body('500: ' . $message);
             }
@@ -643,54 +429,171 @@ XSL
         return $res;
     }
     
-    sub psgi_nonblocking_xml_response {
-        my ($self, $sub, $env, @others) = @_;
+    method psgi_file_response (Str $path, HashRef $env, ArrayRef :$regexes?, Int :$max_age?, Bool :$check_permissions = 0) {
+        my $req = Plack::Request->new($env);
+        
+        # can I read it?
+        my $ok = open(my $fh, $path);
+        unless ($ok) {
+            my $res = $req->new_response(404);
+            $res->content_type('text/plain');
+            if (!-e $path) {
+                $res->body('404: ' . "$path not found");
+            }
+            else {
+                $res->body('404: ' . "$path could not be opened: $!");
+            }
+            return $res;
+        }
+        
+        if ($check_permissions) {
+            # is the user allowed to read it?
+            my $session = $req->cookies->{vrpipe_session};
+            my $user;
+            if ($session) {
+                # check redis to see what session data we have for this user
+                my $im           = $self->inmemory();
+                my $session_hash = $im->get_session($session);
+                
+                # if we have data for the supplied session, and if there's a user,
+                # they've previously authenticated successfully
+                if ($session_hash && defined $session_hash->{user}) {
+                    $user = $session_hash->{user};
+                }
+            }
+            unless ($user) {
+                my $res = $req->new_response(403);
+                $res->content_type('text/plain');
+                $res->body('403: For access to files you must first log in.');
+                return $res;
+            }
+            
+            # I can't just su as the user to see if they can read it, so have to
+            # manually check the user and group and permissions on the file vs
+            # the user. I deliberately do not check the parent directories since
+            # I want to give access even when the user couldn't normally read
+            # the file due to non-permissive directories
+            my @stat     = stat($path);
+            my $mode     = $stat[2];
+            my $readable = 0;
+            if ($mode & S_IROTH) {
+                # it's world readable
+                $readable = 1;
+            }
+            else {
+                # see if the user owns the file
+                my ($owner, undef, undef, $owner_gid) = getpwuid($stat[4]);
+                if ($owner eq $user) {
+                    # even if it's not strictly set to be user readable
+                    # according to mode, we still allow access
+                    $readable = 1;
+                }
+                elsif ($mode & S_IRGRP) {
+                    # it's group readable; see if the user belongs in the file's
+                    # group
+                    my ($group, undef, $gid, $members) = getgrgid($stat[5]);
+                    if ($owner_gid == $gid || $members =~ /\b$owner\b/) {
+                        $readable = 1;
+                    }
+                }
+            }
+            
+            unless ($readable) {
+                my $res = $req->new_response(403);
+                $res->content_type('text/plain');
+                $res->body(q[403: You don't have permission to read this file.]);
+                return $res;
+            }
+        }
+        
+        my $bin_mode = -B $path;
+        my ($ext) = $path =~ /\.([^\.]+)$/;
+        my $content_type;
+        if ($ext && exists $extension_to_content_type{$ext}) {
+            $content_type = $extension_to_content_type{$ext};
+        }
+        $content_type ||= $bin_mode ? $extension_to_content_type{bin} : $extension_to_content_type{txt};
+        
+        my $content = '';
+        {
+            local $/ = undef;
+            
+            if ($path =~ /vcf\.gz$/ && -s $path < 5000000) {
+                close($fh);
+                open($fh, "zcat $path |");
+                $content_type = $extension_to_content_type{txt};
+            }
+            else {
+                binmode $fh if $bin_mode;
+            }
+            $content = <$fh>;
+            close($fh);
+            
+            foreach (@{ $regexes || [] }) {
+                my ($search, $replace) = @{$_};
+                $content =~ s/$search/$replace/g;
+            }
+        }
+        
+        my $res = $req->new_response(200);
+        $res->content_type($content_type);
+        $res->body($content);
+        if ($max_age) {
+            $res->header('cache-control' => "public, max-age=$max_age");
+        }
+        return $res;
+    }
+    
+    sub psgi_nonblocking_json_response {
+        my ($self, $graph, $sub, $env, @others) = @_;
         my $req = Plack::Request->new($env);
         
         return sub {
             my $responder = shift;
             
-            # (we use AnyEvent::ForkManager instead of AnyEvent::Util::fork_call
-            #  because the latter doesn't seem to actually fork or do anything
-            #  async)
-            my $pm = AnyEvent::ForkManager->new(max_workers => 1);
-            
-            $pm->start(
-                cb => sub {
-                    my $xml;
-                    try {
-                        $xml = &{$sub}($req, @others);
-                    }
-                    catch ($err) {
-                        chomp($err);
-                        $xml = $self->xml_tag('error', $err);
-                        $self->log("fatal event captured responding to " . $req->request_uri . " for " . $req->address . ": " . $err);
-                    }
-                    
-                    my $warnings = '';
-                    while (my $warning = $self->_get_warning) {
-                        $warnings .= $self->xml_tag('warning', $warning);
-                    }
-                    
-                    my $format = $req->param('display_format');
-                    $format ||= 'html';
-                    my $content = $self->transform_xml($warnings . $xml, $format);
-                    
-                    my $res = $req->new_response(200);
-                    $res->content_type('text/' . $format);
-                    $res->body($content);
-                    $responder->($res->finalize);
+            fork_call {
+                my $args;
+                eval { $args = $graph->json_decode($req->content || '{}'); };
+                if ($@) {
+                    return $graph->json_encode({ errors => ['Unable to decode posted content'] });
                 }
-            );
-            $pm->wait_all_children;
+                if (ref($args) ne 'HASH') {
+                    return $graph->json_encode({ errors => ['Posted content was not a hash'] });
+                }
+                
+                # I couldn't get Plack::Middleware::Session to work, and want
+                # the sessions in redis anyway, so I implement my own session
+                # management by passing my own vrpipe_session cookie value if
+                # it exists, then when we return from this fork I check to see
+                # if the returned json had vrpipe_session and set it as a
+                # cookie if so
+                $args->{vrpipe_session} = $req->cookies->{vrpipe_session};
+                
+                my $data;
+                eval { $data = &{$sub}($args, @others); };
+                if ($@) {
+                    $data = { errors => [$@] };
+                }
+                
+                return $graph->json_encode($data);
+            }
+            sub {
+                my ($json) = @_;
+                my $res = $req->new_response(200);
+                $res->content_type('application/json');
+                
+                my $decoded = $graph->json_decode($json);
+                my $session = delete $decoded->{vrpipe_session} if ref($decoded) eq 'HASH';
+                if (defined $session) {
+                    $res->cookies->{vrpipe_session} = { value => $session, path => "/" };
+                    $json = $graph->json_encode($decoded);
+                }
+                
+                $res->body($json);
+                
+                $responder->($res->finalize);
+            };
         };
-    }
-    
-    method transform_xml (Str $xml, Str $format) {
-        my $source = $parser->load_xml(string => '<?xml version="1.0" encoding="ISO-8859-1"?><interface>' . $xml . '</interface>');
-        my $stylesheet = $display_format_to_stylesheet{$format} || $display_format_to_stylesheet{html};
-        my $result = $stylesheet->transform($source);
-        return $stylesheet->output_as_chars($result);
     }
     
     method req_to_opts (Object $req, ArrayRef $ctp_array?) {
@@ -746,25 +649,6 @@ XSL
         }
         
         return \%opts;
-    }
-    
-    method xml_tag (Str $tag, Str $cdata, Str $attribs?) {
-        $attribs ||= '';
-        $attribs &&= ' ' . $attribs;
-        return '<' . $tag . $attribs . '><![CDATA[' . $cdata . ']]></' . $tag . '>';
-    }
-    
-    method hash_to_xml (HashRef $hash, ArrayRef[Str] $key_order?) {
-        $key_order ||= [sort { $a cmp $b } keys %$hash];
-        
-        my $xml = '<hash>';
-        foreach my $key (@$key_order) {
-            next unless defined $hash->{$key};
-            $xml .= $self->xml_tag('pair', $hash->{$key}, qq[key="$key"]);
-        }
-        $xml .= '</hash>';
-        
-        return $xml;
     }
     
     method get_pipelinesetups (HashRef $opts, Bool $inactive?, Bool $allow_no_setups?) {

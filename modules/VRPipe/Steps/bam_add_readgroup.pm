@@ -88,7 +88,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'picard',
                     version => $self->picard_version(),
-                    summary => 'java $jvm_args -jar AddOrReplaceReadGroups.jar INPUT=$bam_file OUTPUT=$rg_added_bam_file' . " $rginfo $opts"
+                    summary => 'java $jvm_args -jar ' . $picard_jar . ' INPUT=$bam_file OUTPUT=$rg_added_bam_file' . " $rginfo $opts"
                 )
             );
             

@@ -104,8 +104,8 @@ class_type('VRPipe::DataElementState');
 class_type('Path::Class::Dir');
 class_type('Path::Class::File');
 
-subtype Dir,  as 'Path::Class::Dir',  where { "$_" =~ /^[-\w.,#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
-subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.,#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a file"      : "no file specified" };
+subtype Dir,  as 'Path::Class::Dir',  where { "$_" =~ /^[-+\w.,#\/\\~:]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
+subtype File, as 'Path::Class::File', where { "$_" =~ /^[-+\w.,#\/\\~:]+$/ }, message { defined $_ ? "'$_' does not seem like a file"      : "no file specified" };
 subtype MaybeFile, as Maybe [File];
 subtype MaybeDir,  as Maybe [Dir];
 subtype AbsoluteFile, as File, where { $_->is_absolute }, message {

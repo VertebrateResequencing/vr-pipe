@@ -63,14 +63,12 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
     has 'chunk_size' => (
         is      => 'rw',
         isa     => 'Int',
-        lazy    => 1,
         default => 1000000
     );
     
     has 'chunk_overlap' => (
         is      => 'rw',
         isa     => 'Int',
-        lazy    => 1,
         default => 0
     );
     
@@ -86,6 +84,12 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         isa     => 'HashRef',
         lazy    => 1,
         default => sub { {} }
+    );
+    
+    has '_processed_extra_options' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
     );
     
     around method_description (Str $method) {
@@ -141,17 +145,20 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
     
     around options {
         my $options = $self->$orig();
-        $self->reference_index(delete $options->{reference_index});
-        $self->chunk_override_file(delete $options->{chunk_override_file});
-        $self->chunk_size(delete $options->{chunk_size})       if (exists $options->{chunk_size});
-        $self->chunk_overlap(delete $options->{chunk_overlap}) if (exists $options->{chunk_overlap});
-        if (exists $options->{chrom_list}) {
-            my $chrom_list = delete $options->{chrom_list};
-            $self->chrom_list([split(' ', $chrom_list)]) if $chrom_list;
-        }
-        if (exists $options->{ploidy}) {
-            my $ploidy = delete $options->{ploidy};
-            $self->ploidy(do $ploidy) if $ploidy;
+        unless ($self->_processed_extra_options) {
+            $self->reference_index(delete $options->{reference_index});
+            $self->chunk_override_file(delete $options->{chunk_override_file});
+            $self->chunk_size(delete $options->{chunk_size})       if (exists $options->{chunk_size});
+            $self->chunk_overlap(delete $options->{chunk_overlap}) if (exists $options->{chunk_overlap});
+            if (exists $options->{chrom_list}) {
+                my $chrom_list = delete $options->{chrom_list};
+                $self->chrom_list([split(' ', $chrom_list)]) if $chrom_list;
+            }
+            if (exists $options->{ploidy}) {
+                my $ploidy = delete $options->{ploidy};
+                $self->ploidy(do $ploidy) if $ploidy;
+            }
+            $self->_processed_extra_options(1);
         }
         return $options;
     }

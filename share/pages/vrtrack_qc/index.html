@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>VRTrack QC</title>
+        
+        <!-- jQuery for REST interaction, and needed by bootstrap.js -->
+        <script src="/js/jquery-1.11.0.min.js"></script>
+        
+        <!-- Bootstrap for presentation and styling -->
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
+        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+        
+        <!-- Knockout for event handling -->
+        <script src="/js/knockout-3.1.0.min.js"></script>
+        
+        <!-- Bootstrap Multiselect for nice selects -->
+        <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
+        <link rel="stylesheet" href="/css/bootstrap-multiselect-0.9.8.css">
+        
+        <!-- Simrou for client-side navigation -->
+        <script src="/js/simrou-1.5.4.min.js"></script>
+        
+        <!-- Some of our own general helper functions -->
+        <script src="/js/vrpipe.js"></script>
+        <link rel="stylesheet" href="/css/vrpipe.css">
+        
+        <!-- vrtrack_qc functions -->
+        <script src="/pages/vrtrack_qc/qc.js"></script>
+    </head>
+    <body>
+        <div id="nav" class="navbar navbar-default" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <span class="navbar-brand">VRTrack QC</span>
+                </div>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div id="qc">
+                <div data-bind="loadingWhen: loading().length">
+                    &nbsp;
+                </div>
+                
+                <div id="selector">
+                    <form role="form" class="input-group btn-group">
+                        <span class="input-group-addon"><b>Group</b></span>
+                        <select size="2" id="groupSelect" class="multiselect" multiple="multiple" data-bind="
+                            options: groupNodes,
+                            optionsText: function(item) {
+                                return item.properties['name']
+                            },
+                            optionsValue: function(item) {
+                                return +item.id
+                            },
+                            selectedOptions: selectedGroups,
+                            multiselect: true">
+                        </select>
+                    </form>
+                    
+                    <form role="form" class="input-group btn-group top-margin" data-bind="visible: selectedGroups().length">
+                        <span class="input-group-addon"><b>Study</b></span>
+                        <select size="2" id="studyPropertySelect" class="multiselect" data-bind="
+                            options: studyProperties,
+                            selectedOptions: selectedStudyProperty,
+                            multiselect: true">
+                        </select>
+                        <select size="2" id="studySelect" class="multiselect" multiple="multiple" data-bind="
+                            options: studyNodesForSelect,
+                            optionsText: 'property',
+                            optionsValue: function(item) {
+                                return +item.id
+                            },
+                            selectedOptions: selectedStudies,
+                            multiselect: true">
+                        </select>
+                    </form>
+                    
+                    <div data-bind="visible: selectedStudies().length">
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon">Donor</span>
+                            <select size="2" id="donorPropertySelect" class="multiselect" data-bind="
+                                options: donorProperties,
+                                selectedOptions: selectedDonorProperty,
+                                multiselect: true">
+                            </select>
+                            <select size="2" id="donorSelect" class="multiselect" multiple="multiple" data-bind="
+                                options: donorNodesForSelect,
+                                optionsText: 'property',
+                                optionsValue: function(item) {
+                                    return +item.id
+                                },
+                                selectedOptions: selectedDonors,
+                                multiselect: true">
+                            </select>
+                        </form>
+                        
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon">Sample</span>
+                            <select size="2" id="samplePropertySelect" class="multiselect" data-bind="
+                                options: sampleProperties,
+                                selectedOptions: selectedSampleProperty,
+                                multiselect: true">
+                            </select>
+                            <select size="2" id="sampleSelect" class="multiselect" multiple="multiple" data-bind="
+                                options: sampleNodesForSelect,
+                                optionsText: 'property',
+                                optionsValue: function(item) {
+                                    return +item.id
+                                },
+                                selectedOptions: selectedSamples,
+                                multiselect: true">
+                            </select>
+                        </form>
+                        
+                        <form role="form" class="input-group btn-group top-margin">
+                            <span class="input-group-addon"><b>View</b></span>
+                            <select size="2" id="viewSelect" class="multiselect" data-bind="
+                                options: viewLabels,
+                                selectedOptions: selectedViewLabel,
+                                multiselect: true">
+                            </select>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="top-margin" id="errors" data-bind="foreach: errors">
+                    <div class="alert alert-danger fade in">
+                        <p data-bind="text: $data"></p>
+                    </div>
+                </div>
+                
+                <div id="viewtable" data-bind="visible: viewNodes().length">
+                    <hr>
+                    
+                    <div class="panel panel-default">
+                        <div class="panel-heading" data-bind="text: selectedViewLabel"></div>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover">
+                                <thead>
+                                    <tr data-bind="foreach: viewColumnNames">
+                                        <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody data-bind="foreach: viewNodes">
+                                    <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
+                                        <td data-bind="text: $parent[$data]"></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="panel-footer"><small><span data-bind="text: viewNodes().length"></span> rows</small></div>
+                    </div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <footer id="footer">
+                <small>&copy; 2014 Genome Research Limited.</small>
+            </footer>
+        </div>
+        
+        <script type="text/javascript">
+            var router = new Simrou();
+            
+            // viewmodel for logging in
+            var livm = new ko.LogInViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(livm, $('#nav')[0]);
+            });
+            
+            // viewmodel for qc
+            function QCViewModel() {
+                var self = this;
+                
+                self.loading = ko.observableArray();
+                self.errors = ko.observableArray();
+                self.labels = ko.observableArray();
+                self.labelProperties = {};
+                self.viewLabels = ko.observableArray();
+                
+                // some selects show node properties sorted by the selected
+                // property, so we'll have computed vars that build their arrays
+                // using this function
+                self.nodesToSelect = function(nodes, property, selectID) {
+                    var arr = [];
+                    if (property) {
+                        property = property[0];
+                        for (var i = 0; i < nodes().length; i++) {
+                            var node = nodes()[i];
+                            arr.push({ id: node['id'], property: node.properties[property] });
+                        }
+                        arr.sort(function(left, right) {
+                            return left.property == right.property ? (left.id < right.id ? -1 : 1) : (left.property < right.property ? -1 : 1)
+                        });
+                    }
+                    
+                    setTimeout(function(){
+                        $(selectID).multiselect('rebuild');
+                    }, 10);
+                    
+                    return arr;
+                }
+                
+                // required group and study selection vars
+                self.groupNodes = ko.observableArray();
+                self.selectedGroups = ko.observableArray();
+                self.studyProperties = ko.observableArray();
+                self.selectedStudyProperty = ko.observable();
+                self.studyNodes = ko.observableArray();
+                self.studyNodesForSelect = ko.computed(function() { return self.nodesToSelect(self.studyNodes, self.selectedStudyProperty(), '#studySelect'); });
+                self.selectedStudies = ko.observableArray();
+                
+                // optional donor and sample selection vars
+                self.donorProperties = ko.observableArray();
+                self.selectedDonorProperty = ko.observable();
+                self.donorNodes = ko.observableArray();
+                self.donorNodesForSelect = ko.computed(function() { return self.nodesToSelect(self.donorNodes, self.selectedDonorProperty(), '#donorSelect'); });
+                self.selectedDonors = ko.observableArray();
+                self.sampleProperties = ko.observableArray();
+                self.selectedSampleProperty = ko.observable();
+                self.sampleNodes = ko.observableArray();
+                self.sampleNodesForSelect = ko.computed(function() { return self.nodesToSelect(self.sampleNodes, self.selectedSampleProperty(), '#sampleSelect'); });
+                self.selectedSamples = ko.observableArray();
+                
+                // view mode vars
+                self.selectedViewLabel = ko.observable();
+                self.viewNodes = ko.observableArray();
+                
+                // configure the multiselects
+                $('#groupSelect').multiselect({
+                    enableCaseInsensitiveFiltering: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Group...'
+                });
+                $('#studyPropertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#studySelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Study...'
+                });
+                $('#donorPropertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#donorSelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Donor...'
+                });
+                $('#samplePropertySelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'Property...'
+                });
+                $('#sampleSelect').multiselect({
+                    includeSelectAllOption: true,
+                    includeSelectAllIfMoreThan: 1,
+                    enableCaseInsensitiveFiltering: true,
+                    disableIfEmpty: true,
+                    maxHeight: 300,
+                    nonSelectedText: 'Sample...'
+                });
+                $('#viewSelect').multiselect({
+                    maxHeight: 300,
+                    nonSelectedText: 'View...'
+                });
+                
+                // function to unset a selection
+                self.deselect = function(selected, id) {
+                    if (selected()) {
+                        $(id).multiselect('deselect', selected());
+                        selected(undefined);
+                    }
+                }
+                
+                // function to reset parts of the view
+                self.reset = function(mode) {
+                    self.deselect(self.selectedViewLabel, '#viewSelect');
+                    self.viewNodes.removeAll();
+                    
+                    if (mode > 1) {
+                        self.deselect(self.selectedSampleProperty, '#samplePropertySelect');
+                        self.selectedSamples.removeAll();
+                        self.sampleNodes.removeAll();
+                    }
+                    
+                    if (mode > 2) {
+                        self.deselect(self.selectedDonorProperty, '#donorPropertySelect');
+                        self.selectedDonors.removeAll();
+                        self.donorNodes.removeAll();
+                    }
+                    
+                    if (mode > 3) {
+                        self.deselect(self.selectedStudyProperty, '#studyPropertySelect');
+                        self.selectedStudies.removeAll();
+                        self.studyNodes.removeAll();
+                    }
+                }
+                
+                // get all the schema details from the db
+                getQCGraphData('labels', { }, { resultStore: self.labels, labelProperties: self.labelProperties, viewLabels: self.viewLabels, groupNodes: self.groupNodes, studyProperties: self.studyProperties, donorProperties: self.donorProperties, sampleProperties: self.sampleProperties }, self.loading, self.errors);
+                
+                // when the user selects a study property, if they have also
+                // already chosen a group, then fill in the studyPropertyValues
+                self.selectedStudyProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && self.selectedGroups().length && ! self.studyNodes().length) {
+                        getQCGraphData('nodes_of_label', { label: 'Study', groups: self.selectedGroups() }, { resultStore: self.studyNodes }, self.loading, self.errors);
+                    }
+                });
+                
+                // when the user changes groups or studies we need to reset things
+                self.selectedGroups.subscribe(function(newValue) {
+                    self.reset(4);
+                });
+                self.selectedStudies.subscribe(function(newValue) {
+                    self.reset(3);
+                });
+                
+                // when donor or sample property is changed, fill in the values
+                // to select from
+                self.selectedDonorProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && ! self.donorNodes().length) {
+                        getQCGraphData('nodes_of_label', { label: 'Donor', groups: self.selectedGroups(), studies: self.selectedStudies() }, { resultStore: self.donorNodes }, self.loading, self.errors);
+                    }
+                });
+                self.selectedSampleProperty.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && ! self.sampleNodes().length) {
+                        var opts = {label: 'Sample', groups: self.selectedGroups(), studies: self.selectedStudies()};
+                        if (self.selectedDonors().length) {
+                            opts['donors'] = self.selectedDonors();
+                        }
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.sampleNodes }, self.loading, self.errors);
+                    }
+                });
+                
+                // when donor is changed, update samples
+                self.selectedDonors.subscribe(function(newValue) {
+                    self.reset(2);
+                    
+                    if (newValue && newValue != '') {
+                        getQCGraphData('nodes_of_label', { label: 'Sample', groups: self.selectedGroups(), studies: self.selectedStudies(), donors: newValue }, { resultStore: self.sampleNodes }, self.loading, self.errors);
+                    }
+                });
+                
+                // when samples change, reset the view
+                self.selectedSamples.subscribe(function(newValue) {
+                    self.reset(1);
+                });
+                
+                // when the user selects a view, get all nodes with that label,
+                // filtered based on group, studies and any other selections
+                self.selectedViewLabel.subscribe(function(newValue) {
+                    if (newValue && newValue != '' && self.selectedGroups().length && self.selectedStudies().length) {
+                        self.viewNodes.removeAll();
+                        var loc = '/groups:' + self.selectedGroups() + '/studies:' + self.selectedStudies();
+                        var opts = {label: newValue[0], groups: self.selectedGroups(), studies: self.selectedStudies()};
+                        if (self.selectedDonors().length) {
+                            opts['donors'] = self.selectedDonors();
+                            loc = loc + '/donors:' + self.selectedDonors();
+                        }
+                        else {
+                            loc = loc + '/donors:all';
+                        }
+                        if (self.selectedSamples().length) {
+                            opts['samples'] = self.selectedSamples();
+                            loc = loc + '/samples:' + self.selectedSamples();
+                        }
+                        else {
+                            loc = loc + '/samples:all';
+                        }
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, flatten: true }, self.loading, self.errors);
+                        
+                        // and set the browser url to make this selection
+                        // bookmarkable and included in the history
+                        loc = loc + '/view:' + newValue;
+                        if (location.hash != '#' + loc) {
+                            location.hash = loc;
+                        }
+                    }
+                });
+                
+                // client-side route which fills in the selection dropdowns
+                // based on the user changing the url in the browser directly
+                // (to enable bookmarkability and history)
+                route = router.addRoute('/groups\::groups/studies\::studies/donors\::donors/samples\::samples/view\::view');
+                route.get(function(event, params) {
+                    var groups = splitToInts(params.groups);
+                    var studies = splitToInts(params.studies);
+                    var donors = params.donors == 'all' ? [] : splitToInts(params.donors);
+                    var samples = params.samples == 'all' ? [] : splitToInts(params.samples);
+                    if (! arraysEqual(groups, self.selectedGroups()) || ! arraysEqual(studies, self.selectedStudies()) || ! arraysEqual(donors, self.selectedDonors()) || ! arraysEqual(samples, self.selectedSamples()) || params.view != self.selectedViewLabel()) {
+                        self.reset(4);
+                        
+                        // simulate selecting the desired things from the
+                        // selects, waiting each time for the selects to
+                        // populate
+                        runWhenPopulated(self.groupNodes, function() {
+                            self.selectedGroups(groups);
+                            self.selectedStudyProperty(['name']);
+                            $('#studyPropertySelect').multiselect('select', self.selectedStudyProperty());
+                            
+                            runWhenPopulated(self.studyNodes, function() {
+                                self.selectedStudies(studies);
+                                
+                                if (donors.length) {
+                                    self.selectedDonorProperty(['example_sample']);
+                                    $('#donorPropertySelect').multiselect('select', self.selectedDonorProperty());
+                                    
+                                    runWhenPopulated(self.donorNodes, function() {
+                                        self.selectedDonors(donors);
+                                        
+                                        if (samples.length) {
+                                            self.selectedSampleProperty(['public_name']);
+                                            $('#samplePropertySelect').multiselect('select', self.selectedSampleProperty());
+                                            
+                                            runWhenPopulated(self.sampleNodes, function() {
+                                                self.selectedSamples(samples);
+                                                self.selectedViewLabel([params.view]);
+                                                $('#viewSelect').multiselect('select', self.selectedViewLabel());
+                                            });
+                                        }
+                                        else {
+                                            self.selectedViewLabel([params.view]);
+                                            $('#viewSelect').multiselect('select', self.selectedViewLabel());
+                                        }
+                                    });
+                                }
+                                else if (samples.length) {
+                                    self.selectedSampleProperty(['public_name']);
+                                    $('#samplePropertySelect').multiselect('select', self.selectedSampleProperty());
+                                    
+                                    runWhenPopulated(self.sampleNodes, function() {
+                                        self.selectedSamples(samples);
+                                        self.selectedViewLabel([params.view]);
+                                        $('#viewSelect').multiselect('select', self.selectedViewLabel());
+                                    });
+                                }
+                                else {
+                                    self.selectedViewLabel([params.view]);
+                                    $('#viewSelect').multiselect('select', self.selectedViewLabel());
+                                }
+                            });
+                        });
+                    }
+                });
+                
+                // dynamic view table columns
+                self.viewColumnNames = ko.computed(function () {
+                    if (self.viewNodes().length === 0) return [];
+                    var props = [];
+                    var obj = self.viewNodes()[0];
+                    for (var name in obj) {
+                        if (name == 'node_id' || name == 'node_label') {
+                            continue;
+                        }
+                        props.push(name);
+                    }
+                    return props;
+                });
+                
+                // when a node in the view table is clicked on, open a new tab
+                // with the results
+                self.showQCForNode = function(node) {
+                    var nodeID = +node['node_id'];
+                    var nodeLabel = node['node_label'];
+                    
+                    if (nodeLabel == 'Donor') {
+                        window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID, '_blank', '', false);
+                    }
+                }
+            }
+            
+            var qcvm = new QCViewModel();
+            ko.applyBindings(qcvm, $('#qc')[0]);
+            
+            router.start('/');
+        </script>
+    </body>
+</html>

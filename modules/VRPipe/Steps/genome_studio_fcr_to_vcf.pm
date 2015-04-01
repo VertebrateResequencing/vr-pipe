@@ -122,15 +122,26 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
             );
             
             foreach my $fcr_file (@{ $self->inputs->{fcr_files} }) {
-                my $meta = $fcr_file->metadata;
-                
+                my $meta                 = $fcr_file->metadata;
+                my $fh                   = $fcr_file->openr;
+                my $header               = <$fh>;
+                my $line                 = <$fh>;
+                my @fields               = split(/\t/, $line);
+                my $true_infinium_sample = $fields[1];
+                $fh->close;
                 my $outdir = $meta->{sample};
                 my $basename;
                 my $s = '';
+                
                 if ($src_key && @dst_keys && defined $meta->{$src_key} && defined $meta->{ $dst_keys[0] }) {
                     my $dst_vals = join('_', map { $meta->{$_} || 'undef' } @dst_keys);
-                    $s        = " -s $meta->{$src_key}:$dst_vals";
-                    $outdir   = $dst_vals;
+                    if ($src_key eq "infinium_sample" && $meta->{$src_key} ne $true_infinium_sample) {
+                        $s = " -s $true_infinium_sample:$dst_vals";
+                    }
+                    else {
+                        $s = " -s $meta->{$src_key}:$dst_vals";
+                    }
+                    $outdir = $dst_vals;
                     $basename = file($outdir, "$outdir.vcf.gz")->stringify;
                 }
                 else {
@@ -140,11 +151,14 @@ class VRPipe::Steps::genome_studio_fcr_to_vcf with VRPipe::StepRole {
                 
                 #$self->output_file(basename => $basename, type => 'vcf', temporary => 1);
                 
-                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename, type => 'vcf', metadata => $meta)->path;
-                $self->output_file(output_key => 'tbi_files', basename => $basename . '.tbi', type => 'tbi');
+                my $vcf_file_path = $self->output_file(output_key => 'vcf_files', basename => $basename,          type => 'vcf', metadata => $meta)->path;
+                my $tbi_file_path = $self->output_file(output_key => 'tbi_files', basename => $basename . '.tbi', type => 'tbi')->path;
                 my $fcr_file_path = $fcr_file->path;
                 
                 $self->dispatch(["cat $fcr_file_path | $fcr_to_vcf -b $bcftools -a $map_file$s -o $outdir", $req]);
+                
+                $self->relate_input_to_output($fcr_file_path->stringify, 'converted', $vcf_file_path->stringify);
+                $self->relate_input_to_output($vcf_file_path->stringify, 'indexed',   $tbi_file_path->stringify);
             }
         };
     }

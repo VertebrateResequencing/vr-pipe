@@ -1,0 +1,23 @@
+<ul class="nav navbar-nav navbar-right">
+    <li class="dropdown">
+        <a href="#" class="dropdown-toggle" data-toggle="dropdown" id="loginDropdown"><span data-bind="text: username() ? username() : 'Log In'"></span> <span class="caret"></span></a>
+        <div class="dropdown-menu" role="menu" style="padding:15px">
+            <form role="form" data-bind="ifnot: username, submit: login">
+                <div class="form-group">
+                    <input type="text" class="form-control" id="loginUsername" placeholder="Username">
+                </div>
+                <div class="form-group">
+                    <input type="password" class="form-control" id="loginPassword" placeholder="Password">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block" id="loginSubmit">Log In</button>
+                
+                <div data-bind="if: loginError">
+                    <p data-bind="text: loginError" class="alert alert-danger fade in small top-margin" style="margin-bottom: 0px"></p>
+                </div>
+            </form>
+            <form role="form" data-bind="if: username, submit: logout">
+                <button type="submit" class="btn btn-primary btn-block">Log Out</button>
+            </form>
+        </div>
+    </li>
+</ul>

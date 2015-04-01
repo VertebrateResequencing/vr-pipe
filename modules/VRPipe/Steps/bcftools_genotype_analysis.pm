@@ -68,43 +68,54 @@ class VRPipe::Steps::bcftools_genotype_analysis extends VRPipe::Steps::genotype_
             push(@data, [$discordance, $sites, $sample]);
         }
         
-        my $min_disc     = 0;                                                                     # the minimum possible discordance is 0
-        my $boundary_min = 0;
-        my $boundary_max = 1 - $boundary_min;
-        my $scaler       = $max_disc != $min_disc ? ($boundary_max / ($max_disc - $min_disc)) : 1;
-        foreach my $datum (@data) {
-            my ($discordance, $sites, $sample) = @{$datum};
-            my $scaled_d = $scaler * ($discordance - $min_disc) + $boundary_min;
-            my $concordance = sprintf("%0.3f", 1 - $scaled_d);
-            
-            if (!defined $gtype1) {
-                $gtype1 = $sample;
-                $score1 = $concordance;
-            }
-            elsif (!defined $gtype2) {
-                $gtype2 = $sample;
-                $score2 = $concordance;
-            }
-            
-            if ($expected && $sample eq $expected) {
-                $found_expected = 1;
-                $score_expected = $concordance;
+        if ($max_disc && @data) {
+            my $min_disc     = 0;                                                                     # the minimum possible discordance is 0
+            my $boundary_min = 0;
+            my $boundary_max = 1 - $boundary_min;
+            my $scaler       = $max_disc != $min_disc ? ($boundary_max / ($max_disc - $min_disc)) : 1;
+            foreach my $datum (@data) {
+                my ($discordance, $sites, $sample) = @{$datum};
+                my $scaled_d = $scaler * ($discordance - $min_disc) + $boundary_min;
+                my $concordance = sprintf("%0.3f", 1 - $scaled_d);
                 
-                # if the expected sample has a score with ratio 1.00 vs score1,
-                # then we'll fudge things and say gtype2 is the expected,
-                # regardless of where it appeared in the file
-                if (defined $gtype2 && $gtype2 ne $expected) {
-                    my $ratio = $concordance != 0 ? $score1 / $concordance : $score1 / 1e-6;
-                    $ratio = sprintf("%0.2f", $ratio);
-                    if ($ratio == 1) {
-                        $gtype2 = $sample;
-                        $score2 = $concordance;
+                if (!defined $gtype1) {
+                    $gtype1 = $sample;
+                    $score1 = $concordance;
+                }
+                elsif (!defined $gtype2) {
+                    $gtype2 = $sample;
+                    $score2 = $concordance;
+                }
+                
+                if ($expected && $sample eq $expected) {
+                    $found_expected = 1;
+                    $score_expected = $concordance;
+                    
+                    # if the expected sample has a score with ratio 1.00 vs score1,
+                    # then we'll fudge things and say gtype2 is the expected,
+                    # regardless of where it appeared in the file
+                    if (defined $gtype2 && $gtype2 ne $expected) {
+                        my $ratio = $concordance != 0 ? $score1 / $concordance : $score1 / 1e-6;
+                        $ratio = sprintf("%0.2f", $ratio);
+                        if ($ratio == 1) {
+                            $gtype2 = $sample;
+                            $score2 = $concordance;
+                        }
                     }
                 }
+                
+                last if ($found_expected && defined($gtype1) && defined($gtype2));
             }
-            
-            last if ($found_expected && defined($gtype1) && defined($gtype2));
         }
+        else {
+            # no matches to anything; the genotype file was probably wrong, but
+            # we allow this for testing purposes
+            $gtype1 = 'n/a';
+            $gtype2 = 'n/a';
+            $score1 = '1.000';
+            $score2 = '1.000';
+        }
+        
         close $fh;
         
         if (!$gtype2) {

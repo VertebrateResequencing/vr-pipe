@@ -43,7 +43,7 @@ use VRPipe::Base;
 class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
     method options_definition {
         return {
-            bcftools_cnv_exe => VRPipe::StepOption->create(
+            bcftools_exe => VRPipe::StepOption->create(
                 description   => 'path to your bcftools cnv exe',
                 optional      => 1,
                 default_value => 'bcftools'
@@ -51,7 +51,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
             bcftools_cnv_options => VRPipe::StepOption->create(
                 description   => 'options to bcftools cnv, excluding -o, -c and -s',
                 optional      => 1,
-                default_value => '-p2 -S X,Y,MT'
+                default_value => '-p2 -t ^MT,Y'
             ),
             control_metadata_key => VRPipe::StepOption->create(
                 description   => 'the metadata key to check on the input files to extract the sample identifier of the control from',
@@ -80,10 +80,10 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $cmk              = $options->{control_metadata_key};
-            my $bcftools_cnv_exe = $options->{bcftools_cnv_exe};
-            my $bcftools_opts    = $options->{bcftools_cnv_options};
-            my $python_exe       = $options->{python_exe};
+            my $cmk           = $options->{control_metadata_key};
+            my $bcftools_exe  = $options->{bcftools_exe};
+            my $bcftools_opts = $options->{bcftools_cnv_options};
+            my $python_exe    = $options->{python_exe};
             
             if ($bcftools_opts =~ /\s-[ocs]\s/) {
                 $self->throw("bcftools_options should not include -o, -c or -s");
@@ -109,7 +109,8 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 }
                 close($fh);
                 
-                my $meta = $vcf->metadata;
+                my $meta     = $vcf->metadata;
+                my $vcf_path = $vcf->path->stringify;
                 
                 my $control = $meta->{$cmk};
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
@@ -132,6 +133,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     foreach my $chr (@chroms) {
                         my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "plot.$control.$query.chr$chr.png", type => 'png', metadata => $meta);
                         push(@outfiles, $png_file);
+                        $self->relate_input_to_output($vcf_path, 'cnv_plot', $png_file->path->stringify, { chr => $chr, control_sample => $control, query_sample => $query });
                     }
                     
                     foreach my $sample (($control, $query)) {
@@ -140,13 +142,12 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                         $self->output_file(sub_dir => $sub_dir, basename => "cn.$sample.tab",      type => 'txt', temporary => 1);
                     }
                     
-                    my $vcf_path     = $vcf->path;
                     my $summary_path = $summary_file->path;
                     my $plot_path    = $plot_file->path;
+                    $self->relate_input_to_output($vcf_path, 'cnv_summary', $summary_path->stringify);
                     
-                    my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_cnv_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query]);";
+                    my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
-                
                 }
             }
         };
@@ -220,7 +221,6 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         
         return 1;
     }
-
 }
 
 1;

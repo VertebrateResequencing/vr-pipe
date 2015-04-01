@@ -44,7 +44,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                 default_value => 'samtools'
             ),
             samtools_mpileup_options => VRPipe::StepOption->create(
-                description   => 'samtools mpileup options excluding -f and -b. Since this will be piped into bcftools view, it is recommended that the -u option is set.',
+                description   => 'samtools mpileup options excluding -f and -b. Since this will be piped into bcftools call, it is recommended that the -u option is set.',
                 optional      => 1,
                 default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -ug'
             ),
@@ -83,8 +83,8 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $samtools      = $options->{samtools_exe};
             my $bcftools      = $options->{bcftools_exe};
             my $mpileup_opts  = $options->{samtools_mpileup_options};
-            my $bcf_view_opts = $options->{bcftools_view_options};
-            $bcf_view_opts ||= $self->_bcftools_calling_defaults;
+            my $bcf_call_opts = $options->{bcftools_call_options};
+            $bcf_call_opts ||= $self->_bcftools_calling_defaults;
             my $samples_option  = $self->_bcftools_samples_option;
             my $calling_command = $self->_bcftools_calling_command;
             my $assumed_sex     = $options->{assumed_sex};
@@ -161,7 +161,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
                     version => $self->bcftools_version_string,
-                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools $calling_command $bcf_view_opts $samples_option \$samples_file - $output > \$vcf_file"
+                    summary => "samtools mpileup $summary_opts -f \$reference_fasta -b \$bams_list | bcftools $calling_command $bcf_call_opts $samples_option \$samples_file - $output > \$vcf_file"
                 )
             );
             
@@ -169,7 +169,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $temp_samples_path = $self->output_file(basename => $basename . '.samples', type => 'txt', temporary => 1)->path;
             
             my $mpileup_cmd  = qq[$samtools mpileup $mpileup_opts -f $reference_fasta -b $bams_list_path];
-            my $bcftools_cmd = qq[$bcftools $calling_command $bcf_view_opts $samples_option $temp_samples_path];
+            my $bcftools_cmd = qq[$bcftools $calling_command $bcf_call_opts $samples_option $temp_samples_path];
             my $cmd_line     = qq[$mpileup_cmd | $bcftools_cmd - $output > ] . $vcf_file->path;
             
             my $args = qq['$cmd_line', '$temp_samples_path', source_file_ids => [qw(@bam_ids)], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];

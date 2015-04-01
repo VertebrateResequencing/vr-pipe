@@ -1,0 +1,1349 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>VRPipe</title>
+        
+        <!-- jQuery for REST interaction, and needed by bootstrap.js -->
+        <script src="/js/jquery-1.11.0.min.js"></script>
+        
+        <!-- Bootstrap for presentation and styling -->
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
+        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+        
+        <!-- Knockout for event handling -->
+        <script src="/js/knockout-3.1.0.min.js"></script>
+        
+        <!-- Knockstrap to make buttons and things work 2-way between knockout and bootstrap -->
+        <script src="/js/knockstrap-0.4.0.min.js"></script>
+        
+        <!-- Simrou for client-side navigation -->
+        <script src="/js/simrou-1.5.4.min.js"></script>
+        
+        <!-- Cytoscape for graph display -->
+        <script src="/js/cytoscape-2.2.9.min.js"></script>
+        
+        <!-- Masonry for seamless layout of divs -->
+        <script src="/js/masonry-3.1.5.min.js"></script>
+        
+        <!-- Some of our own general helper functions -->
+        <script src="/js/vrpipe.js"></script>
+        <link rel="stylesheet" href="/css/vrpipe.css">
+    </head>
+    <body>
+        <div id="nav" class="navbar navbar-default" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <span class="navbar-brand">VRPipe</span>
+                </div>
+                
+                <ul class="nav navbar-nav nav-tabs" id="tabsections">
+                    <li class="active"><a href="#home" data-toggle="tab">Home</a></li>
+                    <li><a href="#status" data-toggle="tab">Status</a></li>
+                    <li><a href="#graph" data-toggle="tab">Graph</a></li>
+                    
+                    <li class="dropdown">
+                        <a href="#" class="dropdown-toggle" data-toggle="dropdown">Pages <span class="caret"></span></a>
+                        <ul class="dropdown-menu" role="menu" data-bind="foreach: pages">
+                            <li><a data-bind="attr: { href: '/pages/' + $data }, text: $data"></a></li>
+                        </ul>
+                    </li>
+                </ul>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div class="tab-content">
+                <div id="home" class="tab-pane fade in active">
+                    <div class="jumbotron">
+                        <h1>Welcome, <span data-bind="text: nvm.username() ? nvm.username() : 'friend'"></span>!</h1>
+                        <p>You've successfully connected to your VRPipe server. This web interface will have many more features coming soon; the first two - checking status of your pipeline setups and looking at the graph database - can be accessed using the links in the navigation bar above.</p>
+                    </div>
+                </div>
+                
+                <div id="status" class="tab-pane fade">
+                    <h3>Status</h3>
+                    
+                    <div class="row">
+                        <div class="col-xs-4">
+                            <form>
+                                <div class="input-group">
+                                    <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Enter one or more space or comma separated PipelineSetup ids to only show these setups (all other options will be ignored). You can also enter a (partial) setup name to see all setups that match.">setup(s)</span>
+                                    <input type="text" class="form-control" data-bind="value: setupIds">
+                                    <span class="input-group-btn">
+                                        <button class="btn btn-default" type="submit"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                    </span>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="col-xs-8">
+                            <div class="btn-toolbar" role="toolbar">
+                                <!-- <div class="btn-group">
+                                    <button class="btn btn-primary" data-bind="toggle: displayDefunct" data-toggle="tooltip" data-container="body" title="Only show those PipelineSetups that have something fundamentally wrong with them and are candidates for deletion (all other options will be ignored).">Defunct</button>
+                                </div>
+                                
+                                <div class="btn-group">
+                                    <button class="btn btn-primary" data-bind="toggle: displaySummary" data-toggle="tooltip" data-container="body" title="Only show an overall summary of how many jobs need to be run vs how many are actually running (all other options will be ignored, except for a single setup id).">Summary</button>
+                                </div> -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row toolbar-with-whitespace">
+                        <div class="col-xs-3">
+                            <form>
+                                <div class="input-group">
+                                    <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Only show PipelineSetups created by this user; use 'all' to show setups by all users.">user</span>
+                                    <input type="text" class="form-control" data-bind="value: setupUser">
+                                    <span class="input-group-btn">
+                                        <button class="btn btn-default" type="submit"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                    </span>
+                                </div>
+                            </form>
+                        </div>
+                        
+                        <div class="col-xs-9">
+                            <div class="btn-toolbar" role="toolbar">
+                                <div class="btn-group form-group" data-toggle="buttons">
+                                    <label class="btn btn-default">
+                                        <input type="checkbox" data-bind="checkbox: incompleteSetups" />
+                                        incomplete
+                                    </label>
+                                    <label class="btn btn-default">
+                                        <input type="checkbox" data-bind="checkbox: deactivatedSetups" />
+                                        include deactivated
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="statuserrors" data-bind="foreach: statuserror">
+                        <div class="alert alert-danger fade in">
+                            <p data-bind="text: $data"></p>
+                        </div>
+                    </div>
+                    
+                    <div id="setup_center_container" style="width: 100%;" class="well" data-bind="loadingWhen: aquiringstatus().length">
+                        <div data-bind="if: progressionModalVisible">
+                            <div data-bind="modal: {
+                                visible: progressionModalVisible,
+                                header: { data: { label: 'Step Progress Report' } },
+                                body: { name: 'progressionModalTemplate', data: progressionModalBodyData }
+                            }"></div>
+                             
+                            <script type="text/html" id="progressionModalTemplate">
+                                <dl>
+                                    <dt>setup</dt>
+                                    <dd style="overflow: auto">[<span data-bind="text: setup"></span>] <span data-bind="text: setup_name"></span></dd>
+                                    <dt>step</dt>
+                                    <dd style="overflow: auto">[<span data-bind="text: step_num"></span>] <span data-bind="text: step_name"></span></dd>
+                                    <!-- ko if: $data.hasOwnProperty('submission_summary') -->
+                                        <dt>num subs</dt>
+                                        <dd data-bind="text: submission_summary.num_submissions"></dd>
+                                        <dt>reserved MB</dt>
+                                        <dd><span data-bind="text: submission_summary.reserved_mb_mean"></span> mean; <span data-bind="text: submission_summary.reserved_mb_percentile"></span> 95th percentile</dd>
+                                        <dt>reserved time</dt>
+                                        <dd><span data-bind="text: submission_summary.reserved_time_mean"></span> mean; <span data-bind="text: submission_summary.reserved_time_percentile"></span> 95th percentile</dd>
+                                        <!-- ko if: submission_summary.actual_mb_mean -->
+                                            <dt>actual MB</dt>
+                                            <dd><span data-bind="text: submission_summary.actual_mb_mean"></span> mean; <span data-bind="text: submission_summary.actual_mb_percentile"></span> 95th percentile</dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: submission_summary.actual_time_mean -->
+                                            <dt>actual time</dt>
+                                            <dd><span data-bind="text: submission_summary.actual_time_mean"></span> mean; <span data-bind="text: submission_summary.actual_time_percentile"></span> 95th percentile</dd>
+                                        <!-- /ko -->
+                                    <!-- /ko -->
+                                </dl>
+                                
+                                <div data-bind="if: $data.hasOwnProperty('progression_problem')">
+                                    <div class="alert alert-danger fade in" style="overflow: auto">
+                                        <p data-bind="text: progression_problem"></p>
+                                    </div>
+                                </div>
+                                
+                                <div data-bind="if: $data.hasOwnProperty('example_submission')">
+                                    <h3>Example Submission</h3>
+                                    <dl>
+                                        <dt>submission</dt>
+                                        <dd data-bind="text: example_submission.submission_id"></dd>
+                                        <dt>retries</dt>
+                                        <dd data-bind="text: example_submission.submission_retries"></dd>
+                                        <dt>state</dt>
+                                        <dd data-bind="text: example_submission.submission_state"></dd>
+                                        <dt>dataelement</dt>
+                                        <dd data-bind="text: example_submission.dataelement_id"></dd>
+                                        <dt>job</dt>
+                                        <dd data-bind="text: example_submission.job_id"></dd>
+                                        <dt>cmd line</dt>
+                                        <dd data-bind="text: example_submission.job_cmd" style="overflow: auto"></dd>
+                                        <dt>cwd</dt>
+                                        <dd data-bind="text: example_submission.job_dir" style="overflow: auto"></dd>
+                                        <dt>job state</dt>
+                                        <dd data-bind="text: example_submission.job_state"></dd>
+                                        <!-- ko if: example_submission.job_exit_code -->
+                                            <dt>exit code</dt>
+                                            <dd data-bind="text: example_submission.job_exit_code"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_host -->
+                                            <dt>host</dt>
+                                            <dd data-bind="text: example_submission.job_host"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.submission_reserved_mb -->
+                                            <dt>reserved MB</dt>
+                                            <dd data-bind="text: example_submission.submission_reserved_mb"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.submission_reserved_hrs -->
+                                            <dt>reserved time</dt>
+                                            <dd data-bind="text: example_submission.submission_reserved_time"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_actual_mb -->
+                                            <dt>peak MB</dt>
+                                            <dd data-bind="text: example_submission.job_actual_mb"></dd>
+                                        <!-- /ko -->
+                                        <!-- ko if: example_submission.job_actual_time -->
+                                            <dt>wall time</dt>
+                                            <dd data-bind="text: example_submission.job_actual_time"></dd>
+                                        <!-- /ko -->
+                                    </dl>
+                                    
+                                    <div data-bind="if: example_submission.job_stdout">
+                                        <h4>Example Job StdOut</h4>
+                                        <div data-bind="foreach: example_submission.job_stdout">
+                                            <div class="stds" data-bind="foreach: $data">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <div data-bind="if: example_submission.job_stderr">
+                                        <h4>Example Job StdErr</h4>
+                                        <div data-bind="foreach: example_submission.job_stderr">
+                                            <div class="stds" data-bind="foreach: $data">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </script>
+                        </div>
+                        
+                        <div id="setup_center" style="margin: 0 auto;">
+                            <div id="setup_boxes" data-bind="foreach: setups">
+                                <div data-bind="css: { 'setup panel': true, 'panel-primary': status == 'ok', 'panel-success': status == 'complete', 'panel-warning': status == 'unknown', 'panel-danger': status == 'stalled' }">
+                                    <div class="panel-heading"><span class="badge setup_hole" data-bind="text: id"></span> <span data-bind="html: wbr(parameters.name)"></span> <span class="badge setup_hole user" data-bind="text: parameters.user"></span><!-- ko if: parameters['active'] == '0' --> <span class="badge setup_hole user">inactive</span><!-- /ko --></div>
+                                    <div class="panel-body">
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(parameters), container: 'body', html: true }">Details</button>
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(options), container: 'body', html: true }">Options</button>
+                                        <button class="btn btn-info btn-xs" data-bind="popover: { content: $parent.setupPopoverHTMLFromKeyVals(datasource.parameters, datasource.options), container: 'body', html: true }">DataSource</button>
+                                        
+                                        <div class="table-responsive top-margin" style="overflow: auto">
+                                            <table class="table table-bordered table-condensed">
+                                                <caption class="pipeline_name" data-bind="html: wbr(pipeline.properties['name']), tooltip: { title: pipeline.properties['description'], placement: 'top', container: 'body' }"></caption>
+                                                <thead>
+                                                    <tr data-bind="foreach: pipeline.steps">
+                                                        <th class="text-center" data-bind="text: $index, tooltip: { title: properties['name'] + ': ' + properties['description'], placement: 'top', container: 'body' }"></th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody data-bind="foreach: progressions">
+                                                    <tr>
+                                                        <td style="cursor: pointer" data-bind="attr: { colspan: parseInt(step) + 1 }, css: { 'text-right': true, 'info': status == 'running', 'success': status == 'complete', 'active': status == 'processing' || status == 'pending', 'warning': status == 'unknown', 'danger': status == 'failed' }, click: $root.showProgressionDetails">
+                                                            <span data-bind="text: num_elements"></span> (<span data-bind="text: percent"></span>%)
+                                                        </td>
+                                                        <!-- ko if: step < ($parent.pipeline.steps.length - 1) -->
+                                                            <td data-bind="attr: { colspan: $parent.pipeline.steps.length - 1 - parseInt(step) }">&nbsp;</td>
+                                                        <!-- /ko -->
+                                                    </tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        
+                                        <div data-bind="foreach: warnings">
+                                            <div class="alert alert-warning fade in">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                        <div data-bind="foreach: errors">
+                                            <div class="alert alert-danger fade in">
+                                                <p data-bind="text: $data"></p>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="progress">
+                                            <div role="progressbar" data-bind="style: { width: progress_percent + '%' }, css: { 'progress-bar': true, 'progress-bar-primary': status == 'ok', 'progress-bar-success': status == 'complete', 'progress-bar-warning': status == 'unknown', 'progress-bar-danger': status == 'stalled' }">
+                                                <span data-bind="text: progress_percent + '%'"></span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="graph" class="tab-pane fade">
+                    <div id="top">
+                        <h3>Graph</h3>
+                        
+                        <form data-bind="submit: runCypherQuery">
+                            <div class="row">
+                                <div class="col-xs-10">
+                                    <div class="input-group">
+                                        <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Enter a cypher query that returns nodes and relationships. Be careful to limit your query if necessary.">cypher $</span>
+                                        <input type="text" class="form-control" data-bind="value: cypherQuery">
+                                        <span class="input-group-btn">
+                                            <button class="btn btn-default" type="submit"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-xs-2">
+                                    <div class="input-group">
+                                        <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="When clicking on a node to see its children, this is the maxium depth to search for those children.">max depth</span>
+                                        <input type="text" class="form-control" data-bind="value: relationsOfMaxDepth">
+                                    </div>
+                                </div>
+                            </div>
+                        </form>
+                        
+                        <div class="btn-toolbar toolbar-with-whitespace" role="toolbar">
+                            <div class="btn-group">
+                                <button class="btn btn-primary" data-bind="toggle: displayRoots">Roots</button>
+                            </div>
+                            
+                            <div class="btn-group" data-toggle="buttons" data-bind="radio: layoutOption">
+                                <label class="btn btn-default disabled">Layout:</label> 
+                                <label class="btn btn-default">
+                                    <input type="radio" name="layoutOptionGroup" value="tree">Tree
+                                </label>
+                                <label class="btn btn-default">
+                                    <input type="radio" name="layoutOptionGroup" value="circle">Circle
+                                </label>
+                                <label class="btn btn-default">
+                                    <input type="radio" name="layoutOptionGroup" value="grid">Grid
+                                </label>
+                                <label class="btn btn-default">
+                                    <input type="radio" name="layoutOptionGroup" value="force">Force
+                                </label>
+                            </div>
+                            
+                            <div class="btn-group" data-bind="foreach: nameSpaces">
+                                <div class="btn-group">
+                                    <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" data-bind="style: { backgroundColor: hsl }">
+                                        <span data-bind="text: namespace"></span>
+                                        <span class="caret"></span>
+                                    </button>
+                                    <ul class="dropdown-menu" role="menu" data-bind="foreach: labels">
+                                        <li><div class="text-center" style="padding: 5px" data-bind="text: label, style: { backgroundColor: hsl }"></div></li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="grapherrors" data-bind="foreach: grapherror">
+                            <div class="alert alert-danger fade in">
+                                <p data-bind="text: $data"></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="well">
+                        <div id="nodeinfo" style="position: absolute;" data-container="body" data-toggle="popover" data-placement="right" data-html="true" data-trigger="manual"></div>
+                        
+                        <div id="cy" data-bind="loadingWhen: graphrendering().length"></div>
+                    </div>
+                    
+                    <div data-bind="loadingWhen: graphloading().length, if: resultStrings().length">
+                        <div class="panel panel-default">
+                            <div class="panel-heading">Values</div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <tbody data-bind="foreach: resultStrings">
+                                        <tr>
+                                            <td data-bind="text: $data"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div data-bind="loadingWhen: graphloading().length, if: nodes().length">
+                        <div class="panel panel-default">
+                            <div class="panel-heading">Nodes</div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Namespace</th>
+                                            <th>Label</th>
+                                            <th>Properties</th>
+                                            <th>Node ID</th>
+                                        </tr>
+                                    <thead>
+                                    <tbody data-bind="foreach: nodes">
+                                        <tr>
+                                            <td data-bind="text: namespace"></td>
+                                            <td data-bind="text: label"></td>
+                                            <td data-bind="text: properties"></td>
+                                            <td data-bind="text: nodeId"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div data-bind="loadingWhen: graphloading().length, if: relationships().length">
+                        <div class="panel panel-default">
+                            <div class="panel-heading">Relationships</div>
+                            <div class="table-responsive">
+                                <table class="table table-striped">
+                                    <thead>
+                                        <tr>
+                                            <th>Type</th>
+                                            <th>Start Node</th>
+                                            <th>End Node</th>
+                                            <th>Properties</th>
+                                            <th>Relationship ID</th>
+                                        </tr>
+                                    <thead>
+                                    <tbody data-bind="foreach: relationships">
+                                        <tr>
+                                            <td data-bind="text: type"></td>
+                                            <td data-bind="text: startNode"></td>
+                                            <td data-bind="text: endNode"></td>
+                                            <td data-bind="text: properties"></td>
+                                            <td data-bind="text: relationshipId"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <footer id="footer">
+                <small>&copy; 2014 Genome Research Limited.</small>
+            </footer>
+        </div>
+        
+        <script type="text/javascript">
+            // turn on bootstrap tooltips and popovers
+            $('[data-toggle="tooltip"]').tooltip({'placement': 'top'});
+            $('[data-toggle="popover"]').popover();
+            
+            // client-side routes for the main sections, which basically just
+            // ensure that the correct tab is shown if user changes url in
+            // browser
+            var router = new Simrou();
+            var route = router.addRoute('/home');
+            route.get(function(event, params) {
+                $('#tabsections a[href="#home"]').tab('show');
+            });
+            route = router.addRoute('/status');
+            route.get(function(event, params) {
+                $('#tabsections a[href="#status"]').tab('show');
+            });
+            route = router.addRoute('/graph');
+            route.get(function(event, params) {
+                $('#tabsections a[href="#graph"]').tab('show');
+            });
+            
+            function makeWall(els, data) {
+                console.log('makeWall called');
+                // ko.utils.arrayForEach(els, function(el) {
+                //     console.log('got item with width ' + el.outerWidth() + ' and height ' + el.outerHeight());
+                // });
+                $('.setup').each(function(i, obj) {
+                    console.log('brick ' + i + ' has width ' + $(this).outerWidth() + ' and height ' + $(this).outerHeight());
+                });
+                console.log('makeWall returning');
+                //console.log('got data ' + JSON.stringify(data));
+            }
+            
+            // viewmodel for the navbar
+            function NavViewModel() {
+                var self = this;
+                ko.LogInViewModel.call(self);
+                self.pages = ko.observableArray();
+                vrpipeRestMethod('graph', 'get_pages', {}, self.loading, self.errors, function(data) {
+                    self.pages(data);
+                });
+            }
+            var nvm = new NavViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(nvm, $('#nav')[0]);
+            });
+            
+            // viewmodel for the home page
+            function HomeViewModel() {
+                var self = this;
+                // we don't actually do anything here, not sure if there is a
+                // better way of doing this, but we have this view model just so
+                // we can bind ko to #home, so that we can display an observable
+                // from NavViewModel
+            }
+            var hvm = new HomeViewModel();
+            ko.applyBindings(hvm, $('#home')[0]);
+            
+            // viewmodel for status
+            function StatusViewModel() {
+                var self = this;
+                self.setupIds = ko.observable();
+                self.setupIdsArray = Array();
+                self.displayDefunct = ko.observable();
+                self.displaySummary = ko.observable();
+                self.incompleteSetups = ko.observable(true);
+                self.deactivatedSetups = ko.observable(false);
+                self.setupUser = ko.observable();
+                self.setups = ko.observableArray();
+                self.aquiringstatus = ko.observableArray();
+                self.statuserror = ko.observableArray();
+                
+                // our masonry div is inside #setup_center; enable centering
+                // by setting the width of #setup_center to be a multiple of
+                // the masonry column width
+                self.setupsColumnWidth = 263;
+                self.setupsGutterWidth = 15;
+                self.setupsNumColumns = null;
+                self.setupsResize = function() {
+                    var maxWidth = $('#setup_center_container').width();
+                    var desiredColumns = Math.floor(maxWidth / self.setupsColumnWidth);
+                    var finalWidth = (desiredColumns * self.setupsColumnWidth) + ((desiredColumns - 1) * self.setupsGutterWidth);
+                    if (finalWidth > maxWidth) {
+                        desiredColumns = desiredColumns - 1;
+                        finalWidth = finalWidth - self.setupsColumnWidth - self.setupsGutterWidth;
+                    }
+                    
+                    if (desiredColumns !== self.setupsNumColumns) {
+                        self.setupsNumColumns = desiredColumns;
+                        $('#setup_center').width(finalWidth);
+                    }
+                }
+                $(document).ready(self.setupsResize);
+                $(window).resize(self.setupsResize);
+                
+                self.masonryOptions = {
+                    gutter: self.setupsGutterWidth,
+                    columnWidth: self.setupsColumnWidth,
+                    itemSelector: '.setup'
+                }
+                
+                self.getSpecificSetups = function() {
+                    if (self.setupIds()) {
+                        location.hash = '/status/setups/' + self.setupIds();
+                        
+                        self.resetData();
+                        vrpipeRestMethod('status', 'get_setup_ids_by_id_or_name', { ids_or_name: self.setupIds() }, self.aquiringstatus, self.statuserror, function(data) {
+                            self.getSetups(data.ids);
+                        });
+                    }
+                }
+                
+                self.getUserSetups = function() {
+                    if (self.setupUser()) {
+                        var completeMode;
+                        if (self.incompleteSetups()) {
+                            completeMode = 'incomplete';
+                        }
+                        else {
+                            completeMode = 'include_complete';
+                        }
+                        var activeMode;
+                        if (self.deactivatedSetups()) {
+                            activeMode = 'include_deactivated';
+                        }
+                        else {
+                            activeMode = 'active';
+                        }
+                        location.hash = '/status/user/' + self.setupUser() + '/' + completeMode + '/' + activeMode;
+                        
+                        self.resetData();
+                        vrpipeRestMethod('status', 'get_setup_ids_by_user', { user: self.setupUser(), deactivated: self.deactivatedSetups(), incomplete: self.incompleteSetups() }, self.aquiringstatus, self.statuserror, function(data) {
+                            self.getSetups(data.ids);
+                        });
+                    }
+                }
+                
+                var $container = $('#setup_boxes');
+                self.displayedSetups = 0;
+                self.getSetups = function(ids) {
+                    self.aquiringstatus.push(true);
+                    vrpipeRestMethod('status', 'get_setups', { setups: ids }, self.aquiringstatus, self.statuserror, function(data) {
+                        self.setups(data);
+                        self.aquiringstatus.pop();
+                        
+                        if (self.displayedSetups) {
+                            $container.masonry('destroy');
+                        }
+                        else {
+                            self.displayedSetups = 1;
+                        }
+                        
+                        $container.masonry(self.masonryOptions);
+                    });
+                }
+                
+                self.setupIds.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.displayDefunct(undefined);
+                        self.displaySummary(undefined);
+                        self.setupUser(undefined);
+                        self.getSpecificSetups();
+                    }
+                    else {
+                        if (! self.resetting) {
+                            if (location.hash.substring(0, 15) == '#/status/setups') {
+                                location.hash = '/status';
+                                self.resetData();
+                            }
+                        }
+                        else {
+                            self.resetting = false;
+                        }
+                    }
+                });
+                
+                self.displayDefunct.subscribe(function(newValue) {
+                    if (newValue) {
+                        location.hash = '/status/defunct';
+                        self.setupIds(undefined);
+                        self.displaySummary(undefined);
+                        self.setupUser(undefined);
+                        self.resetData();
+                        console.log('displayDefunct called');
+                    }
+                    else {
+                        if (! self.resetting) {
+                            if (location.hash == '#/status/defunct') {
+                                location.hash = '/status';
+                                self.resetData();
+                            }
+                        }
+                        else {
+                            self.resetting = false;
+                        }
+                    }
+                });
+                
+                self.displaySummary.subscribe(function(newValue) {
+                    if (newValue) {
+                        location.hash = '/status/summary';
+                        self.displayDefunct(undefined);
+                        self.setupUser(undefined);
+                        console.log('displaySummary called');
+                    }
+                    else {
+                        if (! self.resetting) {
+                            if (location.hash == '#/status/summary') {
+                                location.hash = '/status';
+                                self.resetData();
+                            }
+                        }
+                        else {
+                            self.resetting = false;
+                        }
+                    }
+                });
+                
+                self.setupUser.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.setupIds(undefined);
+                        self.displayDefunct(undefined);
+                        self.displaySummary(undefined);
+                        self.getUserSetups();
+                    }
+                    else {
+                        if (! self.resetting) {
+                            if (location.hash.substring(0, 13) == '#/status/user') {
+                                location.hash = '/status';
+                            }
+                        }
+                        else {
+                            self.resetting = false;
+                        }
+                    }
+                });
+                
+                self.incompleteSetups.subscribe(function(newValue) {
+                    self.getUserSetups();
+                });
+                self.deactivatedSetups.subscribe(function(newValue) {
+                    self.getUserSetups();
+                });
+                
+                self.resetData = function() {
+                    self.setups.removeAll();
+                    self.aquiringstatus.removeAll();
+                    self.statuserror.removeAll();
+                }
+                
+                self.resetting = false;
+                self.reset = function() {
+                    self.resetting = true;
+                    self.setupIds(undefined);
+                    self.displayDefunct(undefined);
+                    self.displaySummary(undefined);
+                    self.setupUser(undefined);
+                }
+                
+                self.setupPopoverHTMLFromKeyVals = function(keyvals, morekeyvals) {
+                    var html = '<table class="table table-bordered table-striped table-condensed" style="margin-bottom: 0"><tbody>';
+                    $.each(keyvals, function(key, value) {
+                        if (value != null) {
+                            html = html + '<tr><th>' + wbr(key) + '</th><td>' + wbr(value) + '</td></tr>';
+                        }
+                    });
+                    html = html + '</tbody></table>';
+                    
+                    if (morekeyvals && Object.keys(morekeyvals).length > 0) {
+                        html = html + '<br>' + self.setupPopoverHTMLFromKeyVals(morekeyvals);
+                    }
+                    
+                    return html;
+                }
+                
+                // stuff for the progression models which show setup errors
+                self.progressionModalVisible = ko.observable(false);
+                self.progressionModalBodyData = ko.observable();
+                self.progressionModalSpinner = ko.observableArray(); // not actually displayed anywhere; we change the cursor instead
+                self.showProgressionDetails = function(progression, event) {
+                    $("body").css("cursor", "progress");
+                    $(event.target).css("cursor", "progress");
+                    
+                    vrpipeRestMethod('status', 'step_progression_details', { setup: parseInt(progression.setup), step: parseInt(progression.step), type: progression.status }, self.progressionModalSpinner, self.statuserror, function(data) {
+                        //console.log(JSON.stringify(data));
+                        self.progressionModalBodyData(data);
+                        $("body").css("cursor", "default");
+                        $(event.target).css("cursor", "pointer");
+                        self.progressionModalVisible(true);
+                    });
+                }
+                
+                // if user clicked on status tab button, set url to /status, but
+                // don't do anything if user used back button to get to a sub
+                // page
+                self.updateURL = function() {
+                    if (! self.setupIds() && ! self.setupUser() && ! self.displayDefunct() && ! self.displaySummary()) {
+                        // default the user field to username if they're
+                        // logged in
+                        if (nvm.username()) {
+                            self.setupUser(nvm.username());
+                        }
+                        else {
+                            location.hash = '/status';
+                        }
+                    }
+                }
+                
+                // client-side routes
+                route = router.addRoute('/status/defunct');
+                route.get(function(event, params) {
+                    self.displayDefunct(true);
+                    $('#tabsections a[href="#status"]').tab('show');
+                });
+                route = router.addRoute('/status/summary');
+                route.get(function(event, params) {
+                    self.displaySummary(true);
+                    $('#tabsections a[href="#status"]').tab('show');
+                });
+                route = router.addRoute('/status/setups/:ids');
+                route.get(function(event, params) {
+                    self.setupIds(decodeURIComponent(params.ids));
+                    $('#tabsections a[href="#status"]').tab('show');
+                });
+                route = router.addRoute('/status/user/:name/:incomplete/:deactivated');
+                route.get(function(event, params) {
+                    if (params.incomplete == 'incomplete') {
+                        self.incompleteSetups(true);
+                    }
+                    else {
+                        self.incompleteSetups(false);
+                    }
+                    if (params.deactivated == 'include_deactivated') {
+                        self.deactivatedSetups(true);
+                    }
+                    else {
+                        self.deactivatedSetups(false);
+                    }
+                    self.setupUser(params.name);
+                    $('#tabsections a[href="#status"]').tab('show');
+                });
+            }
+            
+            // viewmodel for graph
+            function GraphViewModel() {
+                var self = this;
+                self.nodes = ko.observableArray();
+                self.relationships = ko.observableArray();
+                self.resultStrings = ko.observableArray();
+                self.displayRoots = ko.observable();
+                self.relationsOf = ko.observable();
+                self.relationsOfMaxDepth = ko.observable();
+                self.cypherQuery = ko.observable();
+                self.layoutOption = ko.observable();
+                self.nextHue = 0;
+                self.namespaceToHSL = {};
+                self.labelToHSL = {};
+                self.nameSpaces = ko.observableArray();
+                self.schemas = {};
+                self.graphloading = ko.observableArray();
+                self.grapherror = ko.observableArray();
+                self.graphrendering = ko.observableArray();
+                self.cy = undefined;
+                
+                // while cytoscape has the ability to add and remove nodes from a
+                // graph, I can't figure out how to re-apply the breadthfirst, so
+                // for now we'll just store the cytoscape options here and recreate
+                // new cytoscape object for every graph update
+                self.cytoscapeOptions = {
+                    container: $('#cy')[0],
+                    
+                    userZoomingEnabled: 0,
+                    
+                    style: [
+                        {
+                            selector: 'node',
+                            css: {
+                                'content': 'data(displayName)',
+                                'font-family': 'helvetica',
+                                'font-size': 12,
+                                'text-valign': 'center',
+                                'color': '#000',
+                                'border-color': 'data(lineColor)',
+                                'border-width': 2,
+                                'background-color': 'data(bgColor)'
+                            }
+                        },
+                        
+                        {
+                            selector: ':selected',
+                            css: {
+                                'background-color': '#000',
+                                'line-color': '#000',
+                                'target-arrow-color': '#000',
+                                'text-outline-color': '#000'
+                            }
+                        },
+                        
+                        {
+                            selector: 'edge',
+                            css: {
+                                'width': 2,
+                                'target-arrow-shape': 'triangle',
+                                'content': 'data(type)',
+                                'font-size': 8
+                            }
+                        }
+                    ]
+                };
+                
+                // we'll display our cytoscape graph on the #cy div, making it
+                // fill the remaining vertical space
+                $(document).ready(function() {
+                    var $nav = $('#nav');
+                    var $top = $('#top'); // on initial page load with the graph tab hidden, this is 0 instead of ~135
+                    var $cy = $('#cy');
+                    $(window).on('resize', function(){
+                       var height = $(this).height() - $nav.outerHeight() - 135 - 100;
+                       $cy.height(height);
+                       self.cy = self.plotCytoscape();
+                    }).trigger('resize');
+                });
+                
+                // we want different labels to get different colors, so here's
+                // a function to get the next most different hsl (from
+                // http://ridiculousfish.com/blog/posts/colors.html)
+                self.getHSL = function() {
+                    var idx = self.nextHue++;
+                    var bitcount = 31;
+                    var ridx = 0, i = 0;
+                    for (i=0; i < bitcount; i++) {
+                        ridx = (ridx << 1) | (idx & 1);
+                        idx >>>= 1;
+                    }
+                    var hue = ridx / Math.pow(2, bitcount);
+                    hue = (hue + .1) % 1;
+                    var degrees = Math.round(hue * 360);
+                    return 'hsl(' + degrees + ', 75%, 75%)';
+                }
+                
+                // functions to create cytoscape nodes and plot them
+                self.plotCytoscape = function() {
+                    self.graphrendering.push(true);
+                    
+                    if (! self.layoutOption()) {
+                        self.layoutOption('tree');
+                    }
+                    if (self.layoutOption() == 'tree') {
+                        self.cytoscapeOptions.layout = {
+                            name: 'breadthfirst',
+                            directed: true,
+                            padding: 30,
+                            circle: false,
+                            roots: undefined,
+                            maximalAdjustments: 0
+                        };
+                    }
+                    else if (self.layoutOption() == 'circle') {
+                        self.cytoscapeOptions.layout = {
+                            name: 'circle',
+                            rStepSize: 10,
+                            padding: 30,
+                            startAngle: 3/2 * Math.PI,
+                            counterclockwise: false
+                        };
+                    }
+                    else if (self.layoutOption() == 'grid') {
+                        self.cytoscapeOptions.layout = {
+                            name: 'grid',
+                            padding: 30,
+                            rows: undefined,
+                            columns: undefined,
+                            position: function( node ){},
+                        };
+                    }
+                    else if (self.layoutOption() == 'force') {
+                        self.cytoscapeOptions.layout = {
+                            name: 'cose',
+                            refresh: 0,
+                            padding: 30,
+                            randomize: true,
+                            debug: false,
+                            nodeRepulsion: 10000,
+                            nodeOverlap: 10000,
+                            idealEdgeLength: 50,
+                            edgeElasticity: 1000,
+                            nestingFactor: 1,
+                            gravity: 1,
+                            numIter: 10000,
+                            initialTemp: 10000,
+                            coolingFactor: 0.95,
+                            minTemp: 1
+                        };
+                    }
+                    
+                    self.cytoscapeOptions.layout.fit = true;
+                    self.cytoscapeOptions.layout.ready = undefined;
+                    self.cytoscapeOptions.layout.stop = function(){
+                        self.graphrendering.pop();
+                    }
+                    
+                    self.cytoscapeOptions.ready = function(){
+                        cy = this;
+                        cy.fit();
+                        
+                        // clicking on a node should show its related nodes
+                        cy.$('node').one('tap', function(e){
+                            location.hash = '/graph/related/' + e.cyTarget.id() + '/depth/' + self.relationsOfMaxDepth();
+                        });
+                        
+                        // change node color on mouseover; I don't know how
+                        // or if this can be done in the main style option
+                        // like :selected is defined. Cytoscape doesn't
+                        // support changing the cursor anyway. And we also
+                        // show a popover with the node details
+                        var hideTimer;
+                        cy.$('node').on('tapdragover', function(e) {
+                            if (hideTimer) { clearTimeout(hideTimer); }
+                            
+                            var node = e.cyTarget;
+                            $('#nodeinfo').data('bs.popover').options.title = '<div class="text-center">' + node.data('namespace') + '|' + node.data('label') + ' {node ' + node.id() + '}</div>';
+                            var nodeProperties = '<table class="table table-bordered table-striped table-condensed" style="margin-bottom: 0"><tbody>';
+                            $.each(node.data('properties'), function(key, value) {
+                                if (key == 'path' && value.substring(0,1) == '/') {
+                                    var path = value;
+                                    var ext = path.slice(-3);
+                                    
+                                    var clickable;
+                                    if (ext == 'png' || ext == 'jpg' || ext == 'gif') {
+                                        clickable = '<img src="/file' + encodeURIComponent(path) + '" class="popover_thumb">';
+                                        key = 'img';
+                                    }
+                                    else {
+                                        clickable = wbr(path);
+                                    }
+                                    
+                                    value = '<a href="/file' + encodeURIComponent(path) + '" target="_blank">' + clickable + '</a>';
+                                }
+                                else if (key.indexOf("date") > -1 && !isNaN(parseFloat(value)) && isFinite(value)) {
+                                    value = epochToDate(value);
+                                }
+                                else {
+                                    value = wbr(value);
+                                }
+                                nodeProperties = nodeProperties + '<tr><th>' + wbr(key) + '</th><td>' + value + '</td></tr>';
+                            });
+                            nodeProperties = nodeProperties + '</tbody></table>';
+                            $('#nodeinfo').data('bs.popover').options.content = nodeProperties;
+                            
+                            node.css('background-color', '#888');
+                            $('#cy').css('cursor', 'pointer');
+                            $(document).mousemove(function(event) {
+                                $("#nodeinfo").css({left: event.pageX + 40, top: event.pageY});
+                                $('#nodeinfo').popover('show');
+                                $(document).off('mousemove');
+                            });
+                        });
+                        cy.$('node').on('tapdragout tap', function(e) {
+                            var node = e.cyTarget;
+                            node.css('background-color', node.data('bgColor'));
+                            $('#cy').css('cursor', 'default');
+                            hideTimer = setTimeout(function() {
+                                $('#nodeinfo').popover('hide');
+                            }, 500);
+                        });
+                    }
+                    
+                    if (self.cy) {
+                        // we must remove nodes before setting a new graph,
+                        // otherwise their tap targets remain invisible at
+                        // random locations
+                        self.cy.remove("node[weight > 0]");
+                    }
+                    return cytoscape(self.cytoscapeOptions);
+                }
+                
+                self.createCytoscapeNodesAndPlot = function(nodeData, labelData, rootNodes) {
+                    for (var i = 0; i < nodeData.length; i++) {
+                        var node = nodeData[i];
+                        var uniqueParam = self.schemas[node.schemaLabels];
+                        var displayName = node.label;
+                        if (uniqueParam && node.properties[uniqueParam]) {
+                            displayName = node.properties[uniqueParam];
+                        }
+                        
+                        self.cytoscapeOptions.elements.nodes.push({ data: { id: node.nodeId.toString(), displayName: shortenString(displayName), label: node.label, namespace: node.namespace, properties: node.properties, bgColor: node.labelHSL, lineColor: node.nameSpaceHSL, weight: 1 } });
+                    }
+                    
+                    self.cy = self.plotCytoscape();
+                    
+                    $.each(labelData, function(namespace, nsObj) {
+                        var result = { namespace: namespace, hsl: nsObj.hsl, labels: Array() };
+                        
+                        // get the correct order of labels to make
+                        // the colour key
+                        var labelCount = 0;
+                        for (x in nsObj.labels) {
+                            labelCount++;
+                        }
+                        var currentCount = 0;
+                        var labelOrder = {};
+                        var orderLabel = Array();
+                        var order = 1;
+                        var roots = rootNodes[namespace];
+                        for (var i = 0; i < roots.length; i++) {
+                            var done = self.cy.elements().dfs('#' + roots[i], function(i, depth) {
+                                var thisLabel = this.data('label');
+                                if (! labelOrder.hasOwnProperty(thisLabel)) {
+                                    labelOrder[thisLabel] = order++;
+                                    orderLabel.push(thisLabel);
+                                    
+                                    currentCount++;
+                                    if (currentCount == labelCount) {
+                                        return true;
+                                    }
+                                }
+                            }, true);
+                            if (done) { break; }
+                        }
+                        
+                        for (i in orderLabel) {
+                            var label = orderLabel[i];
+                            result.labels.push({ label: label, hsl: nsObj.labels[label] });
+                        }
+                        self.nameSpaces.push(result);
+                    });
+                }
+                
+                self.resetData = function() {
+                    self.graphloading.removeAll();
+                    self.grapherror.removeAll();
+                    self.nodes.removeAll();
+                    self.relationships.removeAll();
+                    self.resultStrings.removeAll();
+                    self.nameSpaces.removeAll();
+                    self.cytoscapeOptions.elements = {
+                        nodes: [ ],
+                        edges: [ ]
+                    };
+                    
+                    self.cy = self.plotCytoscape(); // plot the empty graph to clear it
+                }
+                
+                self.resetting = false;
+                self.reset = function() {
+                    self.resetData();
+                    self.resetting = true;
+                    self.displayRoots(undefined);
+                    self.relationsOf(undefined);
+                    self.cypherQuery(undefined);
+                }
+                
+                // reset all existing stuff and call vrpipeRestMethod to get
+                // desired nodes from the database
+                self.getNodes = function(method, args) {
+                    self.resetData();
+                    
+                    vrpipeRestMethod('graph', method, args, self.graphloading, self.grapherror, function(data) {
+                        // turn data in to nodes and relationships for display
+                        // in knockout tables and cytoscape graph
+                        
+                        // relationships
+                        var nonRootNodes = { };
+                        if (data.hasOwnProperty('relationships')) {
+                            for (var i = 0; i < data.relationships.length; i++) {
+                                var reldata = data.relationships[i];
+                                var start = reldata.startNode;
+                                var end = reldata.endNode;
+                                var type = reldata.type;
+                                self.relationships.push({
+                                    type: type,
+                                    startNode: start,
+                                    endNode: end,
+                                    properties: JSON.stringify(reldata.properties),
+                                    relationshipId: reldata.id
+                                });
+                                
+                                self.cytoscapeOptions.elements.edges.push({ data: { source: start.toString(), target: end.toString(), type: type } });
+                                nonRootNodes[end] = 1;
+                            }
+                        }
+                        
+                        // nodes
+                        if (data.hasOwnProperty('nodes')) {
+                            var schemaRequests = Array();
+                            var schemaLabelsArray = Array();
+                            var rootNodes = {};
+                            var tempLabelData = {};
+                            var tempNodes = Array();
+                            for (var i = 0; i < data.nodes.length; i++) {
+                                var nodedata = data.nodes[i];
+                                var label = nodedata.label;
+                                var namespace = nodedata.namespace;
+                                
+                                // for the tabular display of node data
+                                self.nodes.push({
+                                    label: label,
+                                    namespace: namespace,
+                                    properties: JSON.stringify(nodedata.properties),
+                                    nodeId: nodedata.id
+                                });
+                                
+                                // get a unique colour for each namespace and label
+                                var nameSpaceHSL;
+                                if (! self.namespaceToHSL.hasOwnProperty(namespace)) {
+                                    nameSpaceHSL = self.getHSL();
+                                    self.namespaceToHSL[namespace] = nameSpaceHSL;
+                                }
+                                else {
+                                    nameSpaceHSL = self.namespaceToHSL[namespace];
+                                }
+                                if (! tempLabelData.hasOwnProperty(namespace)) {
+                                    tempLabelData[namespace] = { hsl: nameSpaceHSL, labels: {} };
+                                }
+                                
+                                var labelHSL;
+                                if (! self.labelToHSL.hasOwnProperty(label)) {
+                                    labelHSL = self.getHSL();
+                                    self.labelToHSL[label] = labelHSL;
+                                }
+                                else {
+                                    labelHSL = self.labelToHSL[label];
+                                }
+                                if (! tempLabelData[namespace].labels.hasOwnProperty(label)) {
+                                    tempLabelData[namespace].labels[label] = labelHSL;
+                                }
+                                
+                                // we need to know the first unique parameter for
+                                // this kind of node so we know what to display on
+                                // the cytoscape node
+                                var nl = namespace + '|' + label;
+                                if (! self.schemas.hasOwnProperty(nl)) {
+                                    schemaRequests.push(vrpipeRestMethod('graph', 'get_schema', { namespace: namespace, label: label }, self.graphloading, self.grapherror));
+                                    schemaLabelsArray.push(nl);
+                                    self.schemas[nl] = 'placeholder';
+                                }
+                                
+                                // push out the info we need later to make the
+                                // cytoscape nodes, once we have the schema
+                                tempNodes.push({
+                                    label: label,
+                                    namespace: namespace,
+                                    properties: nodedata.properties,
+                                    nodeId: nodedata.id,
+                                    schemaLabels: nl,
+                                    nameSpaceHSL: nameSpaceHSL,
+                                    labelHSL: labelHSL,
+                                });
+                                
+                                // we need to know which nodes are root nodes and
+                                // group them by namespace
+                                if (! nonRootNodes.hasOwnProperty(nodedata.id)) {
+                                    if (! rootNodes.hasOwnProperty(namespace)) {
+                                        rootNodes[namespace] = Array();
+                                    }
+                                    rootNodes[namespace].push(nodedata.id);
+                                }
+                            }
+                            
+                            // create nodes and plot
+                            if (schemaRequests.length) {
+                                // add to our hash of schemaLabel => unique parameter name
+                                var defer = $.when.apply($, schemaRequests);
+                                defer.done(function() {
+                                    $.each(arguments, function(index, data) {
+                                        var schemadata;
+                                        if (schemaRequests.length == 1) {
+                                            schemadata = data;
+                                        }
+                                        else {
+                                            schemadata = data[0];
+                                        }
+                                        
+                                        if (index < schemaRequests.length) {
+                                            if (! vrpipeRestDataErrorParser(schemadata, self.grapherror)) {
+                                                self.schemas[schemaLabelsArray[index]] = schemadata.uniques[0];
+                                            }
+                                        }
+                                    });
+                                    self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
+                                });
+                            }
+                            else {
+                                self.createCytoscapeNodesAndPlot(tempNodes, tempLabelData, rootNodes);
+                            }
+                        }
+                    });
+                }
+                
+                // respond to sub-page requests
+                self.displayRoots.subscribe(function(newValue) {
+                    if (newValue) {
+                        location.hash = '/graph/roots';
+                        self.relationsOf(undefined);
+                        self.cypherQuery(undefined);
+                        self.layoutOption('grid');
+                        self.getNodes('root_nodes', { });
+                    }
+                    else {
+                        if (! self.resetting) {
+                            if (location.hash == '#/graph/roots') {
+                                self.resetData();
+                                location.hash = '/graph';
+                            }
+                        }
+                        else {
+                            self.resetting = false;
+                        }
+                    }
+                });
+                
+                self.relationsOf.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.displayRoots(undefined);
+                        self.cypherQuery(undefined);
+                        self.layoutOption('tree');
+                        self.getNodes('relations_of', { start_node: newValue, depth: self.relationsOfMaxDepth() });
+                    }
+                });
+                self.relationsOfMaxDepth.subscribe(function(newValue) {
+                    // when choice of relations depth changes, redraw graph
+                    if (newValue && self.relationsOf()) {
+                        location.hash = '/graph/related/' + self.relationsOf() + '/depth/' + newValue;
+                    }
+                });
+                if (! self.relationsOfMaxDepth()) {
+                    self.relationsOfMaxDepth(2);
+                }
+                
+                self.cypherQuery.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.displayRoots(undefined);
+                        self.relationsOf(undefined);
+                        self.getNodes('cypher_match', { cypher: newValue });
+                    }
+                });
+                self.runCypherQuery = function() {
+                    if (self.cypherQuery()) {
+                        location.hash = '/graph/cypher/' + self.cypherQuery();
+                    }
+                }
+                
+                // update graph when choice of layout changes
+                self.layoutOption.subscribe(function(newValue) {
+                    if (newValue) {
+                        self.cy = self.plotCytoscape();
+                    }
+                });
+                
+                // if user clicked on graph tab button, set url to /graph, but
+                // don't do anything if user used back button to get to a sub
+                // page
+                self.updateURL = function() {
+                    if (! self.displayRoots() && ! self.relationsOf() && ! self.cypherQuery()) {
+                        location.hash = '/graph';
+                    }
+                }
+                
+                // client-side routes
+                route = router.addRoute('/graph/roots');
+                route.get(function(event, params) {
+                    self.displayRoots(true);
+                    $('#tabsections a[href="#graph"]').tab('show');
+                });
+                route = router.addRoute('/graph/related/:nodeID/depth/:maxDepth');
+                route.get(function(event, params) {
+                    self.relationsOf(undefined);
+                    self.relationsOfMaxDepth(params.maxDepth);
+                    self.relationsOf(params.nodeID);
+                    $('#tabsections a[href="#graph"]').tab('show');
+                });
+                route = router.addRoute('/graph/cypher/:cypherQuery');
+                route.get(function(event, params) {
+                    self.cypherQuery(decodeURIComponent(params.cypherQuery));
+                    $('#tabsections a[href="#graph"]').tab('show');
+                });
+            }
+            
+            var svm = new StatusViewModel();
+            ko.applyBindings(svm, $('#status')[0]);
+            var gvm = new GraphViewModel();
+            ko.applyBindings(gvm, $('#graph')[0]);
+            
+            router.start('/home');
+            
+            // sync up url when we change section tabs using the UI
+            // (or eg. back button used)
+            $('a[data-toggle="tab"]').on('show.bs.tab', function(e) {
+                var activeTab = $(e.target).text(); // Get the name of active tab
+                if (activeTab == "Home") {
+                    location.hash = '/home';
+                    svm.reset();
+                    gvm.reset();
+                }
+                else if (activeTab == "Status") {
+                    gvm.reset();
+                    svm.updateURL();
+                }
+                else if (activeTab == "Graph") {
+                    svm.reset();
+                    gvm.updateURL();
+                }
+            });
+        </script>
+    </body>
+</html>

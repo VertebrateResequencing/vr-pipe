@@ -113,7 +113,21 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
             my @annot_profile_map;
             my @sample_tag_map;
             
+            my $merged_meta = $self->combined_metadata($self->inputs->{idat_files});
+            
+            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => 'annotation.txt', type => 'txt', metadata => $merged_meta);
+            my $merged_annotation_file_path = $merged_annotation_file->path->stringify;
+            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => 'mapping.txt', type => 'txt', metadata => $merged_meta);
+            my $mapping_file_path           = $mapping_file->path->stringify;
+            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => 'profile.txt', type => 'txt', metadata => $merged_meta);
+            my $profile_file_path           = $profile_file->path->stringify;
+            
             foreach my $idat_file (@{ $self->inputs->{idat_files} }) {
+                my $idat_path = $idat_file->path->stringify;
+                $self->relate_input_to_output($idat_path, 'individual_annotation_merge', $merged_annotation_file_path);
+                $self->relate_input_to_output($idat_path, 'individual_mapping_merge',    $mapping_file_path);
+                $self->relate_input_to_output($idat_path, 'individual_profile_merge',    $profile_file_path);
+                
                 my $meta           = $idat_file->metadata;
                 my $analysis_files = $meta->{irods_analysis_files};
                 my $local_dir      = $meta->{irods_local_storage_dir};
@@ -142,7 +156,7 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 }
                 
                 unless ($annot_file && $pro_file) {
-                    $self->throw("idat file " . $idat_file->path . " did not have both an annotation file and suitable sample probe profile file associated with it");
+                    $self->throw("idat file $idat_path did not have both an annotation file and suitable sample probe profile file associated with it");
                 }
                 
                 if ($annot_file && !$annotation_files{$annot_file}) {
@@ -152,16 +166,8 @@ class VRPipe::Steps::pluritest_annotation_profile_files  with VRPipe::StepRole  
                 push @{ $profile_files{$pro_file} }, $lib_tag if $pro_file && !$profile_files{$pro_file};
             }
             
-            my $merged_meta = $self->combined_metadata($self->inputs->{idat_files});
-            
-            my $merged_annotation_file      = $self->output_file(output_key => 'annotation_file', basename => 'annotation.txt', type => 'txt', metadata => $merged_meta);
-            my $merged_annotation_file_path = $merged_annotation_file->path;
-            my $mapping_file                = $self->output_file(output_key => 'mapping_file', basename => 'mapping.txt', type => 'txt', metadata => $merged_meta);
-            my $mapping_file_path           = $mapping_file->path;
-            my $profile_file                = $self->output_file(output_key => 'profile_file', basename => 'profile.txt', type => 'txt', metadata => $merged_meta);
-            my $profile_file_path           = $profile_file->path;
-            my $merged_profile_file         = $self->output_file(temporary => 1, basename => 'merged_profile.txt', type => 'txt');
-            my $merged_profile_file_path    = $merged_profile_file->path;
+            my $merged_profile_file = $self->output_file(temporary => 1, basename => 'merged_profile.txt', type => 'txt');
+            my $merged_profile_file_path = $merged_profile_file->path;
             
             my @annotation_paths = keys %annotation_files;
             my @profile_paths    = keys %profile_files;

@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -55,14 +55,15 @@ sub required_modules {
         perl                             => '5.8.8',
         'AnyEvent'                       => 0,
         'AnyEvent::ForkManager'          => 0,
+        'Authen::Simple::PAM'            => 0,
         'B::Deparse'                     => 0,
+        'Bytes::Random::Secure'          => 0.2,
         'Class::Unload'                  => 0,
         'Crypt::CBC'                     => 0,
-        'Crypt::Blowfish'                => 0,
-        'Crypt::Random'                  => 0,
         'Cwd'                            => 0,
         'Data::Compare'                  => 0,
         'Data::Dumper'                   => 0,
+        'Data::UUID'                     => 0,
         'DateTime'                       => 0,
         'DateTime::Format::Natural'      => 0,
         'DateTime::TimeZone'             => 0,
@@ -81,6 +82,7 @@ sub required_modules {
         'File::Path'                     => 0,
         'File::ReadBackwards'            => 0,
         'File::Spec'                     => 0,
+        'File::Share'                    => 0,
         'File::Temp'                     => 0,
         'Filesys::DfPortable'            => 0,
         'HTTP::Parser::XS'               => 0,
@@ -92,6 +94,7 @@ sub required_modules {
         'List::MoreUtils'                => 0,
         'LWP::UserAgent'                 => 0,
         'Module::Find'                   => 0,
+        'Mojo::UserAgent'                => 0,
         'Moose'                          => 0,
         'MooseX::Aliases'                => 0,
         'MooseX::Declare'                => 0,
@@ -108,6 +111,7 @@ sub required_modules {
         'Proc::Killfam'                  => 0,
         'Redis'                          => 1.9,
         'Scalar::Util'                   => 0,
+        'Sort::Naturally'                => 0,
         'Sys::CPU'                       => 0,
         'Sys::Hostname'                  => 0,
         'Sys::Hostname::Long'            => 0,
@@ -115,10 +119,8 @@ sub required_modules {
         'Test::Most'                     => 0,
         'Test::Strict'                   => 0,
         'Time::Format'                   => 0,
-        'Twiggy'                         => 0,
-        'TryCatch'                       => 0,
-        'XML::LibXML'                    => 0,
-        'XML::LibXSLT'                   => 0
+        'Twiggy::TLS'                    => 0,
+        'TryCatch'                       => 0
     };
 }
 
@@ -202,14 +204,14 @@ sub ACTION_test {
     my $self = shift;
     
     # we must start vrpipe-server before testing:
-    my $local_script = File::Spec->catfile('scripts', 'vrpipe-server');
+    my $local_script = File::Spec->catfile('blib', 'script', 'vrpipe-server');
     my $server;
-    if (-x $local_script && -d 'modules' && -d 't') {
+    if (-x $local_script && -d 'blib/lib' && -d 't') {
         my $thisperl = $Config{perlpath};
         if ($^O ne 'VMS') {
             $thisperl .= $Config{_exe} unless $thisperl =~ m/$Config{_exe}$/i;
         }
-        $server = "$thisperl -Imodules -It $local_script --deployment testing";
+        $server = "$thisperl -Iblib/lib -It $local_script --deployment testing";
     }
     unless ($server) {
         die "Can't run tests because this doesn't seem to be the root of the git repository (executable scripts and/or modules directory were not found)\n";

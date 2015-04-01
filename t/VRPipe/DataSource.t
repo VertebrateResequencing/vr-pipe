@@ -5,11 +5,12 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 115;
+    use Test::Most tests => 125;
     use VRPipeTest;
     use TestPipelines;
     
     use_ok('VRPipe::DataSourceFactory');
+    use_ok('VRPipe::Schema');
 }
 
 # list
@@ -200,6 +201,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'group_all',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => {}
@@ -214,6 +229,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource with group_all method and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata group_all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'grouped_by_metadata',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => { metadata_keys => 'study|sample' }
@@ -225,6 +254,20 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, result_with_inflated_paths($element));
 }
 is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[2]], group => 'ERP000979|JB951' }, { paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'grouped_by_metadata',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { metadata_keys => 'study|sample', filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata grouped_by_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata + filtering';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->create(
@@ -483,7 +526,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $vrpipe_ds->_changed_marker, undef, 'vrpipe changed marker starts out undefined';
     my $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '2ac25fb69c8eda2a27dd365bd531d13b', 'vrpipe changed marker got set after elements call';
+    is $vrpipe_ds->_changed_marker, '16e80f05c8d5aabea6f51165cb884958', 'vrpipe changed marker got set after elements call';
     is $ps2_element_count, 0, 'since ps1 has completed no elements, ps2 has no elements';
     
     # now make a vrpipe ds and setup that relies on both ps1 and ps2
@@ -499,7 +542,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $group_ds->_changed_marker, undef, 'group changed marker starts out undefined';
     my $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '1ad98ff0de2294b7f085afbe63019bd5', 'group changed marker got set after elements call';
+    is $group_ds->_changed_marker, '94bc93ad88f62c61a16b2ecc44e6702a', 'group changed marker got set after elements call';
     is $ps3_element_count, 0, 'since ps1 and ps2 have completed no elements, ps3 has no elements';
     
     # complete a single ps1 dataelement
@@ -508,20 +551,20 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     get_elements($fofn_ds);
     is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker unchanged after completing 1 ps1 element';
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker changed after completing 1 ps1 element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker changed after completing 1 ps1 element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, 'aa41d2f4c899fa5b4fc8c0d19f32048f', 'group changed marker changed after completing 1 ps1 element';
+    is $group_ds->_changed_marker, 'acc9847ff1fb7d835175a233de398040', 'group changed marker changed after completing 1 ps1 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are incomplete, ps3 has no elements';
     
     # complete a single ps2 dataelement
     my ($ps2_de1) = VRPipe::DataElement->search({ datasource => $vrpipe_ds->id });
     $ps2->trigger(dataelement => $ps2_de1);
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker unchanged after completing its element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker unchanged after completing its element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '7cbec880d86bbc41ab65f65fd233d8b8', 'group changed marker changed after completing 1 ps2 element';
+    is $group_ds->_changed_marker, '5117e85f2294cbdeb107186d80d7d9ec', 'group changed marker changed after completing 1 ps2 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are still incomplete, ps3 has no elements';
     
     # complete all of ps1, then trigger all 3 setups simultaneously
@@ -534,8 +577,14 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     }
     $fm->wait_all_children;
     
-    $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, 'efc81219f56d7c2ed7838431e0ebac35', 'vrpipe changed marker changed after ps1 completed';
+    my @ps1_file_paths;
+    $ps2_element_count = 0;
+    foreach my $element (@{ get_elements($vrpipe_ds) }) {
+        $ps2_element_count++;
+        push(@ps1_file_paths, map { @{ $_->{paths} } } result_with_inflated_paths($element));
+    }
+    
+    is $vrpipe_ds->_changed_marker, 'b3ed212622b776f82d266ea1d239db08', 'vrpipe changed marker changed after ps1 completed';
     is $ps2_element_count, 3, 'since ps1 has completed 3 elements, ps2 has 3 elements';
     
     # there was a bug that meant the following test would fail due to elements
@@ -623,11 +672,44 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     # test that the include_in_all_elements datasource update when the include
     # setup(s) change
-    is $iiae_ds->_changed_marker, 'dc4663ec1645a5298ec7ea94983d143f', 'ps5 changed marker starts as expected';
+    is $iiae_ds->_changed_marker, 'd47a47b55efab92995dde298dd54706d', 'ps5 changed marker starts as expected';
     is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0';
     $de_to_withdraw->withdrawn(1);
     $de_to_withdraw->update;
     is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 after withdrawing one of the include_in_all_elements setup elements';
+    
+    # pretend ps1's datasource uses DataSourceRole's
+    # _start_over_elements_due_to_file_metadata_change() and 2 files changed
+    # to test that we only start_over ps5's elements once... I don't know how
+    # to actually test for that without looking at debug output, hence these
+    # tests are commented out but behaved as desired after solving this problem
+    # $ps5->trigger();
+    # my $anti_repeat_store = {};;
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.bam))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.cat))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    
+    # test the filter and graph_filter options of the vrpipe datasource
+    my $schema    = VRPipe::Schema->create("VRTrack");
+    my @ps1_nodes = map { $schema->add_file($_) } @ps1_file_paths;
+    my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_withdrawn => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
+    my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_withdrawn => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
+    my $vrsample3 = $schema->add("Sample", { name => "sample3" }, outgoing => { node => $ps1_nodes[2], type => 'has' });
+    my @ps1_files = map { VRPipe::File->get(path => $_) } @ps1_file_paths;
+    $ps1_files[1]->add_metadata({ filtkey => 'filtvalue' });
+    my $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_withdrawn#0' }
+    );
+    my @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 0, 'filter and graph_filter options cancel can each other out';
+    $ps1_files[2]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 1, 'filter and graph_filter options can work together correctly';
+    $ps1_files[0]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 2, 'graph_filter with a 0 value can get both 0 value and unset properties';
 }
 
 # author-only tests for the irods datasource
@@ -656,7 +738,7 @@ SKIP: {
     is_deeply \@results, [{ paths => [file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv))], irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' }, { paths => [file($output_root, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv))], irods_path => '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv' }, { paths => [file($output_root, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv))], irods_path => '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv' }, { paths => [file($output_root, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], irods_path => '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv' }], 'got correct results for irods all';
     
     my $file = VRPipe::File->create(path => file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)));
-    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_accession_number => 'SAMEA2398742', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1 };
+    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_accession_number => 'SAMEA2398742', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1, sequenom_plex => 'W30467', expected_md5 => '059443dbff29215ff8b6aa6e247b072f', sample_donor_id => '20f8a331-69ac-4510-94ab-e3a69c50e46f' };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
     
     # check the warehouse method
@@ -709,8 +791,9 @@ SKIP: {
         method  => 'all',
         source  => 'uk10k',
         options => {
-            file_query     => q[study_id = 2623],
-            local_root_dir => $output_root
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 5
         }
       ),
       'could create another irods datasource';

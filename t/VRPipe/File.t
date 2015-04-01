@@ -3,10 +3,12 @@ use strict;
 use warnings;
 use Path::Class;
 use File::Spec;
+use Fcntl ':mode';
 use Parallel::ForkManager;
+use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 77;
     use VRPipeTest;
 }
 
@@ -86,14 +88,34 @@ is $vrofile->lines, 3, 'raw_lines works correctly on a compressed file';
 
 # test copying, moving and symlinking files
 my $source_path = file($tmp_dir, 'source.txt');
-my $vrsource = VRPipe::File->create(path => $source_path, type => 'txt', metadata => { test => 'meta' });
+my $host        = hostname();
+my $is_author   = $host eq 'vr-2-2-02' && $ENV{VRPIPE_AUTHOR_TESTS};
+my $vrsource    = VRPipe::File->create(path => $source_path, type => 'txt', metadata => { test => 'meta' });
 $ofh = $vrsource->openw;
 print $ofh "foo\n";
 $vrsource->close;
 
-my $vrcopy = VRPipe::File->create(path => file($tmp_dir, 'copy.txt'));
+if ($is_author) {
+    # we'll change permission and group from defaults to later test that these
+    # things are kept when copying
+    system("chmod u+x $source_path; chgrp g1k $source_path; chmod o+rX $tmp_dir");
+}
+
+my $sub_dir = dir($tmp_dir, 'subdir');
+$vrsource->make_path($sub_dir);
+my $vrcopy = VRPipe::File->create(path => file($sub_dir, 'copy.txt'));
 $vrsource->copy($vrcopy);
 is_deeply [$vrsource->e, $vrcopy->e, $vrsource->md5, $vrcopy->md5], [1, 1, 'd3b07384d113edec49eaa6238ad5ff00', 'd3b07384d113edec49eaa6238ad5ff00'], 'copy of a file worked, and it updated the md5s';
+SKIP: {
+    skip "author-only tests", 3 unless $is_author;
+    ok -x $vrcopy->path, 'file permissions were carried over to the copied file';
+    my @stat = stat($vrcopy->path);
+    my ($group) = getgrgid($stat[5]);
+    is $group, 'g1k', 'file ownership was carried over to the copied file';
+    @stat = stat($sub_dir);
+    my $world_readable = $stat[2] & S_IROTH;
+    ok $world_readable, 'world readability of parent directory is maintained';
+}
 
 my $vrdest1 = VRPipe::File->create(path => file($tmp_dir, 'dest.txt'));
 my $vrdest2 = VRPipe::File->create(path => file($tmp_dir, 'dest2.txt'));

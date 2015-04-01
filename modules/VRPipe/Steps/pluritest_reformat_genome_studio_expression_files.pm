@@ -10,11 +10,11 @@ processing by the PluriTest R package to determine pluripotency
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+John Maslen <jm23@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -128,6 +128,7 @@ class VRPipe::Steps::pluritest_reformat_genome_studio_expression_files with VRPi
         }
         # Should be one output line per Genome Studio record input
         if ($output_lines == $input_recs) {
+            $self->relate_input_to_output($input_path, 'reformat_for_pluritest', $output_path);
             return 1;
         }
         else {

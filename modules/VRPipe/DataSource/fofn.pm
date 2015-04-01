@@ -67,7 +67,7 @@ class VRPipe::DataSource::fofn extends VRPipe::DataSource::list {
     method all (Defined :$handle!) {
         my @element_args;
         foreach my $result ($self->_all_results(handle => $handle, skip_comments => 1, line_is_path => 1)) {
-            my $withdraw = -e $result->{paths}->[0] ? 0 : 1;
+            my $withdraw = -e VRPipe::File->get(path => $result->{paths}->[0])->resolve->path->stringify ? 0 : 1;
             push(@element_args, { datasource => $self->_datasource_id, result => $result, withdrawn => $withdraw });
         }
         $self->_create_elements(\@element_args);

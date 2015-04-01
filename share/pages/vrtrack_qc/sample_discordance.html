@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>VRTrack Sample Discordance</title>
+        
+        <!-- jQuery needed by bootstrap.js -->
+        <script src="/js/jquery-1.11.0.min.js"></script>
+        
+        <!-- Bootstrap for presentation and styling -->
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
+        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <!--[if lt IE 9]>
+          <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
+          <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
+        <![endif]-->
+        
+        <!-- Knockout for event handling -->
+        <script src="/js/knockout-3.1.0.min.js"></script>
+        
+        <!-- Some of our own general helper functions -->
+        <script src="/js/vrpipe.js"></script>
+        <link rel="stylesheet" href="/css/vrpipe.css">
+        
+        <!-- vrtrack_qc functions -->
+        <script src="/pages/vrtrack_qc/qc.js"></script>
+    </head>
+    <body>
+        <div id="nav" class="navbar navbar-default" role="navigation">
+            <div class="container">
+                <div class="navbar-header">
+                    <a href="/pages/vrtrack_qc" class="navbar-brand">VRTrack QC</a>
+                </div>
+                
+                <script type="text/html" src="/login_template.html" id="login-template"></script>
+                <div data-bind="template: { name: 'login-template' }"></div>
+            </div>
+        </div>
+        
+        <div class="container">
+            <div id="qc">
+                <h3 id="heading">Sample Discordance<span data-bind="with: sampleNode">: <span data-bind="text: properties['public_name']"></span></span></h3>
+                
+                <div data-bind="loadingWhen: loading().length">
+                    &nbsp;
+                </div>
+                
+                <div class="top-margin" id="errors" data-bind="foreach: errors">
+                    <div class="alert alert-danger fade in">
+                        <p data-bind="text: $data"></p>
+                    </div>
+                </div>
+                
+                <dl data-bind="with: sampleNode">
+                    <dt>name</dt>
+                    <dd data-bind="text: properties['name']"></dd>
+                    <dt>id</dt>
+                    <dd data-bind="text: properties['id']"></dd>
+                    <dt>supplier name</dt>
+                    <dd data-bind="text: properties['supplier_name']"></dd>
+                    <dt>accession</dt>
+                    <dd data-bind="text: properties['accession']"></dd>
+                    <dt>control</dt>
+                    <dd data-bind="text: properties['control']"></dd>
+                    <dt>created date</dt>
+                    <dd data-bind="text: properties['created_date']"></dd>
+                    <div data-bind="if: properties['donor_node_id']">
+                        <dt>donor</dt>
+                        <dd><a data-bind="attr: { href: '/pages/vrtrack_qc/donor.html?id=' + properties['donor_node_id'] }, text: properties['donor_id']"></a></dd>
+                    </div>
+                </dl>
+                
+                <div id="samplediscordance" class="panel panel-default" data-bind="visible: sdResults().length">
+                    <div class="panel-heading">Discordance against all other samples</div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>name</th>
+                                    <th>public name</th>
+                                    <th>control</th>
+                                    <th>discordance</th>
+                                    <th>num of sites</th>
+                                    <th>avg min depth</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind="foreach: sdResults">
+                                <tr data-bind="css: { success: discordance < 3 && num_of_sites > 15 }">
+                                    <td style="cursor: pointer" data-bind="text: sample_name, click: $parent.openSampleDonor"></td>
+                                    <td data-bind="text: sample_public_name"></td>
+                                    <td data-bind="text: sample_control"></td>
+                                    <td data-bind="text: discordance"></td>
+                                    <td data-bind="text: num_of_sites"></td>
+                                    <td data-bind="text: avg_min_depth"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <footer id="footer">
+                <small>&copy; 2014 Genome Research Limited.</small>
+            </footer>
+        </div>
+        
+        <script type="text/javascript">
+            // viewmodel for logging in
+            var livm = new ko.LogInViewModel();
+            loadExternalKnockoutTemplates(function() {
+                ko.applyBindings(livm, $('#nav')[0]);
+            });
+            
+            function QCViewModel() {
+                var self = this;
+                
+                self.loading = ko.observableArray();
+                self.errors = ko.observableArray();
+                self.sampleNodeID = getQueryStringParameterByName('id');
+                self.sampleNode = ko.observable();
+                self.sdResults = ko.observableArray();
+                
+                // get the input sample node
+                getQCGraphData('node_by_id', { node_id: +self.sampleNodeID, label: 'Sample' }, { result: self.sampleNode }, self.loading, self.errors);
+                
+                // when the above call sets the sampleNode, populate the qc
+                // table and set our title
+                self.sampleNode.subscribe(function(newValue) {
+                    if (newValue) {
+                        var pname = newValue.properties['public_name'];
+                        if (pname) {
+                            document.title = pname + ' [VRTrack Sample Discordance]';
+                        }
+                        
+                        getQCGraphData('sample_discordance', { sample: +newValue['id'] }, { sdResults: self.sdResults }, self.loading, self.errors);
+                    }
+                });
+                
+                // when a sample in the discordance table is clicked on, open a
+                // new tab with that sample's donor qc
+                // self.openSampleDonor = function(node) {
+                //     window.open('/pages/vrtrack_qc/donor.html?id=' + node['donor_node_id'], '_blank', '', false);
+                // }
+            }
+            
+            var qcvm = new QCViewModel();
+            ko.applyBindings(qcvm, $('#qc')[0]);
+        </script>
+    </body>
+</html>

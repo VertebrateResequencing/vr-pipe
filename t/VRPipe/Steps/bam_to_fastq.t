@@ -5,7 +5,7 @@ use Path::Class;
 use POSIX qw(getgroups);
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 25;
     use VRPipeTest (required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)]);
     use TestPipelines;
     
@@ -100,6 +100,51 @@ for my $i (1, 2, 'M') {
     my $path = file(output_subdirs(4), '1_bam_to_fastq', "2822_6.se.pe_$i.fastq")->stringify;
     my $f = VRPipe::File->get(path => "$path");
     is_deeply [$reads{$i}], [$f->metadata->{reads}], "$i fastq generated with correct reads metadata for a bam with both SE and PE reads";
+}
+
+# Here we also test bamtofastq step using the same data.
+SKIP: {
+    my $num_tests = 13;
+    skip "bamtofastq testing disabled without biobambam bamtofastq in your path", $num_tests unless can_execute('bamtofastq');
+    use_ok('VRPipe::Steps::bamtofastq');
+    ($output_dir, $pipeline, $step) = create_single_step_pipeline('bamtofastq', 'bam_files');
+    is_deeply [$step->id, $step->description], [2, 'Converts bam files to fastq files'], 'bamtofastq step created and has correct description';
+    
+    $setup = VRPipe::PipelineSetup->create(
+        name        => 'btq2_setup',
+        datasource  => VRPipe::DataSource->create(type => 'fofn', method => 'all', source => file(qw(t data datasource.btf_fofn))->absolute),
+        output_root => $output_dir,
+        unix_group  => $groups[0],
+        pipeline    => $pipeline,
+        options     => {
+            bamtofastq_opts => 'exclude=QCFAIL tryoq=1 gz=1',
+        },
+    );
+    
+    @fastqs = ();
+    for my $j (1, 2, 3, 4) {
+        foreach my $i (1, 2) {
+            my @output_subdirs = output_subdirs($j, 2);
+            push(@fastqs, file(@output_subdirs, '1_bamtofastq', "$bases{$j}$i.fastq.gz"));
+        }
+    }
+    push(@fastqs, file(output_subdirs(4, 2), '1_bamtofastq', "2822_6.se.pe_M.fastq.gz"));
+    ok handle_pipeline(@fastqs), 'bamtofastq pipeline ran ok, generating the expected fastqs';
+    
+    is_deeply read_fastq(file(qw(t data 2822_6_1.fastq))->absolute), read_fastq($fastqs[0]), 'forward fastq had same data as original forward fastq the input bam was mapped from';
+    is_deeply read_fastq(file(qw(t data 2822_6_2.fastq))->absolute), read_fastq($fastqs[1]), 'reverse fastq had same data as original reverse fastq the input bam was mapped from';
+    is_deeply read_fastq(file(qw(t data 2822_6_1.fastq))->absolute), read_fastq($fastqs[2]), 'forward fastq from improved bam had same data as original forward fastq the input bam was mapped from';
+    is_deeply read_fastq(file(qw(t data 2822_6_2.fastq))->absolute), read_fastq($fastqs[3]), 'reverse fastq from improved bam had same data as original reverse fastq the input bam was mapped from';
+    is_deeply [scalar(keys %{ read_fastq($fastqs[4]) }), scalar(keys %{ read_fastq($fastqs[5]) }), VRPipe::File->get(path => $fastqs[4])->meta_value('sample')], [40, 40, 'NA19381'], 'merged bam produced correctly sized fastqs with sample metadata attached';
+    
+    $fmeta = VRPipe::File->create(path => $fastqs[0])->metadata;
+    is_deeply [$fmeta->{reads}, $fmeta->{bases}, $fmeta->{avg_read_length}], [200, 12200, '61.00'], 'basic metadata is correct for the forward fastq';
+    
+    for my $i (1, 2, 'M') {
+        my $path = file(output_subdirs(4, 2), '1_bamtofastq', "2822_6.se.pe_$i.fastq.gz")->stringify;
+        my $f = VRPipe::File->get(path => "$path");
+        is_deeply [$reads{$i}], [$f->metadata->{reads}], "$i fastq generated with correct reads metadata for a bam with both SE and PE reads";
+    }
 }
 
 finish;

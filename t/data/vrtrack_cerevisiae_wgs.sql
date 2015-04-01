@@ -1,8 +1,8 @@
--- MySQL dump 10.11
+-- MySQL dump 10.13  Distrib 5.5.32, for debian-linux-gnu (x86_64)
 --
--- Host: mcs4a    Database: vrtrack_testdb_for_vrpipe_sb10
+-- Host: mcs10    Database: vrtrack_testdb_for_vrpipe_sb10
 -- ------------------------------------------------------
--- Server version	5.0.37-log
+-- Server version	5.5.31-log
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -20,15 +20,15 @@
 --
 
 DROP TABLE IF EXISTS `allocation`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `allocation` (
-  `study_id` smallint(5) unsigned NOT NULL default '0',
-  `individual_id` smallint(5) unsigned NOT NULL default '0',
-  `seq_centre_id` smallint(5) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`study_id`,`individual_id`,`seq_centre_id`)
+  `study_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `individual_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `seq_centre_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`study_id`,`individual_id`,`seq_centre_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `allocation`
@@ -44,17 +44,17 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `assembly`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `assembly` (
-  `assembly_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
-  `reference_size` int(11) default NULL,
-  `taxon_id` mediumint(8) unsigned default NULL,
-  `translation_table` smallint(5) unsigned default NULL,
-  PRIMARY KEY  (`assembly_id`)
+  `assembly_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `reference_size` int(11) DEFAULT NULL,
+  `taxon_id` mediumint(8) unsigned DEFAULT NULL,
+  `translation_table` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`assembly_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `assembly`
@@ -70,19 +70,19 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `autoqc`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `autoqc` (
-  `autoqc_id` mediumint(8) unsigned NOT NULL auto_increment,
-  `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
-  `test` varchar(50) NOT NULL default '',
-  `result` tinyint(1) default '0',
-  `reason` varchar(200) NOT NULL default '',
-  PRIMARY KEY  (`autoqc_id`),
+  `autoqc_id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
+  `mapstats_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `test` varchar(50) NOT NULL DEFAULT '',
+  `result` tinyint(1) DEFAULT '0',
+  `reason` varchar(200) NOT NULL DEFAULT '',
+  PRIMARY KEY (`autoqc_id`),
   UNIQUE KEY `mapstats_test` (`mapstats_id`,`test`),
   KEY `mapstats_id` (`mapstats_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `autoqc`
@@ -98,16 +98,16 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `exome_design`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `exome_design` (
-  `exome_design_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
-  `bait_bases` bigint(20) unsigned default NULL,
-  `target_bases` bigint(20) unsigned default NULL,
-  PRIMARY KEY  (`exome_design_id`)
+  `exome_design_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `bait_bases` bigint(20) unsigned DEFAULT NULL,
+  `target_bases` bigint(20) unsigned DEFAULT NULL,
+  PRIMARY KEY (`exome_design_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `exome_design`
@@ -123,31 +123,31 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `file`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `file` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `file_id` mediumint(8) unsigned NOT NULL default '0',
-  `lane_id` mediumint(8) unsigned NOT NULL default '0',
-  `name` varchar(255) NOT NULL default '',
-  `hierarchy_name` varchar(255) default NULL,
-  `processed` int(10) default '0',
-  `type` tinyint(4) default NULL,
-  `readlen` smallint(5) unsigned default NULL,
-  `raw_reads` bigint(20) unsigned default NULL,
-  `raw_bases` bigint(20) unsigned default NULL,
-  `mean_q` float unsigned default NULL,
-  `md5` char(32) default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `file_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `lane_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `hierarchy_name` varchar(255) DEFAULT NULL,
+  `processed` int(10) DEFAULT '0',
+  `type` tinyint(4) DEFAULT NULL,
+  `readlen` smallint(5) unsigned DEFAULT NULL,
+  `raw_reads` bigint(20) unsigned DEFAULT NULL,
+  `raw_bases` bigint(20) unsigned DEFAULT NULL,
+  `mean_q` float unsigned DEFAULT NULL,
+  `md5` char(32) DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `file_id` (`file_id`),
   KEY `lane_id` (`lane_id`),
   KEY `hierarchy_name` (`hierarchy_name`),
   KEY `name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=88 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `file`
@@ -155,7 +155,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `file` WRITE;
 /*!40000 ALTER TABLE `file` DISABLE KEYS */;
-INSERT INTO `file` VALUES (1,1,0,'7369_5#31.bam','7369_5_31_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(2,1,1,'7369_5#31.bam','7369_5_31.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(3,1,1,'7369_5#31.bam','7369_5_31.bam',0,4,NULL,NULL,NULL,NULL,'29046bc1c9685bba5e9b96a69282d5e0',NULL,'2012-05-02 12:44:06',1),(4,4,0,'7369_5#30.bam','7369_5_30_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(5,4,4,'7369_5#30.bam','7369_5_30.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(6,4,4,'7369_5#30.bam','7369_5_30.bam',0,4,NULL,NULL,NULL,NULL,'21259f7419fca441d7313c7b372addc0',NULL,'2012-05-02 12:44:06',1),(7,7,0,'7369_5#29.bam','7369_5_29_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(8,7,7,'7369_5#29.bam','7369_5_29.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(9,7,7,'7369_5#29.bam','7369_5_29.bam',0,4,NULL,NULL,NULL,NULL,'2e848f50c7986a4932575beab2fabf4d',NULL,'2012-05-02 12:44:06',1),(10,10,0,'7369_5#28.bam','7369_5_28_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(11,10,10,'7369_5#28.bam','7369_5_28.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(12,10,10,'7369_5#28.bam','7369_5_28.bam',0,4,NULL,NULL,NULL,NULL,'ac9e85c2ac9c2782bb6e19ada462d5e0',NULL,'2012-05-02 12:44:06',1),(13,13,0,'7369_5#27.bam','7369_5_27_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(14,13,13,'7369_5#27.bam','7369_5_27.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(15,13,13,'7369_5#27.bam','7369_5_27.bam',0,4,NULL,NULL,NULL,NULL,'76ee5f08e761fa5baf637a6ad383ad19',NULL,'2012-05-02 12:44:06',1),(16,16,0,'7369_5#26.bam','7369_5_26_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(17,16,16,'7369_5#26.bam','7369_5_26.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(18,16,16,'7369_5#26.bam','7369_5_26.bam',0,4,NULL,NULL,NULL,NULL,'00be8b84c1d8ac72a094a7d0705db9eb',NULL,'2012-05-02 12:44:06',1),(19,19,0,'7369_5#25.bam','7369_5_25_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(20,19,19,'7369_5#25.bam','7369_5_25.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(21,19,19,'7369_5#25.bam','7369_5_25.bam',0,4,NULL,NULL,NULL,NULL,'6f4192bca4b15f4b22406e2c629c7223',NULL,'2012-05-02 12:44:07',1),(22,22,0,'7369_5#24.bam','7369_5_24_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(23,22,22,'7369_5#24.bam','7369_5_24.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(24,22,22,'7369_5#24.bam','7369_5_24.bam',0,4,NULL,NULL,NULL,NULL,'e689d397d809d0d7d96e6b34a1f8ff08',NULL,'2012-05-02 12:44:07',1),(25,25,0,'7369_5#23.bam','7369_5_23_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(26,25,25,'7369_5#23.bam','7369_5_23.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(27,25,25,'7369_5#23.bam','7369_5_23.bam',0,4,NULL,NULL,NULL,NULL,'1093582a1df138e4dc598ba7b5b3090d',NULL,'2012-05-02 12:44:07',1),(28,28,0,'7369_5#22.bam','7369_5_22_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(29,28,28,'7369_5#22.bam','7369_5_22.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(30,28,28,'7369_5#22.bam','7369_5_22.bam',0,4,NULL,NULL,NULL,NULL,'1e38fc82f1abda844dba66a759e3b169',NULL,'2012-05-02 12:44:07',1),(31,31,0,'7369_5#21.bam','7369_5_21_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(32,31,31,'7369_5#21.bam','7369_5_21.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(33,31,31,'7369_5#21.bam','7369_5_21.bam',0,4,NULL,NULL,NULL,NULL,'44ca95b23e5222cb01d1db540e14cda8',NULL,'2012-05-02 12:44:07',1),(34,34,0,'7369_5#20.bam','7369_5_20_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(35,34,34,'7369_5#20.bam','7369_5_20.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(36,34,34,'7369_5#20.bam','7369_5_20.bam',0,4,NULL,NULL,NULL,NULL,'062630dfaddb976f18db49d856936d5f',NULL,'2012-05-02 12:44:07',1),(37,37,0,'7369_5#18.bam','7369_5_18_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(38,37,37,'7369_5#18.bam','7369_5_18.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(39,37,37,'7369_5#18.bam','7369_5_18.bam',0,4,NULL,NULL,NULL,NULL,'c301f0ee223abbaa44a92fba5b9a2f18',NULL,'2012-05-02 12:44:07',1),(40,40,0,'7369_5#17.bam','7369_5_17_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(41,40,40,'7369_5#17.bam','7369_5_17.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(42,40,40,'7369_5#17.bam','7369_5_17.bam',0,4,NULL,NULL,NULL,NULL,'401626c972aa3fe358cb5fd5a0e04df2',NULL,'2012-05-02 12:44:07',1),(43,43,0,'7369_5#16.bam','7369_5_16_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(44,43,43,'7369_5#16.bam','7369_5_16.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(45,43,43,'7369_5#16.bam','7369_5_16.bam',0,4,NULL,NULL,NULL,NULL,'c9bbe45ca0e38e085ac510fbb5e6d08c',NULL,'2012-05-02 12:44:07',1),(46,46,0,'7369_5#15.bam','7369_5_15_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(47,46,46,'7369_5#15.bam','7369_5_15.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(48,46,46,'7369_5#15.bam','7369_5_15.bam',0,4,NULL,NULL,NULL,NULL,'4927755b9bca21f3d3cdfe0301c9535f',NULL,'2012-05-02 12:44:07',1),(49,49,0,'7369_5#14.bam','7369_5_14_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(50,49,49,'7369_5#14.bam','7369_5_14.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(51,49,49,'7369_5#14.bam','7369_5_14.bam',0,4,NULL,NULL,NULL,NULL,'2a6f90cab3c8d0c7249094c5769abeb8',NULL,'2012-05-02 12:44:08',1),(52,52,0,'7369_5#13.bam','7369_5_13_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(53,52,52,'7369_5#13.bam','7369_5_13.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(54,52,52,'7369_5#13.bam','7369_5_13.bam',0,4,NULL,NULL,NULL,NULL,'e663b81c962f8a76d2aec1a96bf2ab24',NULL,'2012-05-02 12:44:08',1),(55,55,0,'7369_5#12.bam','7369_5_12_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(56,55,55,'7369_5#12.bam','7369_5_12.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(57,55,55,'7369_5#12.bam','7369_5_12.bam',0,4,NULL,NULL,NULL,NULL,'220d921a19b3697471b95b2b9646e21c',NULL,'2012-05-02 12:44:08',1),(58,58,0,'7369_5#11.bam','7369_5_11_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(59,58,58,'7369_5#11.bam','7369_5_11.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(60,58,58,'7369_5#11.bam','7369_5_11.bam',0,4,NULL,NULL,NULL,NULL,'4a8abcc9030aaac542743c2434437578',NULL,'2012-05-02 12:44:08',1),(61,61,0,'7369_5#9.bam','7369_5_9_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(62,61,61,'7369_5#9.bam','7369_5_9.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(63,61,61,'7369_5#9.bam','7369_5_9.bam',0,4,NULL,NULL,NULL,NULL,'2f8e348a2f1b8d12e360f0f3ab213297',NULL,'2012-05-02 12:44:08',1),(64,64,0,'7369_5#8.bam','7369_5_8_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(65,64,64,'7369_5#8.bam','7369_5_8.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(66,64,64,'7369_5#8.bam','7369_5_8.bam',0,4,NULL,NULL,NULL,NULL,'25965d5e328090b4808d53819729a3ab',NULL,'2012-05-02 12:44:08',1),(67,67,0,'7369_5#7.bam','7369_5_7_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(68,67,67,'7369_5#7.bam','7369_5_7.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(69,67,67,'7369_5#7.bam','7369_5_7.bam',0,4,NULL,NULL,NULL,NULL,'0819da001a86761add58ac8ce45c2f35',NULL,'2012-05-02 12:44:08',1),(70,70,0,'7369_5#6.bam','7369_5_6_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(71,70,70,'7369_5#6.bam','7369_5_6.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(72,70,70,'7369_5#6.bam','7369_5_6.bam',0,4,NULL,NULL,NULL,NULL,'c5b8e147e1e1f6f597122a251117850e',NULL,'2012-05-02 12:44:08',1),(73,73,0,'7369_5#5.bam','7369_5_5_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(74,73,73,'7369_5#5.bam','7369_5_5.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(75,73,73,'7369_5#5.bam','7369_5_5.bam',0,4,NULL,NULL,NULL,NULL,'ae8388db009b5072520c4fefdbe31635',NULL,'2012-05-02 12:44:08',1),(76,76,0,'7369_5#4.bam','7369_5_4_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(77,76,76,'7369_5#4.bam','7369_5_4.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(78,76,76,'7369_5#4.bam','7369_5_4.bam',0,4,NULL,NULL,NULL,NULL,'f1ad1e84aa155482db8dfdaced8a4d7a',NULL,'2012-05-02 12:44:08',1),(79,79,0,'7369_5#3.bam','7369_5_3_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(80,79,79,'7369_5#3.bam','7369_5_3.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(81,79,79,'7369_5#3.bam','7369_5_3.bam',0,4,NULL,NULL,NULL,NULL,'dd1bfa50b6f4ab36221006d67ccddc3f',NULL,'2012-05-02 12:44:08',1),(82,82,0,'7369_5#2.bam','7369_5_2_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(83,82,82,'7369_5#2.bam','7369_5_2.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(84,82,82,'7369_5#2.bam','7369_5_2.bam',0,4,NULL,NULL,NULL,NULL,'1ac3ae2539eae650d39d7510c1e5742e',NULL,'2012-05-02 12:44:08',1),(85,85,0,'7369_5#1.bam','7369_5_1_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(86,85,85,'7369_5#1.bam','7369_5_1.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(87,85,85,'7369_5#1.bam','7369_5_1.bam',0,4,NULL,NULL,NULL,NULL,'8194f6c33299784d78e8d16fb05eb1c6',NULL,'2012-05-02 12:44:08',1);
+INSERT INTO `file` VALUES (1,1,0,'7369_5#31.bam','7369_5_31_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(2,1,1,'7369_5#31.bam','7369_5_31.bam',0,NULL,NULL,NULL,NULL,NULL,'a7bdda0e54cc62a7ba5064be6b462afe',NULL,'2012-05-02 12:44:06',0),(3,1,1,'7369_5#31.bam','7369_5_31.bam',0,4,NULL,NULL,NULL,NULL,'a7bdda0e54cc62a7ba5064be6b462afe',NULL,'2012-05-02 12:44:06',1),(4,4,0,'7369_5#30.bam','7369_5_30_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(5,4,4,'7369_5#30.bam','7369_5_30.bam',0,NULL,NULL,NULL,NULL,NULL,'17e3644fad3dc9e1b2eb7b7e94f7d77c',NULL,'2012-05-02 12:44:06',0),(6,4,4,'7369_5#30.bam','7369_5_30.bam',0,4,NULL,NULL,NULL,NULL,'17e3644fad3dc9e1b2eb7b7e94f7d77c',NULL,'2012-05-02 12:44:06',1),(7,7,0,'7369_5#29.bam','7369_5_29_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(8,7,7,'7369_5#29.bam','7369_5_29.bam',0,NULL,NULL,NULL,NULL,NULL,'5c29ce9525581d2b451c9014d90fb196',NULL,'2012-05-02 12:44:06',0),(9,7,7,'7369_5#29.bam','7369_5_29.bam',0,4,NULL,NULL,NULL,NULL,'5c29ce9525581d2b451c9014d90fb196',NULL,'2012-05-02 12:44:06',1),(10,10,0,'7369_5#28.bam','7369_5_28_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(11,10,10,'7369_5#28.bam','7369_5_28.bam',0,NULL,NULL,NULL,NULL,NULL,'91506bdcf4f0e7e4177b6f0c58c14cec',NULL,'2012-05-02 12:44:06',0),(12,10,10,'7369_5#28.bam','7369_5_28.bam',0,4,NULL,NULL,NULL,NULL,'91506bdcf4f0e7e4177b6f0c58c14cec',NULL,'2012-05-02 12:44:06',1),(13,13,0,'7369_5#27.bam','7369_5_27_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(14,13,13,'7369_5#27.bam','7369_5_27.bam',0,NULL,NULL,NULL,NULL,NULL,'18dc7d5820b901dfba36be1e41603a1b',NULL,'2012-05-02 12:44:06',0),(15,13,13,'7369_5#27.bam','7369_5_27.bam',0,4,NULL,NULL,NULL,NULL,'18dc7d5820b901dfba36be1e41603a1b',NULL,'2012-05-02 12:44:06',1),(16,16,0,'7369_5#26.bam','7369_5_26_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(17,16,16,'7369_5#26.bam','7369_5_26.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:06',0),(18,16,16,'7369_5#26.bam','7369_5_26.bam',0,4,NULL,NULL,NULL,NULL,'00be8b84c1d8ac72a094a7d0705db9eb',NULL,'2012-05-02 12:44:06',1),(19,19,0,'7369_5#25.bam','7369_5_25_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(20,19,19,'7369_5#25.bam','7369_5_25.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(21,19,19,'7369_5#25.bam','7369_5_25.bam',0,4,NULL,NULL,NULL,NULL,'6f4192bca4b15f4b22406e2c629c7223',NULL,'2012-05-02 12:44:07',1),(22,22,0,'7369_5#24.bam','7369_5_24_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(23,22,22,'7369_5#24.bam','7369_5_24.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(24,22,22,'7369_5#24.bam','7369_5_24.bam',0,4,NULL,NULL,NULL,NULL,'e689d397d809d0d7d96e6b34a1f8ff08',NULL,'2012-05-02 12:44:07',1),(25,25,0,'7369_5#23.bam','7369_5_23_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(26,25,25,'7369_5#23.bam','7369_5_23.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(27,25,25,'7369_5#23.bam','7369_5_23.bam',0,4,NULL,NULL,NULL,NULL,'1093582a1df138e4dc598ba7b5b3090d',NULL,'2012-05-02 12:44:07',1),(28,28,0,'7369_5#22.bam','7369_5_22_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(29,28,28,'7369_5#22.bam','7369_5_22.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(30,28,28,'7369_5#22.bam','7369_5_22.bam',0,4,NULL,NULL,NULL,NULL,'1e38fc82f1abda844dba66a759e3b169',NULL,'2012-05-02 12:44:07',1),(31,31,0,'7369_5#21.bam','7369_5_21_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(32,31,31,'7369_5#21.bam','7369_5_21.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(33,31,31,'7369_5#21.bam','7369_5_21.bam',0,4,NULL,NULL,NULL,NULL,'44ca95b23e5222cb01d1db540e14cda8',NULL,'2012-05-02 12:44:07',1),(34,34,0,'7369_5#20.bam','7369_5_20_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(35,34,34,'7369_5#20.bam','7369_5_20.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(36,34,34,'7369_5#20.bam','7369_5_20.bam',0,4,NULL,NULL,NULL,NULL,'062630dfaddb976f18db49d856936d5f',NULL,'2012-05-02 12:44:07',1),(37,37,0,'7369_5#18.bam','7369_5_18_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(38,37,37,'7369_5#18.bam','7369_5_18.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(39,37,37,'7369_5#18.bam','7369_5_18.bam',0,4,NULL,NULL,NULL,NULL,'c301f0ee223abbaa44a92fba5b9a2f18',NULL,'2012-05-02 12:44:07',1),(40,40,0,'7369_5#17.bam','7369_5_17_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(41,40,40,'7369_5#17.bam','7369_5_17.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(42,40,40,'7369_5#17.bam','7369_5_17.bam',0,4,NULL,NULL,NULL,NULL,'401626c972aa3fe358cb5fd5a0e04df2',NULL,'2012-05-02 12:44:07',1),(43,43,0,'7369_5#16.bam','7369_5_16_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(44,43,43,'7369_5#16.bam','7369_5_16.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(45,43,43,'7369_5#16.bam','7369_5_16.bam',0,4,NULL,NULL,NULL,NULL,'c9bbe45ca0e38e085ac510fbb5e6d08c',NULL,'2012-05-02 12:44:07',1),(46,46,0,'7369_5#15.bam','7369_5_15_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(47,46,46,'7369_5#15.bam','7369_5_15.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:07',0),(48,46,46,'7369_5#15.bam','7369_5_15.bam',0,4,NULL,NULL,NULL,NULL,'4927755b9bca21f3d3cdfe0301c9535f',NULL,'2012-05-02 12:44:07',1),(49,49,0,'7369_5#14.bam','7369_5_14_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(50,49,49,'7369_5#14.bam','7369_5_14.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(51,49,49,'7369_5#14.bam','7369_5_14.bam',0,4,NULL,NULL,NULL,NULL,'2a6f90cab3c8d0c7249094c5769abeb8',NULL,'2012-05-02 12:44:08',1),(52,52,0,'7369_5#13.bam','7369_5_13_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(53,52,52,'7369_5#13.bam','7369_5_13.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(54,52,52,'7369_5#13.bam','7369_5_13.bam',0,4,NULL,NULL,NULL,NULL,'e663b81c962f8a76d2aec1a96bf2ab24',NULL,'2012-05-02 12:44:08',1),(55,55,0,'7369_5#12.bam','7369_5_12_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(56,55,55,'7369_5#12.bam','7369_5_12.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(57,55,55,'7369_5#12.bam','7369_5_12.bam',0,4,NULL,NULL,NULL,NULL,'220d921a19b3697471b95b2b9646e21c',NULL,'2012-05-02 12:44:08',1),(58,58,0,'7369_5#11.bam','7369_5_11_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(59,58,58,'7369_5#11.bam','7369_5_11.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(60,58,58,'7369_5#11.bam','7369_5_11.bam',0,4,NULL,NULL,NULL,NULL,'4a8abcc9030aaac542743c2434437578',NULL,'2012-05-02 12:44:08',1),(61,61,0,'7369_5#9.bam','7369_5_9_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(62,61,61,'7369_5#9.bam','7369_5_9.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(63,61,61,'7369_5#9.bam','7369_5_9.bam',0,4,NULL,NULL,NULL,NULL,'2f8e348a2f1b8d12e360f0f3ab213297',NULL,'2012-05-02 12:44:08',1),(64,64,0,'7369_5#8.bam','7369_5_8_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(65,64,64,'7369_5#8.bam','7369_5_8.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(66,64,64,'7369_5#8.bam','7369_5_8.bam',0,4,NULL,NULL,NULL,NULL,'25965d5e328090b4808d53819729a3ab',NULL,'2012-05-02 12:44:08',1),(67,67,0,'7369_5#7.bam','7369_5_7_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(68,67,67,'7369_5#7.bam','7369_5_7.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(69,67,67,'7369_5#7.bam','7369_5_7.bam',0,4,NULL,NULL,NULL,NULL,'0819da001a86761add58ac8ce45c2f35',NULL,'2012-05-02 12:44:08',1),(70,70,0,'7369_5#6.bam','7369_5_6_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(71,70,70,'7369_5#6.bam','7369_5_6.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(72,70,70,'7369_5#6.bam','7369_5_6.bam',0,4,NULL,NULL,NULL,NULL,'c5b8e147e1e1f6f597122a251117850e',NULL,'2012-05-02 12:44:08',1),(73,73,0,'7369_5#5.bam','7369_5_5_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(74,73,73,'7369_5#5.bam','7369_5_5.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(75,73,73,'7369_5#5.bam','7369_5_5.bam',0,4,NULL,NULL,NULL,NULL,'ae8388db009b5072520c4fefdbe31635',NULL,'2012-05-02 12:44:08',1),(76,76,0,'7369_5#4.bam','7369_5_4_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(77,76,76,'7369_5#4.bam','7369_5_4.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(78,76,76,'7369_5#4.bam','7369_5_4.bam',0,4,NULL,NULL,NULL,NULL,'f1ad1e84aa155482db8dfdaced8a4d7a',NULL,'2012-05-02 12:44:08',1),(79,79,0,'7369_5#3.bam','7369_5_3_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(80,79,79,'7369_5#3.bam','7369_5_3.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(81,79,79,'7369_5#3.bam','7369_5_3.bam',0,4,NULL,NULL,NULL,NULL,'dd1bfa50b6f4ab36221006d67ccddc3f',NULL,'2012-05-02 12:44:08',1),(82,82,0,'7369_5#2.bam','7369_5_2_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(83,82,82,'7369_5#2.bam','7369_5_2.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(84,82,82,'7369_5#2.bam','7369_5_2.bam',0,4,NULL,NULL,NULL,NULL,'1ac3ae2539eae650d39d7510c1e5742e',NULL,'2012-05-02 12:44:08',1),(85,85,0,'7369_5#1.bam','7369_5_1_bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(86,85,85,'7369_5#1.bam','7369_5_1.bam',0,NULL,NULL,NULL,NULL,NULL,NULL,NULL,'2012-05-02 12:44:08',0),(87,85,85,'7369_5#1.bam','7369_5_1.bam',0,4,NULL,NULL,NULL,NULL,'8194f6c33299784d78e8d16fb05eb1c6',NULL,'2012-05-02 12:44:08',1);
 /*!40000 ALTER TABLE `file` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -164,18 +164,18 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `image`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `image` (
-  `image_id` mediumint(8) unsigned NOT NULL auto_increment,
-  `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
-  `name` varchar(255) default NULL,
-  `caption` varchar(40) default NULL,
+  `image_id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
+  `mapstats_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `name` varchar(255) DEFAULT NULL,
+  `caption` varchar(40) DEFAULT NULL,
   `image` mediumblob,
-  PRIMARY KEY  (`image_id`),
+  PRIMARY KEY (`image_id`),
   KEY `mapstats_id` (`mapstats_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `image`
@@ -191,22 +191,22 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `individual`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `individual` (
-  `individual_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
-  `hierarchy_name` varchar(255) NOT NULL default '',
-  `alias` varchar(40) NOT NULL default '',
-  `sex` enum('M','F','unknown') default 'unknown',
-  `acc` varchar(40) default NULL,
-  `species_id` smallint(5) unsigned default NULL,
-  `population_id` smallint(5) unsigned default NULL,
-  PRIMARY KEY  (`individual_id`),
+  `individual_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `hierarchy_name` varchar(255) NOT NULL DEFAULT '',
+  `alias` varchar(40) NOT NULL DEFAULT '',
+  `sex` enum('M','F','unknown') DEFAULT 'unknown',
+  `acc` varchar(40) DEFAULT NULL,
+  `species_id` smallint(5) unsigned DEFAULT NULL,
+  `population_id` smallint(5) unsigned DEFAULT NULL,
+  PRIMARY KEY (`individual_id`),
   UNIQUE KEY `name` (`name`),
   UNIQUE KEY `hierarchy_name` (`hierarchy_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=30 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `individual`
@@ -223,39 +223,40 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `lane`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `lane` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `lane_id` mediumint(8) unsigned NOT NULL default '0',
-  `library_id` smallint(5) unsigned NOT NULL default '0',
-  `seq_request_id` mediumint(8) unsigned NOT NULL default '0',
-  `name` varchar(255) NOT NULL default '',
-  `hierarchy_name` varchar(255) NOT NULL default '',
-  `acc` varchar(40) default NULL,
-  `readlen` smallint(5) unsigned default NULL,
-  `paired` tinyint(1) default NULL,
-  `raw_reads` bigint(20) unsigned default NULL,
-  `raw_bases` bigint(20) unsigned default NULL,
-  `npg_qc_status` enum('pending','pass','fail','-') default 'pending',
-  `processed` int(10) default '0',
-  `auto_qc_status` enum('no_qc','passed','failed') default 'no_qc',
-  `qc_status` enum('no_qc','pending','passed','failed','gt_pending','investigate') default 'no_qc',
-  `gt_status` enum('unchecked','confirmed','wrong','unconfirmed','candidate','unknown','swapped') default 'unchecked',
-  `submission_id` smallint(5) unsigned default NULL,
-  `withdrawn` tinyint(1) default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `run_date` datetime default NULL,
-  `storage_path` varchar(255) default NULL,
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `lane_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `library_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `seq_request_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `hierarchy_name` varchar(255) NOT NULL DEFAULT '',
+  `acc` varchar(40) DEFAULT NULL,
+  `readlen` smallint(5) unsigned DEFAULT NULL,
+  `paired` tinyint(1) DEFAULT NULL,
+  `raw_reads` bigint(20) unsigned DEFAULT NULL,
+  `raw_bases` bigint(20) unsigned DEFAULT NULL,
+  `npg_qc_status` enum('pending','pass','fail','-') DEFAULT 'pending',
+  `processed` int(10) DEFAULT '0',
+  `auto_qc_status` enum('no_qc','passed','failed') DEFAULT 'no_qc',
+  `qc_status` enum('no_qc','pending','passed','failed','gt_pending','investigate') DEFAULT 'no_qc',
+  `gt_status` enum('unchecked','confirmed','wrong','unconfirmed','candidate','unknown','swapped') DEFAULT 'unchecked',
+  `submission_id` smallint(5) unsigned DEFAULT NULL,
+  `withdrawn` tinyint(1) DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `run_date` datetime DEFAULT NULL,
+  `storage_path` varchar(255) DEFAULT NULL,
+  `latest` tinyint(1) DEFAULT '0',
+  `manually_withdrawn` tinyint(1) DEFAULT NULL,
+  PRIMARY KEY (`row_id`),
   KEY `lane_id` (`lane_id`),
   KEY `lanename` (`name`),
   KEY `library_id` (`library_id`),
   KEY `hierarchy_name` (`hierarchy_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=88 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `lane`
@@ -263,7 +264,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `lane` WRITE;
 /*!40000 ALTER TABLE `lane` DISABLE KEYS */;
-INSERT INTO `lane` VALUES (1,1,0,0,'7369_5#31','7369_5_31',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(2,1,1,0,'7369_5#31','7369_5_31',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(3,1,1,0,'7369_5#31','7369_5#31',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(4,4,0,0,'7369_5#30','7369_5_30',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(5,4,5,0,'7369_5#30','7369_5_30',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(6,4,5,0,'7369_5#30','7369_5#30',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(7,7,0,0,'7369_5#29','7369_5_29',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(8,7,9,0,'7369_5#29','7369_5_29',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(9,7,9,0,'7369_5#29','7369_5#29',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(10,10,0,0,'7369_5#28','7369_5_28',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(11,10,13,0,'7369_5#28','7369_5_28',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(12,10,13,0,'7369_5#28','7369_5#28',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(13,13,0,0,'7369_5#27','7369_5_27',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(14,13,17,0,'7369_5#27','7369_5_27',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(15,13,17,0,'7369_5#27','7369_5#27',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(16,16,0,0,'7369_5#26','7369_5_26',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(17,16,21,0,'7369_5#26','7369_5_26',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0),(18,16,21,0,'7369_5#26','7369_5#26',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:06',NULL,NULL,1),(19,19,0,0,'7369_5#25','7369_5_25',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(20,19,25,0,'7369_5#25','7369_5_25',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(21,19,25,0,'7369_5#25','7369_5#25',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(22,22,0,0,'7369_5#24','7369_5_24',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(23,22,29,0,'7369_5#24','7369_5_24',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(24,22,29,0,'7369_5#24','7369_5#24',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(25,25,0,0,'7369_5#23','7369_5_23',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(26,25,33,0,'7369_5#23','7369_5_23',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(27,25,33,0,'7369_5#23','7369_5#23',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(28,28,0,0,'7369_5#22','7369_5_22',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(29,28,37,0,'7369_5#22','7369_5_22',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(30,28,37,0,'7369_5#22','7369_5#22',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(31,31,0,0,'7369_5#21','7369_5_21',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(32,31,41,0,'7369_5#21','7369_5_21',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(33,31,41,0,'7369_5#21','7369_5#21',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(34,34,0,0,'7369_5#20','7369_5_20',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(35,34,45,0,'7369_5#20','7369_5_20',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(36,34,45,0,'7369_5#20','7369_5#20',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(37,37,0,0,'7369_5#18','7369_5_18',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(38,37,49,0,'7369_5#18','7369_5_18',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(39,37,49,0,'7369_5#18','7369_5#18',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(40,40,0,0,'7369_5#17','7369_5_17',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(41,40,53,0,'7369_5#17','7369_5_17',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(42,40,53,0,'7369_5#17','7369_5#17',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(43,43,0,0,'7369_5#16','7369_5_16',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(44,43,57,0,'7369_5#16','7369_5_16',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(45,43,57,0,'7369_5#16','7369_5#16',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(46,46,0,0,'7369_5#15','7369_5_15',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(47,46,61,0,'7369_5#15','7369_5_15',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0),(48,46,61,0,'7369_5#15','7369_5#15',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1),(49,49,0,0,'7369_5#14','7369_5_14',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(50,49,65,0,'7369_5#14','7369_5_14',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(51,49,65,0,'7369_5#14','7369_5#14',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(52,52,0,0,'7369_5#13','7369_5_13',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(53,52,69,0,'7369_5#13','7369_5_13',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(54,52,69,0,'7369_5#13','7369_5#13',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(55,55,0,0,'7369_5#12','7369_5_12',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(56,55,73,0,'7369_5#12','7369_5_12',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(57,55,73,0,'7369_5#12','7369_5#12',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(58,58,0,0,'7369_5#11','7369_5_11',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(59,58,77,0,'7369_5#11','7369_5_11',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(60,58,77,0,'7369_5#11','7369_5#11',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(61,61,0,0,'7369_5#9','7369_5_9',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(62,61,81,0,'7369_5#9','7369_5_9',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(63,61,81,0,'7369_5#9','7369_5#9',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(64,64,0,0,'7369_5#8','7369_5_8',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(65,64,85,0,'7369_5#8','7369_5_8',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(66,64,85,0,'7369_5#8','7369_5#8',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(67,67,0,0,'7369_5#7','7369_5_7',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(68,67,89,0,'7369_5#7','7369_5_7',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(69,67,89,0,'7369_5#7','7369_5#7',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(70,70,0,0,'7369_5#6','7369_5_6',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(71,70,93,0,'7369_5#6','7369_5_6',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(72,70,93,0,'7369_5#6','7369_5#6',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(73,73,0,0,'7369_5#5','7369_5_5',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(74,73,97,0,'7369_5#5','7369_5_5',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(75,73,97,0,'7369_5#5','7369_5#5',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(76,76,0,0,'7369_5#4','7369_5_4',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(77,76,101,0,'7369_5#4','7369_5_4',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(78,76,101,0,'7369_5#4','7369_5#4',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(79,79,0,0,'7369_5#3','7369_5_3',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(80,79,105,0,'7369_5#3','7369_5_3',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(81,79,105,0,'7369_5#3','7369_5#3',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(82,82,0,0,'7369_5#2','7369_5_2',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(83,82,109,0,'7369_5#2','7369_5_2',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(84,82,109,0,'7369_5#2','7369_5#2',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1),(85,85,0,0,'7369_5#1','7369_5_1',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(86,85,113,0,'7369_5#1','7369_5_1',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0),(87,85,113,0,'7369_5#1','7369_5#1',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1);
+INSERT INTO `lane` VALUES (1,1,0,0,'7369_5#31','7369_5_31',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(2,1,1,0,'7369_5#31','7369_5_31',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(3,1,1,0,'7369_5#31','7369_5#31',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(4,4,0,0,'7369_5#30','7369_5_30',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(5,4,5,0,'7369_5#30','7369_5_30',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(6,4,5,0,'7369_5#30','7369_5#30',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(7,7,0,0,'7369_5#29','7369_5_29',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(8,7,9,0,'7369_5#29','7369_5_29',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(9,7,9,0,'7369_5#29','7369_5#29',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(10,10,0,0,'7369_5#28','7369_5_28',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(11,10,13,0,'7369_5#28','7369_5_28',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(12,10,13,0,'7369_5#28','7369_5#28',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(13,13,0,0,'7369_5#27','7369_5_27',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(14,13,17,0,'7369_5#27','7369_5_27',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(15,13,17,0,'7369_5#27','7369_5#27',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(16,16,0,0,'7369_5#26','7369_5_26',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(17,16,21,0,'7369_5#26','7369_5_26',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:06',NULL,NULL,0,NULL),(18,16,21,0,'7369_5#26','7369_5#26',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:06',NULL,NULL,1,NULL),(19,19,0,0,'7369_5#25','7369_5_25',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(20,19,25,0,'7369_5#25','7369_5_25',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(21,19,25,0,'7369_5#25','7369_5#25',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(22,22,0,0,'7369_5#24','7369_5_24',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(23,22,29,0,'7369_5#24','7369_5_24',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(24,22,29,0,'7369_5#24','7369_5#24',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(25,25,0,0,'7369_5#23','7369_5_23',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(26,25,33,0,'7369_5#23','7369_5_23',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(27,25,33,0,'7369_5#23','7369_5#23',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(28,28,0,0,'7369_5#22','7369_5_22',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(29,28,37,0,'7369_5#22','7369_5_22',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(30,28,37,0,'7369_5#22','7369_5#22',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(31,31,0,0,'7369_5#21','7369_5_21',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(32,31,41,0,'7369_5#21','7369_5_21',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(33,31,41,0,'7369_5#21','7369_5#21',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(34,34,0,0,'7369_5#20','7369_5_20',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(35,34,45,0,'7369_5#20','7369_5_20',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(36,34,45,0,'7369_5#20','7369_5#20',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(37,37,0,0,'7369_5#18','7369_5_18',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(38,37,49,0,'7369_5#18','7369_5_18',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(39,37,49,0,'7369_5#18','7369_5#18',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(40,40,0,0,'7369_5#17','7369_5_17',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(41,40,53,0,'7369_5#17','7369_5_17',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(42,40,53,0,'7369_5#17','7369_5#17',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(43,43,0,0,'7369_5#16','7369_5_16',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(44,43,57,0,'7369_5#16','7369_5_16',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(45,43,57,0,'7369_5#16','7369_5#16',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(46,46,0,0,'7369_5#15','7369_5_15',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(47,46,61,0,'7369_5#15','7369_5_15',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:07',NULL,NULL,0,NULL),(48,46,61,0,'7369_5#15','7369_5#15',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:07',NULL,NULL,1,NULL),(49,49,0,0,'7369_5#14','7369_5_14',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(50,49,65,0,'7369_5#14','7369_5_14',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(51,49,65,0,'7369_5#14','7369_5#14',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(52,52,0,0,'7369_5#13','7369_5_13',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(53,52,69,0,'7369_5#13','7369_5_13',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(54,52,69,0,'7369_5#13','7369_5#13',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(55,55,0,0,'7369_5#12','7369_5_12',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(56,55,73,0,'7369_5#12','7369_5_12',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(57,55,73,0,'7369_5#12','7369_5#12',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(58,58,0,0,'7369_5#11','7369_5_11',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(59,58,77,0,'7369_5#11','7369_5_11',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(60,58,77,0,'7369_5#11','7369_5#11',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(61,61,0,0,'7369_5#9','7369_5_9',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(62,61,81,0,'7369_5#9','7369_5_9',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(63,61,81,0,'7369_5#9','7369_5#9',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(64,64,0,0,'7369_5#8','7369_5_8',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(65,64,85,0,'7369_5#8','7369_5_8',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(66,64,85,0,'7369_5#8','7369_5#8',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(67,67,0,0,'7369_5#7','7369_5_7',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(68,67,89,0,'7369_5#7','7369_5_7',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(69,67,89,0,'7369_5#7','7369_5#7',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(70,70,0,0,'7369_5#6','7369_5_6',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(71,70,93,0,'7369_5#6','7369_5_6',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(72,70,93,0,'7369_5#6','7369_5#6',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(73,73,0,0,'7369_5#5','7369_5_5',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(74,73,97,0,'7369_5#5','7369_5_5',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(75,73,97,0,'7369_5#5','7369_5#5',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(76,76,0,0,'7369_5#4','7369_5_4',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(77,76,101,0,'7369_5#4','7369_5_4',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(78,76,101,0,'7369_5#4','7369_5#4',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(79,79,0,0,'7369_5#3','7369_5_3',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(80,79,105,0,'7369_5#3','7369_5_3',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(81,79,105,0,'7369_5#3','7369_5#3',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(82,82,0,0,'7369_5#2','7369_5_2',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(83,82,109,0,'7369_5#2','7369_5_2',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(84,82,109,0,'7369_5#2','7369_5#2',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL),(85,85,0,0,'7369_5#1','7369_5_1',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(86,85,113,0,'7369_5#1','7369_5_1',NULL,NULL,NULL,NULL,NULL,'pending',0,'no_qc','no_qc','unchecked',NULL,NULL,NULL,'2012-05-02 12:44:08',NULL,NULL,0,NULL),(87,85,113,0,'7369_5#1','7369_5#1',NULL,NULL,1,0,0,'pass',0,'no_qc','no_qc','unchecked',NULL,1,NULL,'2012-05-02 12:44:08',NULL,NULL,1,NULL);
 /*!40000 ALTER TABLE `lane` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -273,23 +274,26 @@ UNLOCK TABLES;
 
 DROP TABLE IF EXISTS `latest_file`;
 /*!50001 DROP VIEW IF EXISTS `latest_file`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_file` (
-  `row_id` int(10) unsigned,
-  `file_id` mediumint(8) unsigned,
-  `lane_id` mediumint(8) unsigned,
-  `name` varchar(255),
-  `hierarchy_name` varchar(255),
-  `processed` int(10),
-  `type` tinyint(4),
-  `readlen` smallint(5) unsigned,
-  `raw_reads` bigint(20) unsigned,
-  `raw_bases` bigint(20) unsigned,
-  `mean_q` float unsigned,
-  `md5` char(32),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `file_id` tinyint NOT NULL,
+  `lane_id` tinyint NOT NULL,
+  `name` tinyint NOT NULL,
+  `hierarchy_name` tinyint NOT NULL,
+  `processed` tinyint NOT NULL,
+  `type` tinyint NOT NULL,
+  `readlen` tinyint NOT NULL,
+  `raw_reads` tinyint NOT NULL,
+  `raw_bases` tinyint NOT NULL,
+  `mean_q` tinyint NOT NULL,
+  `md5` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_lane`
@@ -297,31 +301,35 @@ DROP TABLE IF EXISTS `latest_file`;
 
 DROP TABLE IF EXISTS `latest_lane`;
 /*!50001 DROP VIEW IF EXISTS `latest_lane`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_lane` (
-  `row_id` int(10) unsigned,
-  `lane_id` mediumint(8) unsigned,
-  `library_id` smallint(5) unsigned,
-  `seq_request_id` mediumint(8) unsigned,
-  `name` varchar(255),
-  `hierarchy_name` varchar(255),
-  `acc` varchar(40),
-  `readlen` smallint(5) unsigned,
-  `paired` tinyint(1),
-  `raw_reads` bigint(20) unsigned,
-  `raw_bases` bigint(20) unsigned,
-  `npg_qc_status` enum('pending','pass','fail','-'),
-  `processed` int(10),
-  `auto_qc_status` enum('no_qc','passed','failed'),
-  `qc_status` enum('no_qc','pending','passed','failed','gt_pending','investigate'),
-  `gt_status` enum('unchecked','confirmed','wrong','unconfirmed','candidate','unknown','swapped'),
-  `submission_id` smallint(5) unsigned,
-  `withdrawn` tinyint(1),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `run_date` datetime,
-  `storage_path` varchar(255),
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `lane_id` tinyint NOT NULL,
+  `library_id` tinyint NOT NULL,
+  `seq_request_id` tinyint NOT NULL,
+  `name` tinyint NOT NULL,
+  `hierarchy_name` tinyint NOT NULL,
+  `acc` tinyint NOT NULL,
+  `readlen` tinyint NOT NULL,
+  `paired` tinyint NOT NULL,
+  `raw_reads` tinyint NOT NULL,
+  `raw_bases` tinyint NOT NULL,
+  `npg_qc_status` tinyint NOT NULL,
+  `processed` tinyint NOT NULL,
+  `auto_qc_status` tinyint NOT NULL,
+  `qc_status` tinyint NOT NULL,
+  `gt_status` tinyint NOT NULL,
+  `submission_id` tinyint NOT NULL,
+  `withdrawn` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `run_date` tinyint NOT NULL,
+  `storage_path` tinyint NOT NULL,
+  `latest` tinyint NOT NULL,
+  `manually_withdrawn` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_library`
@@ -329,30 +337,33 @@ DROP TABLE IF EXISTS `latest_lane`;
 
 DROP TABLE IF EXISTS `latest_library`;
 /*!50001 DROP VIEW IF EXISTS `latest_library`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_library` (
-  `row_id` int(10) unsigned,
-  `library_id` smallint(5) unsigned,
-  `library_request_id` mediumint(8) unsigned,
-  `sample_id` smallint(5) unsigned,
-  `ssid` mediumint(8) unsigned,
-  `name` varchar(255),
-  `hierarchy_name` varchar(255),
-  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold'),
-  `auto_qc_status` enum('no_qc','passed','failed'),
-  `qc_status` enum('no_qc','pending','passed','failed'),
-  `fragment_size_from` mediumint(8) unsigned,
-  `fragment_size_to` mediumint(8) unsigned,
-  `library_type_id` smallint(5) unsigned,
-  `library_tag` smallint(5) unsigned,
-  `library_tag_group` smallint(5) unsigned,
-  `library_tag_sequence` varchar(1024),
-  `seq_centre_id` smallint(5) unsigned,
-  `seq_tech_id` smallint(5) unsigned,
-  `open` tinyint(1),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `library_id` tinyint NOT NULL,
+  `library_request_id` tinyint NOT NULL,
+  `sample_id` tinyint NOT NULL,
+  `ssid` tinyint NOT NULL,
+  `name` tinyint NOT NULL,
+  `hierarchy_name` tinyint NOT NULL,
+  `prep_status` tinyint NOT NULL,
+  `auto_qc_status` tinyint NOT NULL,
+  `qc_status` tinyint NOT NULL,
+  `fragment_size_from` tinyint NOT NULL,
+  `fragment_size_to` tinyint NOT NULL,
+  `library_type_id` tinyint NOT NULL,
+  `library_tag` tinyint NOT NULL,
+  `library_tag_group` tinyint NOT NULL,
+  `library_tag_sequence` tinyint NOT NULL,
+  `seq_centre_id` tinyint NOT NULL,
+  `seq_tech_id` tinyint NOT NULL,
+  `open` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_library_request`
@@ -360,16 +371,19 @@ DROP TABLE IF EXISTS `latest_library`;
 
 DROP TABLE IF EXISTS `latest_library_request`;
 /*!50001 DROP VIEW IF EXISTS `latest_library_request`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_library_request` (
-  `row_id` int(10) unsigned,
-  `library_request_id` mediumint(8) unsigned,
-  `sample_id` smallint(5) unsigned,
-  `ssid` mediumint(8) unsigned,
-  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold'),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `library_request_id` tinyint NOT NULL,
+  `sample_id` tinyint NOT NULL,
+  `ssid` tinyint NOT NULL,
+  `prep_status` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_mapstats`
@@ -377,55 +391,58 @@ DROP TABLE IF EXISTS `latest_library_request`;
 
 DROP TABLE IF EXISTS `latest_mapstats`;
 /*!50001 DROP VIEW IF EXISTS `latest_mapstats`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_mapstats` (
-  `row_id` int(10) unsigned,
-  `mapstats_id` mediumint(8) unsigned,
-  `lane_id` mediumint(8) unsigned,
-  `mapper_id` smallint(5) unsigned,
-  `assembly_id` smallint(5) unsigned,
-  `raw_reads` bigint(20) unsigned,
-  `raw_bases` bigint(20) unsigned,
-  `clip_bases` bigint(20) unsigned,
-  `reads_mapped` bigint(20) unsigned,
-  `reads_paired` bigint(20) unsigned,
-  `bases_mapped` bigint(20) unsigned,
-  `rmdup_reads_mapped` bigint(20) unsigned,
-  `rmdup_bases_mapped` bigint(20) unsigned,
-  `adapter_reads` bigint(20) unsigned,
-  `error_rate` float unsigned,
-  `mean_insert` float unsigned,
-  `sd_insert` float unsigned,
-  `gt_expected` varchar(40),
-  `gt_found` varchar(40),
-  `gt_ratio` float unsigned,
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1),
-  `bait_near_bases_mapped` bigint(20) unsigned,
-  `target_near_bases_mapped` bigint(20) unsigned,
-  `bait_bases_mapped` bigint(20) unsigned,
-  `mean_bait_coverage` float unsigned,
-  `bait_coverage_sd` float unsigned,
-  `off_bait_bases` bigint(20) unsigned,
-  `reads_on_bait` bigint(20) unsigned,
-  `reads_on_bait_near` bigint(20) unsigned,
-  `reads_on_target` bigint(20) unsigned,
-  `reads_on_target_near` bigint(20) unsigned,
-  `target_bases_mapped` bigint(20) unsigned,
-  `mean_target_coverage` float unsigned,
-  `target_coverage_sd` float unsigned,
-  `target_bases_1X` float unsigned,
-  `target_bases_2X` float unsigned,
-  `target_bases_5X` float unsigned,
-  `target_bases_10X` float unsigned,
-  `target_bases_20X` float unsigned,
-  `target_bases_50X` float unsigned,
-  `target_bases_100X` float unsigned,
-  `exome_design_id` smallint(5) unsigned,
-  `percentage_reads_with_transposon` float unsigned,
-  `is_qc` tinyint(1),
-  `prefix` varchar(40)
-) */;
+  `row_id` tinyint NOT NULL,
+  `mapstats_id` tinyint NOT NULL,
+  `lane_id` tinyint NOT NULL,
+  `mapper_id` tinyint NOT NULL,
+  `assembly_id` tinyint NOT NULL,
+  `raw_reads` tinyint NOT NULL,
+  `raw_bases` tinyint NOT NULL,
+  `clip_bases` tinyint NOT NULL,
+  `reads_mapped` tinyint NOT NULL,
+  `reads_paired` tinyint NOT NULL,
+  `bases_mapped` tinyint NOT NULL,
+  `rmdup_reads_mapped` tinyint NOT NULL,
+  `rmdup_bases_mapped` tinyint NOT NULL,
+  `adapter_reads` tinyint NOT NULL,
+  `error_rate` tinyint NOT NULL,
+  `mean_insert` tinyint NOT NULL,
+  `sd_insert` tinyint NOT NULL,
+  `gt_expected` tinyint NOT NULL,
+  `gt_found` tinyint NOT NULL,
+  `gt_ratio` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL,
+  `bait_near_bases_mapped` tinyint NOT NULL,
+  `target_near_bases_mapped` tinyint NOT NULL,
+  `bait_bases_mapped` tinyint NOT NULL,
+  `mean_bait_coverage` tinyint NOT NULL,
+  `bait_coverage_sd` tinyint NOT NULL,
+  `off_bait_bases` tinyint NOT NULL,
+  `reads_on_bait` tinyint NOT NULL,
+  `reads_on_bait_near` tinyint NOT NULL,
+  `reads_on_target` tinyint NOT NULL,
+  `reads_on_target_near` tinyint NOT NULL,
+  `target_bases_mapped` tinyint NOT NULL,
+  `mean_target_coverage` tinyint NOT NULL,
+  `target_coverage_sd` tinyint NOT NULL,
+  `target_bases_1X` tinyint NOT NULL,
+  `target_bases_2X` tinyint NOT NULL,
+  `target_bases_5X` tinyint NOT NULL,
+  `target_bases_10X` tinyint NOT NULL,
+  `target_bases_20X` tinyint NOT NULL,
+  `target_bases_50X` tinyint NOT NULL,
+  `target_bases_100X` tinyint NOT NULL,
+  `exome_design_id` tinyint NOT NULL,
+  `percentage_reads_with_transposon` tinyint NOT NULL,
+  `is_qc` tinyint NOT NULL,
+  `prefix` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_project`
@@ -433,17 +450,20 @@ DROP TABLE IF EXISTS `latest_mapstats`;
 
 DROP TABLE IF EXISTS `latest_project`;
 /*!50001 DROP VIEW IF EXISTS `latest_project`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_project` (
-  `row_id` int(10) unsigned,
-  `project_id` smallint(5) unsigned,
-  `ssid` mediumint(8) unsigned,
-  `name` varchar(255),
-  `hierarchy_name` varchar(255),
-  `study_id` smallint(5),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `project_id` tinyint NOT NULL,
+  `ssid` tinyint NOT NULL,
+  `name` tinyint NOT NULL,
+  `hierarchy_name` tinyint NOT NULL,
+  `study_id` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_sample`
@@ -451,18 +471,21 @@ DROP TABLE IF EXISTS `latest_project`;
 
 DROP TABLE IF EXISTS `latest_sample`;
 /*!50001 DROP VIEW IF EXISTS `latest_sample`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_sample` (
-  `row_id` int(10) unsigned,
-  `sample_id` smallint(5) unsigned,
-  `project_id` smallint(5) unsigned,
-  `ssid` mediumint(8) unsigned,
-  `name` varchar(255),
-  `hierarchy_name` varchar(40),
-  `individual_id` smallint(5) unsigned,
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `sample_id` tinyint NOT NULL,
+  `project_id` tinyint NOT NULL,
+  `ssid` tinyint NOT NULL,
+  `name` tinyint NOT NULL,
+  `hierarchy_name` tinyint NOT NULL,
+  `individual_id` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Temporary table structure for view `latest_seq_request`
@@ -470,57 +493,60 @@ DROP TABLE IF EXISTS `latest_sample`;
 
 DROP TABLE IF EXISTS `latest_seq_request`;
 /*!50001 DROP VIEW IF EXISTS `latest_seq_request`*/;
+SET @saved_cs_client     = @@character_set_client;
+SET character_set_client = utf8;
 /*!50001 CREATE TABLE `latest_seq_request` (
-  `row_id` int(10) unsigned,
-  `seq_request_id` mediumint(8) unsigned,
-  `library_id` smallint(5) unsigned,
-  `multiplex_pool_id` smallint(5) unsigned,
-  `ssid` mediumint(8) unsigned,
-  `seq_type` enum('HiSeq Paired end sequencing','Illumina-A HiSeq Paired end sequencing','Illumina-A Paired end sequencing','Illumina-A Pulldown ISC','Illumina-A Pulldown SC','Illumina-A Pulldown WGS','Illumina-A Single ended hi seq sequencing','Illumina-A Single ended sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-B Paired end sequencing','Illumina-B Single ended hi seq sequencing','Illumina-B Single ended sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Paired end sequencing','Illumina-C Single ended hi seq sequencing','Illumina-C Single ended sequencing','MiSeq sequencing','Paired end sequencing','Single ended hi seq sequencing','Single Ended Hi Seq Sequencing Control','Single ended sequencing'),
-  `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold'),
-  `note_id` mediumint(8) unsigned,
-  `changed` datetime,
-  `latest` tinyint(1)
-) */;
+  `row_id` tinyint NOT NULL,
+  `seq_request_id` tinyint NOT NULL,
+  `library_id` tinyint NOT NULL,
+  `multiplex_pool_id` tinyint NOT NULL,
+  `ssid` tinyint NOT NULL,
+  `seq_type` tinyint NOT NULL,
+  `seq_status` tinyint NOT NULL,
+  `note_id` tinyint NOT NULL,
+  `changed` tinyint NOT NULL,
+  `latest` tinyint NOT NULL
+) ENGINE=MyISAM */;
+SET character_set_client = @saved_cs_client;
 
 --
 -- Table structure for table `library`
 --
 
 DROP TABLE IF EXISTS `library`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `library` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `library_id` smallint(5) unsigned NOT NULL default '0',
-  `library_request_id` mediumint(8) unsigned NOT NULL default '0',
-  `sample_id` smallint(5) unsigned NOT NULL default '0',
-  `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) default NULL,
-  `hierarchy_name` varchar(255) NOT NULL default '',
-  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold') default 'unknown',
-  `auto_qc_status` enum('no_qc','passed','failed') default 'no_qc',
-  `qc_status` enum('no_qc','pending','passed','failed') default 'no_qc',
-  `fragment_size_from` mediumint(8) unsigned default NULL,
-  `fragment_size_to` mediumint(8) unsigned default NULL,
-  `library_type_id` smallint(5) unsigned default NULL,
-  `library_tag` smallint(5) unsigned default NULL,
-  `library_tag_group` smallint(5) unsigned default NULL,
-  `library_tag_sequence` varchar(1024) default NULL,
-  `seq_centre_id` smallint(5) unsigned default NULL,
-  `seq_tech_id` smallint(5) unsigned default NULL,
-  `open` tinyint(1) default '1',
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `library_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `library_request_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `sample_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `hierarchy_name` varchar(255) NOT NULL DEFAULT '',
+  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold') DEFAULT 'unknown',
+  `auto_qc_status` enum('no_qc','passed','failed') DEFAULT 'no_qc',
+  `qc_status` enum('no_qc','pending','passed','failed') DEFAULT 'no_qc',
+  `fragment_size_from` mediumint(8) unsigned DEFAULT NULL,
+  `fragment_size_to` mediumint(8) unsigned DEFAULT NULL,
+  `library_type_id` smallint(5) unsigned DEFAULT NULL,
+  `library_tag` smallint(5) unsigned DEFAULT NULL,
+  `library_tag_group` smallint(5) unsigned DEFAULT NULL,
+  `library_tag_sequence` varchar(1024) DEFAULT NULL,
+  `seq_centre_id` smallint(5) unsigned DEFAULT NULL,
+  `seq_tech_id` smallint(5) unsigned DEFAULT NULL,
+  `open` tinyint(1) DEFAULT '1',
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `ssid` (`ssid`),
   KEY `name` (`name`),
   KEY `hierarchy_name` (`hierarchy_name`),
   KEY `sample_id` (`sample_id`),
   KEY `library_id` (`library_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=117 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `library`
@@ -537,16 +563,16 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `library_multiplex_pool`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `library_multiplex_pool` (
-  `library_multiplex_pool_id` mediumint(8) unsigned NOT NULL auto_increment,
-  `multiplex_pool_id` smallint(5) unsigned NOT NULL default '0',
-  `library_id` smallint(5) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`library_multiplex_pool_id`),
+  `library_multiplex_pool_id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
+  `multiplex_pool_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `library_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`library_multiplex_pool_id`),
   KEY `library_multiplex_pool_id` (`library_multiplex_pool_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `library_multiplex_pool`
@@ -562,22 +588,22 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `library_request`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `library_request` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `library_request_id` mediumint(8) unsigned NOT NULL default '0',
-  `sample_id` smallint(5) unsigned NOT NULL default '0',
-  `ssid` mediumint(8) unsigned default NULL,
-  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold') default 'unknown',
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `library_request_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `sample_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `prep_status` enum('unknown','pending','started','passed','failed','cancelled','hold') DEFAULT 'unknown',
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `library_request_id` (`library_request_id`),
   KEY `ssid` (`ssid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `library_request`
@@ -593,14 +619,14 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `library_type`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `library_type` (
-  `library_type_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  PRIMARY KEY  (`library_type_id`)
+  `library_type_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`library_type_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `library_type`
@@ -616,16 +642,16 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `mapper`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `mapper` (
-  `mapper_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  `version` varchar(40) NOT NULL default '0',
-  PRIMARY KEY  (`mapper_id`),
+  `mapper_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  `version` varchar(40) NOT NULL DEFAULT '0',
+  PRIMARY KEY (`mapper_id`),
   UNIQUE KEY `name_v` (`name`,`version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `mapper`
@@ -641,61 +667,61 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `mapstats`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `mapstats` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `mapstats_id` mediumint(8) unsigned NOT NULL default '0',
-  `lane_id` mediumint(8) unsigned NOT NULL default '0',
-  `mapper_id` smallint(5) unsigned default NULL,
-  `assembly_id` smallint(5) unsigned default NULL,
-  `raw_reads` bigint(20) unsigned default NULL,
-  `raw_bases` bigint(20) unsigned default NULL,
-  `clip_bases` bigint(20) unsigned default NULL,
-  `reads_mapped` bigint(20) unsigned default NULL,
-  `reads_paired` bigint(20) unsigned default NULL,
-  `bases_mapped` bigint(20) unsigned default NULL,
-  `rmdup_reads_mapped` bigint(20) unsigned default NULL,
-  `rmdup_bases_mapped` bigint(20) unsigned default NULL,
-  `adapter_reads` bigint(20) unsigned default NULL,
-  `error_rate` float unsigned default NULL,
-  `mean_insert` float unsigned default NULL,
-  `sd_insert` float unsigned default NULL,
-  `gt_expected` varchar(40) default NULL,
-  `gt_found` varchar(40) default NULL,
-  `gt_ratio` float unsigned default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  `bait_near_bases_mapped` bigint(20) unsigned default NULL,
-  `target_near_bases_mapped` bigint(20) unsigned default NULL,
-  `bait_bases_mapped` bigint(20) unsigned default NULL,
-  `mean_bait_coverage` float unsigned default NULL,
-  `bait_coverage_sd` float unsigned default NULL,
-  `off_bait_bases` bigint(20) unsigned default NULL,
-  `reads_on_bait` bigint(20) unsigned default NULL,
-  `reads_on_bait_near` bigint(20) unsigned default NULL,
-  `reads_on_target` bigint(20) unsigned default NULL,
-  `reads_on_target_near` bigint(20) unsigned default NULL,
-  `target_bases_mapped` bigint(20) unsigned default NULL,
-  `mean_target_coverage` float unsigned default NULL,
-  `target_coverage_sd` float unsigned default NULL,
-  `target_bases_1X` float unsigned default NULL,
-  `target_bases_2X` float unsigned default NULL,
-  `target_bases_5X` float unsigned default NULL,
-  `target_bases_10X` float unsigned default NULL,
-  `target_bases_20X` float unsigned default NULL,
-  `target_bases_50X` float unsigned default NULL,
-  `target_bases_100X` float unsigned default NULL,
-  `exome_design_id` smallint(5) unsigned default NULL,
-  `percentage_reads_with_transposon` float unsigned default NULL,
-  `is_qc` tinyint(1) default '0',
-  `prefix` varchar(40) default '_',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `mapstats_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `lane_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `mapper_id` smallint(5) unsigned DEFAULT NULL,
+  `assembly_id` smallint(5) unsigned DEFAULT NULL,
+  `raw_reads` bigint(20) unsigned DEFAULT NULL,
+  `raw_bases` bigint(20) unsigned DEFAULT NULL,
+  `clip_bases` bigint(20) unsigned DEFAULT NULL,
+  `reads_mapped` bigint(20) unsigned DEFAULT NULL,
+  `reads_paired` bigint(20) unsigned DEFAULT NULL,
+  `bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `rmdup_reads_mapped` bigint(20) unsigned DEFAULT NULL,
+  `rmdup_bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `adapter_reads` bigint(20) unsigned DEFAULT NULL,
+  `error_rate` float unsigned DEFAULT NULL,
+  `mean_insert` float unsigned DEFAULT NULL,
+  `sd_insert` float unsigned DEFAULT NULL,
+  `gt_expected` varchar(40) DEFAULT NULL,
+  `gt_found` varchar(40) DEFAULT NULL,
+  `gt_ratio` float unsigned DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  `bait_near_bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `target_near_bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `bait_bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `mean_bait_coverage` float unsigned DEFAULT NULL,
+  `bait_coverage_sd` float unsigned DEFAULT NULL,
+  `off_bait_bases` bigint(20) unsigned DEFAULT NULL,
+  `reads_on_bait` bigint(20) unsigned DEFAULT NULL,
+  `reads_on_bait_near` bigint(20) unsigned DEFAULT NULL,
+  `reads_on_target` bigint(20) unsigned DEFAULT NULL,
+  `reads_on_target_near` bigint(20) unsigned DEFAULT NULL,
+  `target_bases_mapped` bigint(20) unsigned DEFAULT NULL,
+  `mean_target_coverage` float unsigned DEFAULT NULL,
+  `target_coverage_sd` float unsigned DEFAULT NULL,
+  `target_bases_1X` float unsigned DEFAULT NULL,
+  `target_bases_2X` float unsigned DEFAULT NULL,
+  `target_bases_5X` float unsigned DEFAULT NULL,
+  `target_bases_10X` float unsigned DEFAULT NULL,
+  `target_bases_20X` float unsigned DEFAULT NULL,
+  `target_bases_50X` float unsigned DEFAULT NULL,
+  `target_bases_100X` float unsigned DEFAULT NULL,
+  `exome_design_id` smallint(5) unsigned DEFAULT NULL,
+  `percentage_reads_with_transposon` float unsigned DEFAULT NULL,
+  `is_qc` tinyint(1) DEFAULT '0',
+  `prefix` varchar(40) DEFAULT '_',
+  PRIMARY KEY (`row_id`),
   KEY `mapstats_id` (`mapstats_id`),
   KEY `lane_id` (`lane_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `mapstats`
@@ -711,19 +737,19 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `multiplex_pool`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `multiplex_pool` (
-  `multiplex_pool_id` mediumint(8) unsigned NOT NULL auto_increment,
-  `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) NOT NULL default '',
-  `note_id` mediumint(8) unsigned default NULL,
-  PRIMARY KEY  (`multiplex_pool_id`),
+  `multiplex_pool_id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  PRIMARY KEY (`multiplex_pool_id`),
   UNIQUE KEY `ssid` (`ssid`),
   KEY `multiplex_pool_id` (`multiplex_pool_id`),
   KEY `name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `multiplex_pool`
@@ -739,14 +765,14 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `note`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `note` (
-  `note_id` mediumint(8) unsigned NOT NULL auto_increment,
+  `note_id` mediumint(8) unsigned NOT NULL AUTO_INCREMENT,
   `note` text,
-  PRIMARY KEY  (`note_id`)
+  PRIMARY KEY (`note_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `note`
@@ -762,14 +788,14 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `population`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `population` (
-  `population_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  PRIMARY KEY  (`population_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+  `population_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`population_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `population`
@@ -786,26 +812,26 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `project`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `project` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `project_id` smallint(5) unsigned NOT NULL default '0',
-  `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) NOT NULL default '',
-  `hierarchy_name` varchar(255) NOT NULL default '',
-  `study_id` smallint(5) default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `project_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `hierarchy_name` varchar(255) NOT NULL DEFAULT '',
+  `study_id` smallint(5) DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `project_id` (`project_id`),
   KEY `ssid` (`ssid`),
   KEY `latest` (`latest`),
   KEY `hierarchy_name` (`hierarchy_name`),
   KEY `name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `project`
@@ -822,27 +848,27 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `sample`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `sample` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `sample_id` smallint(5) unsigned NOT NULL default '0',
-  `project_id` smallint(5) unsigned NOT NULL default '0',
-  `ssid` mediumint(8) unsigned default NULL,
-  `name` varchar(255) default NULL,
-  `hierarchy_name` varchar(40) NOT NULL default '',
-  `individual_id` smallint(5) unsigned default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `sample_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `project_id` smallint(5) unsigned NOT NULL DEFAULT '0',
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `name` varchar(255) DEFAULT NULL,
+  `hierarchy_name` varchar(40) NOT NULL DEFAULT '',
+  `individual_id` smallint(5) unsigned DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `sample_id` (`sample_id`),
   KEY `ssid` (`ssid`),
   KEY `latest` (`latest`),
   KEY `project_id` (`project_id`),
   KEY `name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=88 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `sample`
@@ -859,13 +885,13 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `schema_version`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `schema_version` (
-  `schema_version` mediumint(8) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`schema_version`)
+  `schema_version` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`schema_version`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `schema_version`
@@ -873,7 +899,7 @@ SET character_set_client = @saved_cs_client;
 
 LOCK TABLES `schema_version` WRITE;
 /*!40000 ALTER TABLE `schema_version` DISABLE KEYS */;
-INSERT INTO `schema_version` VALUES (24);
+INSERT INTO `schema_version` VALUES (25);
 /*!40000 ALTER TABLE `schema_version` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -882,14 +908,14 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `seq_centre`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `seq_centre` (
-  `seq_centre_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  PRIMARY KEY  (`seq_centre_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+  `seq_centre_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`seq_centre_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `seq_centre`
@@ -906,24 +932,24 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `seq_request`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `seq_request` (
-  `row_id` int(10) unsigned NOT NULL auto_increment,
-  `seq_request_id` mediumint(8) unsigned NOT NULL default '0',
-  `library_id` smallint(5) unsigned default NULL,
-  `multiplex_pool_id` smallint(5) unsigned default NULL,
-  `ssid` mediumint(8) unsigned default NULL,
+  `row_id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `seq_request_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  `library_id` smallint(5) unsigned DEFAULT NULL,
+  `multiplex_pool_id` smallint(5) unsigned DEFAULT NULL,
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
   `seq_type` enum('HiSeq Paired end sequencing','Illumina-A HiSeq Paired end sequencing','Illumina-A Paired end sequencing','Illumina-A Pulldown ISC','Illumina-A Pulldown SC','Illumina-A Pulldown WGS','Illumina-A Single ended hi seq sequencing','Illumina-A Single ended sequencing','Illumina-B HiSeq Paired end sequencing','Illumina-B Paired end sequencing','Illumina-B Single ended hi seq sequencing','Illumina-B Single ended sequencing','Illumina-C HiSeq Paired end sequencing','Illumina-C MiSeq sequencing','Illumina-C Paired end sequencing','Illumina-C Single ended hi seq sequencing','Illumina-C Single ended sequencing','MiSeq sequencing','Paired end sequencing','Single ended hi seq sequencing','Single Ended Hi Seq Sequencing Control','Single ended sequencing') NOT NULL,
-  `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold') default 'unknown',
-  `note_id` mediumint(8) unsigned default NULL,
-  `changed` datetime NOT NULL default '0000-00-00 00:00:00',
-  `latest` tinyint(1) default '0',
-  PRIMARY KEY  (`row_id`),
+  `seq_status` enum('unknown','pending','started','passed','failed','cancelled','hold') DEFAULT 'unknown',
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  `changed` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `latest` tinyint(1) DEFAULT '0',
+  PRIMARY KEY (`row_id`),
   KEY `seq_request_id` (`seq_request_id`),
   KEY `ssid` (`ssid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `seq_request`
@@ -939,14 +965,14 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `seq_tech`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `seq_tech` (
-  `seq_tech_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  PRIMARY KEY  (`seq_tech_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+  `seq_tech_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`seq_tech_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `seq_tech`
@@ -963,16 +989,16 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `species`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `species` (
-  `species_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) NOT NULL default '',
-  `taxon_id` mediumint(8) unsigned NOT NULL default '0',
-  PRIMARY KEY  (`species_id`),
+  `species_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL DEFAULT '',
+  `taxon_id` mediumint(8) unsigned NOT NULL DEFAULT '0',
+  PRIMARY KEY (`species_id`),
   KEY `name` (`name`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `species`
@@ -989,17 +1015,17 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `study`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `study` (
-  `study_id` smallint(5) unsigned NOT NULL auto_increment,
-  `name` varchar(255) default NULL,
-  `acc` varchar(40) default NULL,
-  `ssid` mediumint(8) unsigned default NULL,
-  `note_id` mediumint(8) unsigned default NULL,
-  PRIMARY KEY  (`study_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+  `study_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) DEFAULT NULL,
+  `acc` varchar(40) DEFAULT NULL,
+  `ssid` mediumint(8) unsigned DEFAULT NULL,
+  `note_id` mediumint(8) unsigned DEFAULT NULL,
+  PRIMARY KEY (`study_id`)
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `study`
@@ -1016,17 +1042,17 @@ UNLOCK TABLES;
 --
 
 DROP TABLE IF EXISTS `submission`;
-SET @saved_cs_client     = @@character_set_client;
-SET character_set_client = utf8;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `submission` (
-  `submission_id` smallint(5) unsigned NOT NULL auto_increment,
-  `date` datetime NOT NULL default '0000-00-00 00:00:00',
-  `name` varchar(255) default NULL,
-  `acc` varchar(40) default NULL,
-  PRIMARY KEY  (`submission_id`),
+  `submission_id` smallint(5) unsigned NOT NULL AUTO_INCREMENT,
+  `date` datetime NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `name` varchar(255) DEFAULT NULL,
+  `acc` varchar(40) DEFAULT NULL,
+  PRIMARY KEY (`submission_id`),
   UNIQUE KEY `acc` (`acc`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
-SET character_set_client = @saved_cs_client;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
 --
 -- Dumping data for table `submission`
@@ -1041,81 +1067,153 @@ UNLOCK TABLES;
 -- Final view structure for view `latest_file`
 --
 
-/*!50001 DROP TABLE `latest_file`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_file`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_file`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_file` AS select `file`.`row_id` AS `row_id`,`file`.`file_id` AS `file_id`,`file`.`lane_id` AS `lane_id`,`file`.`name` AS `name`,`file`.`hierarchy_name` AS `hierarchy_name`,`file`.`processed` AS `processed`,`file`.`type` AS `type`,`file`.`readlen` AS `readlen`,`file`.`raw_reads` AS `raw_reads`,`file`.`raw_bases` AS `raw_bases`,`file`.`mean_q` AS `mean_q`,`file`.`md5` AS `md5`,`file`.`note_id` AS `note_id`,`file`.`changed` AS `changed`,`file`.`latest` AS `latest` from `file` where (`file`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_lane`
 --
 
-/*!50001 DROP TABLE `latest_lane`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_lane`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_lane`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = latin1 */;
+/*!50001 SET character_set_results     = latin1 */;
+/*!50001 SET collation_connection      = latin1_swedish_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
-/*!50001 VIEW `latest_lane` AS select `lane`.`row_id` AS `row_id`,`lane`.`lane_id` AS `lane_id`,`lane`.`library_id` AS `library_id`,`lane`.`seq_request_id` AS `seq_request_id`,`lane`.`name` AS `name`,`lane`.`hierarchy_name` AS `hierarchy_name`,`lane`.`acc` AS `acc`,`lane`.`readlen` AS `readlen`,`lane`.`paired` AS `paired`,`lane`.`raw_reads` AS `raw_reads`,`lane`.`raw_bases` AS `raw_bases`,`lane`.`npg_qc_status` AS `npg_qc_status`,`lane`.`processed` AS `processed`,`lane`.`auto_qc_status` AS `auto_qc_status`,`lane`.`qc_status` AS `qc_status`,`lane`.`gt_status` AS `gt_status`,`lane`.`submission_id` AS `submission_id`,`lane`.`withdrawn` AS `withdrawn`,`lane`.`note_id` AS `note_id`,`lane`.`changed` AS `changed`,`lane`.`run_date` AS `run_date`,`lane`.`storage_path` AS `storage_path`,`lane`.`latest` AS `latest` from `lane` where (`lane`.`latest` = 1) */;
+/*!50001 VIEW `latest_lane` AS select `lane`.`row_id` AS `row_id`,`lane`.`lane_id` AS `lane_id`,`lane`.`library_id` AS `library_id`,`lane`.`seq_request_id` AS `seq_request_id`,`lane`.`name` AS `name`,`lane`.`hierarchy_name` AS `hierarchy_name`,`lane`.`acc` AS `acc`,`lane`.`readlen` AS `readlen`,`lane`.`paired` AS `paired`,`lane`.`raw_reads` AS `raw_reads`,`lane`.`raw_bases` AS `raw_bases`,`lane`.`npg_qc_status` AS `npg_qc_status`,`lane`.`processed` AS `processed`,`lane`.`auto_qc_status` AS `auto_qc_status`,`lane`.`qc_status` AS `qc_status`,`lane`.`gt_status` AS `gt_status`,`lane`.`submission_id` AS `submission_id`,`lane`.`withdrawn` AS `withdrawn`,`lane`.`note_id` AS `note_id`,`lane`.`changed` AS `changed`,`lane`.`run_date` AS `run_date`,`lane`.`storage_path` AS `storage_path`,`lane`.`latest` AS `latest`,`lane`.`manually_withdrawn` AS `manually_withdrawn` from `lane` where (`lane`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_library`
 --
 
-/*!50001 DROP TABLE `latest_library`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_library`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_library`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_library` AS select `library`.`row_id` AS `row_id`,`library`.`library_id` AS `library_id`,`library`.`library_request_id` AS `library_request_id`,`library`.`sample_id` AS `sample_id`,`library`.`ssid` AS `ssid`,`library`.`name` AS `name`,`library`.`hierarchy_name` AS `hierarchy_name`,`library`.`prep_status` AS `prep_status`,`library`.`auto_qc_status` AS `auto_qc_status`,`library`.`qc_status` AS `qc_status`,`library`.`fragment_size_from` AS `fragment_size_from`,`library`.`fragment_size_to` AS `fragment_size_to`,`library`.`library_type_id` AS `library_type_id`,`library`.`library_tag` AS `library_tag`,`library`.`library_tag_group` AS `library_tag_group`,`library`.`library_tag_sequence` AS `library_tag_sequence`,`library`.`seq_centre_id` AS `seq_centre_id`,`library`.`seq_tech_id` AS `seq_tech_id`,`library`.`open` AS `open`,`library`.`note_id` AS `note_id`,`library`.`changed` AS `changed`,`library`.`latest` AS `latest` from `library` where (`library`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_library_request`
 --
 
-/*!50001 DROP TABLE `latest_library_request`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_library_request`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_library_request`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_library_request` AS select `library_request`.`row_id` AS `row_id`,`library_request`.`library_request_id` AS `library_request_id`,`library_request`.`sample_id` AS `sample_id`,`library_request`.`ssid` AS `ssid`,`library_request`.`prep_status` AS `prep_status`,`library_request`.`note_id` AS `note_id`,`library_request`.`changed` AS `changed`,`library_request`.`latest` AS `latest` from `library_request` where (`library_request`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_mapstats`
 --
 
-/*!50001 DROP TABLE `latest_mapstats`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_mapstats`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_mapstats`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_mapstats` AS select `mapstats`.`row_id` AS `row_id`,`mapstats`.`mapstats_id` AS `mapstats_id`,`mapstats`.`lane_id` AS `lane_id`,`mapstats`.`mapper_id` AS `mapper_id`,`mapstats`.`assembly_id` AS `assembly_id`,`mapstats`.`raw_reads` AS `raw_reads`,`mapstats`.`raw_bases` AS `raw_bases`,`mapstats`.`clip_bases` AS `clip_bases`,`mapstats`.`reads_mapped` AS `reads_mapped`,`mapstats`.`reads_paired` AS `reads_paired`,`mapstats`.`bases_mapped` AS `bases_mapped`,`mapstats`.`rmdup_reads_mapped` AS `rmdup_reads_mapped`,`mapstats`.`rmdup_bases_mapped` AS `rmdup_bases_mapped`,`mapstats`.`adapter_reads` AS `adapter_reads`,`mapstats`.`error_rate` AS `error_rate`,`mapstats`.`mean_insert` AS `mean_insert`,`mapstats`.`sd_insert` AS `sd_insert`,`mapstats`.`gt_expected` AS `gt_expected`,`mapstats`.`gt_found` AS `gt_found`,`mapstats`.`gt_ratio` AS `gt_ratio`,`mapstats`.`note_id` AS `note_id`,`mapstats`.`changed` AS `changed`,`mapstats`.`latest` AS `latest`,`mapstats`.`bait_near_bases_mapped` AS `bait_near_bases_mapped`,`mapstats`.`target_near_bases_mapped` AS `target_near_bases_mapped`,`mapstats`.`bait_bases_mapped` AS `bait_bases_mapped`,`mapstats`.`mean_bait_coverage` AS `mean_bait_coverage`,`mapstats`.`bait_coverage_sd` AS `bait_coverage_sd`,`mapstats`.`off_bait_bases` AS `off_bait_bases`,`mapstats`.`reads_on_bait` AS `reads_on_bait`,`mapstats`.`reads_on_bait_near` AS `reads_on_bait_near`,`mapstats`.`reads_on_target` AS `reads_on_target`,`mapstats`.`reads_on_target_near` AS `reads_on_target_near`,`mapstats`.`target_bases_mapped` AS `target_bases_mapped`,`mapstats`.`mean_target_coverage` AS `mean_target_coverage`,`mapstats`.`target_coverage_sd` AS `target_coverage_sd`,`mapstats`.`target_bases_1X` AS `target_bases_1X`,`mapstats`.`target_bases_2X` AS `target_bases_2X`,`mapstats`.`target_bases_5X` AS `target_bases_5X`,`mapstats`.`target_bases_10X` AS `target_bases_10X`,`mapstats`.`target_bases_20X` AS `target_bases_20X`,`mapstats`.`target_bases_50X` AS `target_bases_50X`,`mapstats`.`target_bases_100X` AS `target_bases_100X`,`mapstats`.`exome_design_id` AS `exome_design_id`,`mapstats`.`percentage_reads_with_transposon` AS `percentage_reads_with_transposon`,`mapstats`.`is_qc` AS `is_qc`,`mapstats`.`prefix` AS `prefix` from `mapstats` where (`mapstats`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_project`
 --
 
-/*!50001 DROP TABLE `latest_project`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_project`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_project`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_project` AS select `project`.`row_id` AS `row_id`,`project`.`project_id` AS `project_id`,`project`.`ssid` AS `ssid`,`project`.`name` AS `name`,`project`.`hierarchy_name` AS `hierarchy_name`,`project`.`study_id` AS `study_id`,`project`.`note_id` AS `note_id`,`project`.`changed` AS `changed`,`project`.`latest` AS `latest` from `project` where (`project`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_sample`
 --
 
-/*!50001 DROP TABLE `latest_sample`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_sample`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_sample`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_sample` AS select `sample`.`row_id` AS `row_id`,`sample`.`sample_id` AS `sample_id`,`sample`.`project_id` AS `project_id`,`sample`.`ssid` AS `ssid`,`sample`.`name` AS `name`,`sample`.`hierarchy_name` AS `hierarchy_name`,`sample`.`individual_id` AS `individual_id`,`sample`.`note_id` AS `note_id`,`sample`.`changed` AS `changed`,`sample`.`latest` AS `latest` from `sample` where (`sample`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 
 --
 -- Final view structure for view `latest_seq_request`
 --
 
-/*!50001 DROP TABLE `latest_seq_request`*/;
+/*!50001 DROP TABLE IF EXISTS `latest_seq_request`*/;
 /*!50001 DROP VIEW IF EXISTS `latest_seq_request`*/;
+/*!50001 SET @saved_cs_client          = @@character_set_client */;
+/*!50001 SET @saved_cs_results         = @@character_set_results */;
+/*!50001 SET @saved_col_connection     = @@collation_connection */;
+/*!50001 SET character_set_client      = utf8 */;
+/*!50001 SET character_set_results     = utf8 */;
+/*!50001 SET collation_connection      = utf8_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`vreseq_rw`@`%` SQL SECURITY DEFINER */
 /*!50001 VIEW `latest_seq_request` AS select `seq_request`.`row_id` AS `row_id`,`seq_request`.`seq_request_id` AS `seq_request_id`,`seq_request`.`library_id` AS `library_id`,`seq_request`.`multiplex_pool_id` AS `multiplex_pool_id`,`seq_request`.`ssid` AS `ssid`,`seq_request`.`seq_type` AS `seq_type`,`seq_request`.`seq_status` AS `seq_status`,`seq_request`.`note_id` AS `note_id`,`seq_request`.`changed` AS `changed`,`seq_request`.`latest` AS `latest` from `seq_request` where (`seq_request`.`latest` = 1) */;
+/*!50001 SET character_set_client      = @saved_cs_client */;
+/*!50001 SET character_set_results     = @saved_cs_results */;
+/*!50001 SET collation_connection      = @saved_col_connection */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
 /*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
@@ -1126,4 +1224,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2012-09-25 13:30:00
+-- Dump completed on 2015-01-29 10:56:10

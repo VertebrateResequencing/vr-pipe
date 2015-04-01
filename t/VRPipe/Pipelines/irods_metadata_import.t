@@ -201,6 +201,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'beadchip_design'         => 'HumanCoreExome-12v1-0',
         'sample_created_date'     => '2013-05-10 06:44:46',
         'sample_consent'          => '1',
+        'sample_donor_id'         => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
         'beadchip_section'        => 'R06C01',
         'irods_path'              => '/archive/GAPI/gen/infinium/17/b7/15/9300870057_R06C01.gtc',
         'taxon_id'                => '9606',

@@ -36,6 +36,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
+    use VRPipe::Schema;
+    
     around options_definition {
         return {
             %{ $self->$orig },
@@ -123,18 +125,23 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $vcf_file    = VRPipe::File->get(path => $vcf_path);
         my $output_file = VRPipe::File->get(path => $output_path);
         $output_file->update_stats_from_disc;
+        my $vrtrack              = VRPipe::Schema->create('VRTrack');
+        my $output_file_in_graph = $vrtrack->add_file($output_path);
+        $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
         
-        my $fh = $output_file->openr;
+        my $fh    = $output_file->openr;
+        my $count = 0;
+        my %pairs;
+        my $sample_source;
         while (<$fh>) {
-            next unless /^MD\s+(\S+)\s+(\S+)/;
-            my $md     = $1;
-            my $sample = $2;
-            
-            foreach my $file ($vcf_file, $output_file) {
-                $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+            if (/^MD\s+(\S+)\s+(\S+)/) {
+                my $md     = $1;
+                my $sample = $2;
+                
+                foreach my $file ($vcf_file, $output_file) {
+                    $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+                }
             }
-            
-            last;
         }
         $output_file->close;
     }

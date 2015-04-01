@@ -110,7 +110,7 @@ class VRPipe::DataElement extends VRPipe::Persistent {
     }
     
     method start_from_scratch (VRPipe::PipelineSetup $setup, ArrayRef[PositiveInt] $step_numbers?) {
-        VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $self)->start_from_scratch($step_numbers ? $step_numbers : ());
+        VRPipe::DataElementState->get(pipelinesetup => $setup, dataelement => $self)->start_from_scratch($step_numbers ? (step_numbers => $step_numbers) : ());
     }
     
     # most datasources have {result}->{paths} which contains absolute file path

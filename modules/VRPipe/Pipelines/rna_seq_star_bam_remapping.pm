@@ -47,9 +47,9 @@ class VRPipe::Pipelines::rna_seq_star_bam_remapping with VRPipe::PipelineRole {
             'sequence_dictionary', #1
             'star_buildgenome',    #2
             'bam_metadata',        #3
-            'bam_to_fastq',        #4
+            'bamtofastq',          #4
             'star_map_fastq',      #5
-            'sam_to_fixed_bam',    #6
+            'bam_to_fixed_bam',    #6
             'bam_reheader',        #7
             'bam_index',           #8
         );
@@ -60,7 +60,7 @@ class VRPipe::Pipelines::rna_seq_star_bam_remapping with VRPipe::PipelineRole {
             { from_step => 0, to_step => 3, to_key   => 'bam_files' },
             { from_step => 0, to_step => 4, to_key   => 'bam_files' },
             { from_step => 4, to_step => 5, from_key => 'fastq_files', to_key => 'fastq_files' },
-            { from_step => 5, to_step => 6, from_key => 'star_sam_files', to_key => 'sam_files' },
+            { from_step => 5, to_step => 6, from_key => 'bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 7, from_key => 'reference_dict', to_key => 'dict_file' },
             { from_step => 6, to_step => 7, from_key => 'fixed_bam_files', to_key => 'bam_files' },
             { from_step => 7, to_step => 8, from_key => 'headed_bam_files', to_key => 'bam_files' },

@@ -8,7 +8,7 @@ BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        required_exe => [qw(bamcheck bam2fastq samtools STAR)]
+        required_exe => [qw(bamcheck bamtofastq samtools STAR)]
     );
     use TestPipelines;
 }
@@ -22,7 +22,7 @@ foreach my $stepmember ($star_pipeline->step_members) {
     push(@sb_names, $stepmember->step->name);
 }
 
-is_deeply \@sb_names, [qw(sequence_dictionary star_buildgenome bam_metadata bam_to_fastq star_map_fastq sam_to_fixed_bam bam_reheader bam_index)], 'the rna_seq_star_bam_remapping pipeline has the correct steps';
+is_deeply \@sb_names, [qw(sequence_dictionary star_buildgenome bam_metadata bamtofastq star_map_fastq bam_to_fixed_bam bam_reheader bam_index)], 'the rna_seq_star_bam_remapping pipeline has the correct steps';
 
 my $ref_fasta_orig = file(qw(t data human_g1k_v37.chr20.fa));
 my $ref_dir = dir($output_dir, 'ref');
@@ -40,6 +40,7 @@ my $star_setup = VRPipe::PipelineSetup->create(
     ),
     options => {
         reference_fasta => $ref_fasta,
+        bamtofastq_opts => 'gz=0',
     },
     output_root => $output_dir
 );

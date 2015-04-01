@@ -59,6 +59,14 @@ Possible problems you may encounter in installing your missing prerequisites:
 * You will likely find that Inline::Filters fails its preprocess.t test; this is
   ok and you can manually use `cpan` to:  
   `cpan> force install Inline::Filters`
+* If you have trouble with Authen::PAM (required by Authen::Simple::PAM), you
+  may have to install it manually instead of via a non-interactive system like
+  cpan minus. Enter the build directory where it tried to build Authen::PAM,
+  then do:
+  `perl Makefile.PL`
+  `make`
+  `make test`
+  `make install`  
 * You may find that MooseX::Types::Parameterizable fails its tests. In that case
   you can manually use 'cpan' to install an earlier version that should work:  
   `cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz`
@@ -78,19 +86,6 @@ Possible problems you may encounter in installing your missing prerequisites:
   force install it:  
   `cpan> force install Class::Accessor::Grouped`  
   and then try the DBIx::Class installation again normally.
-* If you run into a problem installing XML::LibXML due to an inability to find
-  the required libs, try using your OS package management system to install it,
-  eg. for Ubuntu:  
-  `sudo apt-get install libxml-libxml-perl`
-* Likewise for XML::LibXSLT:  
-  `sudo apt-get install libxml-libxslt-perl`
-* Crypt::Random has a prerequisite of Math::Pari, which in turn requires pari-gp
-  and may have trouble finding and using it. If you encounter problems, try
-  entering the cpan build directory where it tried to build Math::Pari, then
-  do:  
-  `sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz`  
-  `sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz`  
-  `sudo make; sudo make test; sudo make install`
 * Time::Format may fail some tests with errors mentioning problems with
   Date::Manip. As long as you actually have Date::Manip installed, these
   failures are probably fine and you can force the install:  

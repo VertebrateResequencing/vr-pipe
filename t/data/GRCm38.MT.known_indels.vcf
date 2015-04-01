@@ -1,0 +1,58 @@
+##fileformat=VCFv4.1
+##samtoolsVersion=0.1.18-r572
+##reference=ftp://ftp-mouse.sanger.ac.uk/ref/GRCm38_68.fa
+##source_20130026.2=vcf-annotate(r813) -f +/D=200/d=5/q=20/w=2/a=5 (AJ,AKR,CASTEiJ,CBAJ,DBA2J,FVBNJ,LPJ,PWKPhJ,WSBEiJ)
+##source_20130026.2=vcf-annotate(r813) -f +/D=250/d=5/q=20/w=2/a=5 (129S1,BALBcJ,C3HHeJ,C57BL6NJ,NODShiLtJ,NZO,Spretus)
+##source_20130305.2=vcf-annotate(r818) -f +/D=155/d=5/q=20/w=2/a=5 (129P2)
+##source_20130304.2=vcf-annotate(r818) -f +/D=100/d=5/q=20/w=2/a=5 (129S5)
+##contig=<ID=MT,length=16299>
+##FILTER=<ID=BaseQualBias,Description="Min P-value for baseQ bias (INFO/PV4) [0]">
+##FILTER=<ID=EndDistBias,Description="Min P-value for end distance bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=GapWin,Description="Window size for filtering adjacent gaps [3]">
+##FILTER=<ID=Het,Description="Genotype call is heterozygous (low quality) []">
+##FILTER=<ID=MapQualBias,Description="Min P-value for mapQ bias (INFO/PV4) [0]">
+##FILTER=<ID=MaxDP,Description="Maximum read depth (INFO/DP or INFO/DP4) [200]">
+##FILTER=<ID=MinAB,Description="Minimum number of alternate bases (INFO/DP4) [5]">
+##FILTER=<ID=MinDP,Description="Minimum read depth (INFO/DP or INFO/DP4) [5]">
+##FILTER=<ID=MinMQ,Description="Minimum RMS mapping quality for SNPs (INFO/MQ) [20]">
+##FILTER=<ID=Qual,Description="Minimum value of the QUAL field [10]">
+##FILTER=<ID=RefN,Description="Reference base is N []">
+##FILTER=<ID=SnpGap,Description="SNP within INT bp around a gap to be filtered [2]">
+##FILTER=<ID=StrandBias,Description="Min P-value for strand bias (INFO/PV4) [0.0001]">
+##FILTER=<ID=VDB,Description="Minimum Variant Distance Bias (INFO/VDB) [0]">
+##FORMAT=<ID=DP,Number=1,Type=Integer,Description="# high-quality bases">
+##FORMAT=<ID=GL,Number=3,Type=Float,Description="Likelihoods for RR,RA,AA genotypes (R=ref,A=alt)">
+##FORMAT=<ID=GQ,Number=1,Type=Integer,Description="Genotype Quality">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+##FORMAT=<ID=PL,Number=G,Type=Integer,Description="List of Phred-scaled genotype likelihoods">
+##FORMAT=<ID=SP,Number=1,Type=Integer,Description="Phred-scaled strand bias P-value">
+##FORMAT=<ID=FI,Number=1,Type=Integer,Description="Pass(1) or fail (0) FILTER">
+##INFO=<ID=AC1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele count (no HWE assumption)">
+##INFO=<ID=AF1,Number=1,Type=Float,Description="Max-likelihood estimate of the first ALT allele frequency (assuming HWE)">
+##INFO=<ID=DP,Number=1,Type=Integer,Description="Raw read depth">
+##INFO=<ID=DP4,Number=4,Type=Integer,Description="# high-quality ref-forward bases, ref-reverse, alt-forward and alt-reverse bases">
+##INFO=<ID=INDEL,Number=0,Type=Flag,Description="Indicates that the variant is an INDEL.">
+##INFO=<ID=MDV,Number=1,Type=Integer,Description="Maximum number of high-quality non-reference bases">
+##INFO=<ID=MQ,Number=1,Type=Float,Description="RMS Mapping Quality">
+##INFO=<ID=MSD,Number=1,Type=Float,Description="Maximum depth across non-ref genotypes">
+##INFO=<ID=PV0,Number=1,Type=Float,Description="P-value for strand bias">
+##INFO=<ID=PV1,Number=1,Type=Float,Description="P-value for baseQ bias">
+##INFO=<ID=PV2,Number=1,Type=Float,Description="P-value for mapQ bias">
+##INFO=<ID=PV3,Number=1,Type=Float,Description="P-value for tail distance bias">
+##INFO=<ID=PV4,Number=4,Type=Float,Description="P-values for strand bias, baseQ bias, mapQ bias and tail distance bias">
+##INFO=<ID=QD,Number=1,Type=Float,Description="Quality By Depth">
+##INFO=<ID=SB,Number=1,Type=Float,Description="Strand Bias">
+##INFO=<ID=VDB,Number=1,Type=Float,Description="Variant Distance Bias">
+##INFO=<ID=AC,Number=.,Type=Integer,Description="Allele count in genotypes">
+##INFO=<ID=AN,Number=1,Type=Integer,Description="Total number of alleles in called genotypes">
+##INFO=<ID=CSQ,Number=.,Type=String,Description="Consequence of the ALT alleles from Ensembl 70 VEP v2.8, format transcriptId:geneName:consequence[:codingSeqPosition:proteinPosition:proteinAlleles:proteinPredictions]+...[+gerpScore]">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO	FORMAT	129P2	129S1	129S5	AJ	AKRJ	BALBcJ	C3HHeJ	C57BL6NJ	CASTEiJ	CBAJ	DBA2J	FVBNJ	LPJ	NODShiLtJ	NZOHlLtJ	PWKPhJ	SPRETEiJ	WSBEiJ
+MT	10019	.	G	GA	40.49	Qual;MinAB;MinDP	AC1=1;AC=36;AF1=1;AN=36;DP4=0,0,71,0;DP=75;INDEL;MQ=29;VDB=0.0006	GT:GQ:DP:SP:PL:FI	1/1:68:2:0:53,6,0:0	1/1:99:6:0:103,18,0:1	1/1:99:3:0:72,9,0:1	1/1:99:3:0:69,9,0:0	1/1:99:3:0:69,9,0:0	1/1:78:3:0:58,9,0:0	1/1:99:6:0:108,18,0:1	1/1:99:5:0:98,15,0:1	1/1:90:3:0:64,9,0:0	1/1:99:6:0:104,18,0:1	1/1:90:3:0:64,9,0:0	1/1:34:2:0:36,6,0:0	1/1:99:4:0:81,12,0:0	1/1:99:4:0:75,12,0:0	1/1:99:4:0:75,12,0:0	1/1:99:4:0:85,12,0:0	1/1:99:5:0:91,15,0:1	1/1:99:5:0:95,15,0:1
+MT	70112	.	TTTTTTTTTTTTG	T	29.50	PASS	AC1=1;AC=2;AF1=0.5718;AN=2;DP4=0,1,5,0;DP=16;INDEL;MDV=96;MQ=27;MSD=6;PV0=0.17;PV1=1;PV2=0.35;PV3=1;PV4=0.17,1,0.35,1;QD=2.0278;SB=0.1250;VDB=0.0198	GT:GQ:DP:SP:PL:FI	.	.	.	.	.	.	.	.	.	1/1:96:6:0:73,0,6:1	.	.	.	.	.	.	.	.
+MT	80113	.	TTTTTTTTTTTG	T	38.50	PASS	AC1=1;AC=2;AF1=1;AN=2;DP4=1,0,6,0;DP=20;INDEL;MDV=99;MQ=25;MSD=7;PV0=1;PV1=1;PV2=0.29;PV3=1;PV4=1,1,0.29,1;QD=0.0000;SB=0.1071;VDB=0.0225	GT:GQ:DP:SP:PL:FI	.	.	.	.	.	.	1/1:99:7:0:76,0,0:1	.	.	.	.	.	.	.	.	.	.	.
+MT	90258	.	G	GT	26.50	PASS	AC1=1;AC=2;AF1=1;AN=2;DP4=1,0,19,5;DP=31;INDEL;MDV=90;MQ=51;MSD=25;PV0=1;PV1=1;PV2=0.24;PV3=0.24;PV4=1,1,0.24,0.24;QD=0.0381;SB=0.2250;VDB=0.0399	GT:GQ:DP:SP:PL:FI	.	.	.	.	.	.	.	.	.	.	.	.	.	.	.	.	.	1/1:90:25:0:64,61,0:1
+MT	103640	.	CGGGGG	C,CG,CGGGGGG,CGGGGGGG,CGGGGGGGG	134.47	Qual;Het	AC1=1;AC=16,4,9,2,1;AF1=1;AN=32;DP4=9,2,184,203;DP=662;INDEL;MDV=21;MQ=45;MSD=11;PV0=1;PV1=1;PV2=1;PV3=0.1;PV4=1,1,1,0.1;QD=0.0408;SB=0.3125;VDB=0.0329	GT:GQ:DP:SP:PL:FI	1/1:99:11:0:255,33,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:37:0:255,111,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:13:0:224,39,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	.	1/1:99:37:0:255,111,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	3/3:21:11:0:.,.,29,.,.,.,.,13,.,0,.,.,.,.,.,.,.,.,.,.,.:0	4/3:4:6:0:.,.,23,.,.,.,.,19,.,15,.,7,.,0,5,.,.,.,.,.,.:0	3/3:38:14:0:.,.,38,.,.,.,.,13,.,0,.,.,.,.,.,.,.,.,.,.,.:0	2/2:99:40:0:.,.,.,.,.,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	3/3:7:6:0:.,.,22,.,.,.,.,8,.,0,.,.,.,.,.,.,.,.,.,.,.:0	1/1:99:36:0:255,108,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:54:0:255,163,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:37:0:255,111,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:36:0:255,108,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	3/3:17:13:3:.,.,27,.,.,.,.,14,.,0,.,19,.,3,16,.,.,.,.,.,.:0	2/2:99:39:0:.,.,.,.,.,0,.,.,.,.,.,.,.,.,.,.,.,.,.,.,.:1	.	4/5:52:8:0:.,.,73,.,.,.,.,.,.,.,.,30,.,.,28,.,41,.,.,0,45:0
+MT	116759	.	GAAAAAA	G,GAAAA,GAAAAA	38.32	Qual;MinAB;GapWin	AC1=1;AC=2,6,2;AF1=1;AN=10;DP4=0,0,14,23;DP=149;INDEL;MQ=57;VDB=0.0388	GT:GQ:DP:SP:PL:FI	.	.	.	.	.	.	2/2:70:8:0:.,.,.,.,.,0,.,.,.,.:1	.	2/2:19:4:0:.,.,.,.,.,0,.,.,4,26:0	2/2:99:10:0:.,.,.,.,.,0,.,.,.,.:1	.	3/3:3:6:0:.,.,.,.,.,.,.,.,.,0:0	.	.	.	.	1/1:99:9:0:180,27,0,.,.,.,.,.,.,.:1	.
+MT	120820	rs262198177	CGGG	CCAGGG,CG,C,CGGGGGG,CGGGGG	89.77	Qual;MinAB;GapWin;Het	AC1=1;AC=16,2,2,1,1;AF1=1;AN=22;DP4=0,0,191,151;DP=407;INDEL;MQ=51;VDB=0.0382	GT:GQ:DP:SP:PL:FI	1/1:99:19:0:.,.,0,.,.,.,.,54,.,99,.,.,.,.,.,.,.,.,.,.,.:0	1/1:99:40:0:.,.,0,.,.,.,.,120,.,152,.,.,.,.,.,.,.,.,.,.,.:1	1/1:90:7:0:.,.,0,.,.,.,.,18,.,64,.,.,.,.,.,.,.,.,.,.,.:1	.	1/1:99:45:0:.,.,0,.,.,.,.,135,.,144,.,.,.,.,.,.,.,.,.,.,.:0	.	.	.	3/3:99:30:0:230,.,.,.,.,.,90,.,.,0,.,.,.,.,.,.,.,.,.,.,.:1	.	1/1:99:40:0:.,.,0,.,.,.,.,111,.,142,.,.,.,.,.,.,.,.,.,.,.:0	1/1:99:56:0:.,.,0,.,.,.,.,157,.,119,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:35:0:.,.,0,.,.,.,.,105,.,154,.,.,.,.,.,.,.,.,.,.,.:1	1/1:99:45:0:.,.,0,.,.,.,.,135,.,135,.,.,.,.,.,.,.,.,.,.,.:1	4/5:32:4:0:.,.,.,.,.,.,.,.,.,57,.,.,.,28,22,.,.,.,37,0,30:0	2/2:99:21:0:124,.,.,60,.,0,124,.,47,121,.,.,.,.,.,.,.,.,.,.,.:1	.	.
+MT	132985	.	A	AT,ATT	77.86	Qual	AC1=1;AC=20,2;AF1=1;AN=22;DP4=0,0,72,83;DP=351;INDEL;MQ=50;VDB=0.0355	GT:GQ:DP:SP:PL:FI	1/1:99:10:0:97,30,0,.,.,.:1	1/1:99:19:0:126,57,0,.,.,.:1	1/1:56:4:0:47,12,0,.,.,.:0	.	1/1:99:17:0:110,51,0,.,.,.:1	.	.	.	1/1:99:15:0:114,45,0,.,.,.:1	.	1/1:99:10:0:88,30,0,.,.,.:1	1/1:99:24:0:124,72,0,.,.,.:1	1/1:99:13:0:107,39,0,.,.,.:1	1/1:99:14:0:114,42,0,.,.,.:1	.	1/1:99:13:0:107,39,0,.,.,.:1	2/2:99:16:0:235,.,.,45,.,0:1	.
+MT	143135	.	G	GTCT	192.44	MinAB;GapWin	AC1=1;AC=16;AF1=1;AN=16;DP4=0,0,115,116;DP=257;INDEL;MQ=51;VDB=0.0389	GT:GQ:DP:SP:PL:FI	1/1:99:32:0:255,96,0:0	1/1:99:37:0:255,111,0:1	1/1:78:2:0:58,6,0:0	.	1/1:99:22:0:255,66,0:1	.	.	.	.	.	1/1:99:43:0:255,129,0:1	1/1:99:52:0:255,157,0:1	1/1:99:22:0:255,66,0:1	1/1:99:21:0:255,63,0:1	.	.	.	.

@@ -1,0 +1,75 @@
+.loader {
+    background-image: url(data:image/gif;base64,R0lGODlhEAALAPQAAP///0pISOTk5N3d3e/v705MTEpISGpoaKalpY6MjM3NzWJgYH59fauqqpCPj9DQ0GRjY0xKSoF/f+zs7OPi4vb29nFwcOXl5fX19crKyru6utnY2PLy8gAAAAAAAAAAACH/C05FVFNDQVBFMi4wAwEAAAAh/hpDcmVhdGVkIHdpdGggYWpheGxvYWQuaW5mbwAh+QQJCwAAACwAAAAAEAALAAAFLSAgjmRpnqSgCuLKAq5AEIM4zDVw03ve27ifDgfkEYe04kDIDC5zrtYKRa2WQgAh+QQJCwAAACwAAAAAEAALAAAFJGBhGAVgnqhpHIeRvsDawqns0qeN5+y967tYLyicBYE7EYkYAgAh+QQJCwAAACwAAAAAEAALAAAFNiAgjothLOOIJAkiGgxjpGKiKMkbz7SN6zIawJcDwIK9W/HISxGBzdHTuBNOmcJVCyoUlk7CEAAh+QQJCwAAACwAAAAAEAALAAAFNSAgjqQIRRFUAo3jNGIkSdHqPI8Tz3V55zuaDacDyIQ+YrBH+hWPzJFzOQQaeavWi7oqnVIhACH5BAkLAAAALAAAAAAQAAsAAAUyICCOZGme1rJY5kRRk7hI0mJSVUXJtF3iOl7tltsBZsNfUegjAY3I5sgFY55KqdX1GgIAIfkECQsAAAAsAAAAABAACwAABTcgII5kaZ4kcV2EqLJipmnZhWGXaOOitm2aXQ4g7P2Ct2ER4AMul00kj5g0Al8tADY2y6C+4FIIACH5BAkLAAAALAAAAAAQAAsAAAUvICCOZGme5ERRk6iy7qpyHCVStA3gNa/7txxwlwv2isSacYUc+l4tADQGQ1mvpBAAIfkECQsAAAAsAAAAABAACwAABS8gII5kaZ7kRFGTqLLuqnIcJVK0DeA1r/u3HHCXC/aKxJpxhRz6Xi0ANAZDWa+kEAA7AAAAAAAAAAAA);
+    height: 11px;
+    width: 16px;
+}
+
+.popover_thumb {
+    max-width: 200px;
+    max-height: 200px;
+}
+
+.toolbar-with-whitespace {
+    margin-top: 15px;
+    margin-bottom: 20px;
+}
+
+.setup {
+    width: 263px;
+    margin-bottom: 15px;
+    overflow: hidden;
+}
+
+.stds {
+    border: 1px solid #e3e3e3;
+    overflow: auto;
+}
+
+.badge.setup_hole {
+    background-color: #f5f5f5;
+    color: black;
+    border: 1px solid #e3e3e3;
+    border-radius: 7px;
+}
+
+.setup_hole.user {
+    font-weight: normal;
+}
+
+.pipeline_name {
+    margin-top: 5px;
+    padding-left: 5px;
+    padding-right: 5px;
+}
+
+.top-margin {
+    margin-top: 5px;
+}
+
+.img_thumb {
+    width: 100px;
+    height: 100px;
+}
+.img_thumb_big {
+    width: 350px;
+    height: 350px;
+}
+
+dl {
+    border: 3px double #ccc;
+    padding: 0.5em;
+}
+dt {
+    float: left;
+    clear: left;
+    width: 100px;
+    text-align: right;
+    font-weight: bold;
+}
+dt:after {
+    content: ": ";
+}
+dd {
+    margin: 0 0 0 110px;
+    padding: 0 0 0.5em 0;
+}

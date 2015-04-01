@@ -55,7 +55,7 @@ class VRPipe::Steps::bam_mark_duplicates extends VRPipe::Steps::picard {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'picard',
                     version => $self->picard_version(),
-                    summary => 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ' . $markdup_opts
+                    summary => 'java $jvm_args -jar ' . $markdup_jar . ' INPUT=$bam_file OUTPUT=$markdup_bam_file ' . $markdup_opts
                 )
             );
             

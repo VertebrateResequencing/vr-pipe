@@ -86,7 +86,7 @@ class VRPipe::Persistent::SchemaBase extends (DBIx::Class::Schema, VRPipe::Base:
         my $dbtype = $class->get_dbtype;
         $args->{sqlite_use_immediate_transaction} = 1 if $dbtype =~ /sqlite/i;
         
-        $class->SUPER::connect($dsn, $user, $pass, $args);
+        $class->SUPER::connect($dsn, $user, $pass, $args, { on_connect_do => 'SET SESSION wait_timeout=60' });
     }
     
     method database_deployment (ClassName $class: Str $set?) {
