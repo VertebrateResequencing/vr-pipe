@@ -204,9 +204,8 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $output_file = VRPipe::File->get(path => file($output));
-        my $R_script    = $output_file->dir . "/${sample}_model.r";
-        my $R_file      = VRPipe::File->get(path => file($R_script));
-        if ($R_file->e) {
+        my $R_script = $output_file->dir . "/${sample}_model.r";
+        if (-e "$R_script") {
             my $this_cmd = $self->r_cmd_prefix . " $R_script";
             $input_bam->disconnect;
             system($this_cmd) && $self->throw("failed to run [$this_cmd]");
