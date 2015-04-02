@@ -91,7 +91,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return 15;
     }
     
-    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!, Str|File :$samtools_for_cram_to_bam?) {
+    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args?) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -122,7 +122,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
             my $irods_file = join('/', ($path, $filename));
             
-            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum, $samtools_for_cram_to_bam ? (samtools_for_cram_to_bam => $samtools_for_cram_to_bam) : ());
+            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum, $samtools_for_cram_to_bam ? (samtools_for_cram_to_bam => $samtools_for_cram_to_bam) : (), $iget_args ? (iget_args => $iget_args) : ());
         }
         else {
             $self->throw("A file with basename $basename could not be found in iRods zone $zone");
@@ -138,7 +138,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?, Str|File :$samtools_for_cram_to_bam?) {
+    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args = '-K -f') {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -154,14 +154,17 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $failed;
         my $converted_cram_to_bam = 0;
         if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
-            $failed                = $self->run_irods_command("$iget $source - | $samtools_for_cram_to_bam view -b - > $dest");
+            $iget_args =~ s/-?[Kf]//g;                             #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
+            $iget_args =~ s/^\s+//;
+            $iget_args =~ s/\s+$//;
+            $failed                = $self->run_irods_command("$iget $iget_args $source - | $samtools_for_cram_to_bam view -b - > $dest");
             $converted_cram_to_bam = 1;
         }
         else {
             # -K: checksum
             # -Q: use UDP rather than TCP
             # -f: force overwrite
-            $failed = $self->run_irods_command("$iget -K -f $source $dest");
+            $failed = $self->run_irods_command("$iget $iget_args $source $dest");
         }
         
         $dest_file->update_stats_from_disc;

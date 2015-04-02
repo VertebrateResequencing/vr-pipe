@@ -50,6 +50,11 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                 description   => "when getting a cram file from irods, convert it to a bam file; 0 turns this off, the absolute path to a samtools v1+ executable turns this on",
                 optional      => 1,
                 default_value => 0
+            ),
+            iget_args => VRPipe::StepOption->create(
+                description   => 'optional argument to iget when retrieving files',
+                optional      => 1,
+                default_value => '-K -f'
             )
         };
     }
@@ -76,6 +81,7 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
             my $opts             = $self->options;
             my $zone             = $opts->{irods_get_zone};
             my $iget             = $opts->{iget_exe};
+            my $iget_args        = $opts->{iget_args} || '';
             my $iquest           = $opts->{iquest_exe};
             my $ichksum          = $opts->{ichksum_exe};
             my $samtools         = $opts->{irods_convert_cram_to_bam};
@@ -97,6 +103,10 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                         $extra       = ", samtools_for_cram_to_bam => q[$samtools]";
                     }
                     my $dest = $self->output_file(output_key => 'local_files', output_dir => $file->dir, basename => $output_basename, type => $output_type, metadata => $meta)->path;
+                    
+                    if ($iget_args) {
+                        $extra .= ", iget_args => q[$iget_args]";
+                    }
                     
                     # if we have the full irods path, get the file directly,
                     # otherwise search for it by basename
