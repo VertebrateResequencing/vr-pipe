@@ -192,7 +192,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                     
                     if ($targets_mode) {
                         foreach my $cov (1, 2, 5, 10, 20, 50, 100) {
-                            $meta->{"targeted_bases_of_${cov}X_coverage"} = $graph->node_property($stats_node, "bases of ${$cov}X coverage");
+                            $meta->{"targeted_bases_of_${cov}X_coverage"} = $graph->node_property($stats_node, "bases of ${cov}X coverage");
                         }
                         #*** not sure what these look like in the samtools stats file
                         # $meta->{targeted_mean_coverage} = $graph->node_property($stats_node, '');

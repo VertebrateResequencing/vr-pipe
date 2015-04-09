@@ -55,6 +55,10 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                 description   => 'optional argument to iget when retrieving files',
                 optional      => 1,
                 default_value => '-K -f'
+            ),
+            ichksum_args => VRPipe::StepOption->create(
+                description => 'optional argument to ichksum when retrieving files',
+                optional    => 1,
             )
         };
     }
@@ -82,6 +86,7 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
             my $zone             = $opts->{irods_get_zone};
             my $iget             = $opts->{iget_exe};
             my $iget_args        = $opts->{iget_args} || '';
+            my $ichksum_args     = $opts->{ichksum_args} || '';
             my $iquest           = $opts->{iquest_exe};
             my $ichksum          = $opts->{ichksum_exe};
             my $samtools         = $opts->{irods_convert_cram_to_bam};
@@ -106,6 +111,9 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                     
                     if ($iget_args) {
                         $extra .= ", iget_args => q[$iget_args]";
+                    }
+                    if ($ichksum_args) {
+                        $extra .= ", ichksum_args => q[$ichksum_args]";
                     }
                     
                     # if we have the full irods path, get the file directly,

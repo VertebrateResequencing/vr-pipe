@@ -91,7 +91,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return 15;
     }
     
-    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args?) {
+    method get_file_by_basename (ClassName|Object $self: Str :$basename!, Str|File :$dest!, Str :$zone = 'seq', Str|File :$iget!, Str|File :$iquest!, Str|File :$ichksum!, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args?, Str :$ichksum_args?) {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
@@ -122,30 +122,30 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
             my $irods_file = join('/', ($path, $filename));
             
-            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum, $samtools_for_cram_to_bam ? (samtools_for_cram_to_bam => $samtools_for_cram_to_bam) : (), $iget_args ? (iget_args => $iget_args) : ());
+            $self->get_file(source => $irods_file, dest => $dest_file->path, iget => $iget, ichksum => $ichksum, $samtools_for_cram_to_bam ? (samtools_for_cram_to_bam => $samtools_for_cram_to_bam) : (), $iget_args ? (iget_args => $iget_args) : (), $ichksum_args ? (ichksum_args => $ichksum_args) : ());
         }
         else {
             $self->throw("A file with basename $basename could not be found in iRods zone $zone");
         }
     }
     
-    method get_file_md5 (ClassName|Object $self: Str :$file!, Str|File :$ichksum!) {
-        my ($chksum) = $self->open_irods_command("$ichksum $file");
-        my ($md5)    = $chksum =~ m/\b([0-9a-f]{32})\b/i;          # 32 char MD5 hex string
+    method get_file_md5 (ClassName|Object $self: Str :$file!, Str|File :$ichksum!, Str :$ichksum_args!) {
+        my ($chksum) = $self->open_irods_command("$ichksum $ichksum_args $file");
+        my ($md5)    = $chksum =~ m/\b([0-9a-f]{32})\b/i;                        # 32 char MD5 hex string
         unless ($md5) {
-            $self->throw("Could not determine md5 of $file in IRODS ('$ichksum $file' returned '$chksum'; aborted");
+            $self->throw("Could not determine md5 of $file in IRODS ('$ichksum $ichksum_args $file' returned '$chksum'; aborted");
         }
         return $md5;
     }
     
-    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args = '-K -f') {
+    method get_file (ClassName|Object $self: Str :$source!, Str|File :$dest!, Str|File :$iget!, Str|File :$ichksum!, Bool :$add_metadata?, Str|File :$imeta?, Str|File :$samtools_for_cram_to_bam?, Str :$iget_args = '-K -f', Str :$ichksum_args = '') {
         my $dest_file = VRPipe::File->get(path => $dest);
         $dest_file->disconnect;
         
         # before we go fetch a file, check the md5 matches what we're expecting
-        my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum);
+        my $irodschksum = $self->get_file_md5(file => $source, ichksum => $ichksum, ichksum_args => $ichksum_args);
         my $expected_md5 = $dest_file->metadata->{expected_md5} || $irodschksum;
-        $expected_md5 = $irodschksum if ref($expected_md5);        # if we have multiple expected_md5 in an array ref, it can't really be the expected md5 of this file
+        $expected_md5 = $irodschksum if ref($expected_md5);                      # if we have multiple expected_md5 in an array ref, it can't really be the expected md5 of this file
         unless ($irodschksum eq $expected_md5) {
             $dest_file->unlink;
             $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
@@ -154,7 +154,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $failed;
         my $converted_cram_to_bam = 0;
         if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
-            $iget_args =~ s/-?[Kf]//g;                             #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
+            $iget_args =~ s/-?[Kf]//g;                                           #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
             $iget_args =~ s/^\s+//;
             $iget_args =~ s/\s+$//;
             $failed                = $self->run_irods_command("$iget $iget_args $source - | $samtools_for_cram_to_bam view -b - > $dest");
