@@ -104,10 +104,9 @@ class VRPipe::Pipelines::bam_2015_vrtrack_processing_no_recal with VRPipe::Pipel
     
     method behaviour_definitions {
         (
-            { after_step => 11, behaviour => 'delete_outputs', act_on_steps => [2],  regulated_by => 'delete_imported_bam', default_regulation => 1 },
-            { after_step => 11, behaviour => 'delete_outputs', act_on_steps => [9],  regulated_by => 'delete_imported_bam', default_regulation => 1 },
-            { after_step => 12, behaviour => 'delete_outputs', act_on_steps => [11], regulated_by => 'cleanup',             default_regulation => 1 },
-            { after_step => 13, behaviour => 'delete_outputs', act_on_steps => [12], regulated_by => 'cleanup',             default_regulation => 1 },
+            { after_step => 11, behaviour => 'delete_outputs', act_on_steps => [2, 9], regulated_by => 'delete_imported_bam', default_regulation => 1 },
+            { after_step => 12, behaviour => 'delete_outputs', act_on_steps => [11], regulated_by => 'cleanup', default_regulation => 1 },
+            { after_step => 13, behaviour => 'delete_outputs', act_on_steps => [12], regulated_by => 'cleanup', default_regulation => 1 },
             { after_step => 21, behaviour => 'delete_outputs', act_on_steps => [17, 18], regulated_by => 'cleanup', default_regulation => 1 }
         );
     }
