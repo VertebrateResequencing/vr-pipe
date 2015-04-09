@@ -504,10 +504,11 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->update;
         }
         
-        my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
-        while (my ($ss_id, $ss) = each %stepstates) {
-            $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id);
-        }
+        #*** removed the debugging below to triple the speed
+        # my %stepstates = map { $_->stepstate->id => $_->stepstate } VRPipe::StepOutputFile->search({ file => $self->id });
+        # while (my ($ss_id, $ss) = each %stepstates) {
+        #     $ss->pipelinesetup->log_event("File->remove() called for StepOutputFile $path, " . ($worked ? 'and it worked' : 'but it failed'), dataelement => $ss->dataelement->id, stepstate => $ss->id);
+        # }
         
         return $worked;
     }
