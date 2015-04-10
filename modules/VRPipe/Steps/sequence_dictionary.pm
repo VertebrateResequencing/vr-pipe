@@ -147,7 +147,7 @@ class VRPipe::Steps::sequence_dictionary with VRPipe::StepRole {
         # Create a symlink to our just created file to replace this. This will prevent
         # runs where many GATK jobs start at once and all want to create this file.
         my $symlink_path = $ref;
-        $symlink_path =~ s/fa(sta)?(\.gz)?$/dict/;
+        $symlink_path =~ s/f(n)?a(sta)?(\.gz)?$/dict/;
         my $dict_symlink = VRPipe::File->create(path => $symlink_path);
         if (-s $symlink_path && !(-l $symlink_path)) {
             $dict_symlink->unlink;
