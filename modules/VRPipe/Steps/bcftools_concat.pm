@@ -59,7 +59,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 default_value => 0
             ),
             post_concat_opts => VRPipe::StepOption->create(
-                description => 'after vcf-concat, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
+                description => 'after bcftools concat, option to pipe output vcf through another command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
                 optional    => 1
             ),
             tabix_exe => VRPipe::StepOption->create(
@@ -77,9 +77,10 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 max_files   => -1,
                 description => 'vcf files to concat',
                 metadata    => {
-                    chrom => 'chromosome',
-                    from  => 'region start',
-                    to    => 'region end'
+                    chrom    => 'chromosome',
+                    from     => 'region start',
+                    to       => 'region end',
+                    optional => ['chrom', 'from', 'to']
                 }
             )
         };
@@ -105,11 +106,11 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
             my $filter = $post_filter   ? " | $post_filter" : '';
             my $req = $self->new_requirements(memory => 5000, time => 1);
             
-            if ($merge_by_chr) {
-                my %seen;
-                my @meta_chrs = map  { $_->metadata->{chrom} } @{ $self->inputs->{vcf_files} };
-                my @chrs      = grep { !$seen{$_}++ } @meta_chrs;
-                foreach my $chr (@chrs) {
+            my %seen;
+            my @chroms = map { $_->metadata->{chrom} ? $_->metadata->{chrom} : () } @{ $self->inputs->{vcf_files} };
+            my @uniq_chroms = grep { !$seen{$_}++ } @chroms;
+            if ($merge_by_chr && @uniq_chroms) {
+                foreach my $chr (@uniq_chroms) {
                     my @vcf_files = ();
                     foreach my $vcf_file (@{ $self->inputs->{vcf_files} }) {
                         if ($vcf_file->metadata->{chrom} eq $chr) {
@@ -130,8 +131,13 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
             }
             else {
                 my $merge_list = $self->output_file(basename => "merge_list.txt", type => 'txt', temporary => 1);
-                my @sorted_vcf_files = sort { $a->metadata->{chrom} <=> $b->metadata->{chrom} || $a->metadata->{from} <=> $b->metadata->{from} } @{ $self->inputs->{vcf_files} };
-                $merge_list->create_fofn(\@sorted_vcf_files);
+                if (@chroms) {
+                    my @sorted_vcf_files = sort { $a->metadata->{chrom} <=> $b->metadata->{chrom} || $a->metadata->{from} <=> $b->metadata->{from} } @{ $self->inputs->{vcf_files} };
+                    $merge_list->create_fofn(\@sorted_vcf_files);
+                }
+                else {
+                    $merge_list->create_fofn($self->inputs->{vcf_files});
+                }
                 my $concat_meta     = $self->common_metadata($self->inputs->{vcf_files});
                 my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
                 my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.tbi", type => 'bin');
