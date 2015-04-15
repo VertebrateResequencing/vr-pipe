@@ -208,7 +208,23 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
                         # store reads metadata on the file for compatibility
                         # with old steps
                         if ($1 eq 'raw total sequences') {
-                            $bam_file->add_metadata({ reads => $2 });
+                            my $stats_reads = $2;
+                            
+                            # if in targets mode we can't use this and will
+                            # have to call samtools view -c if we don't
+                            # already have reads metadata set
+                            if ($cmd_line =~ /\s-t /) {
+                                if (!$bam_file->meta_value('reads')) {
+                                    my $actual_reads = $bam_file->num_records;
+                                    $bam_file->add_metadata({ reads => $actual_reads });
+                                }
+                                
+                                $stats{'raw total sequences'}      = $bam_file->meta_value('reads');
+                                $stats{'targeted total sequences'} = $stats_reads;
+                            }
+                            else {
+                                $bam_file->add_metadata({ reads => $stats_reads });
+                            }
                         }
                     }
                 }
