@@ -37,7 +37,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
+class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
     use Digest::MD5 qw(md5_hex);
     use VRPipe::Schema;
     
@@ -197,7 +197,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         
         # create the elements
         my @element_args;
-        my %result_to_linkargs;
+        $self->{result_to_linkargs} = {};
         foreach my $result (@{ $self->_all_results(%args, complete_elements => 1) }) {
             if ($filter || $graph_filter) {
                 next unless $result->{pass_filter};
@@ -207,16 +207,27 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 $res->{lane}  = $result->{result}->{lane}  if (exists $result->{result}->{lane});
                 $res->{group} = $result->{result}->{group} if (exists $result->{result}->{group});
             }
-            push @element_args, { datasource => $self->_datasource_id, result => $res };
             
-            $result_to_linkargs{ _res_to_str($res) } = { pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id} };
+            # in order to later lookup which parent element created which
+            # element, we convert $res to a string representing the files and
+            # keyvals in the element we want to create, and use that as the
+            # linking key. However we need to cope with a child class overriding
+            # _create_elements() and adding keyvals to $res, which would
+            # invalidate the lookup. To get around this, we also temporarily
+            # store the lookup in the element_args and adjust things if
+            # necessary in our own override of _create_elements(). We do have to
+            # hope that no child class deletes our lookup key from the element
+            # args!
+            my $res_to_str = $self->_res_to_str($res);
+            push @element_args, { datasource => $self->_datasource_id, result => $res, lookup => $res_to_str };
+            $self->{result_to_linkargs}->{$res_to_str} = { pipelinesetup => $result->{parent}->{setup_id}, parent => $result->{parent}->{element_id} };
         }
         $self->_create_elements(\@element_args);
         
         # create corresponding dataelementlinks
         my @link_args;
         my %result_to_eid = map { $_->[0] . '|' . $_->[1] => $_->[2] } @{ VRPipe::DataElement->get_column_values(['filelist', 'keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
-        while (my ($res, $linkargs) = each %result_to_linkargs) {
+        while (my ($res, $linkargs) = each %{ $self->{result_to_linkargs} }) {
             my $child = $result_to_eid{$res} || $self->throw("No DataElement was created for result $res?");
             push(@link_args, { %$linkargs, child => $child });
             
@@ -224,6 +235,8 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
                 push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child });
             }
         }
+        delete $self->{result_to_linkargs};
+        
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
@@ -244,19 +257,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         $self->_create_elements([{ datasource => $self->_datasource_id, result => { paths => \@paths }, withdrawn => 0 }]);
         
         # create corresponding dataelementlinks
-        my $child = VRPipe::DataElement->get(datasource => $self->_datasource_id, result => { paths => \@paths });
+        my @children = VRPipe::DataElement->search({ datasource => $self->_datasource_id, withdrawn => 0 });
         my @link_args;
         foreach my $parent (@parents) {
-            push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child->id });
+            foreach my $child (@children) {
+                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child->id });
+            }
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
-    }
-    
-    sub _res_to_str {
-        my $res = shift;
-        my $args = { result => $res };
-        VRPipe::DataElement->_convert_result($args);
-        return $args->{filelist} . '|' . $args->{keyvallist};
     }
     
     method _parse_filters (Maybe[Str] $filter?, Maybe[Str] $graph_filter?) {
@@ -519,19 +527,27 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceRole {
         
         # we also need to make a dataelementlink for each dataelement we just
         # made
+        my %group_to_eids;
+        foreach my $de (VRPipe::DataElement->search({ datasource => $self->_datasource_id, withdrawn => 0 }, { prefetch => 'keyvallist' })) {
+            my $group = $de->keyvallist->as_hashref->{group};
+            $group_to_eids{$group}->{ $de->id } = 1;
+        }
+        
         my @link_args;
-        my %group_to_eid = map { VRPipe::KeyValList->get(id => $_->[0])->as_hashref->{group} => $_->[1] } @{ VRPipe::DataElement->get_column_values(['keyvallist', 'id'], { datasource => $self->_datasource_id, withdrawn => 0 }) || [] };
         foreach my $group (sort keys %{$group_hash}) {
             my $hash_ref = $group_hash->{$group};
             if ($filter) {
                 next unless $hash_ref->{pass_filter};
             }
             
-            my $child_id = $group_to_eid{$group} || $self->throw("No DataElement was created for group $group?");
             my %parents = map { $_->{element_id} => $_ } @{ $hash_ref->{parents} };
-            foreach my $key (sort keys %parents) {
-                my $parent = $parents{$key};
-                push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child_id });
+            
+            my $child_ids = $group_to_eids{$group} || $self->throw("No DataElement was created for group $group?");
+            foreach my $child_id (keys %$child_ids) {
+                foreach my $key (sort keys %parents) {
+                    my $parent = $parents{$key};
+                    push(@link_args, { pipelinesetup => $parent->{setup_id}, parent => $parent->{element_id}, child => $child_id });
+                }
             }
         }
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);

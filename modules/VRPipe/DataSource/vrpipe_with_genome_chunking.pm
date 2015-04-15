@@ -38,7 +38,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::DataSource::vrpipe_with_genome_chunking extends VRPipe::DataSource::vrpipe with VRPipe::DataSourceGenomeChunkingRole {
+class VRPipe::DataSource::vrpipe_with_genome_chunking extends VRPipe::DataSource::vrpipe with (VRPipe::DataSourceVRPipeRole, VRPipe::DataSourceGenomeChunkingRole) {
 }
 
 1;
