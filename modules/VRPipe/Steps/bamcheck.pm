@@ -44,14 +44,18 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
                 default_value => 'bamcheck'
             ),
             bamcheck_options => VRPipe::StepOption->create(
-                description => 'options to bamcheck, excluding -r and -t (which are set by reference_fasta and exome_targets_file options)',
+                description => 'options to bamcheck, excluding -r, -t and -d (which are set by reference_fasta, exome_targets_file options and exclude_duplicates)',
                 optional    => 1
             ),
             reference_fasta    => VRPipe::StepOption->create(description => 'absolute path to genome reference file'),
             exome_targets_file => VRPipe::StepOption->create(
                 description => 'absolute path to a file describing the targets/baits used for exome pulldown (tab-delimited [chr,start,end], where start is 1-based, and end is inclusive)',
                 optional    => 1
-            )
+            ),
+            exclude_duplicates => VRPipe::StepOption->create(
+                description => 'exclude reads marked as duplicated from the calculated statistics',
+                optional    => 1
+            ),
         };
     }
     
@@ -66,13 +70,18 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             my $options      = $self->options;
             my $bamcheck_exe = $options->{bamcheck_exe};
             my $opts         = VRPipe::Steps::bamcheck->get_bamcheck_options($options);
+            my $targeted     = 0;
+            my $dups         = 0;
+            $targeted = 1    if exists($options->{exome_targets_file}) && $options->{exome_targets_file};
+            $dups = 1        if exists($options->{exclude_duplicates}) && $options->{exclude_duplicates};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
                 my $ifile      = $bam_file->path;
                 my $check_file = $self->output_file(output_key => 'bamcheck_files', basename => $ifile->basename . '.bamcheck', type => 'txt');
                 my $ofile      = $check_file->path;
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $opts $ifile > $ofile", $req, { output_files => [$check_file] }]);
+                my $cmd        = qq[use VRPipe::Steps::bamcheck; VRPipe::Steps::bamcheck->stats_from_bamcheck('$bamcheck_exe $opts $ifile > $ofile', $targeted, $dups);];
+                $self->dispatch_vrpipecode($cmd, $req, { output_files => [$check_file] });
             }
         };
     }
@@ -114,6 +123,10 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             $self->throw("exome_targets_file must be an absolute path") unless $targets->is_absolute;
             $opts .= ' -t ' . $targets;
         }
+        my $dups = $options->{exclude_duplicates};
+        if ($dups) {
+            $opts .= ' -d';
+        }
         
         my $user_opts = $options->{bamcheck_options};
         if ($user_opts) {
@@ -127,7 +140,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
         return $opts;
     }
     
-    method stats_from_bamcheck (ClassName|Object $self: Str $cmd_line) {
+    method stats_from_bamcheck (ClassName|Object $self: Str $cmd_line!, Bool $targeted, Bool $dups) {
         my ($bam_path, $check_path) = $cmd_line =~ / (\S+) > (\S+)$/;
         $bam_path || $self->throw("bad cmd line [$cmd_line]");
         my $bam_file   = VRPipe::File->get(path => $bam_path);
@@ -145,10 +158,10 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             $check_file->disconnect;
             
             my $hash_key_prefix = '';
-            if ($cmd_line =~ /-d/) {
+            if ($dups) {
                 $hash_key_prefix = 'rmdup_';
             }
-            elsif ($cmd_line =~ /-t/) {
+            elsif ($targeted) {
                 $hash_key_prefix = 'targeted_';
             }
             
