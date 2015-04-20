@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,60 +33,48 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
-    around options_definition {
-        return { %{ $self->$orig }, cramtools_bam_to_cram_options => VRPipe::StepOption->create(description => 'Options for cramtools cram command to convert bam to cram', optional => 1), };
+class VRPipe::Steps::bam_to_cram with VRPipe::StepRole {
+    method options_definition {
+        return {
+            samtools_exe    => VRPipe::StepOption->create(description => 'Path to samtools 1.0 or greater executable',                    optional => 1, default_value => 'samtools'),
+            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping', optional => 1),
+        };
     }
     
     method inputs_definition {
         return {
             bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
-            bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more bam index files')
         };
     }
     
     method body_sub {
         return sub {
-            my $self    = shift;
-            my $options = $self->options;
-            $self->handle_standard_options($options);
-            
-            my $ref = file($options->{reference_fasta});
-            $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
-            
-            my $opts = $options->{cramtools_bam_to_cram_options};
-            if ($opts =~ /$ref|--output-cram-file|--input-bam-file|--reference-fasta-file/) {
-                $self->throw("cramtools_bam_to_cram_options should not include the reference, input or output options");
-            }
+            my $self     = shift;
+            my $options  = $self->options;
+            my $samtools = $options->{samtools_exe};
+            my $ref      = $options->{reference_fasta} ? " -T $options->{reference_fasta}" : '';
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
-                    exe     => 'cramtools',
-                    version => $self->cramtools_version(),
-                    summary => 'java $jvm_args -jar cramtools.jar cram --input-bam-file $bam_file --output-cram-file $cram_file --reference-fasta-file $reference_fasta ' . $opts
+                    exe     => 'samtools',
+                    version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
+                    summary => "samtools view -C \$bam > \$cram"
                 )
             );
             
-            my $req = $self->new_requirements(memory => 4000, time => 3);
-            my $memory = $req->memory;
-            
+            my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
-                my $bam_base  = $bam->basename;
-                my $bam_meta  = $bam->metadata;
-                my $cram_base = $bam_base;
-                $cram_base =~ s/bam$/cram/;
+                my $bam_path = $bam->path;
+                my $basename = $bam->basename;
+                $basename =~ s/bam$/cram/;
                 my $cram_file = $self->output_file(
                     output_key => 'cram_files',
-                    basename   => $cram_base,
+                    basename   => $basename,
                     type       => 'cram',
-                    metadata   => $bam_meta
+                    metadata   => $bam->metadata
                 );
-                
-                my $temp_dir = $options->{tmp_dir} || $cram_file->dir;
-                my $jvm_args = $self->jvm_args($memory, $temp_dir);
-                
-                my $this_cmd = $self->java_exe . " $jvm_args -jar " . $self->jar . " cram --input-bam-file " . $bam->path . " --output-cram-file " . $cram_file->path . " --reference-fasta-file $ref $opts";
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_cram', 'cram_and_check', [$this_cmd, $req, { output_files => [$cram_file] }]);
+                my $cmd = qq[$samtools view$ref -C $bam_path > ] . $cram_file->path;
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_cram', 'cram_and_check', [$cmd, $req, { output_files => [$cram_file] }]);
             }
         };
     }
@@ -100,7 +88,7 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     }
     
     method description {
-        return "Converts bam files to cram files using cramtools";
+        return "Converts BAM files to CRAM files using samtools";
     }
     
     method max_simultaneous {
@@ -108,10 +96,9 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
     }
     
     method cram_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_path, $out_path, $ref) = $cmd_line =~ /--input-bam-file (\S+) --output-cram-file (\S+) --reference-fasta-file (\S+)/;
+        my ($in_path, $out_path) = $cmd_line =~ /-C (\S+) > (\S+)$/;
         $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $ref      || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
         my $in_file  = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);
@@ -121,15 +108,15 @@ class VRPipe::Steps::bam_to_cram extends VRPipe::Steps::cramtools {
         
         $out_file->update_stats_from_disc(retries => 3);
         my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
-        my $cram = VRPipe::FileType->create($out_file->type, { file => $out_file->path });
-        my $actual_reads = $cram->num_records(reference_fasta => $ref);
+        my $actual_reads = $out_file->num_records;
         
         if ($actual_reads == $expected_reads) {
+            $out_file->add_metadata({ reads => $actual_reads });
             return 1;
         }
         else {
             $out_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output cram file, yet there were $expected_reads reads in the original bam file");
+            $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output CRAM file, yet there were $expected_reads reads in the original BAM file");
         }
     }
 }

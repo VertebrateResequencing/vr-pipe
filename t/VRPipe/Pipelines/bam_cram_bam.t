@@ -7,13 +7,14 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES CRAMTOOLS)],
-        required_exe => [qw(samtools bamcheck)]
+        required_env => [qw(VRPIPE_TEST_PIPELINES SAMTOOLS)],
+        required_exe => [qw(samtools bamcheck seq_cache_populate.pl)]
     );
     use TestPipelines;
 }
 
 my $output_dir = get_output_dir('cram_test');
+$ENV{REF_CACHE} = dir($output_dir, qw(cram_ref_cache %2s %2s %s))->stringify;
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_cram_bam_test_pipeline'), 'able to get the bam_cram_bam_test_pipeline pipeline';
 my @s_names;
