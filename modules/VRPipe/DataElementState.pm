@@ -126,8 +126,8 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             }
         }
         
-        # each start_over() call will have set completed_steps(0) on us, but
-        # we'll call it explicitly incase that ever changes
+        # each start_over() call will have set completed_steps(<something>) on
+        # us, but we need it at 0 for sure
         $self->completed_steps(0);
         $self->update;
         
