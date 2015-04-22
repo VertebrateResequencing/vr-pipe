@@ -144,6 +144,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
         $only_unique_to_us = 0 if $new_hash;
         my @current_sofiles = VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => { '!=' => 'temp' } }, { prefetch => 'file' });
         my %hash;
+        my @files;
         foreach my $sof (@current_sofiles) {
             my $file = $sof->file;
             
@@ -153,6 +154,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             }
             
             push(@{ $hash{ $sof->output_key } }, $file);
+            push(@files,                         $file->id);
         }
         
         if ($new_hash) {
@@ -215,9 +217,9 @@ class VRPipe::StepState extends VRPipe::Persistent {
     }
     
     method temp_files (PersistentArrayRef $new_array?) {
-        my @file_ids = VRPipe::StepOutputFile->get_column_values('file', { stepstate => $self->id, output_key => 'temp' }); # *** can we get file objects out efficiently?
-        
         if ($new_array) {
+            my @file_ids = VRPipe::StepOutputFile->get_column_values('file', { stepstate => $self->id, output_key => 'temp' });
+            
             # forget temp files we no longer have
             my %new_file_ids = map { $_->id => 1 } @$new_array;
             foreach my $file_id (@file_ids) {
@@ -237,7 +239,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             return $new_array;
         }
         else {
-            return [map { VRPipe::File->get(id => $_) } @file_ids];
+            return [map { $_->file() } VRPipe::StepOutputFile->search({ stepstate => $self->id, output_key => 'temp' }, { prefetch => 'file' })];
         }
     
     }
@@ -300,7 +302,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             # them
             unless ($only_failed) {
                 foreach my $sof ($self->_output_files) {
-                    $self->pipelinesetup->log_event("$log_self call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
+                    #$self->pipelinesetup->log_event("$log_self call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
                     $sof->delete;
                 }
             }
@@ -311,7 +313,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
                     next unless $sub->_failed();
                 }
                 
-                $self->pipelinesetup->log_event("Calling Submission->start_over during a $log_self", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
+                #$self->pipelinesetup->log_event("Calling Submission->start_over during a $log_self", stepstate => $self->id, dataelement => $self->dataelement->id, submission => $sub->id, job => $sub->job->id);
                 $sub->start_over;
                 
                 # delete any stepstats there might be for us
@@ -323,9 +325,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
                 $sub->delete;
             }
             
-            # clear the dataelementstate to 0 steps completed; not important to try
-            # and figure out the correct number of steps to set it to
-            VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => 0);
+            # clear the dataelementstate to having done 1 less steps than we are
+            # the step for
+            my $step_num = $self->stepmember->step_number;
+            VRPipe::DataElementState->get(pipelinesetup => $self->pipelinesetup, dataelement => $self->dataelement, completed_steps => $step_num - 1);
             
             # now reset self
             $self->complete(0);
