@@ -1011,7 +1011,7 @@ class VRPipe::File extends VRPipe::Persistent {
         return 1;
     }
     
-    method update_stats_from_disc (PositiveInt :$retries = 1) {
+    method update_stats_from_disc (PositiveInt :$retries = 1, Bool :$keep_stat_cache = 0) {
         my $current_s     = $self->s;
         my $current_mtime = $self->mtime;
         my $path          = $self->path;
@@ -1019,16 +1019,16 @@ class VRPipe::File extends VRPipe::Persistent {
         my ($new_e, $new_s, $new_mtime);
         my $trys = 0;
         while (1) {
-            $self->_clear_stat_cache($path);
+            $self->_clear_stat_cache($path) unless $keep_stat_cache;
             $new_e     = $self->check_file_existence_on_disc($path);
             $new_s     = $self->check_file_size_on_disc($path);
             $new_mtime = $self->check_mtime_on_disc($path);
-            $self->_clear_stat_cache($path);
             last if $new_s != $current_s;
             last if $current_mtime ne $new_mtime;
             last if ++$trys == $retries;
             sleep 1;
         }
+        $self->_clear_stat_cache($path) unless $keep_stat_cache;
         
         if (!$new_s || $current_s != $new_s || $current_mtime ne $new_mtime) {
             $self->_lines(undef);
@@ -1043,7 +1043,7 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my $resolve = $self->resolve;
         if ($resolve->id != $self->id) {
-            $resolve->update_stats_from_disc(retries => $retries);
+            $resolve->update_stats_from_disc(retries => $retries, keep_stat_cache => $keep_stat_cache);
         }
     }
     
