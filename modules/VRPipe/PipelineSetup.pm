@@ -707,6 +707,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             }
         }
         
+        # the msg can't be longer than 65535 chars or it will fail to be stored
+        # in the db. And actually, if its longer than a 1000 it's crazy, so we
+        # truncate
+        if (length($msg) > 1000) {
+            $msg = substr($msg, 0, 1000) . ' ...[truncated]...';
+        }
+        
         return VRPipe::PipelineSetupLog->create(
             ps_id   => $self->id,
             message => $msg,
