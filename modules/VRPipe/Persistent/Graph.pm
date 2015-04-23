@@ -59,7 +59,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -87,6 +87,7 @@ class VRPipe::Persistent::Graph {
     use JSON::XS;
     use Data::UUID;
     use DateTime::Format::Natural;
+    use MIME::Base64;
     
     our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
@@ -126,8 +127,20 @@ class VRPipe::Persistent::Graph {
             # connect and get the transaction endpoint
             my $method_name = $deployment . '_neo4j_server_url';
             my $url         = $vrp_config->$method_name();
-            my $tx          = $ua->get("$url" => $ua_headers);
-            my $res         = $tx->success;
+            $method_name = $deployment . '_neo4j_user';
+            my $user = $vrp_config->$method_name();
+            $method_name = $deployment . '_neo4j_password';
+            my $password = $vrp_config->$method_name();
+            
+            if ($user && $password) {
+                # Requests should include an Authorization header, with a value
+                # of Basic <payload>, where "payload" is a base64 encoded string
+                # of "username:password"
+                $ua_headers->{Authorization} = 'Basic ' . substr(encode_base64("$user:$password"), 0, -2);
+            }
+            
+            my $tx = $ua->get("$url" => $ua_headers);
+            my $res = $tx->success;
             unless ($res) {
                 my $err = $tx->error;
                 $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
