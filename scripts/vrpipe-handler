@@ -116,10 +116,10 @@ sub handle_setups {
     my %setups;
     my %datasource_watchers;
     my %setup_watchers;
-    my $setups_timer_interval      = $deployment eq 'production' && !$debug ? 150  : 5;
-    my $datasource_timer_interval  = $deployment eq 'production' && !$debug ? 300  : 10;
+    my $setups_timer_interval = $deployment eq 'production' && !$debug ? 150 : 5;
+    my $datasource_timer_interval = $deployment eq 'production' ? 300 : 10;
     my $setup_state_timer_interval = $deployment eq 'production' && !$debug ? 1800 : 15;
-    my %currently_triggering;
+    my (%currently_triggering, %currently_unstalling);
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
@@ -329,11 +329,12 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
+                    $im->debug("will create stall watcher for setup $sid");
+                    
                     $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
-                        return if $currently_triggering{$sid};
-                        $currently_triggering{$sid} = 1;
-                        my $ds_id = $setup->datasource->id;
-                        $datasource_watchers{$ds_id}->{working} = 1;
+                        $im->debug("in stall watcher for setup $sid, currently_unstalling = " . ($currently_unstalling{$sid} ? 1 : 0));
+                        return if $currently_unstalling{$sid};
+                        $currently_unstalling{$sid} = 1;
                         
                         $setup->disconnect;
                         fork_call {
@@ -453,8 +454,7 @@ sub handle_setups {
                             return;
                         }
                         sub {
-                            delete $currently_triggering{$sid};
-                            delete $datasource_watchers{$ds_id}->{working};
+                            delete $currently_unstalling{$sid};
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
