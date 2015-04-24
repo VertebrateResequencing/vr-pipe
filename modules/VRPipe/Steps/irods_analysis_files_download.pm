@@ -77,6 +77,8 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
             foreach my $file (@{ $self->inputs->{files} }) {
                 my $source_file = $file->path->stringify;
                 my $source_meta = $file->metadata;
+                delete $source_meta->{expected_md5};
+                delete $source_meta->{md5};
                 
                 my $afiles = delete $source_meta->{irods_analysis_files};
                 my @afiles = ref($afiles) ? @$afiles : ($afiles) if $afiles;

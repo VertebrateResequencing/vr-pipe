@@ -36,6 +36,7 @@ use VRPipe::Interface::BackEnd;
 use Proc::ProcessTable;
 use Proc::Killfam;
 use DateTime;
+use Parallel::ForkManager;
 
 # handle options
 my $cmdline = VRPipe::FrontEnd->new(
@@ -115,10 +116,10 @@ sub handle_setups {
     my %setups;
     my %datasource_watchers;
     my %setup_watchers;
-    my $setups_timer_interval      = $deployment eq 'production' && !$debug ? 150  : 5;
-    my $datasource_timer_interval  = $deployment eq 'production' && !$debug ? 300  : 10;
+    my $setups_timer_interval = $deployment eq 'production' && !$debug ? 150 : 5;
+    my $datasource_timer_interval = $deployment eq 'production' ? 300 : 10;
     my $setup_state_timer_interval = $deployment eq 'production' && !$debug ? 1800 : 15;
-    my %currently_triggering;
+    my (%currently_triggering, %currently_unstalling);
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
@@ -169,7 +170,7 @@ sub handle_setups {
                     my $active     = $stored_setup->active;
                     my $controller = $stored_setup->controlling_farm;
                     
-                    if ($active && ($controller eq $farm)) {
+                    if (($active && ($controller eq $farm)) || ($debug && $single_setup)) {
                         $stored_setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
                     }
                     else {
@@ -261,6 +262,7 @@ sub handle_setups {
                     my $ds_id = $ds->id;
                     $datasource_watchers{$ds_id}->{count}++;
                     next if defined $datasource_watchers{$ds_id}->{watcher};
+                    $datasource_watchers{$ds_id}->{watcher} = 1; # will replace with actual watcher later; this stops us doing this multiple times
                     
                     $im->debug("will create watcher for ds $ds_id for setup " . $setup->id);
                     
@@ -327,11 +329,12 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
+                    $im->debug("will create stall watcher for setup $sid");
+                    
                     $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
-                        return if $currently_triggering{$sid};
-                        $currently_triggering{$sid} = 1;
-                        my $ds_id = $setup->datasource->id;
-                        $datasource_watchers{$ds_id}->{working} = 1;
+                        $im->debug("in stall watcher for setup $sid, currently_unstalling = " . ($currently_unstalling{$sid} ? 1 : 0));
+                        return if $currently_unstalling{$sid};
+                        $currently_unstalling{$sid} = 1;
                         
                         $setup->disconnect;
                         fork_call {
@@ -370,6 +373,16 @@ sub handle_setups {
                             $im->debug("looking for stalls");
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             my $error_message;
+                            my $pm = Parallel::ForkManager->new($max_forks);
+                            $pm->run_on_finish(
+                                sub {
+                                    my ($pid, $this_error) = @_;
+                                    if ($this_error && !$error_message) {
+                                        $error_message = $this_error;
+                                    }
+                                }
+                            );
+                            
                             if ($ie_pager) {
                                 $im->debug("got incomplete_element_states");
                                 while (my $dess = $ie_pager->next) {
@@ -393,13 +406,13 @@ sub handle_setups {
                                             next unless $complete_subs == $have_subs;
                                         }
                                         
+                                        $pm->start and next;
                                         $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
                                         my $this_error = $setup->trigger(dataelement => $de);
-                                        if ($this_error && !$error_message) {
-                                            $error_message = $this_error;
-                                        }
+                                        $pm->finish($this_error);
                                     }
                                 }
+                                $pm->wait_all_children;
                             }
                             $im->debug("after looking for stalls");
                             
@@ -414,12 +427,12 @@ sub handle_setups {
                                         next unless $same->complete;
                                         my $de = $step_state->dataelement;
                                         $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
+                                        $pm->start and next;
                                         my $this_error = $setup->trigger(dataelement => $de);
-                                        if ($this_error && !$error_message) {
-                                            $error_message = $this_error;
-                                        }
+                                        $pm->finish($this_error);
                                     }
                                 }
+                                $pm->wait_all_children;
                             }
                             
                             unless ($perma_fails) {
@@ -441,8 +454,7 @@ sub handle_setups {
                             return;
                         }
                         sub {
-                            delete $currently_triggering{$sid};
-                            delete $datasource_watchers{$ds_id}->{working};
+                            delete $currently_unstalling{$sid};
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {

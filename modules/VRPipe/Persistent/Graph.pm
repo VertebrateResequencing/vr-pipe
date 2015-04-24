@@ -59,7 +59,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -87,6 +87,7 @@ class VRPipe::Persistent::Graph {
     use JSON::XS;
     use Data::UUID;
     use DateTime::Format::Natural;
+    use MIME::Base64;
     
     our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
@@ -126,8 +127,20 @@ class VRPipe::Persistent::Graph {
             # connect and get the transaction endpoint
             my $method_name = $deployment . '_neo4j_server_url';
             my $url         = $vrp_config->$method_name();
-            my $tx          = $ua->get("$url" => $ua_headers);
-            my $res         = $tx->success;
+            $method_name = $deployment . '_neo4j_user';
+            my $user = $vrp_config->$method_name();
+            $method_name = $deployment . '_neo4j_password';
+            my $password = $vrp_config->$method_name();
+            
+            if ($user && $password) {
+                # Requests should include an Authorization header, with a value
+                # of Basic <payload>, where "payload" is a base64 encoded string
+                # of "username:password"
+                $ua_headers->{Authorization} = 'Basic ' . substr(encode_base64("$user:$password"), 0, -2);
+            }
+            
+            my $tx = $ua->get("$url" => $ua_headers);
+            my $res = $tx->success;
             unless ($res) {
                 my $err = $tx->error;
                 $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
@@ -763,7 +776,9 @@ class VRPipe::Persistent::Graph {
         if ($undirected) {
             my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
             my $return = $result_nodes_only ? 'u' : 'p';
-            return $self->_run_cypher([["MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return", { 'param' => $properties }]]);
+            my $cypher = "MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
+            $cypher =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+            return $self->_run_cypher([[$cypher, { 'param' => $properties }]]);
         }
         else {
             my (%all_properties, @return);
@@ -772,6 +787,7 @@ class VRPipe::Persistent::Graph {
             if ($incoming) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
                 $left = "(l$result_node_spec)-[$type*$min_depth..$max_depth]->";
+                $left =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
                 push(@return, 'l');
                 $all_properties{left} = $properties if $properties;
                 if ($incoming->{leftmost} && $max_depth > 1) {
@@ -782,6 +798,7 @@ class VRPipe::Persistent::Graph {
             if ($outgoing) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
                 $right = "-[$type*$min_depth..$max_depth]->(r$result_node_spec)";
+                $right =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
                 push(@return, 'r');
                 $all_properties{right} = $properties if $properties;
                 if ($outgoing->{rightmost} && $max_depth > 1) {

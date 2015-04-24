@@ -331,9 +331,35 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has production_neo4j_user => (
+        is              => 'rw',
+        question        => 'What is the authenticating user of your production neo4j server?',
+        default         => 'neo4j',
+        question_number => ++$question_number
+    );
+    
+    has production_neo4j_password => (
+        is              => 'rw',
+        question        => 'What is the password for your production neo4j server?',
+        question_number => ++$question_number
+    );
+    
     has testing_neo4j_server_url => (
         is              => 'rw',
         question        => 'What is the url of your testing neo4j server?',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_user => (
+        is              => 'rw',
+        question        => 'What is the authenticating user of your testing neo4j server?',
+        default         => 'neo4j',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_password => (
+        is              => 'rw',
+        question        => 'What is the password for your testing neo4j server?',
         question_number => ++$question_number
     );
     

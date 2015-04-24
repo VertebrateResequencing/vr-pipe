@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 125;
+    use Test::Most tests => 135;
     use VRPipeTest;
     use TestPipelines;
     
@@ -327,11 +327,12 @@ my $override = file(qw(t data wgs_calling_override_options))->absolute->stringif
 # genome chunking
 my $chunks = [{ chrom => 11, from => 1, to => 10000000, seq_no => 1, chunk_override_file => $override }, { chrom => 11, from => 10000001, to => 20000000, seq_no => 2, chunk_override_file => $override }, { chrom => 11, from => 20000001, to => 30000000, seq_no => 3, chunk_override_file => $override }, { chrom => 11, from => 30000001, to => 40000000, seq_no => 4, chunk_override_file => $override }, { chrom => 11, from => 40000001, to => 50000000, seq_no => 5, chunk_override_file => $override }, { chrom => 11, from => 50000001, to => 60000000, seq_no => 6, chunk_override_file => $override }, { chrom => 11, from => 60000001, to => 70000000, seq_no => 7, chunk_override_file => $override }, { chrom => 11, from => 70000001, to => 80000000, seq_no => 8, chunk_override_file => $override }, { chrom => 11, from => 80000001, to => 90000000, seq_no => 9, chunk_override_file => $override }, { chrom => 11, from => 90000001, to => 100000000, seq_no => 10, chunk_override_file => $override }, { chrom => 11, from => 100000001, to => 110000000, seq_no => 11, chunk_override_file => $override }, { chrom => 11, from => 110000001, to => 120000000, seq_no => 12, chunk_override_file => $override }, { chrom => 11, from => 120000001, to => 130000000, seq_no => 13, chunk_override_file => $override }, { chrom => 11, from => 130000001, to => 135006516, seq_no => 14, chunk_override_file => $override }, { chrom => 20, from => 1, to => 10000000, seq_no => 15, chunk_override_file => $override }, { chrom => 20, from => 10000001, to => 20000000, seq_no => 16, chunk_override_file => $override }, { chrom => 20, from => 20000001, to => 30000000, seq_no => 17, chunk_override_file => $override }, { chrom => 20, from => 30000001, to => 40000000, seq_no => 18, chunk_override_file => $override }, { chrom => 20, from => 40000001, to => 50000000, seq_no => 19, chunk_override_file => $override }, { chrom => 20, from => 50000001, to => 60000000, seq_no => 20, chunk_override_file => $override }, { chrom => 20, from => 60000001, to => 63025520, seq_no => 21, chunk_override_file => $override }];
 
+my $chunking_ds_options = { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 };
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_genome_chunking',
     method  => 'group_all',
     source  => file(qw(t data bams.fofn))->absolute->stringify,
-    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }
+    options => $chunking_ds_options
   ),
   'could create a fofn_with_genome_chunking datasource with group_all method';
 
@@ -341,7 +342,7 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 my @expected = ();
 foreach my $chunk (@$chunks) {
-    push @expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chunk },;
+    push(@expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chunk });
 }
 is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method';
 
@@ -349,6 +350,139 @@ my $ds_si = $ds->_source_instance;
 is_deeply [$ds_si->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
 
 is $ds_si->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+# vrpipe genome chunking with all the methods
+{
+    # create a fofn_with_metadata ds setup first
+    ok $ds = VRPipe::DataSource->create(
+        type   => 'fofn_with_metadata',
+        method => 'all',
+        source => file(qw(t data calling_datasource.fofn))->absolute->stringify
+      ),
+      'could create a fofn_with_metadata datasource for use in next test';
+    
+    my $single_step = VRPipe::Step->create(
+        name              => 'bam_symlink',
+        inputs_definition => { bams => VRPipe::StepIODefinition->create(type => 'bam', description => 'bams', max_files => -1) },
+        body_sub          => sub {
+            my $self = shift;
+            foreach my $bam (@{ $self->inputs->{bams} || [] }) {
+                my $ofile = $self->output_file(output_key => 'the_output', basename => $bam->basename, type => 'bam');
+                $bam->symlink($ofile);
+            }
+            return 1;
+        },
+        outputs_definition => { the_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'the output') },
+        post_process_sub   => sub          { return 1; },
+        description        => 'a step'
+    );
+    my $single_step_pipeline = VRPipe::Pipeline->create(name => 'bam symlink pipeline', description => 'symlink bams');
+    $single_step_pipeline->add_step($single_step);
+    VRPipe::StepAdaptor->create(pipeline => $single_step_pipeline, to_step => 1, adaptor_hash => { bams => { data_element => 0 } });
+    my $output_root = get_output_dir('bam_symlink_output');
+    my $ps = VRPipe::PipelineSetup->create(name => 'bam symlink ps', datasource => $ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    $ps->trigger();
+    
+    my @parent_element_ids;
+    my @expected_bams;
+    my %symlink_path_to_parent_element_id;
+    foreach my $element (@{ get_elements($ds) }) {
+        my $parent_id = $element->id;
+        push(@parent_element_ids, $parent_id);
+        
+        my ($orig_file)  = @{ $element->files() };
+        my ($symlink)    = VRPipe::File->search({ parent => $orig_file->id });
+        my $symlink_path = $symlink->path->stringify;
+        push(@expected_bams, $symlink_path);
+        $symlink_path_to_parent_element_id{$symlink_path} = $parent_id;
+    }
+    @parent_element_ids = sort { $a <=> $b } @parent_element_ids;
+    
+    # group_by_metadata
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'group_by_metadata',
+        source  => $ps->id . '[1]',
+        options => { metadata_keys => 'sample', %$chunking_ds_options }
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with group_by_metadata method';
+    
+    @results = ();
+    my $correct_parents = 0;
+    
+    my $check_results = sub {
+        my $ds = shift;
+        foreach my $element (@{ get_elements($ds) }) {
+            push(@results, result_with_inflated_paths($element));
+            my ($symlink_path) = $element->paths();
+            my $expected_parent = $symlink_path_to_parent_element_id{$symlink_path};
+            my @actual_parent = VRPipe::DataElementLink->get_column_values(['parent'], { child => $element->id });
+            if (@actual_parent == 1 && $actual_parent[0] == $expected_parent) {
+                $correct_parents++;
+            }
+            else {
+                $correct_parents--;
+            }
+        }
+    };
+    &$check_results($ds);
+    @expected = ();
+    foreach my $bam (@expected_bams) {
+        my ($group) = $bam =~ /(NA\d+)\.bam$/;
+        foreach my $chunk (@$chunks) {
+            push(@expected, { paths => [$bam], %$chunk, group => $group });
+        }
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking group_by_metadata method';
+    is $correct_parents, 42, 'all the created dataelements had the correct parent dataelements linked';
+    
+    # all
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'all',
+        source  => $ps->id . '[1]',
+        options => $chunking_ds_options
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with all method';
+    
+    @results         = ();
+    $correct_parents = 0;
+    &$check_results($ds);
+    foreach my $hash (@expected) {
+        delete $hash->{group};
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking all method';
+    is $correct_parents, 42, 'all the created dataelements had the correct parent dataelements linked';
+    
+    # group_all
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'group_all',
+        source  => $ps->id . '[1]',
+        options => $chunking_ds_options
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with group_all method';
+    
+    @results         = ();
+    $correct_parents = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+        my $child_id = $element->id;
+        my @parent_ids = sort { $a <=> $b } VRPipe::DataElementLink->get_column_values(['parent'], { child => $child_id });
+        if (@parent_ids == 2 && $parent_ids[0] == $parent_element_ids[0] && $parent_ids[1] == $parent_element_ids[1]) {
+            $correct_parents++;
+        }
+        else {
+            $correct_parents--;
+        }
+    }
+    @expected = ();
+    foreach my $chunk (@$chunks) {
+        push(@expected, { paths => [@expected_bams], %$chunk });
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking group_all method';
+    is $correct_parents, 21, 'all the created dataelements had the correct parent dataelements linked';
+}
 
 # confirm that a step that accepts multiple file types from the datasource only
 # receives the bam files for the bam input and nothing for the other

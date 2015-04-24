@@ -178,39 +178,54 @@ class VRPipe::File extends VRPipe::Persistent {
         return VRPipe::Schema->create('VRPipe');
     }
     
-    method check_file_existence_on_disc (File $path?) {
-        $path ||= $self->path;         # optional so that we can call this without a db connection by supplying the path
+    sub _stat {
+        my ($self, $path) = @_;
+        $path ||= $self->path; # optional so that we can call this without a db connection by supplying the path
         $self->throw("no path!") unless $path;
-        my $e = -e $path;
-        return $e || 0;
+        
+        # NB: if $path is a symlink, stat returns results for the actual file
+        # referenced by the symlink, not the symlink itself, which is what we
+        # probably want in most cases anyway
+        
+        # caller may call multiple *_on_disc methods in quick succession, and we
+        # want to avoid doing 3 stats in a row, so we check and note if we've
+        # done a stat
+        my @stat;
+        if (defined $self->{stated_paths} && defined $self->{stated_paths}->{$path} && $self->{stated_paths}->{$path}->[0] >= (time() - 2)) {
+            @stat = @{ $self->{stated_paths}->{$path}->[1] };
+            # (we don't use stat(_) in case caller is switching back and forth
+            # calling different _from_disc methods on different files)
+        }
+        else {
+            @stat = stat($path);
+            $self->{stated_paths}->{$path} = [time(), \@stat];
+        }
+        
+        return @stat;
+    }
+    
+    sub _clear_stat_cache {
+        my ($self, $path) = @_;
+        $path ||= $self->path;
+        $path || return;
+        defined $self->{stated_paths} || return;
+        delete $self->{stated_paths}->{$path};
+    }
+    
+    method check_file_existence_on_disc (File $path?) {
+        my $has_stats = $self->_stat($path);
+        return $has_stats ? 1 : 0;
     }
     
     method check_file_size_on_disc (File $path?) {
-        $path ||= $self->path;
-        
-        # we want the size of the real file, not of a symlink
-        if (-l $path) {
-            my $start_dir = file($path)->dir;
-            while (-l $path) {
-                $path = file(readlink($path));
-                unless ($path->is_absolute) {
-                    $path = file($start_dir, $path);
-                }
-                $start_dir = $path->dir;
-            }
-        }
-        my $s = -s $path;
-        
-        return $s ? $s : 0;
+        my @stat = $self->_stat($path);
+        return $stat[7] ? $stat[7] : 0;
     }
     
     method check_mtime_on_disc (File $path?) {
-        $path ||= $self->path;
-        
-        my $st    = $path->lstat;
-        my $mtime = $st ? $st->mtime : 0;
+        my @stat  = $self->_stat($path);
+        my $mtime = $stat[9] ? $stat[9] : 0;
         my $dt    = DateTime->from_epoch(epoch => $mtime);
-        
         return $dt;
     }
     
@@ -447,6 +462,7 @@ class VRPipe::File extends VRPipe::Persistent {
             }
         }
         
+        $self->_clear_stat_cache($path);
         if ($fh) {
             if (index($mode, '>') == 0) {
                 $self->e($self->check_file_existence_on_disc);
@@ -465,6 +481,7 @@ class VRPipe::File extends VRPipe::Persistent {
                 # we think the file exists, so sleep a second and try again
                 $self->disconnect;
                 sleep(1);
+                $self->_clear_stat_cache($path);
                 $self->e($self->check_file_existence_on_disc);
                 $self->update;
                 return $self->open($mode, defined $permissions ? (permissions => $permissions) : (), defined $backwards ? (backwards => $backwards) : (), retry => ++$retry);
@@ -481,6 +498,7 @@ class VRPipe::File extends VRPipe::Persistent {
         eval { CORE::close($fh); }; #*** without the eval we get [(in cleanup) Can't use an undefined value as a symbol reference at .../File/ReadBackwards.pm line 221.] ... need to fix without eval...
         $self->_opened(undef);
         if ($self->_opened_for_writing) {
+            $self->_clear_stat_cache;
             $self->update_stats_from_disc;
             $self->_opened_for_writing(0);
         }
@@ -993,7 +1011,7 @@ class VRPipe::File extends VRPipe::Persistent {
         return 1;
     }
     
-    method update_stats_from_disc (PositiveInt :$retries = 1) {
+    method update_stats_from_disc (PositiveInt :$retries = 1, Bool :$keep_stat_cache = 0) {
         my $current_s     = $self->s;
         my $current_mtime = $self->mtime;
         my $path          = $self->path;
@@ -1001,6 +1019,7 @@ class VRPipe::File extends VRPipe::Persistent {
         my ($new_e, $new_s, $new_mtime);
         my $trys = 0;
         while (1) {
+            $self->_clear_stat_cache($path) unless $keep_stat_cache;
             $new_e     = $self->check_file_existence_on_disc($path);
             $new_s     = $self->check_file_size_on_disc($path);
             $new_mtime = $self->check_mtime_on_disc($path);
@@ -1009,6 +1028,7 @@ class VRPipe::File extends VRPipe::Persistent {
             last if ++$trys == $retries;
             sleep 1;
         }
+        $self->_clear_stat_cache($path) unless $keep_stat_cache;
         
         if (!$new_s || $current_s != $new_s || $current_mtime ne $new_mtime) {
             $self->_lines(undef);
@@ -1022,8 +1042,8 @@ class VRPipe::File extends VRPipe::Persistent {
         }
         
         my $resolve = $self->resolve;
-        if ($resolve ne $self) {
-            $resolve->update_stats_from_disc(retries => $retries);
+        if ($resolve->id != $self->id) {
+            $resolve->update_stats_from_disc(retries => $retries, keep_stat_cache => $keep_stat_cache);
         }
     }
     

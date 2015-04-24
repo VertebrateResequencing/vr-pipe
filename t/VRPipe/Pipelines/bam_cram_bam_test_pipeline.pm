@@ -27,10 +27,10 @@ class VRPipe::Pipelines::bam_cram_bam_test_pipeline with VRPipe::PipelineRole {
             { from_step => 1, to_step => 3, from_key => 'local_bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 4, from_key => 'local_bam_files', to_key => 'bam_files' },
             { from_step => 1, to_step => 5, from_key => 'local_bam_files', to_key => 'bam_files' },
-            { from_step => 4, to_step => 5, from_key => 'bai_files', to_key => 'bai_files' },
+            # { from_step => 4, to_step => 5, from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 5, to_step => 6, from_key => 'cram_files', to_key => 'cram_files' },
             { from_step => 5, to_step => 7, from_key => 'cram_files', to_key => 'cram_files' },
-            { from_step => 6, to_step => 7, from_key => 'cram_index_files', to_key => 'cram_index_files' },
+            # { from_step => 6, to_step => 7, from_key => 'cram_index_files', to_key => 'cram_index_files' },
         );
     }
 }

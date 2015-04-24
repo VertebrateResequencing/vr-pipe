@@ -93,6 +93,7 @@ sub required_modules {
         'List::Util'                     => 0,
         'List::MoreUtils'                => 0,
         'LWP::UserAgent'                 => 0,
+        'MIME::Base64'                   => 0,
         'Module::Find'                   => 0,
         'Mojo::UserAgent'                => 0,
         'Moose'                          => 0,

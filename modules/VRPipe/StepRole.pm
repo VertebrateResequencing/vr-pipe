@@ -450,13 +450,17 @@ role VRPipe::StepRole {
         # (in inputs_mode we do not have to check file existence and type since
         # inputs() already did that)
         
+        my %file_type_objs;
+        
         my (@missing, @messages, %missing_metadata);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def     = $defs->{$key};
             my $check_s = 1;
+            my @required_metadata_keys;
             if ($def && $def->isa('VRPipe::StepIODefinition')) {
-                $check_s = $def->check_existence;
+                $check_s                = $def->check_existence;
+                @required_metadata_keys = $def->required_metadata_keys;
             }
             
             foreach my $file (@$val) {
@@ -468,12 +472,12 @@ role VRPipe::StepRole {
                 # any more)
                 if ($check_s && !$inputs_mode) {
                     # double-check incase the step did not update_stats_from_disc
-                    my $actual_s   = -s $resolved->path;
+                    my $actual_s   = $resolved->check_file_size_on_disc();
                     my $resolved_s = $resolved->s;
                     if ((defined $actual_s && defined $resolved_s && $actual_s != $resolved_s) || (!defined $actual_s && $resolved_s) || (defined $actual_s && !defined $resolved_s)) {
-                        $resolved->update_stats_from_disc(retries => 1);
+                        $resolved->update_stats_from_disc(keep_stat_cache => 1);
                     }
-                    $file->update_stats_from_disc(retries => 1) unless $resolved->id == $file->id;
+                    $file->update_stats_from_disc(keep_stat_cache => 1) unless $resolved->id == $file->id;
                 }
                 if ($file->e && (!$resolved->s || $file->mtime > $resolved->mtime)) {
                     $file->moved_to(undef);
@@ -488,9 +492,15 @@ role VRPipe::StepRole {
                 else {
                     my $bad = 0;
                     
-                    # check the filetype is correct
-                    if ($check_s && !$inputs_mode) {
-                        my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
+                    # check the filetype is correct (except for temp files,
+                    # since the check is expensive)
+                    if ($check_s && !$inputs_mode && $key ne 'temp') {
+                        my $type_str = $resolved->type;
+                        unless (exists $file_type_objs{$type_str}) {
+                            $file_type_objs{$type_str} = VRPipe::FileType->create($type_str, { file => 'to_be_replaced' });
+                        }
+                        my $type = $file_type_objs{$type_str};
+                        $type->file($resolved->path);
                         unless ($type->check_type) {
                             push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
                             $bad = 1;
@@ -498,16 +508,13 @@ role VRPipe::StepRole {
                     }
                     
                     # check the expected metadata keys exist
-                    if ($def && $def->isa('VRPipe::StepIODefinition')) {
-                        my @needed = $def->required_metadata_keys;
-                        if (@needed) {
-                            my $meta = $file->metadata;
-                            foreach my $key (@needed) {
-                                unless (exists $meta->{$key}) {
-                                    push(@messages, $file->path . " exists, but lacks required metadata key $key!");
-                                    $bad = 1;
-                                    $missing_metadata{ $file->path } = 1;
-                                }
+                    if (@required_metadata_keys) {
+                        my $meta = $file->metadata;
+                        foreach my $key (@required_metadata_keys) {
+                            unless (exists $meta->{$key}) {
+                                push(@messages, $file->path . " exists, but lacks required metadata key $key!");
+                                $bad = 1;
+                                $missing_metadata{ $file->path } = 1;
                             }
                         }
                     }
