@@ -900,7 +900,7 @@ sub _get_steplimit {
 sub authenticate_via_pam {
     my $args = shift;
     
-    my $auth_hash = authenticated_user($args);
+    my $auth_hash = { user => $args->{authenticated_user} };
     
     if (!$auth_hash->{user} && $args->{user} && $args->{password}) {
         # user has supplied their username and password and wants to
@@ -931,34 +931,11 @@ sub authenticate_via_pam {
             # vrpipe_session string which will be placed in the client's cookie
             $auth_hash->{user}           = $user;
             $auth_hash->{vrpipe_session} = $session;
+            $args->{authenticated_user}  = $user;
         }
     }
     
     return $auth_hash;
-}
-
-sub authenticated_user {
-    my $args = shift;
-    
-    my $user;
-    
-    my $session = $args->{vrpipe_session};
-    if ($session) {
-        # check redis to see what session data we have for this user
-        my $session_hash = $im->get_session($session);
-        
-        # if we have data for the supplied session, and if there's a user,
-        # they've previously authenticated successfully
-        if ($session_hash && defined $session_hash->{user}) {
-            $user = $session_hash->{user};
-        }
-        else {
-            # their session expired in some way
-            delete $args->{vrpipe_session};
-        }
-    }
-    
-    return { user => $user };
 }
 
 sub deauthenticate_user {
@@ -966,6 +943,7 @@ sub deauthenticate_user {
     my $session = $args->{vrpipe_session};
     if ($session) {
         $im->drop_session($session);
+        $args->{authenticated_user} = undef;
     }
     return { user => undef, vrpipe_session => '' };
 }
@@ -1626,6 +1604,11 @@ sub qc {
     
     unless ($vrtrack) {
         return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?"] };
+    }
+    
+    my $user = $args->{authenticated_user};
+    unless ($user) {
+        return { errors => ["You must be logged in to view the QC website."] };
     }
     
     my $data;
