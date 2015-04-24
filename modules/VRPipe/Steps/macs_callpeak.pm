@@ -195,8 +195,9 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
     }
     
     method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$control!, Str :$chip!, Str :$macs2_options!, Str :$sample!, Str :$output!, Str :$r_cmd_prefix!) {
-        my $input_bam = VRPipe::File->get(path => file($chip));
-        my $ctrl_str = "";
+        my $input_bam   = VRPipe::File->get(path => file($chip));
+        my $output_file = VRPipe::File->get(path => file($output));
+        my $ctrl_str    = "";
         if ($control) {
             $ctrl_str = " -c $control";
         }
@@ -204,7 +205,11 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         $input_bam->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $output_file = VRPipe::File->get(path => file($output));
+        my $peaks_file   = $output_file->dir . "/${sample}_peaks.xls";
+        my $num_of_peaks = `grep -cvE '^#|^$|^chr' $peaks_file`;
+        chomp($num_of_peaks);
+        $input_bam->add_metadata({ num_of_peaks => $num_of_peaks });
+        
         my $R_script = $output_file->dir . "/${sample}_model.r";
         if (-e "$R_script") {
             my $this_cmd = $r_cmd_prefix . " $R_script";
