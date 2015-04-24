@@ -115,6 +115,7 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 }
             }
             
+            my $r_cmd_prefix = $self->r_cmd_prefix;
             foreach my $input_bam (@{ $self->inputs->{bam_files} }) {
                 my $sample = $input_bam->metadata->{$sample_key};
                 
@@ -142,7 +143,7 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
                 my $bam_path = $input_bam->path;
                 my $xls_path = $xls_file->path;
-                my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], control => q[$control_bam], chip => q[$bam_path], macs2_options =>q[$macs2_options], sample => q[$sample], output => q[$xls_path]);";
+                my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], control => q[$control_bam], chip => q[$bam_path], macs2_options =>q[$macs2_options], sample => q[$sample], output => q[$xls_path], r_cmd_prefix => q[$r_cmd_prefix]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
         };
@@ -193,7 +194,7 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         return 0;          # meaning unlimited
     }
     
-    method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$control!, Str :$chip!, Str :$macs2_options!, Str :$sample!, Str :$output!) {
+    method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$control!, Str :$chip!, Str :$macs2_options!, Str :$sample!, Str :$output!, Str :$r_cmd_prefix!) {
         my $input_bam = VRPipe::File->get(path => file($chip));
         my $ctrl_str = "";
         if ($control) {
@@ -206,7 +207,7 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         my $output_file = VRPipe::File->get(path => file($output));
         my $R_script = $output_file->dir . "/${sample}_model.r";
         if (-e "$R_script") {
-            my $this_cmd = $self->r_cmd_prefix . " $R_script";
+            my $this_cmd = $r_cmd_prefix . " $R_script";
             $input_bam->disconnect;
             system($this_cmd) && $self->throw("failed to run [$this_cmd]");
         }
