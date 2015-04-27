@@ -569,6 +569,26 @@ class VRPipe::Interface::BackEnd {
                 # cookie if so
                 $args->{vrpipe_session} = $req->cookies->{vrpipe_session};
                 
+                my $user;
+                my $session = $args->{vrpipe_session};
+                if ($session) {
+                    my $im = $self->inmemory();
+                    
+                    # check redis to see what session data we have for this user
+                    my $session_hash = $im->get_session($session);
+                    
+                    # if we have data for the supplied session, and if there's a user,
+                    # they've previously authenticated successfully
+                    if ($session_hash && defined $session_hash->{user}) {
+                        $user = $session_hash->{user};
+                    }
+                    else {
+                        # their session expired in some way
+                        delete $args->{vrpipe_session};
+                    }
+                }
+                $args->{authenticated_user} = $user;
+                
                 my $data;
                 eval { $data = &{$sub}($args, @others); };
                 if ($@) {

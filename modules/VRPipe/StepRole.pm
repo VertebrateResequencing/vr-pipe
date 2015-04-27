@@ -51,6 +51,7 @@ role VRPipe::StepRole {
     use Fcntl qw(:mode);
     
     our $graph;
+    our $schema;
     
     method name {
         my $class = ref($self);
@@ -1051,7 +1052,7 @@ role VRPipe::StepRole {
     # where we can find out the stepstate id from an env var) will give the
     # desired association
     method result_nodes (ClassName|Object $self: ArrayRef $nodes, Object $ss?) {
-        $graph ||= VRPipe::Schema->create('VRPipe');
+        $schema ||= VRPipe::Schema->create('VRPipe');
         
         unless ($ss) {
             if (defined $ENV{VRPIPE_STEPSTATE}) {
@@ -1069,23 +1070,49 @@ role VRPipe::StepRole {
         # there will already be a stepstate node in the graph connected to
         # pipelinesetup etc, but for now we'll create the appropriate hierarchy
         # right now
-        my $graph_ss = $graph->ensure_state_hierarchy($ss);
+        my $schema_ss = $schema->ensure_state_hierarchy($ss);
         
         foreach my $result_node (@$nodes) {
-            $graph_ss->relate_to($result_node, 'result');
+            $schema_ss->relate_to($result_node, 'result');
         }
     }
     
-    method relate_input_to_output (ClassName|Object $self: Str|Object $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
-        $graph ||= VRPipe::Schema->create('VRPipe');
+    # you can specify multiple inputs here, but only 1 output
+    #*** if this is an issue, this could be reimplemented to work with multiple
+    #     outputs as well...
+    method relate_input_to_output (ClassName|Object $self: Str|Object|ArrayRef[Str|Object] $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
+        $schema ||= VRPipe::Schema->create('VRPipe');
         
-        my $input_file  = ref($input)  ? $input  : $graph->add('File', { path => $input });
-        my $output_file = ref($output) ? $output : $graph->add('File', { path => $output });
+        my $output_file = ref($output) ? $output : $schema->add('File', { path => $output });
         if ($output_file_meta) {
             $output_file->add_properties($output_file_meta);
         }
         
-        $input_file->relate_to($output_file, $type);
+        my (@input_hash_specs, @inputs);
+        foreach my $input ((ref($input) && ref($input) eq 'ARRAY') ? @$input : ($input)) {
+            if (ref($input)) {
+                push(@inputs, $input);
+            }
+            else {
+                push(@input_hash_specs, { path => $input });
+            }
+        }
+        if (@input_hash_specs) {
+            push(@inputs, $schema->add('File', \@input_hash_specs));
+        }
+        
+        if (@inputs == 1) {
+            $inputs[0]->relate_to($output_file, $type);
+        }
+        else {
+            my @spec_list;
+            foreach my $input_file (@inputs) {
+                push(@spec_list, { from => $input_file, to => $output_file, type => $type });
+            }
+            $graph ||= VRPipe::Persistent::Graph->new();
+            $graph->create_mass_relationships(\@spec_list);
+        }
+        
         $self->result_nodes([$output_file]);
     }
 }
