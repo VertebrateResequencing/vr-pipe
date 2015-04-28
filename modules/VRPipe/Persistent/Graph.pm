@@ -757,6 +757,14 @@ class VRPipe::Persistent::Graph {
         $self->_run_cypher(\@cypher);
     }
     
+    # delete all relationships between 2 nodes, optionally limited by type
+    method divorce (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type?) {
+        $type ||= '';
+        $type &&= ':' . $type;
+        my $cypher = "MATCH (a)-[rel$type]-(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} DELETE rel";
+        $self->_run_cypher([[$cypher]]);
+    }
+    
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
     # namespace, label, properties}, where the later 3 are result node specs and
     # with depths defaulting to 1 and others defaulting to undef; none supplied

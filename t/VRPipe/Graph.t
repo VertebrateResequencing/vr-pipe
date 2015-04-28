@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 80;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -100,6 +100,28 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], ['Lane1', 'La
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Library2)], 'related_nodes defaults to giving all nodes 1 step away';
 @nodes = $graph->related_nodes($study, incoming => { min_depth => 0 }, outgoing => { min_depth => 0 });
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Jane John)], 'related_nodes works correctly with a min_depth of 0';
+
+# test deleting relationships
+my $samson  = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Samson' });
+my $delilah = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Delilah' });
+$graph->relate($samson,  $delilah, type => 'loves');
+$graph->relate($delilah, $samson,  type => 'betrays');
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Delilah)], 'Samson is related to Delilah';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Samson)], 'Delilah is related to Samson';
+$graph->divorce($samson, $delilah, type => 'loves');
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is scalar(@nodes), 0, 'after divorcing on loves, Samson no longer related to Delilah in that direction';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Samson)], 'Delilah remains related to Samson';
+$graph->divorce($samson, $delilah);
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is scalar(@nodes), 0, 'after divorcing without specifying type, Samson remains unrelated to Delilah in that direction';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is scalar(@nodes), 0, 'and now Delilah is not related to Samson';
+$graph->delete_node($samson);
+$graph->delete_node($delilah);
 
 # add some more nodes to test the visualisation and add_nodes() bulk creation
 # with relationships at the same time
