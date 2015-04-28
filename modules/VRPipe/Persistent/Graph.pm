@@ -784,8 +784,8 @@ class VRPipe::Persistent::Graph {
         if ($undirected) {
             my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
             my $return = $result_nodes_only ? 'u' : 'p';
-            my $cypher = "MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
-            $cypher =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+            my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+            my $cypher = "MATCH p = (start)-[$type$depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
             return $self->_run_cypher([[$cypher, { 'param' => $properties }]]);
         }
         else {
@@ -794,8 +794,8 @@ class VRPipe::Persistent::Graph {
             my $left = '';
             if ($incoming) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
-                $left = "(l$result_node_spec)-[$type*$min_depth..$max_depth]->";
-                $left =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                $left = "(l$result_node_spec)-[$type$depth]->";
                 push(@return, 'l');
                 $all_properties{left} = $properties if $properties;
                 if ($incoming->{leftmost} && $max_depth > 1) {
@@ -805,8 +805,8 @@ class VRPipe::Persistent::Graph {
             my $right = '';
             if ($outgoing) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
-                $right = "-[$type*$min_depth..$max_depth]->(r$result_node_spec)";
-                $right =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                $right = "-[$type$depth]->(r$result_node_spec)";
                 push(@return, 'r');
                 $all_properties{right} = $properties if $properties;
                 if ($outgoing->{rightmost} && $max_depth > 1) {
