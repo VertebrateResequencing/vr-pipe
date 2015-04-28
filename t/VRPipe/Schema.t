@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 100;
+    use Test::Most tests => 106;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -270,6 +270,26 @@ is_deeply $study->{properties}, { id => 2626, name => 'Study ERP006001: Deep seq
 
 # check that fixes for the above didn't break cypher queries with node ids
 my $donor = $schema->add('Donor', { id => 'd1' }, outgoing => { type => 'has', node => $sample });
-ok my $extra_info_node = $schema->get_node_by_id_with_extra_info('Donor', $donor->{id});
+ok my $extra_info_node = $schema->get_node_by_id_with_extra_info('Donor', $donor->{id}), 'cypher queries with node ids work';
+
+# test divorce_from()
+my $samson  = $schema->add('Group', { name => 'Samson' });
+my $delilah = $schema->add('Group', { name => 'Delilah' });
+$samson->relate_to($delilah, 'loves');
+$delilah->relate_to($samson, 'betrays');
+@related = $samson->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$delilah->node_id], 'Samson is related to Delilah';
+@related = $delilah->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$samson->node_id], 'Delilah is related to Samson';
+$delilah->divorce_from($samson, 'loves');
+@related = $samson->related(outgoing => {});
+is scalar(@related), 0, 'Samson is no longer related to Delilah after divorce_from on loves';
+@related = $delilah->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$samson->node_id], 'Delilah is still related to Samson';
+$samson->divorce_from($delilah);
+@related = $samson->related(outgoing => {});
+is scalar(@related), 0, 'Samson is sill not related to Delilah after divorce_from on all';
+@related = $delilah->related(outgoing => {});
+is scalar(@related), 0, 'and now Delilah is not related to Samson';
 
 exit;
