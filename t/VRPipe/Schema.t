@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 108;
+    use Test::Most tests => 110;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -293,7 +293,10 @@ is scalar(@related), 0, 'Samson is sill not related to Delilah after divorce_fro
 is scalar(@related), 0, 'and now Delilah is not related to Samson';
 
 # check that we can have arrayref properties
-ok my $ganode = $schema->add('Group', { name => 'foo', qc_fail_reasons => ['one', 'two', 'three'] }), 'we can set a property with an array';
+ok my $ganode = $schema->add('Group', { name => 'foo', qc_fail_reasons => ['one', 'two', 'three'] }), 'we can set a property with an array while creating the node';
 is_deeply $ganode->qc_fail_reasons(), ['one', 'two', 'three'], 'we can get array values of a property';
+ok $ganode->qc_fail_reasons(['four', 'five', 'six']), 'we can set a property with an array using the auto get/setter';
+$ganode = $schema->get('Group', { name => 'foo' });
+is_deeply $ganode->qc_fail_reasons(), ['four', 'five', 'six'], 'setting an array with the get/setter really worked';
 
 exit;

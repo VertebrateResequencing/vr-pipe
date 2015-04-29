@@ -60,7 +60,7 @@ role VRPipe::SchemaLabelRole {
         return { map { $_ => 1 } ($self->unique_properties, $self->required_properties, $self->other_properties) };
     }
     
-    method _get_setter (Str $property!, Str $new_value?) {
+    method _get_setter (Str $property!, Str|ArrayRef[Str] $new_value?) {
         # this should only be called by the auto-generated accessor methods, in
         # which case we don't need to check that $property is valid
         
