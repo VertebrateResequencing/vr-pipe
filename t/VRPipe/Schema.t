@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 106;
+    use Test::Most tests => 108;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -291,5 +291,9 @@ $samson->divorce_from($delilah);
 is scalar(@related), 0, 'Samson is sill not related to Delilah after divorce_from on all';
 @related = $delilah->related(outgoing => {});
 is scalar(@related), 0, 'and now Delilah is not related to Samson';
+
+# check that we can have arrayref properties
+ok my $ganode = $schema->add('Group', { name => 'foo', qc_fail_reasons => ['one', 'two', 'three'] }), 'we can set a property with an array';
+is_deeply $ganode->qc_fail_reasons(), ['one', 'two', 'three'], 'we can get array values of a property';
 
 exit;
