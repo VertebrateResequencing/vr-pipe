@@ -27,6 +27,47 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
         // and then set the resultStore to it
         
         switch (method) {
+            case 'qc_website_admin':
+                var adminUsers = subargs['adminUsers'];
+                if (adminUsers) {
+                    adminUsers.removeAll;
+                }
+                var groupAdmins = subargs['groupAdmins'];
+                var gaArr = [];
+                var groupConfig = subargs['groupConfig'];
+                var gcArr = [];
+                
+                for (var i = 0; i < data.length; i++) {
+                    var result = data[i];
+                    var type = result['type'];
+                    delete result['type'];
+                    switch (type) {
+                        case 'admin':
+                            if (adminUsers) {
+                                adminUsers(result.users);
+                            }
+                            break;
+                        case 'group_admins':
+                            if (groupAdmins) {
+                                gaArr.push(result);
+                            }
+                            break;
+                        case 'group_config':
+                            if (groupConfig) {
+                                gcArr.push(result);
+                            }
+                            break;
+                    }
+                }
+                
+                if (groupAdmins) {
+                    groupAdmins(gaArr);
+                }
+                if (groupConfig) {
+                    groupConfig(gcArr);
+                }
+                break;
+            
             case 'labels':
                 resultStore.removeAll();
                 var keys = [];
