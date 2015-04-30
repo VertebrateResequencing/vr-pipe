@@ -136,16 +136,13 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
         
         $stats_file->update_stats_from_disc(retries => 3);
         if ($stats_file->s) {
-            # parse the stats file with the old bamcheck parser
-            my $parser = VRPipe::Parser->create('bamcheck', { file => $stats_file });
             $stats_file->disconnect;
-            
             # we'll store results in the graph database under the VRTrack schema
             my $vrtrack = VRPipe::Schema->create('VRTrack');
             
             # before adding graph node for the stats file, make sure we have
             # nodes for the whole hierarchy
-            $parser = VRPipe::Parser->create('bam', { file => $bam_file });
+            my $parser  = VRPipe::Parser->create('bam', { file => $bam_file });
             my %rg_info = $parser->readgroup_info();
             my @rgs     = keys %rg_info;
             my @lanes;
@@ -231,10 +228,10 @@ class VRPipe::Steps::samtools_bam_stats with VRPipe::StepRole {
                 $stats_file->close;
                 
                 my $mode = 'normal';
-                if ($cmd_line =~ /-d/) {
+                if ($cmd_line =~ /\s-d\s/) {
                     $mode = 'rmdup';
                 }
-                elsif ($cmd_line =~ /-t/) {
+                elsif ($cmd_line =~ /\s-t\s/) {
                     $mode = 'targeted';
                 }
                 
