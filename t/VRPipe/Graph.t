@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 80;
+    use Test::Most tests => 83;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -200,7 +200,7 @@ is $graph->node_property($image, 'vrtrack_lane_name', check_parents => 1), 'Lane
 is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties still just gives image details';
 is_deeply $graph->node_properties($image, flatten_parents => 1), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png', stepresult_uuid => $uuid, vrtrack_lane_name => 'Lane1', vrtrack_library_name => 'Library1', vrtrack_sample_sanger_id => 'sanger1', vrtrack_sample_public_name => 'public1', vrtrack_sample_uuid => 'uuuuu', vrtrack_individual_name => 'John', vrtrack_study_name => 'Study of Disease_xyz' }, 'in flatten_parents mode we see all parental properties';
 
-# we can change existing properties and add new ones
+# we can change existing properties and add new ones and remove them
 $graph->node_add_properties($step_result, { foo => 'bar', cat => 'dog' });
 is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'bar', cat => 'dog' }, 'node_add_properties() adds properties correctly';
 $graph->node_add_properties($step_result, { foo => 'baz', lemur => 'llama' });
@@ -210,6 +210,13 @@ $graph->node_set_properties($fresh_step_result, { uuid => $uuid, foo => 'baz', l
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() updates properties correctly and removes unspecified ones';
 ($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() had its effect in the database';
+$graph->node_add_properties($step_result, { bad_property => 'foo' });
+($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella', bad_property => 'foo' }, 'added a bad property...';
+$graph->node_remove_property($step_result, 'bad_property');
+is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_remove_property() worked to remove that property';
+($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'and it is really removed from the database';
 
 # we can get a node by its database id
 $node = $graph->get_node_by_id($graph->node_id($step_result));

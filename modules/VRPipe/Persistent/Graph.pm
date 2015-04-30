@@ -701,6 +701,13 @@ class VRPipe::Persistent::Graph {
         return;
     }
     
+    method node_remove_property (HashRef|Object $node!, Str $property!) {
+        my $id = $self->node_id($node);
+        my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id REMOVE n.`$property` return n"]])->{nodes} };
+        $node->{properties} = $updated_node->{properties};
+        return;
+    }
+    
     # selfish => 1 means that the start node can be related to unlimited
     # end_nodes, but the end_node can only be related to a single node with the
     # same label (and relationship type) as the start node.

@@ -153,10 +153,10 @@ role VRPipe::SchemaLabelRole {
                 $history_props->{$key} = $val;
             }
         }
-        return unless $history_props;
+        return unless ($history_props || $replace);
         
         $pwh ||= VRPipe::Schema->create('PropertiesWithHistory');
-        my $changed_properties = $pwh->_add_or_update_properties($graph, $self, $history_props, replace => $replace);
+        my $changed_properties = $pwh->_add_or_update_properties($graph, $self, $history_props || {}, replace => $replace);
         $self->{changed_properties} = $changed_properties;
     }
     
@@ -165,6 +165,19 @@ role VRPipe::SchemaLabelRole {
             return $self->{changed_properties};
         }
         return;
+    }
+    
+    method remove_property (Str $property) {
+        my %uniques = map { $_ => 1 } $self->unique_properties();
+        my $class = $self->class();
+        if (exists $uniques{$property}) {
+            $self->throw("Property '$property' supplied, but that's unique for schema $class and can't be changed");
+        }
+        
+        $self->block_until_locked();
+        $graph->node_remove_property($self, $property);
+        $self->_maintain_property_history(1);
+        $self->unlock();
     }
     
     # returns a list of hashrefs with keys group_uuid, timestamp, properties,

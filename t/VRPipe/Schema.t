@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 110;
+    use Test::Most tests => 114;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -298,5 +298,15 @@ is_deeply $ganode->qc_fail_reasons(), ['one', 'two', 'three'], 'we can get array
 ok $ganode->qc_fail_reasons(['four', 'five', 'six']), 'we can set a property with an array using the auto get/setter';
 $ganode = $schema->get('Group', { name => 'foo' });
 is_deeply $ganode->qc_fail_reasons(), ['four', 'five', 'six'], 'setting an array with the get/setter really worked';
+
+# test removing properties, and how history works with that
+my $bps = $schema->add('Sample', { name => 'bps', public_name => ['b', 'p', 's'] });
+throws_ok { $bps->remove_property('name') } qr/Property 'name' supplied, but that's unique for schema VRTrack::Sample and can't be changed/, 'remove_property() throws when given a unique property';
+ok $bps->remove_property('public_name'), 'remove_property() worked on a normal property';
+is_deeply [$bps->{properties}, $bps->changed()], [{ name => 'bps' }, { public_name => [['b', 'p', 's'], undef] }], 'properties and changed() after removal of a property give expected results';
+$bps->add_properties({ public_name => 'pn' });
+@history = $bps->property_history('public_name');
+@history_properties = map { $_->{properties} } @history;
+is_deeply [@history_properties], [{ public_name => 'pn' }, {}, { public_name => ['b', 'p', 's'] }], 'property_history() works correctly on a property that had at one point been removed';
 
 exit;
