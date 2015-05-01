@@ -145,10 +145,10 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             $check_file->disconnect;
             
             my $hash_key_prefix = '';
-            if ($cmd_line =~ /-d/) {
+            if ($cmd_line =~ /\s-d\s/) {
                 $hash_key_prefix = 'rmdup_';
             }
-            elsif ($cmd_line =~ /-t/) {
+            elsif ($cmd_line =~ /\s-t\s/) {
                 $hash_key_prefix = 'targeted_';
             }
             
