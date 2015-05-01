@@ -772,6 +772,14 @@ class VRPipe::Persistent::Graph {
         $self->_run_cypher([[$cypher]]);
     }
     
+    method relationship_set_properties (HashRef $rel!, HashRef $properties!) {
+        my $id = $rel->{id};
+        my $properties_map = $self->_param_map($properties, 'param');
+        my ($updated_rel) = @{ $self->_run_cypher([["MATCH ()-[r]->() WHERE id(r) = $id SET r = $properties_map return r", { 'param' => $properties }]])->{relationships} };
+        $rel->{properties} = $updated_rel->{properties};
+        return;
+    }
+    
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
     # namespace, label, properties}, where the later 3 are result node specs and
     # with depths defaulting to 1 and others defaulting to undef; none supplied

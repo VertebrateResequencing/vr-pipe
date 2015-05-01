@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 83;
+    use Test::Most tests => 84;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -259,5 +259,14 @@ ok !$graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { 
 ok my @queued = $graph->dispatch_queue(), 'could call dispatch_queue()';
 is_deeply [sort map { $graph->node_property($_, 'sanger_id') } @queued], ['enqueue1', 'enqueue2'], 'dispatch_queue() returned the enqueued nodes';
 is_deeply [sort map { $graph->node_property($_, 'sanger_id') } ($graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }), $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue2' }))], ['enqueue1', 'enqueue2'], 'after dispatch_queue() the enqueued nodes are in the database';
+
+# we can set properties on a relationship (this is so far a rare-case usage, so
+# there isn't an easy way to set this at node/relationship creation time, nor
+# easy way to get relationships)
+$image2 = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => 'img2', type => 'png' }, incoming => { node => $image, type => 'sub_image' });
+my ($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
+$graph->relationship_set_properties($rel, { reason => 'likes subs' });
+($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
+is_deeply $rel->{properties}, { reason => 'likes subs' }, 'relationship_set_properties() worked';
 
 exit;
