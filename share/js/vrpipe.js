@@ -164,6 +164,7 @@ function loadExternalKnockoutTemplates(callback) {
                     if (data['user']) {
                         $('#loginDropdown').dropdown('toggle');
                         self.username(data['user']);
+                        window.location.reload();
                     }
                     else {
                         self.loginError('Failed; try again?');
@@ -176,6 +177,7 @@ function loadExternalKnockoutTemplates(callback) {
             vrpipeRestMethod('deauthenticate_user', 'n/a', { }, self.loading, self.errors, function(data) {
                 self.loginError(undefined);
                 self.username(undefined);
+                window.location.reload();
             });
         }
     };

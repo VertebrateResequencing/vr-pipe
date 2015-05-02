@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 100;
+    use Test::Most tests => 114;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -270,6 +270,43 @@ is_deeply $study->{properties}, { id => 2626, name => 'Study ERP006001: Deep seq
 
 # check that fixes for the above didn't break cypher queries with node ids
 my $donor = $schema->add('Donor', { id => 'd1' }, outgoing => { type => 'has', node => $sample });
-ok my $extra_info_node = $schema->get_node_by_id_with_extra_info('Donor', $donor->{id});
+ok my $extra_info_node = $schema->get_node_by_id_with_extra_info('Donor', $donor->{id}), 'cypher queries with node ids work';
+
+# test divorce_from()
+my $samson  = $schema->add('Group', { name => 'Samson' });
+my $delilah = $schema->add('Group', { name => 'Delilah' });
+$samson->relate_to($delilah, 'loves');
+$delilah->relate_to($samson, 'betrays');
+@related = $samson->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$delilah->node_id], 'Samson is related to Delilah';
+@related = $delilah->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$samson->node_id], 'Delilah is related to Samson';
+$delilah->divorce_from($samson, 'loves');
+@related = $samson->related(outgoing => {});
+is scalar(@related), 0, 'Samson is no longer related to Delilah after divorce_from on loves';
+@related = $delilah->related(outgoing => {});
+is_deeply [sort map { $_->node_id } @related], [$samson->node_id], 'Delilah is still related to Samson';
+$samson->divorce_from($delilah);
+@related = $samson->related(outgoing => {});
+is scalar(@related), 0, 'Samson is sill not related to Delilah after divorce_from on all';
+@related = $delilah->related(outgoing => {});
+is scalar(@related), 0, 'and now Delilah is not related to Samson';
+
+# check that we can have arrayref properties
+ok my $ganode = $schema->add('Group', { name => 'foo', qc_fail_reasons => ['one', 'two', 'three'] }), 'we can set a property with an array while creating the node';
+is_deeply $ganode->qc_fail_reasons(), ['one', 'two', 'three'], 'we can get array values of a property';
+ok $ganode->qc_fail_reasons(['four', 'five', 'six']), 'we can set a property with an array using the auto get/setter';
+$ganode = $schema->get('Group', { name => 'foo' });
+is_deeply $ganode->qc_fail_reasons(), ['four', 'five', 'six'], 'setting an array with the get/setter really worked';
+
+# test removing properties, and how history works with that
+my $bps = $schema->add('Sample', { name => 'bps', public_name => ['b', 'p', 's'] });
+throws_ok { $bps->remove_property('name') } qr/Property 'name' supplied, but that's unique for schema VRTrack::Sample and can't be changed/, 'remove_property() throws when given a unique property';
+ok $bps->remove_property('public_name'), 'remove_property() worked on a normal property';
+is_deeply [$bps->{properties}, $bps->changed()], [{ name => 'bps' }, { public_name => [['b', 'p', 's'], undef] }], 'properties and changed() after removal of a property give expected results';
+$bps->add_properties({ public_name => 'pn' });
+@history = $bps->property_history('public_name');
+@history_properties = map { $_->{properties} } @history;
+is_deeply [@history_properties], [{ public_name => 'pn' }, {}, { public_name => ['b', 'p', 's'] }], 'property_history() works correctly on a property that had at one point been removed';
 
 exit;

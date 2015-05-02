@@ -19,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -46,10 +46,18 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     method schema_definitions {
         return [
+            # qc-website related
+            {
+                label   => 'User',
+                unique  => [qw(username)],
+                indexed => [qw(admin)]
+            },
+            
             # general
             {
-                label  => 'Group',  # equivalent of old mysql database name, for grouping studies that we will analyse the same way
-                unique => [qw(name)]
+                label   => 'Group',              # equivalent of old mysql database name, for grouping studies that we will analyse the same way
+                unique  => [qw(name)],
+                indexed => [qw(qc_fail_reasons)] # we store an array of reasons in qc_fail_reasons
             },
             {
                 label        => 'Study',
@@ -70,7 +78,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_withdrawn)],
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_withdrawn qc_selected)],
                 keep_history => 1
             },
             
@@ -390,6 +398,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # these used to be stored as nodes in the graph db, but writing them all to
     # db was killing neo4j, so now we just get the gtypex file and parse it for
     # the results we need
+    # *** however this is now super slow, so maybe we should store the results
+    # back in the graph db, but using fewer nodes, like one per donor
     method donor_discordance_results (Int $donor) {
         my $study_labels = $self->cypher_labels('Study');
         
@@ -574,6 +584,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
         }
         close($ifh);
+    }
+    
+    # get info on which samples have been QC failed/selected, along with config
+    # info on who is allowed to change these and what reasons are allowed
+    method donor_sample_status (Int $donor) {
+        return;
     }
     
     # get the gender info for all samples from this donor
@@ -791,6 +807,121 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             close($ifh);
         }
         push(@results, sort { $a->{sample} cmp $b->{sample} } @summary_results);
+        
+        return \@results if @results;
+    }
+    
+    method administer_qc_web_interface (Str :$user, ArrayRef[Str] :$admins?, Str :$group?, ArrayRef[Str] :$group_admins?, ArrayRef[Str] :$group_qc_fail_reasons?) {
+        my %admin_users;
+        # get admins
+        foreach my $user_node ($self->get('User', { admin => 1 })) {
+            $admin_users{ $user_node->username } = 1;
+        }
+        
+        # if we have no admins, the first person to log in becomes admin
+        unless (keys %admin_users) {
+            $self->add('User', { username => $user, admin => 1 });
+            $admin_users{$user} = 1;
+        }
+        
+        # set admins
+        if ($admins && exists $admin_users{$user}) {
+            %admin_users = map { $_ => 1 } @$admins;
+            my %done_users;
+            foreach my $user_node ($self->get('User', { admin => 1 })) {
+                my $name = $user_node->username();
+                if (!exists $admin_users{$name}) {
+                    $user_node->admin(0);
+                }
+                else {
+                    $done_users{$name} = 1;
+                }
+            }
+            
+            foreach my $name (@$admins) {
+                next if $done_users{$name};
+                $self->add('User', { username => $name, admin => 1 });
+            }
+        }
+        
+        # get and set group admins and qc_fail_reasons
+        my %group_admins;
+        my @admin_of_groups;
+        my %group_qc_fail_reasons;
+        foreach my $group_node ($self->get('Group')) {
+            my $group_name = $group_node->name;
+            $group_admins{$group_name} = [];
+            
+            my $supplied = 0;
+            my %supplied_group_admins;
+            if ($group && $group_admins && $group eq $group_name && exists $admin_users{$user}) {
+                $group_admins{$group_name} = $group_admins;
+                %supplied_group_admins = map { $_ => 1 } @$group_admins;
+                $supplied = 1;
+            }
+            
+            my %already_administers;
+            my $admin_of_this_group = 0;
+            foreach my $user_node ($group_node->related(incoming => { namespace => 'VRTrack', label => 'User', max_depth => 1, type => 'administers' })) {
+                my $user_name = $user_node->username();
+                
+                if ($supplied) {
+                    if (!exists $supplied_group_admins{$user_name}) {
+                        $group_node->divorce_from($user_node, 'administers');
+                        next;
+                    }
+                    $already_administers{$user_name} = 1;
+                }
+                else {
+                    push(@{ $group_admins{$group_name} }, $user_name);
+                }
+                
+                if ($user_name eq $user) {
+                    push(@admin_of_groups, $group_name);
+                    $admin_of_this_group = 1;
+                }
+            }
+            
+            if ($supplied) {
+                foreach my $user_name (keys %supplied_group_admins) {
+                    next if exists $already_administers{$user_name};
+                    next unless $user_name;
+                    $self->add('User', { username => $user_name }, outgoing => { type => 'administers', node => $group_node });
+                    
+                    if ($user_name eq $user) {
+                        push(@admin_of_groups, $group_name);
+                        $admin_of_this_group = 1;
+                    }
+                }
+            }
+            
+            if ($group && $group_qc_fail_reasons && $group eq $group_name && $admin_of_this_group) {
+                if (@$group_qc_fail_reasons == 1 && $group_qc_fail_reasons->[0] eq '') {
+                    $group_node->remove_property('qc_fail_reasons');
+                }
+                else {
+                    $group_node->qc_fail_reasons($group_qc_fail_reasons);
+                }
+            }
+            $group_qc_fail_reasons{$group_name} = $group_node->qc_fail_reasons() || [];
+        }
+        
+        # provide admin-related data if user is an admin
+        my @results;
+        if (exists $admin_users{$user}) {
+            # return the current set of admin users and groups and who admins
+            # those
+            push(@results, { type => 'admin', users => join(', ', sort keys %admin_users) });
+            
+            foreach my $group_name (sort keys %group_admins) {
+                push(@results, { type => 'group_admins', group => $group_name, users => join(', ', sort @{ $group_admins{$group_name} }) });
+            }
+        }
+        
+        # provide group-admin-related data if user is admin of a group
+        foreach my $group_name (sort @admin_of_groups) {
+            push(@results, { type => 'group_config', group => $group_name, qc_fail_reasons => join(', ', @{ $group_qc_fail_reasons{$group_name} }) });
+        }
         
         return \@results if @results;
     }

@@ -60,7 +60,7 @@ role VRPipe::SchemaLabelRole {
         return { map { $_ => 1 } ($self->unique_properties, $self->required_properties, $self->other_properties) };
     }
     
-    method _get_setter (Str $property!, Str $new_value?) {
+    method _get_setter (Str $property!, Str|ArrayRef[Str] $new_value?) {
         # this should only be called by the auto-generated accessor methods, in
         # which case we don't need to check that $property is valid
         
@@ -153,10 +153,10 @@ role VRPipe::SchemaLabelRole {
                 $history_props->{$key} = $val;
             }
         }
-        return unless $history_props;
+        return unless ($history_props || $replace);
         
         $pwh ||= VRPipe::Schema->create('PropertiesWithHistory');
-        my $changed_properties = $pwh->_add_or_update_properties($graph, $self, $history_props, replace => $replace);
+        my $changed_properties = $pwh->_add_or_update_properties($graph, $self, $history_props || {}, replace => $replace);
         $self->{changed_properties} = $changed_properties;
     }
     
@@ -165,6 +165,19 @@ role VRPipe::SchemaLabelRole {
             return $self->{changed_properties};
         }
         return;
+    }
+    
+    method remove_property (Str $property) {
+        my %uniques = map { $_ => 1 } $self->unique_properties();
+        my $class = $self->class();
+        if (exists $uniques{$property}) {
+            $self->throw("Property '$property' supplied, but that's unique for schema $class and can't be changed");
+        }
+        
+        $self->block_until_locked();
+        $graph->node_remove_property($self, $property);
+        $self->_maintain_property_history(1);
+        $self->unlock();
     }
     
     # returns a list of hashrefs with keys group_uuid, timestamp, properties,
@@ -191,8 +204,12 @@ role VRPipe::SchemaLabelRole {
         return @nodes;
     }
     
-    method relate_to (HashRef|Object $node!, $type!, Bool :$selfish = 0, Bool :$replace = 0) {
+    method relate_to (HashRef|Object $node!, Str $type!, Bool :$selfish = 0, Bool :$replace = 0) {
         $graph->relate($self, $node, type => $type, selfish => $selfish, replace => $replace);
+    }
+    
+    method divorce_from (HashRef|Object $node!, Str $type?) {
+        $graph->divorce($self, $node, $type ? (type => $type) : ());
     }
 }
 

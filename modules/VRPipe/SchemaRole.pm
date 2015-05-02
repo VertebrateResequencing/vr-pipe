@@ -251,12 +251,15 @@ role VRPipe::SchemaRole {
                 }
             }
             
-            # all property values need to be stringified because Neo4J treats an
-            # int and string of the same number as unique so you could get
-            # duplicate nodes otherwise
+            # all property values (except array refs) need to be stringified
+            # because Neo4J treats an int and string of the same number as
+            # unique so you could get duplicate nodes otherwise
             foreach my $p (@$props) {
                 foreach my $key (keys %{$p}) {
-                    $p->{$key} = "$p->{$key}";
+                    my $val = $p->{$key};
+                    unless (ref($val) && ref($val) eq 'ARRAY') {
+                        $p->{$key} = "$val";
+                    }
                 }
             }
             
