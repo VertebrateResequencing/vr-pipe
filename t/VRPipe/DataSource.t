@@ -993,7 +993,7 @@ SKIP: {
     $file = VRPipe::File->create(path => file($output_root, $irods_root, 'file3.txt'));
     is_deeply $file->metadata, { study_id => 2623, simple => 'simon', irods_path => "$irods_root/file3.txt" }, 'correct file metadata was present on the newly added irods file';
     
-    # system("irm -fr $irods_root");
+    system("irm -fr $irods_root");
 }
 
 # test a special vrtrack test database; these tests are meant for the author
