@@ -39,7 +39,6 @@ use VRPipe::Base;
 
 class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
     use Digest::MD5 qw(md5_hex);
-    use VRPipe::Schema;
     
     method description {
         return "Use files created by VRPipe pipelines as a datasource.";
@@ -76,8 +75,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
         builder => '_build_iiae_sources',
         lazy    => 1
     );
-    
-    my %file_filter_cache;
     
     method _build_vrpipe_sources (Maybe[Str] $source?) {
         my @sources = split(/\|/, $source || $self->source);
@@ -267,113 +264,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
         VRPipe::DataElementLink->bulk_create_or_update(@link_args);
     }
     
-    method _parse_filters (Maybe[Str] $filter?, Maybe[Str] $graph_filter?) {
-        my @krs;
-        if ($filter) {
-            foreach my $kr (split(',', $filter)) {
-                my ($key, $regex) = split('#', $kr);
-                $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless ($key && $regex);
-                push(@krs, [$key, $regex]);
-            }
-            $self->throw("Option 'filter' for vrpipe datasource was not properly formed\n") unless @krs;
-        }
-        my (@gfs, $vrpipe_graph_schema, $graph);
-        if ($graph_filter) {
-            foreach my $gf (split(',', $graph_filter)) {
-                my ($namespace, $label, $prop, $value) = split('#', $gf);
-                $self->throw("Option 'graph_filter' for vrpipe datasource was not properly formed\n") unless ($namespace && $label && $prop && defined($value));
-                push(@gfs, [$namespace, $label, $prop, $value]);
-            }
-            $self->throw("Option 'graph_filter' for vrpipe datasource was not properly formed\n") unless @gfs;
-            $vrpipe_graph_schema = VRPipe::Schema->create('VRPipe');
-            $graph               = $vrpipe_graph_schema->graph();
-        }
-        return (\@krs, \@gfs, $vrpipe_graph_schema, $graph);
-    }
-    
-    method _file_filter (VRPipe::File $file, Bool $filter_after_grouping, Maybe[ArrayRef] $krs?, Maybe[ArrayRef] $gfs?, $vrpipe_graph_schema?, $graph?) {
-        # to avoid doing this twice, once during _element_state_status_checksum
-        # and then again during _all_results, _element_state_status_checksum()
-        # caches our result and _all_results() clears the cache before it returns
-        my $file_id = $file->id;
-        if (exists $file_filter_cache{$file_id}) {
-            return $file_filter_cache{$file_id};
-        }
-        
-        my $meta        = $file->metadata;
-        my $pass_filter = 0;
-        if ($krs && @$krs) {
-            # if "filter_after_grouping => 0", we filter before grouping
-            # by skipping files which don't match the regex or don't
-            # have the required metadata
-            my $passes = 0;
-            foreach my $kr (@$krs) {
-                my ($key, $regex) = @$kr;
-                if (defined $meta->{$key}) {
-                    my $this_passed = $meta->{$key} =~ m/$regex/ ? 1 : 0;
-                    return if (!$filter_after_grouping && !$this_passed);
-                    $passes += $this_passed;
-                }
-                else {
-                    return unless $filter_after_grouping;
-                }
-            }
-            $pass_filter = $passes == @$krs ? 1 : 0;
-        }
-        
-        if ($gfs && @$gfs && (($krs && @$krs) ? $pass_filter : 1)) {
-            my $file_node = $vrpipe_graph_schema->get('File', { path => $file->path->stringify });
-            my $passes = 0;
-            foreach my $gf (@$gfs) {
-                my ($namespace, $label, $prop, $value) = @$gf;
-                my @nodes = $graph->related_nodes(
-                    $file_node,
-                    incoming => {
-                        namespace => $namespace,
-                        label     => $label,
-                        max_depth => 20,
-                        $value ? (properties => { $prop => $value }) : ()
-                    }
-                );
-                #*** there are definitely optimisations
-                # that can be made here: we can get all file nodes at once, and
-                # we can check all property#value pairs on the same label at
-                # once.
-                if (@nodes) {
-                    unless ($value) {
-                        # we didn't restrict nodes to those that have $prop set
-                        # so that we can now test all the nodes to see if they
-                        # either have $prop set to 0, or don't have $prop set at
-                        # all
-                        my $ok = 0;
-                        foreach my $node (@nodes) {
-                            $ok++ unless $graph->node_property($node, $prop);
-                        }
-                        
-                        # we reverse the normal logic and say all nodes must
-                        # have a false/unset value, instead of only 1 node
-                        # having a true value
-                        if ($ok == @nodes) {
-                            $passes++;
-                        }
-                        else {
-                            return unless $filter_after_grouping;
-                        }
-                    }
-                    else {
-                        $passes++;
-                    }
-                }
-                else {
-                    return unless $filter_after_grouping;
-                }
-            }
-            $pass_filter = $passes == @$gfs ? 1 : 0;
-        }
-        
-        return $pass_filter;
-    }
-    
     method _all_results (Defined :$handle!, Bool :$maintain_element_grouping = 1, Str :$filter?, Str :$graph_filter, HashRef :$sources?, Bool :$complete_elements = 1, Bool :$complete_all = 0, Bool :$filter_after_grouping = 1) {
         my ($krs, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters($filter, $graph_filter);
         
@@ -461,7 +351,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
         }
         
         # empty the cache before the next possible check
-        %file_filter_cache = ();
+        $self->_clear_file_filter_cache();
         
         return \@output_files;
     }
@@ -591,7 +481,6 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
                     
                     foreach my $file (@$files) {
                         my $pass = $self->_file_filter($file, $filter_after_grouping, $krs, $gfs, $vrpipe_graph_schema, $graph);
-                        $file_filter_cache{ $file->id } = $pass;
                         $pass_filter += $pass if $pass;
                     }
                 }
