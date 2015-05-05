@@ -67,6 +67,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         if ($method eq 'all_with_warehouse_metadata') {
             return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
+        if ($method eq 'group_by_metadata_with_warehouse_metadata') {
+            return "Extension to the all_with_warehouse_metadata methods that will group based specified metadata keys. Each element will consist of all the files given in the first column of the source that share values in the column(s) specified by the metadata_keys option. If you want to group by more than 1 metadata column, separate the key names with a '|' symbol. e.g. 'sample|platform|library' will group all files with the same sample, platform and library into one dataelement.";
+        }
         return '';
     }
     
@@ -106,7 +109,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata}, $options->{vrtrack_group});
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method =~ /with_warehouse_metadata$/, $options->{required_metadata}, $options->{vrtrack_group});
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -520,7 +523,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args);
+        my @element_args;
+        my $did = $self->_datasource_id;
+        foreach my $result ($self->_all_files(%args)) {
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+        }
+        $self->_create_elements(\@element_args);
     }
     
     method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?) {
@@ -529,7 +537,39 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ());
+        my @element_args;
+        my $did = $self->_datasource_id;
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ())) {
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+        }
+        $self->_create_elements(\@element_args);
+    }
+    
+    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?) {
+        my %args;
+        $args{handle}          = $handle;
+        $args{file_query}      = $file_query;
+        $args{local_root_dir}  = $local_root_dir;
+        $args{update_interval} = $update_interval if defined($update_interval);
+        
+        my @meta_keys = split /\|/, $metadata_keys;
+        my $group_hash;
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ())) {
+            my @group_keys;
+            foreach my $key (@meta_keys) {
+                $self->throw("Metadata key $key not present for file " . $result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
+                push @group_keys, $result->{metadata}->{$key};
+            }
+            my $group_key = join '|', @group_keys;
+            push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
+        }
+        
+        my $did = $self->_datasource_id;
+        my @element_args;
+        while (my ($group, $data) = each %$group_hash) {
+            push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group } });
+        }
+        $self->_create_elements(\@element_args);
     }
     
     method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?) {
@@ -543,7 +583,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
         
         my $did = $self->_datasource_id;
-        my @element_args;
+        my @results;
         my @changed_details;
         my $anti_repeat_store = {};
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
@@ -596,9 +636,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
             }
-            push(@element_args, { datasource => $did, result => $result_hash });
+            push(@results, { paths => [$file_abs_path], irods_path => $path, metadata => $new_metadata });
         }
-        $self->_create_elements(\@element_args);
+        return @results;
     }
 }
 
