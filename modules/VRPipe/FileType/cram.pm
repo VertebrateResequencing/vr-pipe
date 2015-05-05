@@ -62,7 +62,7 @@ class VRPipe::FileType::cram extends VRPipe::FileType::bin {
     
     method num_records {
         my $path    = $self->file;
-        my $records = `$samtools_exe view -c $path`;
+        my $records = `$samtools_exe view -c -F 0x900 $path`;
         ($records) = $records =~ /^(\d+)/m;
         $records ||= 0;
         return $records;
