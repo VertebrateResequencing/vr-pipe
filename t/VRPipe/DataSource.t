@@ -825,8 +825,8 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     # test the filter and graph_filter options of the vrpipe datasource
     my $schema    = VRPipe::Schema->create("VRTrack");
     my @ps1_nodes = map { $schema->add_file($_) } @ps1_file_paths;
-    my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_withdrawn => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
-    my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_withdrawn => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
+    my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_failed => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
+    my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_failed => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
     my $vrsample3 = $schema->add("Sample", { name => "sample3" }, outgoing => { node => $ps1_nodes[2], type => 'has' });
     my @ps1_files = map { VRPipe::File->get(path => $_) } @ps1_file_paths;
     $ps1_files[1]->add_metadata({ filtkey => 'filtvalue' });
@@ -834,7 +834,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
         type    => 'vrpipe',
         method  => 'all',
         source  => 'ps1[1]',
-        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_withdrawn#0' }
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0' }
     );
     my @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 0, 'filter and graph_filter options cancel can each other out';
