@@ -87,10 +87,14 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                 my ($key, $regex) = @$kr;
                 if (defined $meta->{$key}) {
                     my $this_passed = $meta->{$key} =~ m/$regex/ ? 1 : 0;
-                    return if (!$filter_after_grouping && !$this_passed);
+                    if (!$filter_after_grouping && !$this_passed) {
+                        $file_filter_cache{$file_id} = undef;
+                        return;
+                    }
                     $passes += $this_passed;
                 }
                 else {
+                    $file_filter_cache{$file_id} = undef;
                     return unless $filter_after_grouping;
                 }
             }
@@ -133,6 +137,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                             $passes++;
                         }
                         else {
+                            $file_filter_cache{$file_id} = undef;
                             return unless $filter_after_grouping;
                         }
                     }
@@ -141,6 +146,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                     }
                 }
                 else {
+                    $file_filter_cache{$file_id} = undef;
                     return unless $filter_after_grouping;
                 }
             }
