@@ -561,7 +561,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $args{update_interval} = $update_interval if defined($update_interval);
         my @element_args;
         my $did = $self->_datasource_id;
-        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ()), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ()) {
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : (), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ())) {
             push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
         }
         $self->_create_elements(\@element_args);
@@ -576,7 +576,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         my @meta_keys = split /\|/, $metadata_keys;
         my $group_hash;
-        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ()), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => $filter_after_grouping) : ()) {
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : (), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => $filter_after_grouping) : ())) {
             my @group_keys;
             foreach my $key (@meta_keys) {
                 $self->throw("Metadata key $key not present for file " . $result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
@@ -633,7 +633,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             my $pass_filter;
             if ($graph) {
-                $pass_filter = $self->_file_filter($vrfile, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                $pass_filter = $self->_file_filter($path, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
                 next unless defined($pass_filter);
             }
             

@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 138;
+    use Test::Most tests => 141;
     use VRPipeTest;
     use TestPipelines;
     
@@ -848,7 +848,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 18;
+    my $num_tests = 21;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
     my $output_root    = get_output_dir('datasource_irods_import_dir');
@@ -947,7 +947,7 @@ SKIP: {
     ok $ds = VRPipe::DataSource->create(
         type    => 'irods',
         method  => 'all',
-        source  => 'uk10k',
+        source  => $irods_zone,
         options => {
             file_query      => q[study_id = 2623],
             local_root_dir  => $output_root,
@@ -986,10 +986,54 @@ SKIP: {
         push(@results, result_with_inflated_paths($element));
     }
     
-    is_deeply \@results, [{ paths => [file($output_root, $irods_root, 'file.txt')], irods_path => "$irods_root/file.txt" }, { paths => [file($output_root, $irods_root, 'file2.txt')], irods_path => "$irods_root/file2.txt" }, { paths => [file($output_root, $irods_root, 'file3.txt')], irods_path => "$irods_root/file3.txt" }], 'got correct results for irods all after adding a new file';
+    my @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
+    is_deeply \@results, [{ paths => [$local_files[0]], irods_path => "$irods_root/file.txt" }, { paths => [$local_files[1]], irods_path => "$irods_root/file2.txt" }, { paths => [$local_files[2]], irods_path => "$irods_root/file3.txt" }], 'got correct results for irods all after adding a new file';
     
-    $file = VRPipe::File->create(path => file($output_root, $irods_root, 'file3.txt'));
+    $file = VRPipe::File->create(path => $local_files[2]);
     is_deeply $file->metadata, { study_id => 2623, simple => 'simon', irods_path => "$irods_root/file3.txt" }, 'correct file metadata was present on the newly added irods file';
+    
+    # test graph_filter option of the irods datasource
+    system("imeta -z $irods_zone add -d $irods_root/file.txt sample samplea");
+    system("imeta -z $irods_zone add -d $irods_root/file2.txt sample sampleb");
+    system("imeta -z $irods_zone add -d $irods_root/file3.txt sample sampleb");
+    my $filt_ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all_with_warehouse_metadata',
+        source  => $irods_zone,
+        options => {
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 10,
+            graph_filter    => 'VRTrack#Sample#qc_failed#0'
+        }
+    );
+    my @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 3, 'all_with_warehouse_metadata graph_filter with a 0 value passes all files with the property unset';
+    my $schema    = VRPipe::Schema->create("VRTrack");
+    my @lf_nodes  = map { $schema->add_file($_->stringify) } @local_files;
+    my $vrsamplea = $schema->get("Sample", { name => "samplea" });
+    $vrsamplea->qc_failed(0);
+    my $vrsampleb = $schema->add("Sample", { name => "sampleb" });
+    $vrsampleb->qc_failed(1);
+    sleep(11);
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 1, 'changes to what would pass the graph_filter are picked up correctly';
+    
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'group_by_metadata_with_warehouse_metadata',
+        source  => $irods_zone,
+        options => {
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 10,
+            graph_filter    => 'VRTrack#Sample#qc_failed#1',
+            metadata_keys   => 'sample'
+        }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    @results = map { result_with_inflated_paths($_) } @filt_elements;
+    is_deeply [scalar(@filt_elements), $results[0]], [1, { paths => [$local_files[1], $local_files[2]], group => "sampleb" }], 'group_by_metadata_with_warehouse_metadata graph_filter with a 1 value returns a single dataelement with the 2 paths associated with the passing sample';
     
     system("irm -fr $irods_root");
 }
