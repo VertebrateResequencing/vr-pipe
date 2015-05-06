@@ -701,6 +701,13 @@ class VRPipe::Persistent::Graph {
         return;
     }
     
+    method node_remove_property (HashRef|Object $node!, Str $property!) {
+        my $id = $self->node_id($node);
+        my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id REMOVE n.`$property` return n"]])->{nodes} };
+        $node->{properties} = $updated_node->{properties};
+        return;
+    }
+    
     # selfish => 1 means that the start node can be related to unlimited
     # end_nodes, but the end_node can only be related to a single node with the
     # same label (and relationship type) as the start node.
@@ -757,6 +764,22 @@ class VRPipe::Persistent::Graph {
         $self->_run_cypher(\@cypher);
     }
     
+    # delete all relationships between 2 nodes, optionally limited by type
+    method divorce (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type?) {
+        $type ||= '';
+        $type &&= ':' . $type;
+        my $cypher = "MATCH (a)-[rel$type]-(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} DELETE rel";
+        $self->_run_cypher([[$cypher]]);
+    }
+    
+    method relationship_set_properties (HashRef $rel!, HashRef $properties!) {
+        my $id = $rel->{id};
+        my $properties_map = $self->_param_map($properties, 'param');
+        my ($updated_rel) = @{ $self->_run_cypher([["MATCH ()-[r]->() WHERE id(r) = $id SET r = $properties_map return r", { 'param' => $properties }]])->{relationships} };
+        $rel->{properties} = $updated_rel->{properties};
+        return;
+    }
+    
     # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
     # namespace, label, properties}, where the later 3 are result node specs and
     # with depths defaulting to 1 and others defaulting to undef; none supplied
@@ -776,8 +799,8 @@ class VRPipe::Persistent::Graph {
         if ($undirected) {
             my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
             my $return = $result_nodes_only ? 'u' : 'p';
-            my $cypher = "MATCH p = (start)-[$type*$min_depth..$max_depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
-            $cypher =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+            my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+            my $cypher = "MATCH p = (start)-[$type$depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
             return $self->_run_cypher([[$cypher, { 'param' => $properties }]]);
         }
         else {
@@ -786,8 +809,8 @@ class VRPipe::Persistent::Graph {
             my $left = '';
             if ($incoming) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
-                $left = "(l$result_node_spec)-[$type*$min_depth..$max_depth]->";
-                $left =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                $left = "(l$result_node_spec)-[$type$depth]->";
                 push(@return, 'l');
                 $all_properties{left} = $properties if $properties;
                 if ($incoming->{leftmost} && $max_depth > 1) {
@@ -797,8 +820,8 @@ class VRPipe::Persistent::Graph {
             my $right = '';
             if ($outgoing) {
                 my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
-                $right = "-[$type*$min_depth..$max_depth]->(r$result_node_spec)";
-                $right =~ s/\*1\.\.1//; # some bug in neo4j means 1..1 doesn't always work properly
+                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                $right = "-[$type$depth]->(r$result_node_spec)";
                 push(@return, 'r');
                 $all_properties{right} = $properties if $properties;
                 if ($outgoing->{rightmost} && $max_depth > 1) {

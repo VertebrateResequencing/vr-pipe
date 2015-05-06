@@ -57,6 +57,30 @@
                     </div>
                 </div>
                 
+                <div class="panel panel-default" data-bind="visible: donorSampleStatus().length">
+                    <div class="panel-heading">Sample Status</div>
+                    <div class="table-responsive">
+                        <table class="table table-striped table-hover">
+                            <thead>
+                                <tr>
+                                    <th>sample name</th>
+                                    <th>sample public name</th>
+                                    <th>qc failed</th>
+                                    <th>qc selected</th>
+                                </tr>
+                            </thead>
+                            <tbody data-bind="foreach: donorSampleStatus">
+                                <tr data-bind="css: { danger: qc_failed, success: qc_selected }">
+                                    <td data-bind="text: sample_name"></td>
+                                    <td data-bind="text: sample_public_name"></td>
+                                    <td data-bind="text: qc_failed"></td>
+                                    <td data-bind="text: qc_selected"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
                 <div class="panel panel-default" data-bind="visible: donorGenderResults().length">
                     <div class="panel-heading">Gender</div>
                     <div class="table-responsive">
@@ -333,6 +357,8 @@
                 self.errors = ko.observableArray();
                 self.donorNodeID = getQueryStringParameterByName('id');
                 self.donorNode = ko.observable();
+                self.donorAdmin = ko.observable();
+                self.donorSampleStatus = ko.observableArray();
                 self.donorGenderResults = ko.observableArray();
                 self.donorFluidigmDiscordance = ko.observableArray();
                 self.donorGenotypingDiscordance = ko.observableArray();
@@ -356,7 +382,7 @@
                             document.title = sample + ' [VRTrack Donor QC]';
                         }
                         
-                        getQCGraphData('donor_qc', { donor: +newValue['id'] }, { donorGenderResults: self.donorGenderResults, donorFluidigmDiscordance: self.donorFluidigmDiscordance, donorGenotypingDiscordance: self.donorGenotypingDiscordance, donorCopyNumberSummary: self.donorCopyNumberSummary, donorAberrantRegions: self.donorAberrantRegions, donorAberrantPolysomy: self.donorAberrantPolysomy, donorCopyNumberPlot: self.donorCopyNumberPlot, donorLOHCalls: self.donorLOHCalls, donorPluritestPlots: self.donorPluritestPlots, donorPluritestSummary: self.donorPluritestSummary }, self.loading, self.errors);
+                        getQCGraphData('donor_qc', { donor: +newValue['id'] }, { donorAdmin: self.donorAdmin, donorSampleStatus: self.donorSampleStatus, donorGenderResults: self.donorGenderResults, donorFluidigmDiscordance: self.donorFluidigmDiscordance, donorGenotypingDiscordance: self.donorGenotypingDiscordance, donorCopyNumberSummary: self.donorCopyNumberSummary, donorAberrantRegions: self.donorAberrantRegions, donorAberrantPolysomy: self.donorAberrantPolysomy, donorCopyNumberPlot: self.donorCopyNumberPlot, donorLOHCalls: self.donorLOHCalls, donorPluritestPlots: self.donorPluritestPlots, donorPluritestSummary: self.donorPluritestSummary }, self.loading, self.errors);
                     }
                 });
                 

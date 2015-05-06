@@ -1606,13 +1606,59 @@ sub qc {
         return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?"] };
     }
     
-    my $user = $args->{authenticated_user};
-    unless ($user) {
+    my $auth_user = $args->{authenticated_user};
+    unless ($auth_user) {
         return { errors => ["You must be logged in to view the QC website."] };
     }
     
     my $data;
-    if ($method eq 'labels') {
+    if ($method eq 'qc_website_admin') {
+        my $admins = $args->{admins};
+        if ($admins) {
+            $admins =~ s/^\s+//;
+            $admins =~ s/\s+$//;
+        }
+        
+        my $group = $args->{group};
+        my (@group_admins, @group_qc_fail_reasons);
+        if ($group) {
+            my $g_admins = $args->{group_admins};
+            if (defined $g_admins) {
+                if ($g_admins) {
+                    foreach my $g_admin (split(/[\s,]+/, $g_admins)) {
+                        $g_admin =~ s/^\s+//;
+                        $g_admin =~ s/\s+$//;
+                        push(@group_admins, $g_admin);
+                    }
+                }
+                else {
+                    push(@group_admins, '');
+                }
+            }
+            
+            my $gqfr = $args->{group_qc_fail_reasons};
+            if (defined $gqfr) {
+                if ($gqfr) {
+                    foreach my $reason (split(/,/, $gqfr)) {
+                        $reason =~ s/^\s+//;
+                        $reason =~ s/\s+$//;
+                        push(@group_qc_fail_reasons, $reason);
+                    }
+                }
+                else {
+                    push(@group_qc_fail_reasons, '');
+                }
+            }
+        }
+        
+        $data = $vrtrack->administer_qc_web_interface(
+            user => $auth_user,
+            $admins ? (admins => [split(/[\s,]+/, $admins)]) : (),
+            @group_admins          ? (group => $group, group_admins          => \@group_admins)          : (),
+            @group_qc_fail_reasons ? (group => $group, group_qc_fail_reasons => \@group_qc_fail_reasons) : ()
+        );
+    }
+    elsif ($method eq 'labels') {
         $data = $vrtrack->labels;
     }
     elsif ($method eq 'nodes_of_label') {
@@ -1734,13 +1780,19 @@ sub qc {
     elsif ($method eq 'donor_qc') {
         my $donor = $args->{donor};
         if ($donor) {
-            # get the discordance results between all samples from this donor
-            my $d_results = $vrtrack->donor_discordance_results($donor);
-            push(@$data, @$d_results) if $d_results;
+            # get the information about which samples have been failed or
+            # selected, along with config info on who is allowed to change these
+            # and what reasons are allowed
+            my $status = $vrtrack->donor_sample_status($donor, $auth_user);
+            push(@$data, @$status) if $status;
             
             # get the gender info for all samples from this donor
             my $g_results = $vrtrack->donor_gender_results($donor);
             push(@$data, @$g_results) if $g_results;
+            
+            # get the discordance results between all samples from this donor
+            my $d_results = $vrtrack->donor_discordance_results($donor);
+            push(@$data, @$d_results) if $d_results;
             
             # get the copy number/polysomy/loh results for this donor
             my $c_results = $vrtrack->donor_cnv_results($donor);

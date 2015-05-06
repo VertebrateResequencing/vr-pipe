@@ -1,0 +1,4 @@
+path	lane	paired	reads	bases	sample
+t/data/13503_7.cram	13503_7	1	1831	279314	NA12891
+t/data/13502_7#1.cram	13502_7#1	1	1848	281651	NA12878
+t/data/13502_7#2.cram	13502_7#2	1	1936	295110	NA12878

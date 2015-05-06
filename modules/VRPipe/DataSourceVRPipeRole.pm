@@ -38,7 +38,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-role VRPipe::DataSourceVRPipeRole with VRPipe::DataSourceRole {
+role VRPipe::DataSourceVRPipeRole with VRPipe::DataSourceFilterRole {
     around _create_elements (ArrayRef $e_args!) {
         # the all() method would be screwed up if anything overrides _create
         # elements() to change the element_args, so we check if it changed

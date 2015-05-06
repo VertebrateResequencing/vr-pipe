@@ -97,7 +97,7 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         
         # get the current property group and nodes (if any)
         my $node_id = $node->node_id();
-        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[:property*1]->(p) WHERE id(n) = $node_id RETURN c,p"]], { return_history_nodes => 1 });
+        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c) WHERE id(n) = $node_id OPTIONAL MATCH (c)-[:property*1]->(p) RETURN c,p"]], { return_history_nodes => 1 });
         my ($current_property_group, $current_property_node_details, $current_props) = $self->_nodes_to_properties($data->{nodes});
         
         # calculate the property node details we'll need for the new properties
@@ -147,6 +147,17 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
             return;
         }
         
+        while (my ($key, $change) = each %$changed) {
+            foreach my $thing (@$change) {
+                if (ref($thing) && ref($thing) eq 'ARRAY') {
+                    my @sorted = sort @$thing;
+                    foreach my $i (0 .. $#sorted) {
+                        $thing->[$i] = $sorted[$i];
+                    }
+                }
+            }
+        }
+        
         # make a new property group and attach to (potentially new) property
         # nodes in the final grouping
         my $uuid               = $graph->create_uuid;
@@ -158,11 +169,13 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         # deleting them because it is deleting some other node that shares a
         # some properties; this should be a very rare event so its ok to lock on
         # a very general key
-        my $im       = VRPipe::Persistent::InMemory->new();
-        my $lock_key = 'graph.propertieswithhistory.updating';
-        $im->block_until_locked($lock_key);
-        $self->add('Property', \@final_group, incoming => { node => $new_property_group, type => 'property' });
-        $im->unlock($lock_key);
+        if (@final_group) {
+            my $im       = VRPipe::Persistent::InMemory->new();
+            my $lock_key = 'graph.propertieswithhistory.updating';
+            $im->block_until_locked($lock_key);
+            $self->add('Property', \@final_group, incoming => { node => $new_property_group, type => 'property' });
+            $im->unlock($lock_key);
+        }
         
         $node->unlock unless $locked_by_me;
         return $changed;
@@ -172,17 +185,23 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         my $node_id = $node->node_id();
         #*** arbitrarily limited depth of history to 500; we should do paging or
         #    make it an option or something
-        my $property_where = $property ? " AND p.key = '$property'" : '';
-        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c)-[r:property*1]->(p) WHERE id(n) = $node_id$property_where OPTIONAL MATCH (c)-[:previous_properties*1..500]->()-[s:property*1]->(q) RETURN c,r,p,s,q"]], { return_history_nodes => 1 });
+        my $property_def = $property ? "  { key: '$property' }" : '';
+        my $data = $graph->_run_cypher([["MATCH (n)-[:current_properties*1]->(c) WHERE id(n) = $node_id OPTIONAL MATCH (c)-[r:property*1]->(p$property_def) OPTIONAL MATCH (c)-[:previous_properties*1..500]->(o) OPTIONAL MATCH (o)-[s:property*1]->(q$property_def) RETURN c,r,p,o,s,q"]], { return_history_nodes => 1 });
         
         # based on the relationships we can group the properties with their
         # propertygroup (properties may belong to more than 1 group)
         my %nodes;
+        my %groups;
         foreach my $node (@{ $data->{nodes} }) {
             $nodes{ $node->{id} } = $node;
+            
+            if ($node->{label} eq 'PropertyGroup') {
+                # ensure we will later consider all propertygroups - including
+                # those with no related property nodes
+                $groups{ $node->{id} } = [];
+            }
         }
         
-        my %groups;
         foreach my $rel (@{ $data->{relationships} }) {
             push(@{ $groups{ $rel->{startNode} } }, $nodes{ $rel->{endNode} });
         }
@@ -192,7 +211,18 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         foreach my $group_node_id (sort { $b <=> $a } keys %groups) {
             my $property_nodes            = $groups{$group_node_id};
             my $property_group_properties = $nodes{$group_node_id}->{properties};
-            my (undef, undef, $properties) = $self->_nodes_to_properties($property_nodes);
+            my $properties                = {};
+            if ($property_nodes) {
+                (undef, undef, $properties) = $self->_nodes_to_properties($property_nodes);
+                while (my ($key, $val) = each %$properties) {
+                    if (ref($val) && ref($val) eq 'ARRAY') {
+                        my @sorted = sort @$val;
+                        foreach my $i (0 .. $#sorted) {
+                            $val->[$i] = $sorted[$i];
+                        }
+                    }
+                }
+            }
             push(@history, { properties => $properties, timestamp => $property_group_properties->{timestamp}, group_uuid => $property_group_properties->{uuid} });
         }
         

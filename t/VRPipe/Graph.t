@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 84;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -101,6 +101,28 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Libr
 @nodes = $graph->related_nodes($study, incoming => { min_depth => 0 }, outgoing => { min_depth => 0 });
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Jane John)], 'related_nodes works correctly with a min_depth of 0';
 
+# test deleting relationships
+my $samson  = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Samson' });
+my $delilah = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Delilah' });
+$graph->relate($samson,  $delilah, type => 'loves');
+$graph->relate($delilah, $samson,  type => 'betrays');
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Delilah)], 'Samson is related to Delilah';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Samson)], 'Delilah is related to Samson';
+$graph->divorce($samson, $delilah, type => 'loves');
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is scalar(@nodes), 0, 'after divorcing on loves, Samson no longer related to Delilah in that direction';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Samson)], 'Delilah remains related to Samson';
+$graph->divorce($samson, $delilah);
+@nodes = $graph->related_nodes($samson, outgoing => {});
+is scalar(@nodes), 0, 'after divorcing without specifying type, Samson remains unrelated to Delilah in that direction';
+@nodes = $graph->related_nodes($delilah, outgoing => {});
+is scalar(@nodes), 0, 'and now Delilah is not related to Samson';
+$graph->delete_node($samson);
+$graph->delete_node($delilah);
+
 # add some more nodes to test the visualisation and add_nodes() bulk creation
 # with relationships at the same time
 $study = $graph->add_node(namespace => 'VRTrack', label => 'Study', properties => { name => 'Study of Disease_abc' });
@@ -178,7 +200,7 @@ is $graph->node_property($image, 'vrtrack_lane_name', check_parents => 1), 'Lane
 is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties still just gives image details';
 is_deeply $graph->node_properties($image, flatten_parents => 1), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png', stepresult_uuid => $uuid, vrtrack_lane_name => 'Lane1', vrtrack_library_name => 'Library1', vrtrack_sample_sanger_id => 'sanger1', vrtrack_sample_public_name => 'public1', vrtrack_sample_uuid => 'uuuuu', vrtrack_individual_name => 'John', vrtrack_study_name => 'Study of Disease_xyz' }, 'in flatten_parents mode we see all parental properties';
 
-# we can change existing properties and add new ones
+# we can change existing properties and add new ones and remove them
 $graph->node_add_properties($step_result, { foo => 'bar', cat => 'dog' });
 is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'bar', cat => 'dog' }, 'node_add_properties() adds properties correctly';
 $graph->node_add_properties($step_result, { foo => 'baz', lemur => 'llama' });
@@ -188,6 +210,13 @@ $graph->node_set_properties($fresh_step_result, { uuid => $uuid, foo => 'baz', l
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() updates properties correctly and removes unspecified ones';
 ($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
 is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_set_properties() had its effect in the database';
+$graph->node_add_properties($step_result, { bad_property => 'foo' });
+($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella', bad_property => 'foo' }, 'added a bad property...';
+$graph->node_remove_property($step_result, 'bad_property');
+is_deeply $step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'node_remove_property() worked to remove that property';
+($fresh_step_result) = $graph->get_nodes(namespace => 'VRPipe', label => 'StepResult', properties => { uuid => $uuid });
+is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'and it is really removed from the database';
 
 # we can get a node by its database id
 $node = $graph->get_node_by_id($graph->node_id($step_result));
@@ -230,5 +259,14 @@ ok !$graph->add_node(namespace => 'VRTrack', label => 'Sample', properties => { 
 ok my @queued = $graph->dispatch_queue(), 'could call dispatch_queue()';
 is_deeply [sort map { $graph->node_property($_, 'sanger_id') } @queued], ['enqueue1', 'enqueue2'], 'dispatch_queue() returned the enqueued nodes';
 is_deeply [sort map { $graph->node_property($_, 'sanger_id') } ($graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }), $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue2' }))], ['enqueue1', 'enqueue2'], 'after dispatch_queue() the enqueued nodes are in the database';
+
+# we can set properties on a relationship (this is so far a rare-case usage, so
+# there isn't an easy way to set this at node/relationship creation time, nor
+# easy way to get relationships)
+$image2 = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => 'img2', type => 'png' }, incoming => { node => $image, type => 'sub_image' });
+my ($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
+$graph->relationship_set_properties($rel, { reason => 'likes subs' });
+($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
+is_deeply $rel->{properties}, { reason => 'likes subs' }, 'relationship_set_properties() worked';
 
 exit;

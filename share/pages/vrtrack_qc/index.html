@@ -52,6 +52,57 @@
                     &nbsp;
                 </div>
                 
+                <p style="margin-bottom: 20px" data-bind="visible: groupConfig().length || adminUsers">administration <span data-bind="text: adminToggle, click: toggleAdmin" style="cursor: pointer"></span></p>
+                <div id="admintoggle" class="well" data-bind="visible: adminToggle() == '<<<-'">
+                    <div id="admin" data-bind="visible: adminUsers" class="panel panel-default">
+                        <div class="panel-body">
+                            <form class="panel panel-default">
+                                <div class="input-group panel-body">
+                                    <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Enter one or more space or comma separated unix usernames to set who can administer the QC website.">admin(s)</span>
+                                    <input type="text" class="form-control" data-bind="value: adminUsers">
+                                    <span class="input-group-btn">
+                                        <button class="btn btn-default" type="submit"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                    </span>
+                                </div>
+                            </form>
+                                
+                            <div id="groupadmins" data-bind="visible: groupAdmins().length" class="panel panel-default">
+                                <div class="panel-heading">Group Admins</div>
+                                <div class="panel-body">
+                                    <div data-bind="foreach: groupAdmins">
+                                        <form data-bind="submit: function(formElement) { formElement.find('button[type=submit]').trigger('click'); }">
+                                            <div class="input-group">
+                                                <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Enter one or more space or comma separated unix usernames to set who can administer this group." data-bind="text: group"></span>
+                                                <input type="text" class="form-control" data-bind="value: users">
+                                                <span class="input-group-btn">
+                                                    <button class="btn btn-default" type="submit" data-bind="click: $parent.updateGroupAdmins"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                                </span>
+                                            </div>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="groupconfig" data-bind="visible: groupConfig().length" class="panel panel-default">
+                        <div class="panel-heading">Group QC Failure Reasons</div>
+                        <div class="panel-body">
+                            <div data-bind="foreach: groupConfig">
+                                <form data-bind="submit: function(formElement) { formElement.find('button[type=submit]').trigger('click'); }">
+                                    <div class="input-group">
+                                        <span class="input-group-addon" data-toggle="tooltip" data-container="body" title="Enter one or more comma separated possible reasons for QC failure of samples in this group." data-bind="text: group"></span>
+                                        <input type="text" class="form-control" data-bind="value: qc_fail_reasons">
+                                        <span class="input-group-btn">
+                                            <button class="btn btn-default" type="submit" data-bind="click: $parent.updateGroupConfig"><span class="glyphicon glyphicon-play-circle"></span></button>
+                                        </span>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div id="selector">
                     <form role="form" class="input-group btn-group">
                         <span class="input-group-addon"><b>Group</b></span>
@@ -167,7 +218,7 @@
             <hr>
             
             <footer id="footer">
-                <small>&copy; 2014 Genome Research Limited.</small>
+                <small>&copy; 2014, 2015 Genome Research Limited.</small>
             </footer>
         </div>
         
@@ -189,6 +240,20 @@
                 self.labels = ko.observableArray();
                 self.labelProperties = {};
                 self.viewLabels = ko.observableArray();
+                self.adminToggle = ko.observable('->>>');
+                self.adminUsers = ko.observable();
+                self.groupAdmins = ko.observableArray();
+                self.groupConfig = ko.observableArray();
+                
+                // toggle display of the admin well when user clicks the arrows
+                self.toggleAdmin = function() {
+                    if (self.adminToggle() == '->>>') {
+                        self.adminToggle('<<<-');
+                    }
+                    else {
+                        self.adminToggle('->>>');
+                    }
+                }
                 
                 // some selects show node properties sorted by the selected
                 // property, so we'll have computed vars that build their arrays
@@ -315,6 +380,24 @@
                         self.selectedStudies.removeAll();
                         self.studyNodes.removeAll();
                     }
+                }
+                
+                // get admin details (ignore errors from it to avoid having 2
+                // not-logged-in errors)
+                self.errorsIgnored =  ko.observableArray();
+                getQCGraphData('qc_website_admin', { }, { adminUsers: self.adminUsers, groupAdmins: self.groupAdmins, groupConfig: self.groupConfig }, self.loading, self.errorsIgnored);
+                
+                // when admin-stuff changes, update the graph db
+                self.adminUsers.subscribe(function(newValue) {
+                    if (newValue && newValue != '') {
+                        getQCGraphData('qc_website_admin', { admins: newValue }, { adminUsers: self.adminUsers }, self.loading, self.errors);
+                    }
+                });
+                self.updateGroupAdmins = function(data) {
+                    getQCGraphData('qc_website_admin', { group: data.group, group_admins: data.users }, { groupAdmins: self.groupAdmins }, self.loading, self.errors);
+                }
+                self.updateGroupConfig = function(data) {
+                    getQCGraphData('qc_website_admin', { group: data.group, group_qc_fail_reasons: data.qc_fail_reasons }, { groupConfig: self.groupConfig }, self.loading, self.errors);
                 }
                 
                 // get all the schema details from the db

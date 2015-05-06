@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013,2014 Genome Research Limited.
+Copyright (c) 2013-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -37,7 +37,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
+class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     use Digest::MD5 qw(md5_hex);
     use File::Spec::Functions;
     use Path::Class;
@@ -65,7 +65,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+        }
+        if ($method eq 'group_by_metadata_with_warehouse_metadata') {
+            return "Extension to the all_with_warehouse_metadata methods that will group files from the source according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all files with the same sample, platform and library into one dataelement. If you use a graph_filter and the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter. If the filter_after_grouping option is not set, only files which pass the filter will be included and grouped based on their metadata.";
         }
         return '';
     }
@@ -92,13 +95,29 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # abusing the irods server too much we only actually calculate the
         # checksum anew every x mins; otherwise we just return the current
         # checksum
-        my $im              = VRPipe::Persistent::InMemory->new;
-        my $options         = $self->options;
-        my $update_interval = $options->{update_interval} || $VRPipe::Persistent::InMemory::deployment eq 'production' ? 1440 : 999999; # in mins
-        $update_interval *= 60;                                                                                                         # in seconds
-        my $lock_key         = 'irods_datasource.' . $self->_datasource_id;
-        my $locked           = $im->lock($lock_key, unlock_after => $update_interval);
-        my $current_checksum = $self->_changed_marker;
+        my $im      = VRPipe::Persistent::InMemory->new;
+        my $options = $self->options;
+        my $update_interval;
+        if ($options->{update_interval}) {
+            # in production the user would supply minutes; in testing they
+            # would supply seconds
+            if ($VRPipe::Persistent::InMemory::deployment eq 'production') {
+                $update_interval = $options->{update_interval} * 60;
+            }
+            else {
+                $update_interval = $options->{update_interval};
+            }
+        }
+        else {
+            # default to 24hrs
+            $update_interval = 86400;
+        }
+        my $lock_key              = 'irods_datasource.' . $self->_datasource_id;
+        my $locked                = $im->lock($lock_key, unlock_after => $update_interval);
+        my $current_checksum      = $self->_changed_marker;
+        my $graph_filter          = $options->{graph_filter};
+        my $filter_after_grouping = $options->{filter_after_grouping};
+        my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
         
         if ($current_checksum && length($current_checksum) == 32) {
             return $current_checksum unless $locked;
@@ -106,7 +125,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method eq 'all_with_warehouse_metadata', $options->{required_metadata}, $options->{vrtrack_group});
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method =~ /with_warehouse_metadata$/, $options->{required_metadata}, $options->{vrtrack_group});
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -119,6 +138,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 # limit to printable ascii so md5_hex subroutine will work
                 $val =~ tr/\x20-\x7f//cd;
                 $data .= "|$key:$val|";
+            }
+            
+            if ($graph) {
+                my $pass = $self->_file_filter($file, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                $pass ||= 0;
+                $data .= "|graph_filter:$pass|";
             }
         }
         
@@ -520,19 +545,62 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args);
+        my @element_args;
+        my $did = $self->_datasource_id;
+        foreach my $result ($self->_all_files(%args)) {
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+        }
+        $self->_create_elements(\@element_args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?) {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?) {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
         $args{local_root_dir}  = $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
-        return $self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ());
+        my @element_args;
+        my $did = $self->_datasource_id;
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ()), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ()) {
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+        }
+        $self->_create_elements(\@element_args);
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?) {
+    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1) {
+        my %args;
+        $args{handle}          = $handle;
+        $args{file_query}      = $file_query;
+        $args{local_root_dir}  = $local_root_dir;
+        $args{update_interval} = $update_interval if defined($update_interval);
+        
+        my @meta_keys = split /\|/, $metadata_keys;
+        my $group_hash;
+        foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : ()), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => $filter_after_grouping) : ()) {
+            my @group_keys;
+            foreach my $key (@meta_keys) {
+                $self->throw("Metadata key $key not present for file " . $result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
+                push @group_keys, $result->{metadata}->{$key};
+            }
+            my $group_key = join '|', @group_keys;
+            push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
+            if ($graph_filter && $filter_after_grouping && $result->{pass_filter}) {
+                $group_hash->{$group_key}->{passes_filter} = 1;
+            }
+        }
+        
+        my $did = $self->_datasource_id;
+        my @element_args;
+        while (my ($group, $data) = each %$group_hash) {
+            if ($graph_filter && $filter_after_grouping) {
+                next unless exists $group_hash->{$group}->{passes_filter};
+            }
+            push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group } });
+        }
+        $self->_create_elements(\@element_args);
+    }
+    
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1) {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
@@ -542,8 +610,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
         
+        my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
+        
         my $did = $self->_datasource_id;
-        my @element_args;
+        my @results;
         my @changed_details;
         my $anti_repeat_store = {};
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
@@ -560,6 +630,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
             $type ||= 'any';
             
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type)->original;
+            
+            my $pass_filter;
+            if ($graph) {
+                $pass_filter = $self->_file_filter($vrfile, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                next unless defined($pass_filter);
+            }
             
             # add metadata to file, detecting any changes
             my $current_metadata = $vrfile->metadata;
@@ -596,9 +672,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceRole {
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
             }
-            push(@element_args, { datasource => $did, result => $result_hash });
+            push(@results, { paths => [$file_abs_path], irods_path => $path, metadata => $new_metadata, defined($pass_filter) ? (pass_filter => $pass_filter) : () });
         }
-        $self->_create_elements(\@element_args);
+        
+        $self->_clear_file_filter_cache();
+        
+        return @results;
     }
 }
 
