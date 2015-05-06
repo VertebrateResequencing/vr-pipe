@@ -951,7 +951,7 @@ SKIP: {
         options => {
             file_query      => q[study_id = 2623],
             local_root_dir  => $output_root,
-            update_interval => 5
+            update_interval => 10
         }
       ),
       'could create another irods datasource';
@@ -960,8 +960,6 @@ SKIP: {
     foreach my $element (@{ get_elements($ds) }) {
         push(@results, result_with_inflated_paths($element));
     }
-    
-    no warnings; # because my irods paths have #'s in them
     
     is_deeply \@results, [{ paths => [file($output_root, $irods_root, 'file.txt')], irods_path => "$irods_root/file.txt" }, { paths => [file($output_root, $irods_root, 'file2.txt')], irods_path => "$irods_root/file2.txt" }], 'got correct results for irods all';
     
@@ -973,16 +971,16 @@ SKIP: {
     get_elements($ds);
     $file->reselect_values_from_db;
     is_deeply $file->metadata, { study_id => 2623, foo => 'bar', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe unchanged after change in irods, due to cached result';
-    sleep(60);
+    sleep(11);
     get_elements($ds);
     $file->reselect_values_from_db;
-    is_deeply $file->metadata, { study_id => 2623, foo => 'car', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe updated correctly after waiting 5 seconds';
+    is_deeply $file->metadata, { study_id => 2623, foo => 'car', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe updated correctly after waiting 10 seconds';
     
     # add a new file to make sure we pick that up as well
     system("iput -R $irods_resource t/data/file3.txt $irods_root");
     system("imeta -z $irods_zone add -d $irods_root/file3.txt study_id 2623");
     system("imeta -z $irods_zone add -d $irods_root/file3.txt simple simon");
-    sleep(60);
+    sleep(11);
     @results = ();
     foreach my $element (@{ get_elements($ds) }) {
         push(@results, result_with_inflated_paths($element));
