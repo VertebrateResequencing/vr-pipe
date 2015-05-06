@@ -72,7 +72,10 @@ role VRPipe::SchemaLabelRole {
             }
             
             $self->block_until_locked();
-            $graph->node_add_properties($self, { $property => $new_value });
+            # all property values (except array refs) need to be stringified
+            # because Neo4J treats an int and string of the same number as
+            # unique so you might not be able to search for a number otherwise
+            $graph->node_add_properties($self, { $property => defined $new_value ? (ref($new_value) ? $new_value : "$new_value") : undef });
             $self->_maintain_property_history(0);
             $self->unlock();
         }
@@ -137,6 +140,12 @@ role VRPipe::SchemaLabelRole {
             }
             $properties = \%props_to_set;
         }
+        
+        # all property values (except array refs) need to be stringified
+        # because Neo4J treats an int and string of the same number as
+        # unique so you might not be able to search for a number otherwise
+        my %props_to_set = map { $_ => defined $properties->{$_} ? (ref($properties->{$_}) ? $properties->{$_} : "$properties->{$_}") : undef } keys %$properties;
+        $properties = \%props_to_set;
         
         $graph->$graph_method($self, $properties);
         $self->_maintain_property_history($replace);
