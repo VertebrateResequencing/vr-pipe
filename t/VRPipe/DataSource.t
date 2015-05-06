@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 135;
+    use Test::Most tests => 138;
     use VRPipeTest;
     use TestPipelines;
     
@@ -354,7 +354,7 @@ is $ds_si->method_description('group_all'), q[All files in the file will be grou
 # vrpipe genome chunking with all the methods
 {
     # create a fofn_with_metadata ds setup first
-    ok $ds = VRPipe::DataSource->create(
+    ok my $ds = VRPipe::DataSource->create(
         type   => 'fofn_with_metadata',
         method => 'all',
         source => file(qw(t data calling_datasource.fofn))->absolute->stringify
@@ -837,7 +837,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
         options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0' }
     );
     my @filt_elements = @{ get_elements($filt_ds) };
-    is scalar(@filt_elements), 0, 'filter and graph_filter options cancel can each other out';
+    is scalar(@filt_elements), 0, 'filter and graph_filter options can cancel each other out';
     $ps1_files[2]->add_metadata({ filtkey => 'filtvalue' });
     @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 1, 'filter and graph_filter options can work together correctly';
