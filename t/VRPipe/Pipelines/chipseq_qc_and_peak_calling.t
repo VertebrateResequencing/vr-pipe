@@ -7,8 +7,8 @@ use Path::Class;
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES R_LIBS)],
-        required_exe => [qw(samtools bamcheck macs2 bedGraphToBigWig)]
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_PHANTOMPEAK_RSCRIPT VRPIPE_PHANTOMPEAK_RLIBS)],
+        required_exe => [qw(samtools bamcheck macs2 bedGraphToBigWig Rscript)]
     );
     use TestPipelines;
 }
@@ -24,8 +24,6 @@ foreach my $stepmember ($chipseq_pipeline->step_members) {
 
 is_deeply \@sb_names, [qw(bam_processing bam_metadata phantompeakqualtools macs_callpeak bedgraph2bigwig)], 'the chipseq_qc_and_peak_calling pipeline has the correct steps';
 
-#place R packages: SPP, caTools, snow in your ENV{R_LIBS}
-#** find a good way to hard-code this requirement **
 my $chipseq_setup = VRPipe::PipelineSetup->create(
     name       => 'chipseq setup',
     pipeline   => $chipseq_pipeline,
@@ -37,7 +35,8 @@ my $chipseq_setup = VRPipe::PipelineSetup->create(
     ),
     options => {
         r_bin_path             => "Rscript",
-        phantompeak_script     => "run_spp.R",
+        r_libs                 => $ENV{VRPIPE_PHANTOMPEAK_RLIBS},
+        phantompeak_script     => $ENV{VRPIPE_PHANTOMPEAK_RSCRIPT},
         input_metadata_to_keep => 'individual,sample',
         sample_metadata_key    => 'sample',
         command_line           => q[samtools-exp-rc view -h -u -f 3 -F 12 -q 10 $input_bam | samtools-exp-rc sort -n -Osam -T samtools_nsort_tmp - | awk '/^@/; /\tX0:i:1\t/ { if ($1==qn){print l"\n"$0}; l=$0; qn=$1;}' | samtools-exp-rc sort -Obam -T samtools_csort_tmp - > $output_bam],
