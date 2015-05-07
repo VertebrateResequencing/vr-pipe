@@ -52,7 +52,7 @@
                     &nbsp;
                 </div>
                 
-                <p style="margin-bottom: 20px" data-bind="visible: groupConfig().length || adminUsers">administration <span data-bind="text: adminToggle, click: toggleAdmin"></span></p>
+                <p style="margin-bottom: 20px" data-bind="visible: groupConfig().length || adminUsers">administration <span data-bind="text: adminToggle, click: toggleAdmin" style="cursor: pointer"></span></p>
                 <div id="admintoggle" class="well" data-bind="visible: adminToggle() == '<<<-'">
                     <div id="admin" data-bind="visible: adminUsers" class="panel panel-default">
                         <div class="panel-body">

@@ -57,7 +57,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label   => 'Group',              # equivalent of old mysql database name, for grouping studies that we will analyse the same way
                 unique  => [qw(name)],
-                indexed => [qw(qc_fail_reasons)] # we store an array of reasons in qc_fail_reasons
+                indexed => [qw(qc_fail_reasons)] # we store an array of allowable reasons in qc_fail_reasons
             },
             {
                 label        => 'Study',
@@ -78,7 +78,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_withdrawn qc_selected)],
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected)], # who failed/selected and for what reason is stored on a relationship between this node and a User node
                 keep_history => 1
             },
             
@@ -458,11 +458,11 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     push(@sample_regex, $props->{name}, $props->{public_name});
                 }
                 else {
-                    next if $props->{qc_withdrawn};
+                    next if $props->{qc_failed};
                 }
             }
             else {
-                next if $props->{qc_withdrawn};
+                next if $props->{qc_failed};
                 push(@sample_regex, $props->{name}, $props->{public_name});
             }
             $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid];
@@ -493,7 +493,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
             
             # we're only interested in lines where both samples are samples
-            # that belong to our donor and neither are qc_withdrawn.
+            # that belong to our donor and neither are qc_failed.
             # complication is that the sample names in the file could be
             # name, public_name or some combination of both (or indeed
             # anything else).
@@ -588,8 +588,70 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     # get info on which samples have been QC failed/selected, along with config
     # info on who is allowed to change these and what reasons are allowed
-    method donor_sample_status (Int $donor) {
-        return;
+    method donor_sample_status (Int $donor, Str $user) {
+        my $study_labels = $self->cypher_labels('Study');
+        my $group_labels = $self->cypher_labels('Group');
+        my $user_labels  = $self->cypher_labels('User');
+        my $cypher       = "MATCH (donor)-[:sample]->(sample) WHERE id(donor) = {donor}.id MATCH (donor)<-[:member]-(study:$study_labels)<-[:has]-(group:$group_labels) OPTIONAL MATCH (group)<-[ar:administers]-(auser:$user_labels) OPTIONAL MATCH (sample)-[fbr:failed_by]->(fuser:$user_labels) OPTIONAL MATCH (sample)-[sbr:selected_by]->(suser:$user_labels) return donor,sample,group,ar,auser,fbr,fuser,sbr,suser";
+        my $graph        = $self->graph;
+        my $graph_data   = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        # MATCH (donor:`vdp|VRTrack|Donor` { id: "41a3423f-dcd3-49f8-aec2-6c012b0732c5" })-[:sample]->(sample) MATCH (donor)<-[:member]-(study:`vdp|VRTrack|Study`)<-[:has]-(group:`vdp|VRTrack|Group`) OPTIONAL MATCH (group)<-[ar:administers]-(auser:`vdp|VRTrack|User`) OPTIONAL MATCH (sample)-[fbr:failed_by]->(fuser:`vdp|VRTrack|User`) OPTIONAL MATCH (sample)-[sbr:selected_by]->(suser:`vdp|VRTrack|User`) return donor,sample,group,ar,auser,fbr,fuser,sbr,suser
+        
+        my %nodes = ();
+        my %sample_nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{id} } = $node;
+            $sample_nodes{ $node->{id} } = $node if $node->{label} eq 'Sample';
+        }
+        
+        my (%failed, %selected, @fail_reasons, %fail_reasons, $is_admin);
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            my $end_node = $nodes{ $rel->{endNode} } || next;
+            if ($rel->{type} eq 'failed_by') {
+                $failed{ $rel->{startNode} } = [$end_node->{properties}->{username}, $rel->{properties}->{reason}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
+            }
+            elsif ($rel->{type} eq 'selected_by') {
+                $selected{ $rel->{startNode} } = [$end_node->{properties}->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
+            }
+            elsif ($rel->{type} eq 'administers') {
+                my $user_name = $nodes{ $rel->{startNode} }->{properties}->{username};
+                if ($user eq $user_name) {
+                    $is_admin = 1;
+                    foreach my $reason (@{ $end_node->{properties}->{qc_fail_reasons} || [] }) {
+                        next if exists $fail_reasons{$reason};
+                        push(@fail_reasons, $reason);
+                        $fail_reasons{$reason} = 1;
+                    }
+                }
+            }
+        }
+        
+        my @results;
+        push(@results, { type => 'admin', is_admin => $is_admin ? 1 : 0, allowed_fail_reasons => \@fail_reasons });
+        
+        foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
+            my $sample_props = $sample->{properties};
+            my $failed       = $failed{ $sample->{id} } || [];
+            my $selected     = $selected{ $sample->{id} } || [];
+            push(
+                @results,
+                {
+                    type               => 'sample_status',
+                    sample_name        => $sample_props->{name},
+                    sample_public_name => $sample_props->{public_name},
+                    qc_failed          => $sample_props->{qc_failed},
+                    qc_failed_by       => $failed->[0],
+                    qc_failed_reason   => $failed->[1],
+                    qc_failed_time     => $failed->[2],
+                    qc_selected        => $sample_props->{qc_selected},
+                    qc_selected_by     => $selected->[0],
+                    qc_selected_time   => $selected->[1]
+                }
+            );
+        }
+        
+        return \@results;
     }
     
     # get the gender info for all samples from this donor

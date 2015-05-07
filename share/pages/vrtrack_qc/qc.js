@@ -118,6 +118,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 break;
             
             case 'donor_qc':
+                var donorAdmin = subargs['donorAdmin'];
+                var donorSampleStatus = subargs['donorSampleStatus'];
                 var donorGenderResults = subargs['donorGenderResults'];
                 var donorFluidigmDiscordance = subargs['donorFluidigmDiscordance'];
                 var donorGenotypingDiscordance = subargs['donorGenotypingDiscordance'];
@@ -128,6 +130,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var donorLOHCalls = subargs['donorLOHCalls'];
                 var donorPluritestSummary = subargs['donorPluritestSummary'];
                 var donorPluritestPlots = subargs['donorPluritestPlots'];
+                donorSampleStatus.removeAll();
                 donorGenderResults.removeAll();
                 donorFluidigmDiscordance.removeAll();
                 donorGenotypingDiscordance.removeAll();
@@ -138,6 +141,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 donorLOHCalls.removeAll();
                 donorPluritestSummary.removeAll();
                 donorPluritestPlots.removeAll();
+                var ssArr = [];
                 var genderArr = [];
                 var discFArr = [];
                 var discGArr = [];
@@ -153,6 +157,14 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     var type = result['type'];
                     delete result['type'];
                     switch (type) {
+                        case 'admin':
+                            donorAdmin(result);
+                            console.log('set donorAdmin to ' + JSON.stringify(result));
+                            break;
+                        case 'sample_status':
+                            ssArr.push(result);
+                            console.log('pushed sample status ' + JSON.stringify(result));
+                            break;
                         case 'gender':
                             genderArr.push(result);
                             break;
@@ -200,6 +212,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     }
                 }
                 
+                donorSampleStatus(ssArr);
                 donorGenderResults(genderArr);
                 donorFluidigmDiscordance(discFArr);
                 donorGenotypingDiscordance(discGArr);

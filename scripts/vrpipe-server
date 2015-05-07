@@ -1783,16 +1783,16 @@ sub qc {
             # get the information about which samples have been failed or
             # selected, along with config info on who is allowed to change these
             # and what reasons are allowed
-            my $status = $vrtrack->donor_sample_status($donor);
+            my $status = $vrtrack->donor_sample_status($donor, $auth_user);
             push(@$data, @$status) if $status;
-            
-            # get the discordance results between all samples from this donor
-            my $d_results = $vrtrack->donor_discordance_results($donor);
-            push(@$data, @$d_results) if $d_results;
             
             # get the gender info for all samples from this donor
             my $g_results = $vrtrack->donor_gender_results($donor);
             push(@$data, @$g_results) if $g_results;
+            
+            # get the discordance results between all samples from this donor
+            my $d_results = $vrtrack->donor_discordance_results($donor);
+            push(@$data, @$d_results) if $d_results;
             
             # get the copy number/polysomy/loh results for this donor
             my $c_results = $vrtrack->donor_cnv_results($donor);
