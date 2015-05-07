@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 146;
+    use Test::Most tests => 147;
     use VRPipeTest;
     use TestPipelines;
     
@@ -848,7 +848,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 26;
+    my $num_tests = 27;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
     my $output_root    = get_output_dir('datasource_irods_import_dir');
@@ -954,6 +954,8 @@ SKIP: {
     ok my $graph_file = $schema->get_file('/seq/15744/15744_8.cram'), 'there was a node in the graph db for one of the cram files';
     my @qc_files = $graph_file->related(outgoing => { type => 'qc_file' }) if $graph_file;
     is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['/seq/15744/15744_8_F0x900.stats', '/seq/15744/qc/15744_8.genotype.json', '/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
+    my @local_files = $graph_file->related(outgoing => { type => 'local_file' }) if $graph_file;
+    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @local_files], [$file->path->stringify], 'the cram file was associated with a local file node';
     
     # more complete test with our own freshly-added files and metadata
     system("irm -fr $irods_root > /dev/null 2> /dev/null");
@@ -1007,7 +1009,7 @@ SKIP: {
         push(@results, result_with_inflated_paths($element));
     }
     
-    my @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
+    @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
     is_deeply \@results, [{ paths => [$local_files[0]], irods_path => "$irods_root/file.txt" }, { paths => [$local_files[1]], irods_path => "$irods_root/file2.txt" }, { paths => [$local_files[2]], irods_path => "$irods_root/file3.txt" }], 'got correct results for irods all after adding a new file';
     
     $file = VRPipe::File->create(path => $local_files[2]);

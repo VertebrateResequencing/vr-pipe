@@ -121,8 +121,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $required_metadata = $options->{required_metadata} || '';
         my $vrtrack_group     = $options->{vrtrack_group}     || '';
         my $require_qc_files  = $options->{require_qc_files}  || 0;
-        my $desired_qc_files = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0x900.stats,.genotype.json,.verify_bam_id.json';
-        my $add_metadata_from_warehouse = $self->method =~ /with_warehouse_metadata$/ ? 1 : 0;
+        my $desired_qc_files            = defined $options->{desired_qc_files}        ? $options->{desired_qc_files} : '_F0x900.stats,.genotype.json,.verify_bam_id.json';
+        my $add_metadata_from_warehouse = $self->method =~ /with_warehouse_metadata$/ ? 1                            : 0;
+        my $local_root_dir              = $options->{local_root_dir};
         
         if ($current_checksum && length($current_checksum) == 32) {
             return $current_checksum unless $locked;
@@ -130,7 +131,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $file (sort keys %$files) {
@@ -156,7 +157,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Str $local_root_dir!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
         my @required_keys;
         if ($required_metadata) {
@@ -541,6 +542,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 $file->relate_to($analyses{$uuid}, 'analysed');
                             }
                         }
+                        my $local_file = $vrtrack->add_file(file($local_root_dir, $path)->stringify);
+                        $file->relate_to($local_file, 'local_file');
                         
                         # bams
                         my $library;
@@ -678,7 +681,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '');
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir, $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '');
         $self->_clear_cache;
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
