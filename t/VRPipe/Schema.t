@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 114;
+    use Test::Most tests => 130;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -233,6 +233,28 @@ $vrpipe->make_path($tmp_sub_dir);
 my $mv_path = file($tmp_sub_dir, 'move')->stringify;
 ok $vrfile->move(VRPipe::File->create(path => $mv_path)), 'moved a file';
 is_deeply [$vrpipe->parent_filesystemelement($sym_path)->node_id, $vrpipe->parent_filesystemelement($cp_path)->node_id, $vrpipe->parent_filesystemelement($symcp_path)->node_id, $vrpipe->parent_filesystemelement($sym_path)->path, $graph_file->path], [$graph_file->node_id, $graph_file->node_id, $graph_file->node_id, $mv_path, $mv_path], 'after moving the source file the graph of source and symlink and copy is still correct';
+my $lrpath     = '/a/path/that/could/be/local/or/remote.txt';
+my $local_file = $vrpipe->add('File', { path => $lrpath });
+my $irods_file = $vrpipe->add('File', { path => $lrpath, protocol => 'irods:' });
+isnt $local_file->uuid, $irods_file->uuid, 'local and remote files with the same absolute paths have different uuids';
+my $lf = $vrpipe->get('File', { path => $lrpath });
+is $lf->uuid, $local_file->uuid, 'you can get a local file that shares the same path with a remote file';
+my $if = $vrpipe->get('File', { path => $lrpath, protocol => 'irods:' });
+is $if->uuid, $irods_file->uuid, 'you can get a remote file that shares the same path with a local file';
+is $local_file->path, $lrpath, 'path of an local file according to path() looks normal';
+is $irods_file->path, "irods:$lrpath", 'path of an irods file according to path() contains the protocol';
+is $irods_file->{properties}->{path}, $lrpath, 'path property of the irods file does not contain the protocol';
+$vrpipe->move_filesystemelement($irods_file, '/moved/irods/file.txt', protocol => 'irods:');
+is $irods_file->path, "irods:/moved/irods/file.txt", 'you can move an irods file';
+my $ftp_file = $vrpipe->add('File', { path => $lrpath, protocol => 'ftp://user:pass@host:port' });
+is $ftp_file->path, 'ftp://user:pass@host:port' . $lrpath, 'you can specify protocols with passwords and get it back via path()';
+is $ftp_file->path(1), $lrpath, 'path(1) returns the path without the protocol';
+my ($ftp_root, $ftp_first_dir) = reverse($ftp_file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' }));
+isnt $ftp_root->basename(), 'ftp://user:pass@host:port/', 'however the password is not stored as plain text in the graph db';
+my $ftp_file_uuid = $ftp_file->uuid;
+$vrpipe->move_filesystemelement($ftp_first_dir, $ftp_first_dir->path(1), protocol => 'ftp://user:changedpass@host:port');
+my $ff = $vrpipe->get('File', { path => $lrpath, protocol => 'ftp://user:changedpass@host:port' });
+is $ff->uuid, $ftp_file_uuid, 'if your ftp password changed, you could just move the first directory and everything would update automatically';
 
 # make a traditional mysql vrpipe StepState so we can test that
 # ensure_state_hierarchy() can represent the same thing in the graph database
@@ -251,8 +273,14 @@ is scalar(@related), 21, 'all the related nodes were also created';
 #*** more detailed, specific tests to make sure the graph is correct? checked visually it's fine...
 
 # test VRTrack schema's add_file method, which passes through to VRPipe schema
-ok my $vrtrack_file = $schema->add_file('/bar/snake.txt'), 'add_file() method on the VRTrack schema worked';
-is $vrtrack_file->path, '/bar/snake.txt', 'the path() method worked on what that returned';
+my $bar_snake = '/bar/snake.txt';
+ok my $vrtrack_file = $schema->add_file($bar_snake), 'add_file() method on the VRTrack schema worked';
+is $vrtrack_file->path, $bar_snake, 'the path() method worked on what that returned';
+ok my $vrtrack_irods_file = $schema->add_file($bar_snake, 'irods:'), 'add_file() method on the VRTrack schema worked with a protocol';
+isnt $vrtrack_file->uuid, $vrtrack_irods_file->uuid, 'local and irods files with the same path are different nodes';
+is $schema->get_file($bar_snake)->uuid, $vrtrack_file->uuid, 'VRTrack get_file gets the correct file with no protocol';
+is $schema->get_file($bar_snake, 'irods:')->uuid, $vrtrack_irods_file->uuid, 'VRTrack get_file gets the correct file with a protocol';
+is $vrtrack_irods_file->path, 'irods:' . $bar_snake, 'path() is correct for an irods file';
 
 # check there are no issues supplying ints versus strings to unique values
 $schema->add('Study', { id => 2625,   name => 'str_vs_int_test', accession => 'svitacc' });

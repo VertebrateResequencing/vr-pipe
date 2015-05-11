@@ -243,14 +243,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return \%return;
     }
     
-    method add_file (Str $path) {
+    method add_file (Str $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
-        return $vrpipe_schema->path_to_filesystemelement($path);
+        return $vrpipe_schema->path_to_filesystemelement($path, $protocol ? (protocol => $protocol) : ());
     }
     
-    method get_file (Str $path) {
+    method get_file (Str $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
-        return $vrpipe_schema->path_to_filesystemelement($path, only_get => 1);
+        return $vrpipe_schema->path_to_filesystemelement($path, $protocol ? (protocol => $protocol) : (), only_get => 1);
     }
     
     # donor's just have meaningless ids; user will want to see the

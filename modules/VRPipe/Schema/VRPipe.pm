@@ -40,8 +40,10 @@ use VRPipe::Base;
 class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     use Path::Class;
     use VRPipe::Persistent::Graph;
+    use VRPipe::Config;
     
-    my $graph = VRPipe::Persistent::Graph->new();
+    my $graph      = VRPipe::Persistent::Graph->new();
+    my $config     = VRPipe::Config->new();
     my $fse_labels = $graph->_labels('VRPipe', 'FileSystemElement');
     
     method schema_definitions {
@@ -91,7 +93,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 indexed        => [qw(basename md5 path)], # full path is stored just to avoid a query to find the full path based on relationships when you're given a FileSystemElement in some other query; it isn't canonical but we hope to keep it up-to-date
                 allow_anything => 1,                       # allow arbitrary metadata to be stored on files/dirs
                 methods        => {
-                    path => sub { __PACKAGE__->filesystemelement_to_path(shift) },    # don't trust the path property - calculate instead
+                    path => sub { __PACKAGE__->filesystemelement_to_path(shift, shift) }, # don't trust the path property - calculate instead
                     move => sub { __PACKAGE__->move_filesystemelement(shift, shift); }
                 }
             },
@@ -210,10 +212,11 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # files in the graph database have unique ids that are independent of their
     # initial basename and directory. This allows them to be renamed and moved
     # without affecting our knowledge of what file was produced by what
-    # stepstate, and where that file is now
-    method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str] $paths!, Bool :$return_cypher = 0, Bool :$only_get = 0) {
+    # stepstate, and where that file is now. protocol should be a string like
+    # ftp://user:password@ftpserver:port or irods: and applies to all supplied
+    # paths, indicating the files are not on the local filesystem.
+    method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str] $paths!, Str :$protocol?, Bool :$return_cypher = 0, Bool :$only_get = 0) {
         my $return_leaves = defined wantarray();
-        
         my @cypher;
         foreach my $path (@$paths) {
             my $file       = file($path);
@@ -226,34 +229,51 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # this bypasses the normal checking we have when using add() etc.,
             # but anything else would be too slow
             
-            # root node
-            my $uuid   = $self->create_uuid();
-            my %params = (root_basename => '/', root_uuid => $uuid);
+            # root node, which is / for local disc, and something like
+            # ftp://user:password@ftpserver:port/ for other protocols
+            my $uuid          = $self->create_uuid();
+            my $root_basename = '/';
+            if ($protocol) {
+                # encrypt everything past the first colon in case it contains a
+                # password
+                my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
+                $text ||= '';
+                $text &&= $config->crypter->encrypt_hex($text);
+                $root_basename = $pro . ':' . $text . $root_basename;
+            }
+            my %params = (root_basename => $root_basename, root_uuid => $uuid);
             my $cypher = $only_get ? "MATCH (root:$fse_labels { basename: { param }.root_basename })" : "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
             
             # sub dirs
-            my @chain;
-            my $previous        = 'root';
-            my $dir_num         = 0;
-            my $developing_path = '';
-            foreach my $dir (@components) {
-                $uuid = $self->create_uuid();
-                $dir_num++;
-                $params{ $dir_num . '_basename' } = $dir;
-                $params{ $dir_num . '_uuid' }     = $uuid;
-                $developing_path .= "/$dir";
-                $params{ $dir_num . '_path' } = $developing_path;
-                push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename`, path: { param }.`${dir_num}_path` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
-                $previous = $dir_num;
+            if ($basename) {
+                my @chain;
+                my $previous        = 'root';
+                my $dir_num         = 0;
+                my $developing_path = '';
+                foreach my $dir (@components) {
+                    $uuid = $self->create_uuid();
+                    $dir_num++;
+                    $params{ $dir_num . '_basename' } = $dir;
+                    $params{ $dir_num . '_uuid' }     = $uuid;
+                    $developing_path .= "/$dir";
+                    $params{ $dir_num . '_path' } = $developing_path;
+                    push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename`, path: { param }.`${dir_num}_path` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
+                    $previous = $dir_num;
+                }
+                $cypher .= join($only_get ? '' : ' ', @chain);
+                
+                # leaf file or dir
+                $uuid                  = $self->create_uuid();
+                $params{leaf_basename} = $basename;
+                $params{leaf_uuid}     = $uuid;
+                $params{leaf_path}     = $path;
+                $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             }
-            $cypher .= join($only_get ? '' : ' ', @chain);
+            else {
+                # we've only been asked for the root node
+                $cypher .= ' RETURN root' if $return_leaves;
+            }
             
-            # leaf file or dir
-            $uuid                  = $self->create_uuid();
-            $params{leaf_basename} = $basename;
-            $params{leaf_uuid}     = $uuid;
-            $params{leaf_path}     = $path;
-            $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             push(@cypher, [$cypher, { param => \%params }]);
         }
         
@@ -281,61 +301,77 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         }
     }
     
-    method path_to_filesystemelement (ClassName|Object $self: Str $path, Bool :$only_get = 0) {
-        return $self->get_or_store_filesystem_paths([$path], only_get => $only_get);
+    method path_to_filesystemelement (ClassName|Object $self: Str $path, Str :$protocol?, Bool :$only_get = 0) {
+        return $self->get_or_store_filesystem_paths([$path], $protocol ? (protocol => $protocol) : (), only_get => $only_get);
     }
     
-    method filesystemelement_to_path (ClassName|Object $self: Object $file) {
+    method filesystemelement_to_path (ClassName|Object $self: Object $file!, Bool $no_protocol?) {
         # we store the absolute path as a property on the node, but that could
         # theoretically become de-synced with reality; this returns and sets the
         # correct current absolute path
         $file->update_from_db; # to get the latest basename
         my @dirs = $file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' });
         @dirs = reverse(@dirs);
-        shift(@dirs);
+        my $root = shift(@dirs);
         my $path = file('', (map { $_->basename } @dirs), $file->basename)->stringify;
         $file->add_properties({ path => $path });
-        return $path;
+        
+        my $root_basename = $root->{properties}->{basename};
+        $root_basename =~ s/\/$//;
+        
+        if ($no_protocol) {
+            $root_basename = '';
+        }
+        elsif ($root_basename) {
+            # decrypt any encrypted part of the protocol
+            my ($pro, $text) = $root_basename =~ /^([^:]+):(.*)/;
+            $text ||= '';
+            $text &&= $config->crypter->decrypt_hex($text);
+            $root_basename = $pro . ':' . $text;
+        }
+        
+        return $root_basename . $path;
     }
     
-    method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
+    method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
         unless (ref($source)) {
-            $source = $self->path_to_filesystemelement($source, only_get => 1);
+            $source = $self->path_to_filesystemelement($source, $protocol ? (protocol => $protocol) : (), only_get => 1);
             $source || return;
         }
         
         my $file = file($dest);
         $self->throw("$dest must be absolute") unless $file->is_absolute;
-        my $dir = $self->path_to_filesystemelement($file->dir->stringify);
+        my $dir = $self->path_to_filesystemelement($file->dir->stringify, $protocol ? (protocol => $protocol) : ());
         $dir->relate_to($source, 'contains', selfish => 1);
         $source->add_properties({ basename => $file->basename, path => $dest });
+        
         return $source;
     }
     
-    method _duplicate_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str $relation) {
+    method _duplicate_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str $relation, Str :$protocol?) {
         unless (ref($source)) {
-            $source = $self->path_to_filesystemelement($source, only_get => 1);
+            $source = $self->path_to_filesystemelement($source, $protocol ? (protocol => $protocol) : (), only_get => 1);
             $source || return;
         }
         
         my $file = file($dest);
         $self->throw("$dest must be absolute") unless $file->is_absolute;
-        my $dup = $self->path_to_filesystemelement($file->stringify);
+        my $dup = $self->path_to_filesystemelement($file->stringify, $protocol ? (protocol => $protocol) : ());
         $source->relate_to($dup, $relation);
         return $dup;
     }
     
-    method symlink_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
-        return $self->_duplicate_filesystemelement($source, $dest, 'symlink');
+    method symlink_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
+        return $self->_duplicate_filesystemelement($source, $dest, 'symlink', $protocol ? (protocol => $protocol) : ());
     }
     
-    method copy_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest) {
-        return $self->_duplicate_filesystemelement($source, $dest, 'copy');
+    method copy_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
+        return $self->_duplicate_filesystemelement($source, $dest, 'copy', $protocol ? (protocol => $protocol) : ());
     }
     
-    method parent_filesystemelement (ClassName|Object $self: Str|Object $child) {
+    method parent_filesystemelement (ClassName|Object $self: Str|Object $child, Str :$protocol?) {
         unless (ref($child)) {
-            $child = $self->path_to_filesystemelement($child, only_get => 1);
+            $child = $self->path_to_filesystemelement($child, $protocol ? (protocol => $protocol) : (), only_get => 1);
             $child || return;
         }
         
@@ -349,11 +385,12 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # can't get around to work, so the else will copy/paste from SchemaRole :(
     method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
         if ($label eq 'File') {
-            my @paths;
+            my (@paths, $protocol);
             foreach my $prop (ref($properties) eq 'ARRAY' ? @$properties : ($properties)) {
                 push(@paths, $prop->{path});
+                $protocol = $prop->{protocol} if defined $prop->{protocol};
             }
-            return $self->get_or_store_filesystem_paths(\@paths);
+            return $self->get_or_store_filesystem_paths(\@paths, $protocol ? (protocol => $protocol) : ());
         }
         else {
             my $history_props;
@@ -377,11 +414,12 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # can't get around to work, so the else will copy/paste from SchemaRole :(
     method get (Str $label!, HashRef $properties?) {
         if ($label eq 'File') {
-            my @paths;
+            my (@paths, $protocol);
             foreach my $prop (ref($properties) eq 'ARRAY' ? @$properties : ($properties)) {
                 push(@paths, $prop->{path});
+                $protocol = $prop->{protocol} if defined $prop->{protocol};
             }
-            return $self->get_or_store_filesystem_paths(\@paths, only_get => 1);
+            return $self->get_or_store_filesystem_paths(\@paths, $protocol ? (protocol => $protocol) : (), only_get => 1);
         }
         else {
             return $self->_get_and_bless_nodes($label, 'get_nodes', $properties ? ($properties) : ());
