@@ -94,7 +94,8 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 allow_anything => 1,                       # allow arbitrary metadata to be stored on files/dirs
                 methods        => {
                     path => sub { __PACKAGE__->filesystemelement_to_path(shift, shift) }, # don't trust the path property - calculate instead
-                    move => sub { __PACKAGE__->move_filesystemelement(shift, shift); }
+                    move     => sub { __PACKAGE__->move_filesystemelement(shift,        shift); },
+                    protocol => sub { __PACKAGE__->filesystemelement_to_protocol(shift, shift); }
                 }
             },
             {
@@ -338,6 +339,25 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         }
         
         return $root_basename . $path;
+    }
+    
+    method filesystemelement_to_protocol (ClassName|Object $self: Object $file!, Bool $just_protocol_type?) {
+        my @dirs = $file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' });
+        my $root = pop(@dirs);
+        
+        my $root_basename = $root->{properties}->{basename};
+        $root_basename =~ s/\/$//;
+        my ($pro, $text) = $root_basename =~ /^([^:]+):(.*)/;
+        
+        if ($just_protocol_type) {
+            return $pro;
+        }
+        else {
+            # decrypt any encrypted part of the protocol
+            $text ||= '';
+            $text &&= $config->crypter->decrypt_hex($text);
+            return $pro . ':' . $text;
+        }
     }
     
     method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
