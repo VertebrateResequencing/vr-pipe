@@ -71,8 +71,8 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
             foreach my $s_file (@{ $self->inputs->{stats_files} }) {
                 # we need to know some related info on this stats file;
                 # find it in the graph database under the vrtrack schema or die
-                my $vrtrack      = VRPipe::Schema->create('VRTrack');
-                my $vrstats_file = $vrtrack->get_file($s_file->path->stringify);
+                my $vrtrack = VRPipe::Schema->create('VRTrack');
+                my $vrstats_file = $vrtrack->get_file($s_file->path->stringify, protocol => $s_file->protocol);
                 $self->throw($s_file->path . " was not in the graph database") unless $vrstats_file;
                 my ($vr_lane) = $vrstats_file->related(incoming => { namespace => 'VRTrack', label => 'Lane', max_depth => 5 });
                 my ($vr_stats) = $vrstats_file->related(outgoing => { type => 'summary_stats' });
@@ -132,8 +132,8 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                     $self->relate_input_to_output($vrstats_file, 'bamstats_plot', $path, $params);
                 }
                 
-                my $s_path = $s_file->path;
-                my $cmd    = qq[$plot_bamstats $plot_opts -p $prefix $s_path];
+                my $cat = $s_file->cat;
+                my $cmd = qq[$cat | $plot_bamstats $plot_opts -p $prefix -];
                 $self->dispatch([$cmd, $req]);
             }
         };
