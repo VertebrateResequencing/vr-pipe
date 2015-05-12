@@ -62,6 +62,7 @@ class VRPipe::File extends VRPipe::Persistent {
     use File::ReadBackwards;
     use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
+    use VRPipe::FileProtocol;
     use File::Copy;
     use Fcntl ':mode';
     use Cwd qw(abs_path);
@@ -241,7 +242,7 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method _filetype_from_extension {
-        my $path = $self->path;
+        my $path = $self->{_column_data}->{path};
         my ($type) = $path =~ /\.([^.]*)$/;
         $type ||= 'any';
         $type = lc($type);
@@ -368,7 +369,7 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->metadata($final_meta);
             $self->update;
         };
-        $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->path);
+        $self->do_transaction($transaction, "Failed to add_metadata for file " . $self->{_column_data}->{path});
         $self->unlock;
         
         my $resolve = $self->resolve;
@@ -418,7 +419,7 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->metadata($final_meta);
             $self->update;
         };
-        $self->do_transaction($transaction, "Failed to merge_metadata for file " . $self->path);
+        $self->do_transaction($transaction, "Failed to merge_metadata for file " . $self->{_column_data}->{path});
         $self->unlock;
         
         my $resolve = $self->resolve;
@@ -1146,6 +1147,18 @@ class VRPipe::File extends VRPipe::Persistent {
             $resolve->md5($self->{md5});       #*** to avoid recursion we access the self hash!! rework?...
             $resolve->update;
         }
+    }
+    
+    # returns a string that can be used in a command line to get the contents
+    # of this file on to STDOUT for piping to something; it does the right
+    # thing depending on the file's protocol and also if the file is compressed
+    method cat {
+        #*** is there a better way of bypassing our overrides of protocol() and
+        # path()?
+        my $protocol = $self->{_column_data}->{protocol};
+        my ($pro)    = $protocol =~ /^([^:]+):/;
+        my $fp       = VRPipe::FileProtocol->create($pro, { file => $self->{_column_data}->{path} });
+        return $fp->cat;
     }
     
     sub DEMOLISH {

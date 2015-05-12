@@ -57,7 +57,7 @@ use MooseX::Types -declare => [
       MaybeStrOrEnv Datetime VRPFileOrHandle
       Persistent PersistentObject RelationshipArg
       PersistentArrayRef PersistentHashRef
-      FileType AbsoluteFile PersistentFileHashRef
+      FileType FileProtocol AbsoluteFile PersistentFileHashRef
       OpenMode AnyFileHandle
       ParserType MapperType PreviousStepOutput
       Text)
@@ -169,6 +169,13 @@ subtype FileType, as Str, where {
     return 1;
 }, message { "Not a valid VRPipe::FileType type" };
 coerce FileType, from Str, via { lc($_) };
+
+subtype FileProtocol, as Str, where {
+    my $type = $_;
+    eval "require VRPipe::FileProtocol::$type;";
+    return $@ ? 0 : 1;
+}, message { "Not a valid VRPipe::FileProtocol type" };
+coerce FileProtocol, from Str, via { lc($_) };
 
 subtype ParserType, as Str, where {
     my $type = $_;

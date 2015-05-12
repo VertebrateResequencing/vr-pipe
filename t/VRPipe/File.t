@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 86;
+    use Test::Most tests => 91;
     use VRPipeTest;
 }
 
@@ -394,7 +394,7 @@ is <$fh>, "comma\n", 'could read from that file';
 is $vrfile->protocol, 'file:/', 'files by default have a protocol of file:/';
 ok my $pfile = VRPipe::File->create(path => '/remote/file.txt', protocol => 'irods:'), 'could create a file with a protocol';
 is $pfile->path, 'irods:/remote/file.txt', 'path() returns the absolute path prefixed with the protocol for non-standard protocol files';
-my $pfile2 = $pfile = VRPipe::File->get(path => '/remote/file.txt', protocol => 'irods:');
+my $pfile2 = VRPipe::File->get(path => '/remote/file.txt', protocol => 'irods:');
 my $pfile3 = VRPipe::File->create(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
 my $pfile4 = VRPipe::File->get(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
 is $pfile->id,   $pfile2->id, 'you can get a irods file when the abs path is duplicated';
@@ -403,6 +403,14 @@ is $pfile3->id,  $pfile4->id, 'having a password in the protocol does not stop y
 isnt $pfile4->{_column_data}->{protocol}, 'ftp://user:pass@server:port', 'the raw protocol in the db is encrypted';
 is $pfile4->path, 'ftp:/user:pass@server:port/remote/file.txt', 'path() works when the protocol had a password in it, doing decryption, though ftp:// becomes ftp:/';
 is $pfile4->basename, 'file.txt', 'passthrough Path::Class method basename works fine on protocol files';
+throws_ok { $pfile4->cat } qr/Invalid implementation class/, 'using cat() on a file with ftp protocol causes a throw, because FileProtocol::ftp not yet implemented';
+is $pfile->cat, 'iget /remote/file.txt -', 'cat() works correctly on an irods file';
+my $pfile5 = VRPipe::File->create(path => '/remote/file.txt.gz', protocol => 'irods:');
+is $pfile5->cat, 'iget /remote/file.txt.gz - | gzip -dc', 'cat() works correctly on a compressed irods file';
+my $lfile = VRPipe::File->create(path => '/local/file.txt');
+is $lfile->cat, 'cat /local/file.txt', 'cat() works correctly on a local file';
+$lfile = VRPipe::File->create(path => '/local/file.txt.gz');
+is $lfile->cat, 'zcat /local/file.txt.gz', 'cat() works correctly on a compressed local file';
 
 done_testing;
 exit;
