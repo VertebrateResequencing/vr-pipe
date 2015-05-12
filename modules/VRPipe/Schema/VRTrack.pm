@@ -250,6 +250,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     method get_file (Str $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+        if ($protocol && $protocol eq 'file:/') {
+            undef $protocol;
+        }
         return $vrpipe_schema->path_to_filesystemelement($path, $protocol ? (protocol => $protocol) : (), only_get => 1);
     }
     
