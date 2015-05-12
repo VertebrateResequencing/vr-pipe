@@ -174,8 +174,15 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         unless ($graph_de) {
             $graph_de = $self->add('DataElement', { sql_id => $de->id }, incoming => { type => 'element', node => $graph_ds });
             
-            foreach my $graph_fse ($self->get_or_store_filesystem_paths([$de->paths])) {
-                $graph_de->relate_to($graph_fse, 'input_file');
+            my %files;
+            foreach my $file (@{ $de->files || [] }) {
+                push(@{ $files{ $file->protocol } }, $file->path->stringify);
+            }
+            
+            while (my ($protocol, $paths) = each %files) {
+                foreach my $graph_fse ($self->get_or_store_filesystem_paths($paths, $protocol ne 'file:/' ? (protocol => $protocol) : ())) {
+                    $graph_de->relate_to($graph_fse, 'input_file');
+                }
             }
             
             # we store keyvals (metadata) on KeyVal nodes and not as properties
