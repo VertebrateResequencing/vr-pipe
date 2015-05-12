@@ -62,10 +62,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option. To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
+            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option (none supplied means the dataelements will have paths like irod:/abs/path/to/file.txt, and the step(s) in your pipeline will have to be able to handle such paths). To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. If any qc files have been stored with the file, these are associated with a qc_file relationship; the require_qc_files option will skip files that do not have all the qc files specified in desired_qc_files, which is a comma-separated list of main-file-basename(excluding extension) suffixes, defaulting to _F0x900.stats,.genotype.json,.verify_bam_id.json. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         if ($method eq 'group_by_metadata_with_warehouse_metadata') {
             return "Extension to the all_with_warehouse_metadata methods that will group files from the source according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all files with the same sample, platform and library into one dataelement. If you use a graph_filter and the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter. If the filter_after_grouping option is not set, only files which pass the filter will be included and grouped based on their metadata.";
@@ -118,6 +118,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $graph_filter          = $options->{graph_filter};
         my $filter_after_grouping = $options->{filter_after_grouping};
         my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
+        my $required_metadata = $options->{required_metadata} || '';
+        my $vrtrack_group     = $options->{vrtrack_group}     || '';
+        my $require_qc_files  = $options->{require_qc_files}  || 0;
+        my $desired_qc_files = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0x900.stats,.genotype.json,.verify_bam_id.json';
+        my $add_metadata_from_warehouse = $self->method =~ /with_warehouse_metadata$/ ? 1 : 0;
+        my $local_root_dir = $options->{local_root_dir} || '';
         
         if ($current_checksum && length($current_checksum) == 32) {
             return $current_checksum unless $locked;
@@ -125,13 +131,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # else we always get the latest checksum if we have no valid checksum
         
         # get the current files and their metadata and stringify it all
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $self->method =~ /with_warehouse_metadata$/, $options->{required_metadata}, $options->{vrtrack_group});
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
-        foreach my $file (sort keys %$files) {
-            $data .= $file;
+        foreach my $path (sort keys %$files) {
+            $data .= $path;
             
-            my $meta = $files->{$file};
+            my $meta = $files->{$path}->[0];
             foreach my $key (sort keys %$meta) {
                 next if $key eq 'vrpipe_irods_order';
                 my $val = $meta->{$key};
@@ -141,7 +147,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             }
             
             if ($graph) {
-                my $pass = $self->_file_filter($file, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                my $pass = $self->_file_filter($files->{$path}->[1], $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
                 $pass ||= 0;
                 $data .= "|graph_filter:$pass|";
             }
@@ -151,12 +157,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Bool $add_metadata_from_warehouse?, Maybe[Str] $required_metadata?, Maybe[Str] $vrtrack_group?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Str $local_root_dir!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
         my @required_keys;
         if ($required_metadata) {
             @required_keys = split(',', $required_metadata);
         }
+        my @desired_qc_file_suffixes = split(/,/, $desired_qc_files) if $desired_qc_files;
+        my $desired_qc_file_suffixes = join('|', @desired_qc_file_suffixes) if @desired_qc_file_suffixes;
+        my $desired_qc_file_regex = qr/\s+(\S+(?:$desired_qc_file_suffixes))/ if $desired_qc_file_suffixes;
         
         my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender);
         my ($study_sth, $study_title);
@@ -230,7 +239,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             @queries = ($raw_query);
         }
         
-        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections);
+        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache);
         my $order = 1;
         foreach my $query (@queries) {
             my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
@@ -244,10 +253,76 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     undef $collection;
                 }
                 elsif ($collection && /^dataObj:\s+(\S+)/) {
-                    my $path = "$collection/$1";
+                    my $basename = $1;
+                    my $path     = "$collection/$basename";
                     # get all the metadata for this file
                     my $meta = VRPipe::Steps::irods->get_file_metadata($path);
                     $meta->{vrpipe_irods_order} = $order++;
+                    
+                    # a Sanger-specific thing is that we can have qc-related
+                    # files stored in the same folder or qc sub-folder as our
+                    # main file, so we'll associate these files with the main
+                    # file if they exist, and skip if some don't exist and
+                    # we're in require mode
+                    my $graph_file;
+                    if ($vrtrack && $desired_qc_file_regex) {
+                        my $prefix = $basename;
+                        $prefix =~ s/\.[^\.]+$//;
+                        my $desired_regex = qr/$prefix(?:$desired_qc_file_suffixes)/;
+                        
+                        my $ils_output = [];
+                        if (exists $ils_cache{$collection}) {
+                            $ils_output = $ils_cache{$collection};
+                        }
+                        else {
+                            my @base_ils_output = VRPipe::Steps::irods->open_irods_command("ils $collection");
+                            my @qc_ils_output;
+                            foreach (reverse(@base_ils_output)) {
+                                if (/^\s+C- (\S+)/) {
+                                    if ($1 eq "$collection/qc") {
+                                        @qc_ils_output = VRPipe::Steps::irods->open_irods_command("ils $collection/qc");
+                                    }
+                                }
+                                else {
+                                    last;
+                                }
+                            }
+                            
+                            if (@qc_ils_output) {
+                                my $dir;
+                                foreach (@base_ils_output, @qc_ils_output) {
+                                    next unless $_;
+                                    if (/^($collection\S*):$/) {
+                                        $dir = $1;
+                                    }
+                                    elsif (/^$desired_qc_file_regex$/) {
+                                        push(@$ils_output, [$dir, $1]);
+                                    }
+                                }
+                            }
+                            
+                            $ils_cache{$collection} = $ils_output;
+                        }
+                        
+                        my @qc_files;
+                        foreach my $ref (@$ils_output) {
+                            my ($dir, $basename) = @$ref;
+                            if ($basename =~ /^$desired_regex$/) {
+                                push(@qc_files, "$dir/$basename");
+                            }
+                        }
+                        
+                        if ($require_qc_files && @qc_files != @desired_qc_file_suffixes) {
+                            next QU;
+                        }
+                        elsif (@qc_files) {
+                            $graph_file = $vrtrack->add_file($path, 'irods:');
+                            foreach my $qc_file_path (@qc_files) {
+                                my $qc_file = $vrtrack->add_file($qc_file_path, 'irods:');
+                                $graph_file->relate_to($qc_file, 'qc_file');
+                            }
+                        }
+                    }
                     
                     # grab extra info from the warehouse database if requested
                     if ($sample_sth) {
@@ -395,7 +470,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                             my $path = file($dir, $1)->stringify;
                                             push(@files, $path);
                                             
-                                            my $vrtrack_file = $vrtrack->add_file($path);
+                                            my $vrtrack_file = $vrtrack->add_file($path, 'irods:');
                                             $collections{$analysis_collection}->relate_to($vrtrack_file, 'contains');
                                         }
                                     }
@@ -456,8 +531,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             $taxon->relate_to($sample, 'member', selfish => 1);
                         }
                         
-                        my $file = $vrtrack->add_file($path);
-                        $file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
+                        $graph_file ||= $vrtrack->add_file($path, 'irods:');
+                        $graph_file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
                         my $file_connected = 0;
                         my $unique         = file($path)->basename;
                         $unique =~ s/\.gz$//;
@@ -465,8 +540,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         
                         if (defined $meta->{analysis_uuid}) {
                             foreach my $uuid (ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid})) {
-                                $file->relate_to($analyses{$uuid}, 'analysed');
+                                $graph_file->relate_to($analyses{$uuid}, 'analysed');
                             }
+                        }
+                        if ($local_root_dir) {
+                            my $local_file = $vrtrack->add_file(file($local_root_dir, $path)->stringify);
+                            $graph_file->relate_to($local_file, 'local_file');
                         }
                         
                         # bams
@@ -480,7 +559,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         if (defined $meta->{lane}) {
                             $lane = $vrtrack->add('Lane', { unique => $unique, lane => $meta->{lane}, run => $meta->{id_run}, total_reads => $meta->{total_reads}, is_paired_read => $meta->{is_paired_read} });
                             
-                            $lane->relate_to($file, 'aligned', selfish => 1);
+                            $lane->relate_to($graph_file, 'aligned', selfish => 1);
                             $file_connected = 1;
                             
                             if ($library) {
@@ -490,13 +569,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         
                         if ($meta->{alignment} && defined $meta->{reference}) {
                             my $aln = $vrtrack->add('Alignment', { reference => $meta->{reference} });
-                            $aln->relate_to($file, 'reference', selfish => 1);
+                            $aln->relate_to($graph_file, 'reference', selfish => 1);
                         }
                         
                         if (defined $meta->{ebi_sub_acc} && $meta->{ebi_run_acc}) {
                             my $sub = $vrtrack->add('EBI_Submission', { acc => $meta->{ebi_sub_acc}, defined $meta->{ebi_sub_date} ? (sub_date => $vrtrack->date_to_epoch($meta->{ebi_sub_date})) : () });
                             
-                            my $run = $vrtrack->add('EBI_Run', { acc => $meta->{ebi_run_acc}, md5 => $meta->{ebi_sub_md5} }, incoming => { type => 'submitted', node => $file }, outgoing => { type => 'submitted', node => $sub });
+                            my $run = $vrtrack->add('EBI_Run', { acc => $meta->{ebi_run_acc}, md5 => $meta->{ebi_sub_md5} }, incoming => { type => 'submitted', node => $graph_file }, outgoing => { type => 'submitted', node => $sub });
                         }
                         
                         # infinium idats and gtc
@@ -506,7 +585,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             if (defined $meta->{beadchip_section}) {
                                 my $section = $vrtrack->add('Section', { unique => $unique, section => $meta->{beadchip_section} }, incoming => { type => 'placed', node => $sample });
                                 $beadchip->relate_to($section, 'section', selfish => 1);
-                                $section->relate_to($file, 'processed', selfish => 1);
+                                $section->relate_to($graph_file, 'processed', selfish => 1);
                                 $file_connected = 1;
                             }
                         }
@@ -527,11 +606,11 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         }
                         
                         unless ($file_connected) {
-                            $sample->relate_to($file, 'processed');
+                            $sample->relate_to($graph_file, 'processed');
                         }
                     }
                     
-                    $files{$path} = $meta;
+                    $files{$path} = [$meta, $graph_file];
                 }
             }
         }
@@ -539,11 +618,11 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         return \%files;
     }
     
-    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?) {
+    method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?) {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
-        $args{local_root_dir}  = $local_root_dir;
+        $args{local_root_dir}  = $local_root_dir if $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
         my @element_args;
         my $did = $self->_datasource_id;
@@ -553,25 +632,25 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_create_elements(\@element_args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?) {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
-        $args{local_root_dir}  = $local_root_dir;
+        $args{local_root_dir}  = $local_root_dir if $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
         my @element_args;
         my $did = $self->_datasource_id;
         foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : (), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ())) {
-            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $result->{irods_path} ? (irods_path => $result->{irods_path}) : (protocol => 'irods:') } });
         }
         $self->_create_elements(\@element_args);
     }
     
-    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1) {
+    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
         $args{handle}          = $handle;
         $args{file_query}      = $file_query;
-        $args{local_root_dir}  = $local_root_dir;
+        $args{local_root_dir}  = $local_root_dir if $local_root_dir;
         $args{update_interval} = $update_interval if defined($update_interval);
         
         my @meta_keys = split /\|/, $metadata_keys;
@@ -600,12 +679,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_create_elements(\@element_args);
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir!, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1) {
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group);
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '');
         $self->_clear_cache;
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
@@ -616,26 +695,33 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my @results;
         my @changed_details;
         my $anti_repeat_store = {};
-        foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
-            my $new_metadata = $files->{$path};
+        foreach my $path (sort { $files->{$a}->[0]->{vrpipe_irods_order} <=> $files->{$b}->[0]->{vrpipe_irods_order} } keys %$files) {
+            my $pass_filter;
+            if ($graph) {
+                $pass_filter = $self->_file_filter($files->{$path}->[1], $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                next unless defined($pass_filter);
+            }
+            
+            my $new_metadata = $files->{$path}->[0];
             delete $new_metadata->{vrpipe_irods_order};
             
-            my $sub_path = $path;
-            $sub_path =~ s/^\///;
-            my $file_abs_path = file($local_root_dir, $sub_path)->stringify;
+            my ($file_abs_path, $protocol);
+            if ($local_root_dir) {
+                my $sub_path = $path;
+                $sub_path =~ s/^\///;
+                $file_abs_path = file($local_root_dir, $sub_path)->stringify;
+            }
+            else {
+                $file_abs_path = $path;
+                $protocol      = 'irods:';
+            }
             
             # consider type to be any if not defined in the irods metadata; if
             # not a VRPipe filetype it will be treated as an any
             my $type = delete $new_metadata->{type};
             $type ||= 'any';
             
-            my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type)->original;
-            
-            my $pass_filter;
-            if ($graph) {
-                $pass_filter = $self->_file_filter($path, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
-                next unless defined($pass_filter);
-            }
+            my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ())->original;
             
             # add metadata to file, detecting any changes
             my $current_metadata = $vrfile->metadata;
@@ -664,15 +750,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             # if there was no metadata this will add metadata to the file.
             $vrfile->add_metadata($new_metadata, replace_data => 0);
-            $vrfile->add_metadata({ irods_path => $path, defined $new_metadata->{md5} ? (expected_md5 => $new_metadata->{md5}) : () });
+            $vrfile->add_metadata({ $protocol ? () : (irods_path => $path), defined $new_metadata->{md5} ? (expected_md5 => $new_metadata->{md5}) : () });
             
-            my $result_hash = { paths => [$file_abs_path], irods_path => $path };
+            my $result_hash = { paths => [$file_abs_path], $protocol ? () : (irods_path => $path) };
             if ($changed) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
             }
-            push(@results, { paths => [$file_abs_path], irods_path => $path, metadata => $new_metadata, defined($pass_filter) ? (pass_filter => $pass_filter) : () });
+            push(@results, { paths => [$file_abs_path], $protocol ? () : (irods_path => $path), metadata => $new_metadata, defined($pass_filter) ? (pass_filter => $pass_filter) : () });
         }
         
         $self->_clear_file_filter_cache();

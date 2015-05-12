@@ -66,21 +66,26 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
         return (\@krs, \@gfs, $vrpipe_graph_schema, $graph);
     }
     
-    method _file_filter (VRPipe::File|Str $file, Bool $filter_after_grouping, Maybe[ArrayRef] $krs?, Maybe[ArrayRef] $gfs?, $vrpipe_graph_schema?, $graph?) {
+    # $file is a VRPipe::File if you're doing a metadata filter with $krs,
+    # or a VRPipe::Schema::VRPipe::FileSystemElement if you're doing a graph
+    # filter. To do both you must supply a VRPipe::File.
+    method _file_filter (Object $file, Bool $filter_after_grouping, Maybe[ArrayRef] $krs?, Maybe[ArrayRef] $gfs?, $vrpipe_graph_schema?, $graph?) {
         # to avoid doing this twice, once while calculating the changed marker
         # and again while creating elements, we cache our results and provide
         # a _clear_file_filter_cache() method that the element creating method
-        # can call before it returns. Must supply a VRPipe::File object if
-        # using $krs and metadata filter, otherwise just the path as a string
-        # is fine
-        my $file_id = ref($file) ? $file->id : $file;
+        # can call before it returns.
+        my $file_id = $file->can('id') ? $file->id : $file->node_id;
         if (exists $file_filter_cache{$file_id}) {
             return $file_filter_cache{$file_id};
         }
         
-        my $meta = ref($file) ? $file->metadata : {};
         my $pass_filter = 0;
         if ($krs && @$krs) {
+            unless (ref($file) eq 'VRPipe::File') {
+                $self->throw("In krs mode you must supply a VRPipe::File");
+            }
+            my $meta = $file->metadata;
+            
             # if "filter_after_grouping => 0", we filter before grouping
             # by skipping files which don't match the regex or don't
             # have the required metadata
@@ -104,7 +109,15 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
         }
         
         if ($gfs && @$gfs && (($krs && @$krs) ? $pass_filter : 1)) {
-            my $file_node = $vrpipe_graph_schema->get('File', { path => ref($file) ? $file->path->stringify : $file });
+            my ($file_path, $protocol);
+            my $file_node;
+            if (ref($file) eq 'VRPipe::File') {
+                my $protocol = $file->protocol ne 'file:/' ? $file->protocol : undef;
+                $file_node = $vrpipe_graph_schema->get('File', { path => $file->path->stringify, $protocol ? (protocol => $protocol) : () });
+            }
+            else {
+                $file_node = $file;
+            }
             unless ($file_node) {
                 $file_filter_cache{$file_id} = undef;
                 return unless $filter_after_grouping;
