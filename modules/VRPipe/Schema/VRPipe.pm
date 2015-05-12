@@ -350,9 +350,11 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         my ($pro, $text) = $root_basename =~ /^([^:]+):(.*)/;
         
         if ($just_protocol_type) {
-            return $pro;
+            return $pro || 'file';
         }
         else {
+            return 'file:/' unless $pro;
+            
             # decrypt any encrypted part of the protocol
             $text ||= '';
             $text &&= $config->crypter->decrypt_hex($text);

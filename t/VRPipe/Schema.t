@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 132;
+    use Test::Most tests => 134;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -255,8 +255,10 @@ my $ftp_file_uuid = $ftp_file->uuid;
 $vrpipe->move_filesystemelement($ftp_first_dir, $ftp_first_dir->path(1), protocol => 'ftp://user:changedpass@host:port');
 my $ff = $vrpipe->get('File', { path => $lrpath, protocol => 'ftp://user:changedpass@host:port' });
 is $ff->uuid, $ftp_file_uuid, 'if your ftp password changed, you could just move the first directory and everything would update automatically';
-is $ff->protocol, 'ftp://user:changedpass@host:port', 'protocol() works';
-is $ff->protocol(1), 'ftp', 'protocol(1) works';
+is $ff->protocol, 'ftp://user:changedpass@host:port', 'protocol() works for an ftp file';
+is $ff->protocol(1), 'ftp', 'protocol(1) works for an ftp file';
+is $local_file->protocol, 'file:/', 'protocol() works for a local file';
+is $local_file->protocol(1), 'file', 'protocol(1) works for a local file';
 
 # make a traditional mysql vrpipe StepState so we can test that
 # ensure_state_hierarchy() can represent the same thing in the graph database
