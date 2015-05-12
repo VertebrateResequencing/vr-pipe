@@ -77,7 +77,7 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
                 $basename = "${chrom}_${from}-${to}.$basename";
             }
             my @file_inputs = map { "--variant " . $_->path } @{ $self->inputs->{gvcf_files} };
-            $genotype_gvcfs_opts .= "@file_inputs";
+            $genotype_gvcfs_opts .= " @file_inputs";
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
