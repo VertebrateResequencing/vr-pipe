@@ -145,7 +145,8 @@ class VRPipe::DataElement extends VRPipe::Persistent {
         my $result = delete $args->{result};
         
         # convert paths in the result to a filelist
-        my $paths = $result->{paths};
+        my $paths    = $result->{paths};
+        my $protocol = delete $result->{protocol};
         if (defined $paths && ref($paths)) {
             # we might see the same set of $paths in multiple sequential calls
             # to _convert_result, and if there are thousands of paths we can
@@ -155,7 +156,7 @@ class VRPipe::DataElement extends VRPipe::Persistent {
                 $args->{filelist} = $last_filelist;
             }
             else {
-                $args->{filelist} = VRPipe::FileList->get(files => [map { VRPipe::File->get(path => $_) } @{$paths}])->id;
+                $args->{filelist} = VRPipe::FileList->get(files => [map { VRPipe::File->get(path => $_, $protocol ? (protocol => $protocol) : ()) } @{$paths}])->id;
                 $last_paths       = $paths_str;
                 $last_filelist    = $args->{filelist};
             }

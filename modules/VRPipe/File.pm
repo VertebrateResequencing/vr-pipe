@@ -36,7 +36,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2014 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -67,9 +67,11 @@ class VRPipe::File extends VRPipe::Persistent {
     use Cwd qw(abs_path);
     use Filesys::DfPortable;
     use VRPipe::Schema;
+    use VRPipe::Config;
     
     our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
+    our $config = VRPipe::Config->new();
     
     # *** a lot of stuff depends on getting/creating files based on the path
     #     alone. However, with MySQL at least, the search on path is case
@@ -82,6 +84,15 @@ class VRPipe::File extends VRPipe::Persistent {
         traits  => ['VRPipe::Persistent::Attributes'],
         is_key  => 1,
         handles => [qw(slurp stat lstat basename dir)]
+    );
+    
+    has 'protocol' => (
+        is                   => 'rw',
+        isa                  => Varchar [102],
+        traits               => ['VRPipe::Persistent::Attributes'],
+        is_key               => 1,
+        default              => 'file:/',
+        allow_key_to_default => 1
     );
     
     has 'type' => (
@@ -247,33 +258,69 @@ class VRPipe::File extends VRPipe::Persistent {
     
     __PACKAGE__->make_persistent();
     
+    around protocol {
+        # decrypt possibly encrypted protocol parts
+        my $protocol = $self->$orig();
+        if ($protocol ne 'file:/') {
+            my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
+            $text ||= '';
+            $text &&= $config->crypter->decrypt_hex($text);
+            $protocol = $pro . ':' . $text;
+        }
+        return $protocol;
+    }
+    
+    around path {
+        # prefix the path with non-standard protocol
+        my $path     = $self->$orig();
+        my $protocol = $self->protocol;
+        if ($protocol ne 'file:/') {
+            #*** Path::Class passthrough methods other than basename don't work
+            # properly on complex protocols, and ftp://... stringifies to
+            # ftp:/... . Not sure what to do about that...
+            $path = file($protocol . $path);
+        }
+        return $path;
+    }
+    
     # we used to have a column called metadata, which was replaced with
     # keyvallist; since it's more natural to create files with a metadata arg,
-    # we'll have permanent backwards-compatibility
+    # we'll have permanent backwards-compatibility. We also encrypt parts of
+    # non-default protocols in case they contain passwords.
     around bulk_create_or_update (ClassName|Object $self: @args) {
         foreach my $args (@args) {
-            $self->_convert_metadata($args);
+            $self->_convert_metadata_and_encrypt_protocol($args);
         }
         return $self->$orig(@args);
     }
     
     around _get (ClassName|Object $self: Bool $create, %args) {
-        $self->_convert_metadata(\%args);
+        $self->_convert_metadata_and_encrypt_protocol(\%args);
         return $self->$orig($create, %args);
     }
     
     around search_rs (ClassName|Object $self: HashRef $search_args, Maybe[HashRef] $search_attributes?) {
-        $self->_convert_metadata($search_args);
+        $self->_convert_metadata_and_encrypt_protocol($search_args);
         my @args = ($search_args);
         push(@args, $search_attributes) if $search_attributes;
         return $self->$orig(@args);
     }
     
-    sub _convert_metadata {
+    sub _convert_metadata_and_encrypt_protocol {
         my ($self, $args) = @_;
-        return unless exists $args->{metadata};
-        my $meta = delete $args->{metadata};
-        $args->{keyvallist} = VRPipe::KeyValList->get(hash => $meta)->id;
+        
+        if (exists $args->{metadata}) {
+            my $meta = delete $args->{metadata};
+            $args->{keyvallist} = VRPipe::KeyValList->get(hash => $meta)->id;
+        }
+        
+        if (exists $args->{protocol}) {
+            my $protocol = $args->{protocol};
+            my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
+            $text ||= '';
+            $text &&= $config->crypter->encrypt_hex($text);
+            $args->{protocol} = $pro . ':' . $text;
+        }
     }
     
     # speed critical, so sub instead of method
@@ -1012,6 +1059,8 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method update_stats_from_disc (PositiveInt :$retries = 1, Bool :$keep_stat_cache = 0) {
+        return unless $self->protocol eq 'file:/';
+        
         my $current_s     = $self->s;
         my $current_mtime = $self->mtime;
         my $path          = $self->path;

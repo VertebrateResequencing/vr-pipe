@@ -467,11 +467,17 @@ role VRPipe::StepRole {
             foreach my $file (@$val) {
                 my $resolved = $inputs_mode ? $file : $file->resolve;
                 
+                my $ignore_s = 0;
+                if ($check_s && $file->protocol ne 'file:/') {
+                    # we can't check the existence of non-local files
+                    $ignore_s = 1;
+                }
+                
                 # we may be in a situation where $file has been moved elsewhere
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s && !$inputs_mode) {
+                if (!$ignore_s && $check_s && !$inputs_mode) {
                     # double-check incase the step did not update_stats_from_disc
                     my $actual_s   = $resolved->check_file_size_on_disc();
                     my $resolved_s = $resolved->s;
@@ -486,7 +492,7 @@ role VRPipe::StepRole {
                     $resolved = $file;
                 }
                 
-                if ($check_s && !$resolved->s) {
+                if (!$ignore_s && $check_s && !$resolved->s) {
                     push(@missing, $file->path);
                     push(@messages, $file->path . ($resolved->e ? " is an empty file." : " does not exist."));
                 }
@@ -495,7 +501,7 @@ role VRPipe::StepRole {
                     
                     # check the filetype is correct (except for temp files,
                     # since the check is expensive)
-                    if ($check_s && !$inputs_mode && $key ne 'temp') {
+                    if (!$ignore_s && $check_s && !$inputs_mode && $key ne 'temp') {
                         my $type_str = $resolved->type;
                         unless (exists $file_type_objs{$type_str}) {
                             $file_type_objs{$type_str} = VRPipe::FileType->create($type_str, { file => 'to_be_replaced' });

@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 77;
+    use Test::Most tests => 86;
     use VRPipeTest;
 }
 
@@ -389,6 +389,20 @@ close($fh);
 ok $vrfile = VRPipe::File->create(path => $comma_file), 'could create a VRPipe::File when the path has a comma';
 $fh = $vrfile->openr;
 is <$fh>, "comma\n", 'could read from that file';
+
+# test protocols
+is $vrfile->protocol, 'file:/', 'files by default have a protocol of file:/';
+ok my $pfile = VRPipe::File->create(path => '/remote/file.txt', protocol => 'irods:'), 'could create a file with a protocol';
+is $pfile->path, 'irods:/remote/file.txt', 'path() returns the absolute path prefixed with the protocol for non-standard protocol files';
+my $pfile2 = $pfile = VRPipe::File->get(path => '/remote/file.txt', protocol => 'irods:');
+my $pfile3 = VRPipe::File->create(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
+my $pfile4 = VRPipe::File->get(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
+is $pfile->id,   $pfile2->id, 'you can get a irods file when the abs path is duplicated';
+isnt $pfile->id, $pfile3->id, 'the duplicated path for a different protocol has a different id';
+is $pfile3->id,  $pfile4->id, 'having a password in the protocol does not stop you getting the correct file from the db';
+isnt $pfile4->{_column_data}->{protocol}, 'ftp://user:pass@server:port', 'the raw protocol in the db is encrypted';
+is $pfile4->path, 'ftp:/user:pass@server:port/remote/file.txt', 'path() works when the protocol had a password in it, doing decryption, though ftp:// becomes ftp:/';
+is $pfile4->basename, 'file.txt', 'passthrough Path::Class method basename works fine on protocol files';
 
 done_testing;
 exit;
