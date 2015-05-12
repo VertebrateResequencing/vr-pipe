@@ -284,6 +284,10 @@ class VRPipe::File extends VRPipe::Persistent {
         return $path;
     }
     
+    method raw_path {
+        return $self->{_column_data}->{path};
+    }
+    
     # we used to have a column called metadata, which was replaced with
     # keyvallist; since it's more natural to create files with a metadata arg,
     # we'll have permanent backwards-compatibility. We also encrypt parts of

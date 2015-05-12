@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 91;
+    use Test::Most tests => 92;
     use VRPipeTest;
 }
 
@@ -401,8 +401,9 @@ is $pfile->id,   $pfile2->id, 'you can get a irods file when the abs path is dup
 isnt $pfile->id, $pfile3->id, 'the duplicated path for a different protocol has a different id';
 is $pfile3->id,  $pfile4->id, 'having a password in the protocol does not stop you getting the correct file from the db';
 isnt $pfile4->{_column_data}->{protocol}, 'ftp://user:pass@server:port', 'the raw protocol in the db is encrypted';
-is $pfile4->path, 'ftp:/user:pass@server:port/remote/file.txt', 'path() works when the protocol had a password in it, doing decryption, though ftp:// becomes ftp:/';
-is $pfile4->basename, 'file.txt', 'passthrough Path::Class method basename works fine on protocol files';
+is $pfile4->path,     'ftp:/user:pass@server:port/remote/file.txt', 'path() works when the protocol had a password in it, doing decryption, though ftp:// becomes ftp:/';
+is $pfile4->basename, 'file.txt',                                   'passthrough Path::Class method basename works fine on protocol files';
+is $pfile4->raw_path, '/remote/file.txt',                           'raw_path() method works';
 throws_ok { $pfile4->cat } qr/Invalid implementation class/, 'using cat() on a file with ftp protocol causes a throw, because FileProtocol::ftp not yet implemented';
 is $pfile->cat, 'iget /remote/file.txt -', 'cat() works correctly on an irods file';
 my $pfile5 = VRPipe::File->create(path => '/remote/file.txt.gz', protocol => 'irods:');
