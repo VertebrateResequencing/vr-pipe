@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 147;
+    use Test::Most tests => 146;
     use VRPipeTest;
     use TestPipelines;
     
@@ -848,7 +848,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 27;
+    my $num_tests = 26;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
     my $output_root    = get_output_dir('datasource_irods_import_dir');
@@ -935,27 +935,25 @@ SKIP: {
     my $els = get_elements($ds);
     is scalar(@$els), 27, 'aggregating 2 imeta queries using a file source worked';
     
-    # check the warehouse method with the option to get qc-related files
+    # check the warehouse method with the option to get qc-related files, and
+    # also check we don't need a local_root_dir
     ok $ds = VRPipe::DataSource->create(
         type    => 'irods',
         method  => 'all_with_warehouse_metadata',
         source  => 'seq',
         options => {
             file_query       => q[id_run = 15744 and target = 1 and type = cram],
-            local_root_dir   => $output_root,
             require_qc_files => 1
         }
       ),
-      'could create an irods datasource using all_with_warehouse_metadata method with require_qc_files option';
+      'could create an irods datasource using all_with_warehouse_metadata method with require_qc_files option and no local_root_dir';
     is scalar(@{ get_elements($ds) }), 8, 'got the correct number of elements';
-    $file = VRPipe::File->create(path => file($output_root, qw(seq 15744 15744_8.cram)));
-    $expected_file_meta = { irods_path => '/seq/15744/15744_8.cram', expected_md5 => 'af0d56cce970925d7bba207784a5e1c2', md5 => 'af0d56cce970925d7bba207784a5e1c2', reference => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa', lane => '15744_8', library => 'HiSeqX_NX_Titration_NA19239_H 13237756', study => 'HX Test Plan', id_run => 15744, library_id => 13237756, sample_id => 2247346, target => 1, study_title => 'HX Test Plan', total_reads => 623053650, alignment => 1, study_id => 3165, sample => 'HiSeqX_NX_Titration_NA19239_H', sample_created_date => '2015-03-12 08:49:13', is_paired_read => 1 };
+    $file = VRPipe::File->get(path => '/seq/15744/15744_8.cram', protocol => 'irods:');
+    $expected_file_meta = { expected_md5 => 'af0d56cce970925d7bba207784a5e1c2', md5 => 'af0d56cce970925d7bba207784a5e1c2', reference => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa', lane => '15744_8', library => 'HiSeqX_NX_Titration_NA19239_H 13237756', study => 'HX Test Plan', id_run => 15744, library_id => 13237756, sample_id => 2247346, target => 1, study_title => 'HX Test Plan', total_reads => 623053650, alignment => 1, study_id => 3165, sample => 'HiSeqX_NX_Titration_NA19239_H', sample_created_date => '2015-03-12 08:49:13', is_paired_read => 1 };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
-    ok my $graph_file = $schema->get_file('/seq/15744/15744_8.cram'), 'there was a node in the graph db for one of the cram files';
+    ok my $graph_file = $schema->get_file('/seq/15744/15744_8.cram', 'irods:'), 'there was a node in the graph db for one of the cram files';
     my @qc_files = $graph_file->related(outgoing => { type => 'qc_file' }) if $graph_file;
-    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['/seq/15744/15744_8_F0x900.stats', '/seq/15744/qc/15744_8.genotype.json', '/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
-    my @local_files = $graph_file->related(outgoing => { type => 'local_file' }) if $graph_file;
-    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @local_files], [$file->path->stringify], 'the cram file was associated with a local file node';
+    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['irods:/seq/15744/15744_8_F0x900.stats', 'irods:/seq/15744/qc/15744_8.genotype.json', 'irods:/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
     
     # more complete test with our own freshly-added files and metadata
     system("irm -fr $irods_root > /dev/null 2> /dev/null");
@@ -1009,7 +1007,7 @@ SKIP: {
         push(@results, result_with_inflated_paths($element));
     }
     
-    @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
+    my @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
     is_deeply \@results, [{ paths => [$local_files[0]], irods_path => "$irods_root/file.txt" }, { paths => [$local_files[1]], irods_path => "$irods_root/file2.txt" }, { paths => [$local_files[2]], irods_path => "$irods_root/file3.txt" }], 'got correct results for irods all after adding a new file';
     
     $file = VRPipe::File->create(path => $local_files[2]);
@@ -1032,7 +1030,7 @@ SKIP: {
     );
     my @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 3, 'all_with_warehouse_metadata graph_filter with a 0 value passes all files with the property unset';
-    my @lf_nodes = map { $schema->add_file($_->stringify) } @local_files;
+    my @lf_nodes = map { $schema->add_file($_->stringify, 'irods:') } @local_files;
     my $vrsamplea = $schema->get("Sample", { name => "samplea" });
     $vrsamplea->qc_failed(0);
     my $vrsampleb = $schema->add("Sample", { name => "sampleb" });
