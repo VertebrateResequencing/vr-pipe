@@ -38,26 +38,75 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 role VRPipe::FileProtocolRole {
-    requires 'cat';
+    use Devel::GlobalDestruction;
     
-    has 'file' => (
-        is       => 'rw',
-        isa      => File,
-        coerce   => 1,
+    # the absolute path to the file (without any protocol prefixed) as a string
+    has 'path' => (
+        is       => 'ro',
+        isa      => 'Str',
         required => 1
     );
     
+    # the full protocol, including any username and password etc.
     has 'protocol' => (
+        is       => 'ro',
+        isa      => 'Str',
+        required => 1
+    );
+    
+    # returns our class name
+    has 'pro' => (
         is      => 'ro',
         isa     => FileProtocol,
         lazy    => 1,
-        builder => '_build_protocol'
+        builder => '_build_pro'
     );
     
-    method _build_protocol {
+    # implementations of open() should store the filehandle they generate in
+    # here, allowing close() to work
+    has _opened => (
+        is  => 'rw',
+        isa => 'Maybe[IO::File|FileHandle]'
+    );
+    
+    method _build_pro {
         my $class = ref($self);
         my ($protocol) = $class =~ /.+::(.+)/;
         return $protocol;
+    }
+    
+    # return a string that can be used in a command line to get the contents
+    # of this file on to STDOUT for piping to something; it should do the right
+    # thing if the file is compressed
+    requires 'cat_cmd';
+    
+    # return a file handle on the opened file
+    # first arg must be the open mode like '<' or '>'
+    # second arg must be a hashref of possible options: permissions, backwards
+    # options could be ignored if the protocol doesn't support them
+    requires 'open';
+    
+    # below are some convenience methods that use required methods defined in
+    # protocol subclasses
+    
+    method openr {
+        return $self->open('<');
+    }
+    
+    method openw {
+        return $self->open('>');
+    }
+    
+    method close {
+        my $fh = $self->_opened || return;
+        close($fh);
+        $self->_opened(undef);
+        return 1;
+    }
+    
+    sub DEMOLISH {
+        return if in_global_destruction;
+        shift->close;
     }
 }
 

@@ -39,13 +39,28 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::FileProtocol::irods with VRPipe::FileProtocolRole {
-    method cat {
-        my $file = $self->file;
-        my $cat  = "iget $file -";
-        if ($file =~ /\.gz$/) {
+    method cat_cmd {
+        my $path = $self->path;
+        my $cat  = "iget $path -";
+        if ($path =~ /\.gz$/) {
             $cat .= ' | gzip -dc';
         }
         return $cat;
+    }
+    
+    method open (OpenMode $mode, HashRef $args?) {
+        $self->throw("Only mode < is supported right now") unless $mode =~ /^<$/;
+        
+        my $open_cmd = $self->cat_cmd;
+        open(my $fh, "$open_cmd |");
+        
+        unless ($fh) {
+            my $path = $self->path;
+            $self->throw("Failed to open '$path': $!");
+        }
+        
+        $self->_opened($fh);
+        return $fh;
     }
 }
 

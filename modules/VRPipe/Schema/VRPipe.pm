@@ -41,6 +41,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     use Path::Class;
     use VRPipe::Persistent::Graph;
     use VRPipe::Config;
+    use VRPipe::FileProtocol;
     
     my $graph      = VRPipe::Persistent::Graph->new();
     my $config     = VRPipe::Config->new();
@@ -93,9 +94,14 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 indexed        => [qw(basename md5 path)], # full path is stored just to avoid a query to find the full path based on relationships when you're given a FileSystemElement in some other query; it isn't canonical but we hope to keep it up-to-date
                 allow_anything => 1,                       # allow arbitrary metadata to be stored on files/dirs
                 methods        => {
-                    path => sub { __PACKAGE__->filesystemelement_to_path(shift, shift) }, # don't trust the path property - calculate instead
-                    move     => sub { __PACKAGE__->move_filesystemelement(shift,        shift); },
-                    protocol => sub { __PACKAGE__->filesystemelement_to_protocol(shift, shift); }
+                    path              => sub { __PACKAGE__->filesystemelement_to_path(shift, shift) }, # don't trust the path property - calculate instead
+                    protocolless_path => sub { __PACKAGE__->filesystemelement_to_path(shift, 1) },
+                    cat_cmd  => sub { __PACKAGE__->filesystemelement_protocol_method(shift, 'cat_cmd') },
+                    open     => sub { __PACKAGE__->filesystemelement_protocol_method(shift, 'open') },
+                    openr    => sub { __PACKAGE__->filesystemelement_protocol_method(shift, 'openr') },
+                    close    => sub { __PACKAGE__->filesystemelement_protocol_method(shift, 'close') },
+                    move     => sub { __PACKAGE__->move_filesystemelement(shift,            shift); },
+                    protocol => sub { __PACKAGE__->filesystemelement_to_protocol(shift,     shift); }
                 }
             },
             {
@@ -360,6 +366,18 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             $text &&= $config->crypter->decrypt_hex($text);
             return $pro . ':' . $text;
         }
+    }
+    
+    method filesystemelement_protocol_method (ClassName|Object $self: Object $file!, Str $method!) {
+        my $fp = $file->{'_fp_obj'};
+        unless ($fp) {
+            my $protocol = $file->protocol;
+            my ($pro) = $protocol =~ /^([^:]+):/;
+            $fp = VRPipe::FileProtocol->create($pro, { path => $file->protocolless_path, protocol => $protocol });
+            $file->{'_fp_obj'} = $fp;
+        }
+        
+        return $fp->$method();
     }
     
     method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {

@@ -57,10 +57,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::File extends VRPipe::Persistent {
-    use Devel::GlobalDestruction;
     use MooseX::Aliases;
-    use File::ReadBackwards;
-    use IO::Uncompress::AnyUncompress;
     use VRPipe::FileType;
     use VRPipe::FileProtocol;
     use File::Copy;
@@ -70,7 +67,6 @@ class VRPipe::File extends VRPipe::Persistent {
     use VRPipe::Schema;
     use VRPipe::Config;
     
-    our $bgzip_magic = [37, 213, 10, 4, 0, 0, 0, 0, 0, 377, 6, 0, 102, 103, 2, 0];
     our %file_type_map = (fastq => 'fq');
     our $config = VRPipe::Config->new();
     
@@ -175,19 +171,28 @@ class VRPipe::File extends VRPipe::Persistent {
         builder => '_build_vrpipe_schema',
     );
     
+    has _fileprotocol => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_fileprotocol',
+        handles => [qw(cat_cmd open close pro)]
+    );
+    
     has _opened_for_writing => (
         is      => 'rw',
         isa     => 'Bool',
         default => 0
     );
     
-    has _opened => (
-        is  => 'rw',
-        isa => 'Maybe[IO::File|FileHandle]'
-    );
-    
     method _build_vrpipe_schema {
         return VRPipe::Schema->create('VRPipe');
+    }
+    
+    method _build_fileprotocol {
+        my $protocol = $self->protocol;
+        my ($pro) = $protocol =~ /^([^:]+):/;
+        return VRPipe::FileProtocol->create($pro, { path => $self->protocolless_path->stringify, protocol => $protocol });
     }
     
     sub _stat {
@@ -284,8 +289,8 @@ class VRPipe::File extends VRPipe::Persistent {
         return $path;
     }
     
-    method raw_path {
-        return $self->{_column_data}->{path};
+    method protocolless_path {
+        return file($self->{_column_data}->{path});
     }
     
     # we used to have a column called metadata, which was replaced with
@@ -326,6 +331,78 @@ class VRPipe::File extends VRPipe::Persistent {
             $text &&= $config->crypter->encrypt_hex($text);
             $args->{protocol} = $pro . ':' . $text;
         }
+    }
+    
+    around open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Int :$retry = 0) {
+        my $path = $self->protocolless_path;
+        
+        my $pro     = $self->pro;
+        my $check_e = $pro eq 'file';
+        if ($check_e && ($mode eq '<' && !$self->e)) {
+            $self->update_stats_from_disc;
+            # give it a second chance...
+            if (!$self->e) {
+                $self->throw("File '$path' does not exist, so cannot be opened for reading");
+            }
+        }
+        
+        my $type = VRPipe::FileType->create($self->type, { file => $path });
+        my $rs = $type->record_separator;
+        unless (defined $backwards) {
+            $backwards = $type->read_backwards;
+        }
+        
+        $self->_clear_stat_cache($path);
+        $self->disconnect;
+        
+        my $fh;
+        eval { $fh = $self->$orig($mode, { permissions => $permissions, backwards => $backwards, record_separator => $rs }); };
+        
+        if ($fh) {
+            if (index($mode, '>') == 0) {
+                $self->_opened_for_writing(1);
+                $self->e($self->check_file_existence_on_disc) if $check_e;
+                $self->update;
+            }
+        }
+        else {
+            if ($retry > 59 && $mode eq '<') {
+                $self->throw("Failed to open '$path' after multiple retries: $!");
+            }
+            elsif ($mode eq '>') {
+                $self->throw("Could not write to '$path': $!\n");
+            }
+            else {
+                # we think the file exists, so sleep a second and try again
+                $self->disconnect;
+                sleep(1);
+                $self->_clear_stat_cache($path);
+                $self->e($self->check_file_existence_on_disc) if $check_e;
+                $self->update;
+                return $self->open($mode, defined $permissions ? (permissions => $permissions) : (), defined $backwards ? (backwards => $backwards) : (), retry => ++$retry);
+            }
+        }
+        
+        $self->disconnect;
+        return $fh;
+    }
+    
+    method openr {
+        return $self->open('<');
+    }
+    
+    method openw {
+        return $self->open('>');
+    }
+    
+    around close {
+        $self->$orig() || return;
+        if ($self->_opened_for_writing) {
+            $self->_clear_stat_cache;
+            $self->update_stats_from_disc;
+            $self->_opened_for_writing(0);
+        }
+        return 1;
     }
     
     # speed critical, so sub instead of method
@@ -430,131 +507,6 @@ class VRPipe::File extends VRPipe::Persistent {
         if ($resolve ne $self) {
             $resolve->add_metadata($final_meta, replace_data => 1);
         }
-    }
-    
-    method openr {
-        return $self->open('<');
-    }
-    
-    method last_line {
-        my $fh = $self->open('<', backwards => 1);
-        my $line = <$fh>;
-        close($fh);
-        return $line;
-    }
-    
-    method openw {
-        return $self->open('>');
-    }
-    
-    method open (OpenMode $mode, Str :$permissions?, Bool :$backwards?, Int :$retry = 0) {
-        my $path = $self->path;
-        
-        $self->throw("Only modes <, > and >> are supported") unless $mode =~ /^(?:<|>)+$/;
-        
-        if ($mode eq '<' && !$self->e) {
-            $self->update_stats_from_disc;
-            # give it a second chance...
-            if (!$self->e) {
-                $self->throw("File '$path' does not exist, so cannot be opened for reading");
-            }
-        }
-        
-        my $fh;
-        my $type = VRPipe::FileType->create($self->type, { file => $path });
-        unless (defined $backwards) {
-            $backwards = $type->read_backwards;
-        }
-        
-        # set up the open command, handling compressed files automatically
-        my $open_cmd = $path;
-        $self->disconnect;
-        my $magic = `file -bi $path`;
-        ($magic) = split(';', $magic);
-        if ($magic eq 'application/octet-stream' || $path =~ /\.gz$/) {
-            if ($mode eq '<') {
-                if ($backwards) {
-                    $self->throw("Unable to read '$path' backwards when it is compressed");
-                }
-                
-                # if it was made with Heng Li's bgzip it will be detected as a
-                # gzip file, but will fail to be decompressed properly with
-                # IO::Uncompress; manually detect the magic ourselves
-                if ($self->check_magic($self->path, $bgzip_magic)) {
-                    $open_cmd = "gunzip -c $path |";
-                }
-                else {
-                    $fh = IO::Uncompress::AnyUncompress->new($path->stringify, AutoClose => 1);
-                }
-            }
-            else {
-                $open_cmd = "| gzip -c $mode $path";
-            }
-            
-            open($fh, $open_cmd) unless $fh;
-        }
-        else {
-            if ($mode eq '<' && $backwards) {
-                # we'll open it with File::ReadBackwards, but first check it can
-                # opened normally
-                my $ok = open(my $testfh, '<', $path);
-                if ($ok) {
-                    close($testfh);
-                    my $rs       = $type->record_separator;
-                    my @frb_args = ($path);
-                    push(@frb_args, $rs) if $rs;
-                    tie(*BW, 'File::ReadBackwards', @frb_args);
-                    $fh = \*BW;
-                }
-            }
-            else {
-                my @args = ($mode);
-                push(@args, $permissions) if $permissions;
-                $fh = $path->open(@args);
-            }
-        }
-        
-        $self->_clear_stat_cache($path);
-        if ($fh) {
-            if (index($mode, '>') == 0) {
-                $self->e($self->check_file_existence_on_disc);
-                $self->update;
-                $self->_opened_for_writing(1);
-            }
-        }
-        else {
-            if ($retry > 59 && $mode eq '<') {
-                $self->throw("Failed to open '$path' after multiple retries: $!");
-            }
-            elsif ($mode eq '>') {
-                $self->throw("Could not write to '$path': $!\n");
-            }
-            else {
-                # we think the file exists, so sleep a second and try again
-                $self->disconnect;
-                sleep(1);
-                $self->_clear_stat_cache($path);
-                $self->e($self->check_file_existence_on_disc);
-                $self->update;
-                return $self->open($mode, defined $permissions ? (permissions => $permissions) : (), defined $backwards ? (backwards => $backwards) : (), retry => ++$retry);
-            }
-        }
-        
-        $self->_opened($fh);
-        $self->disconnect;
-        return $fh;
-    }
-    
-    method close {
-        my $fh = $self->_opened || return;
-        eval { CORE::close($fh); }; #*** without the eval we get [(in cleanup) Can't use an undefined value as a symbol reference at .../File/ReadBackwards.pm line 221.] ... need to fix without eval...
-        $self->_opened(undef);
-        if ($self->_opened_for_writing) {
-            $self->_clear_stat_cache;
-            $self->update_stats_from_disc;
-            $self->_opened_for_writing(0);
-        }
-        return 1;
     }
     
     method touch {
@@ -1151,23 +1103,6 @@ class VRPipe::File extends VRPipe::Persistent {
             $resolve->md5($self->{md5});       #*** to avoid recursion we access the self hash!! rework?...
             $resolve->update;
         }
-    }
-    
-    # returns a string that can be used in a command line to get the contents
-    # of this file on to STDOUT for piping to something; it does the right
-    # thing depending on the file's protocol and also if the file is compressed
-    method cat {
-        #*** is there a better way of bypassing our overrides of protocol() and
-        # path()?
-        my $protocol = $self->{_column_data}->{protocol};
-        my ($pro)    = $protocol =~ /^([^:]+):/;
-        my $fp       = VRPipe::FileProtocol->create($pro, { file => $self->{_column_data}->{path} });
-        return $fp->cat;
-    }
-    
-    sub DEMOLISH {
-        return if in_global_destruction;
-        shift->close;
     }
     
     method create_fofn (ArrayRef['VRPipe::File'] $files!) {
