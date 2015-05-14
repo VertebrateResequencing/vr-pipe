@@ -951,7 +951,7 @@ SKIP: {
     $file = VRPipe::File->get(path => '/seq/15744/15744_8.cram', protocol => 'irods:');
     $expected_file_meta = { expected_md5 => 'af0d56cce970925d7bba207784a5e1c2', md5 => 'af0d56cce970925d7bba207784a5e1c2', reference => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa', lane => '15744_8', library => 'HiSeqX_NX_Titration_NA19239_H 13237756', study => 'HX Test Plan', id_run => 15744, library_id => 13237756, sample_id => 2247346, target => 1, study_title => 'HX Test Plan', total_reads => 623053650, alignment => 1, study_id => 3165, sample => 'HiSeqX_NX_Titration_NA19239_H', sample_created_date => '2015-03-12 08:49:13', is_paired_read => 1 };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
-    ok my $graph_file = $schema->get_file('/seq/15744/15744_8.cram', 'irods:'), 'there was a node in the graph db for one of the cram files';
+    ok my $graph_file = $schema->get_file($file->protocolless_path->stringify, $file->protocol), 'there was a node in the graph db for one of the cram files';
     my @qc_files = $graph_file->related(outgoing => { type => 'qc_file' }) if $graph_file;
     is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['irods:/seq/15744/15744_8_F0x900.stats', 'irods:/seq/15744/qc/15744_8.genotype.json', 'irods:/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
     

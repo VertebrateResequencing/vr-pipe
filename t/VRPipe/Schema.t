@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 130;
+    use Test::Most tests => 143;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -249,12 +249,44 @@ is $irods_file->path, "irods:/moved/irods/file.txt", 'you can move an irods file
 my $ftp_file = $vrpipe->add('File', { path => $lrpath, protocol => 'ftp://user:pass@host:port' });
 is $ftp_file->path, 'ftp://user:pass@host:port' . $lrpath, 'you can specify protocols with passwords and get it back via path()';
 is $ftp_file->path(1), $lrpath, 'path(1) returns the path without the protocol';
+is $ftp_file->protocolless_path, $lrpath, 'as does protocolless_path()';
 my ($ftp_root, $ftp_first_dir) = reverse($ftp_file->related(incoming => { max_depth => 500, namespace => 'VRPipe', label => 'FileSystemElement', type => 'contains' }));
 isnt $ftp_root->basename(), 'ftp://user:pass@host:port/', 'however the password is not stored as plain text in the graph db';
 my $ftp_file_uuid = $ftp_file->uuid;
 $vrpipe->move_filesystemelement($ftp_first_dir, $ftp_first_dir->path(1), protocol => 'ftp://user:changedpass@host:port');
 my $ff = $vrpipe->get('File', { path => $lrpath, protocol => 'ftp://user:changedpass@host:port' });
 is $ff->uuid, $ftp_file_uuid, 'if your ftp password changed, you could just move the first directory and everything would update automatically';
+is $ff->protocol, 'ftp://user:changedpass@host:port', 'protocol() works for an ftp file';
+is $ff->protocol(1), 'ftp', 'protocol(1) works for an ftp file';
+is $local_file->protocol, 'file:/', 'protocol() works for a local file';
+is $local_file->protocol(1), 'file', 'protocol(1) works for a local file';
+my $real_local_path = file(qw(t data file.txt))->absolute->stringify;
+my $real_local_file = $vrpipe->add('File', { path => $real_local_path });
+is $real_local_file->cat_cmd, "cat $real_local_path", 'cat_cmd() works on a local file';
+my @expected_data_file_lines = ("a text file\n", "with two lines\n");
+ok $fh = $real_local_file->openr, 'openr() method worked on a local file';
+my @lines = <$fh>;
+is_deeply \@lines, \@expected_data_file_lines, 'the filehandle really works on a local file and let us read the file';
+ok $real_local_file->close, 'close() worked on a local file';
+SKIP: {
+    my $num_tests = 4;
+    skip "author-only tests for reading a file from irods", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
+    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
+    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    system("irm -fr $irods_root > /dev/null 2> /dev/null");
+    system("imkdir -p $irods_root");
+    system("iput -R $irods_resource $real_local_path $irods_root");
+    
+    my $real_irods_path = "$irods_root/file.txt";
+    my $real_irods_file = $vrpipe->add('File', { path => $real_irods_path, protocol => 'irods:' });
+    is $real_irods_file->cat_cmd, "iget $real_irods_path -", 'cat_cmd() works on an irods file';
+    ok $fh = $real_irods_file->openr, 'openr() method worked on an irods file';
+    @lines = <$fh>;
+    is_deeply \@lines, \@expected_data_file_lines, 'the filehandle really works on an irods file and let us read the file';
+    ok $real_irods_file->close, 'close() worked on an irods file';
+    
+    system("irm -fr $irods_root");
+}
 
 # make a traditional mysql vrpipe StepState so we can test that
 # ensure_state_hierarchy() can represent the same thing in the graph database
