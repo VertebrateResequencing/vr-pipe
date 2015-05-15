@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 14;
+    use Test::Most tests => 18;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
@@ -42,10 +42,10 @@ my $in_db = 0;
 my $vr_file;
 my $irods_test_data_dir = '/uk10k/home/sb10#Sanger1/vrpipe_irods_test_data';
 foreach my $basename ('9417_4#1.MT.cram', '9417_4#2.MT.cram', '9417_4#3.MT.cram', '9417_4#4.MT.cram') {
-    $vr_file = $schema->get_file("$irods_test_data_dir/$basename");
+    $vr_file = $schema->get_file("$irods_dir/$irods_test_data_dir/$basename");
     $in_db++ if $vr_file;
 }
-is $in_db, 4, 'the bams are in the graph database under the VRTrack schema';
+is $in_db, 4, 'the bams are in the graph database';
 
 my %related = map { $_->label() => $_ } $vr_file->related(incoming => { max_depth => 10 });
 my @expected_related = ('/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa', '9417_4#4.MT', 6784054, 'MEK_res_4', 10090, 2547, 'all_studies');
@@ -148,5 +148,62 @@ delete $bs_props->{date};
 is_deeply $bam_stats->properties, { "bases trimmed" => "5832", "average quality" => "36.0", "mode" => "normal", "is sorted" => "1", "reads mapped after rmdup" => 166309, "mismatches" => "15501", "reads duplicated" => "19584", "bases of 2X coverage" => 16299, "bases of 10X coverage" => 15510, "bases of 5X coverage" => 16299, "raw total sequences" => 185893, "reads paired" => "185893", "maximum length" => "75", "insert size average" => "203.9", "non-primary alignments" => "0", "reads mapped and paired" => "184802", "reads after rmdup" => 166309, "bases of 1X coverage" => 16301, "bases duplicated" => "1468800", "bases of 50X coverage" => 13337, "average length" => "75", "1st fragments" => "93259", "reads properly paired" => "183082", "options" => "-r $ref_fa -q 20", "outward oriented pairs" => "510", "bases of 100X coverage" => 13085, "bases mapped (cigar)" => "13923850", "reads unmapped" => "0", "bases mapped" => 13941975, "filtered sequences" => "0", "inward oriented pairs" => "91580", "pairs with other orientation" => "0", "sequences" => "185893", "bases after rmdup" => 12473175, "reads MQ0" => "39911", "bases mapped after rmdup" => 12456960, "insert size standard deviation" => "82.2", "pairs on different chromosomes" => "233", "mean coverage" => "413.57", "reads mapped" => 185893, "bases of 20X coverage" => 13950, "error rate" => "1.113270e-03", "last fragments" => "92634", "reads QC failed" => "0", "total length" => 13941975 }, 'the bam_stats node had the correct stats';
 my @plots = $stats_file->related(outgoing => { type => 'bamstats_plot' });
 is scalar(@plots), 12, 'all the plots were attached to the stats file';
+
+# test the same thing with no local_root_dir in the datasource, but as an arg
+# to the irods_get_files_by_basename instead
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'irods',
+    method  => 'all_with_warehouse_metadata',
+    source  => 'uk10k',
+    options => { file_query => q[study_id = 2547 and type = cram and target = 1 and manual_qc like "%"] }
+  ),
+  'could create an irods datasource with no irods_get_files_by_basename';
+
+$results = 0;
+foreach my $element (@{ get_elements($ds) }) {
+    $results++;
+}
+is $results, 4, 'got correct number of bams from irods datasource with no irods_get_files_by_basename';
+
+$in_db = 0;
+undef $vr_file;
+foreach my $basename ('9417_4#1.MT.cram', '9417_4#2.MT.cram', '9417_4#3.MT.cram', '9417_4#4.MT.cram') {
+    $vr_file = $schema->get_file("$irods_test_data_dir/$basename", 'irods:');
+    $in_db++ if $vr_file;
+}
+is $in_db, 4, 'the bams are in the graph database under the VRTrack schema with an irods schema';
+
+my $irods_dir2 = dir($output_dir, 'irods_import2')->stringify;
+
+VRPipe::PipelineSetup->create(
+    name        => 'mouse import and qc',
+    datasource  => $ds,
+    output_root => $output_dir,
+    pipeline    => $import_qc_pipeline,
+    options     => {
+        reference_fasta           => $ref_fa,
+        reference_assembly_name   => 'GRCm38',
+        reference_species         => 'Mus musculus',
+        samtools_stats_options    => '-q 20',
+        irods_convert_cram_to_bam => '/software/vertres/bin-external/samtools-1.1/bin/samtools',
+        local_root_dir            => $irods_dir2,
+        cleanup                   => 1
+    }
+);
+
+@irods_files = (file($irods_dir2, $irods_test_data_dir, '9417_4#1.MT.bam'), file($irods_dir2, $irods_test_data_dir, '9417_4#2.MT.bam'), file($irods_dir2, $irods_test_data_dir, '9417_4#3.MT.bam'), file($irods_dir2, $irods_test_data_dir, '9417_4#4.MT.bam'));
+
+@qc_files = ();
+foreach my $lane (@lanes) {
+    my @output_subdirs = output_subdirs($element_id++, 2);
+    
+    push(@qc_files, file(@output_subdirs, '3_samtools_bam_stats', $lane . '.bam.bamstats'));
+    foreach my $kind (qw(quals-hm quals quals2 quals3 insert-size gc-content gc-depth acgt-cycles coverage mism-per-cycle indel-dist indel-cycles)) {
+        push(@qc_files, file(@output_subdirs, '4_plot_bamstats', $lane . '-' . $kind . '.png'));
+    }
+}
+
+ok handle_pipeline(@irods_files, @qc_files), 'bam_import_from_irods_and_qc pipeline with no local_root_dir in the datasource ran ok and produced all expected output files';
 
 finish;
