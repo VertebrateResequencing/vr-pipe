@@ -183,7 +183,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             
             my %files;
             foreach my $file (@{ $de->files || [] }) {
-                push(@{ $files{ $file->protocol } }, $file->path->stringify);
+                push(@{ $files{ $file->protocol } }, $file->protocolless_path);
             }
             
             while (my ($protocol, $paths) = each %files) {
@@ -229,7 +229,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # stepstate, and where that file is now. protocol should be a string like
     # ftp://user:password@ftpserver:port or irods: and applies to all supplied
     # paths, indicating the files are not on the local filesystem.
-    method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str] $paths!, Str :$protocol?, Bool :$return_cypher = 0, Bool :$only_get = 0) {
+    method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str|File] $paths!, Str :$protocol?, Bool :$return_cypher = 0, Bool :$only_get = 0) {
         my $return_leaves = defined wantarray();
         my @cypher;
         foreach my $path (@$paths) {
@@ -280,7 +280,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 $uuid                  = $self->create_uuid();
                 $params{leaf_basename} = $basename;
                 $params{leaf_uuid}     = $uuid;
-                $params{leaf_path}     = $path;
+                $params{leaf_path}     = "$path";
                 $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             }
             else {
@@ -315,8 +315,8 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         }
     }
     
-    method path_to_filesystemelement (ClassName|Object $self: Str $path, Str :$protocol?, Bool :$only_get = 0) {
-        return $self->get_or_store_filesystem_paths([$path], $protocol ? (protocol => $protocol) : (), only_get => $only_get);
+    method path_to_filesystemelement (ClassName|Object $self: Str|File $path, Str :$protocol?, Bool :$only_get = 0) {
+        return $self->get_or_store_filesystem_paths(["$path"], $protocol ? (protocol => $protocol) : (), only_get => $only_get);
     }
     
     method filesystemelement_to_path (ClassName|Object $self: Object $file!, Bool $no_protocol?) {
