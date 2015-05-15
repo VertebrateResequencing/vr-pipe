@@ -5,7 +5,7 @@ use Path::Class;
 
 BEGIN {
     use Test::Most tests => 63;
-    use VRPipeTest (required_exe => [qw(samtools bcftools fastqcheck)]);
+    use VRPipeTest (required_exe => [qw(samtools fastqcheck htsfile)]);
     
     use_ok('VRPipe::FileType');
 }
