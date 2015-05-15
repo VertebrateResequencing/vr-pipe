@@ -147,11 +147,23 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 required => [qw(date)]
             },
             
-            # QC bam stats
+            # QC
             {
                 label          => 'Bam_Stats',
                 unique         => [qw(uuid)],
-                required       => [qw(mode options date), 'raw total sequences'],
+                required       => [qw(mode options date)],
+                allow_anything => 1
+            },
+            {
+                label          => 'Genotype',
+                unique         => [qw(uuid)],
+                required       => [qw(expected_sample_name matched_sample_name date pass)],
+                allow_anything => 1
+            },
+            {
+                label          => 'Verify_Bam_ID',
+                unique         => [qw(uuid)],
+                required       => [qw(freemix date pass)],
                 allow_anything => 1
             },
             
@@ -243,17 +255,17 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return \%return;
     }
     
-    method add_file (Str $path, Str $protocol?) {
+    method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
-        return $vrpipe_schema->path_to_filesystemelement($path, $protocol ? (protocol => $protocol) : ());
+        return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
     }
     
-    method get_file (Str $path, Str $protocol?) {
+    method get_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         if ($protocol && $protocol eq 'file:/') {
             undef $protocol;
         }
-        return $vrpipe_schema->path_to_filesystemelement($path, $protocol ? (protocol => $protocol) : (), only_get => 1);
+        return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : (), only_get => 1);
     }
     
     # donor's just have meaningless ids; user will want to see the
