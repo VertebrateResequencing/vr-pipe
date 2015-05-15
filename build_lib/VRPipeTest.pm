@@ -104,6 +104,9 @@ sub import {
                 result_with_inflated_paths => sub {
                     return \&result_with_inflated_paths;
                 },
+                result_with_inflated_files => sub {
+                    return \&result_with_inflated_files;
+                },
                 can_execute => sub {
                     return \&can_execute;
                   }
@@ -112,7 +115,7 @@ sub import {
         }
     );
     
-    $class->$exporter(qw/Schema get_elements result_with_inflated_paths can_execute/, @exports);
+    $class->$exporter(qw/Schema get_elements result_with_inflated_paths result_with_inflated_files can_execute/, @exports);
 }
 
 sub _initialize_schema {
@@ -253,6 +256,15 @@ sub result_with_inflated_paths {
     my $result = $de->result;
     if (defined $result->{paths}) {
         $result->{paths} = [$de->paths] unless ref($result->{paths});
+    }
+    return $result;
+}
+
+sub result_with_inflated_files {
+    my $de     = shift;
+    my $result = $de->result;
+    if (defined $result->{paths}) {
+        $result->{files} = $de->files;
     }
     return $result;
 }
