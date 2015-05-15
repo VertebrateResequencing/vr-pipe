@@ -581,8 +581,13 @@ role VRPipe::StepRole {
             $output_dir = dir($output_dir, $sub_dir);
         }
         $self->throw("output_dir must be absolute ($output_dir)") unless $output_dir->is_absolute;
-        $self->make_path($output_dir); #*** repeated, potentially unecessary filesystem access...
-        $self->_last_output_dir($output_dir);
+        unless ($protocol && $protocol ne 'file:/') {
+            my $lod = $self->_last_output_dir;
+            if (!defined $lod || $lod ne $output_dir) {
+                $self->make_path($output_dir);
+                $self->_last_output_dir($output_dir);
+            }
+        }
         
         my $vrfile = VRPipe::File->create(path => file($output_dir, $basename), type => $type, $protocol ? (protocol => $protocol) : ());
         $vrfile->add_metadata($metadata) if $metadata;
