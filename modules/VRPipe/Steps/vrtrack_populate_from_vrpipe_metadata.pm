@@ -82,10 +82,25 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         $file = VRPipe::File->get(path => $file);
         my $meta     = $file->metadata;
         my $basename = $file->basename;
-        my $type     = $file->type;
+        
+        my $lane = $basename;
+        $lane =~ s/\.gz$//;
+        $lane =~ s/\.[^\.]+$//;
+        
+        return $self->meta_to_lane(db => $db, file => $file, meta => $meta, lane => $lane, $storage_dir ? (storage_dir => $storage_dir) : ());
+    }
+    
+    method meta_to_lane (ClassName|Object $self: Str :$db!, HashRef :$meta!, Str :$lane!, VRPipe::File :$file!, Str|Dir :$storage_dir?) {
+        my $basename = $file->basename;
+        my $path     = $file->path;
+        $file->add_metadata({ lane => $lane }, replace_data => 1) if $file->meta_value('lane');
+        
+        my $type = $file->type;
         if ($type eq 'txt' || $type eq 'bin' || $type eq 'any') {
             ($type) = $basename =~ /\.([^\.]+)$/;
         }
+        $file->disconnect;
+        
         if ($type =~ /bam|cram/ && $meta->{total_reads} < 1000) {
             # ignore ~empty bam files
             return 1;
@@ -93,20 +108,14 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         
         # we can't populate vrtrack without some essential metadata
         foreach my $essential (qw(study_id study_title taxon_id)) {
-            die "file " . $file->path . " is missing essential metadata $essential\n" unless defined $meta->{$essential};
+            die "file $path is missing essential metadata $essential\n" unless defined $meta->{$essential};
         }
         
         # we can't represent the same sample being for 2 different projects in
         # VRTrack
         if (ref($meta->{study_id}) && @{ $meta->{study_id} } > 1) {
-            die "file " . $file->path . " belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n";
+            die "file $path belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n";
         }
-        
-        my $lane = $basename;
-        $lane =~ s/\.gz$//;
-        $lane =~ s/\.[^\.]+$//;
-        $file->add_metadata({ lane => $lane }, replace_data => 1) if $file->meta_value('lane');
-        $file->disconnect;
         
         my %type_to_vrtrack_type = (bam => 4, cram => 6, gtc => 7, idat => 8);
         
