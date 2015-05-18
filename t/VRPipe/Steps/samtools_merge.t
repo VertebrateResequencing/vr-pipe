@@ -47,7 +47,7 @@ $setup = VRPipe::PipelineSetup->create(
     ),
     output_root => $output_dir,
     pipeline    => $pipeline,
-    options     => { samtools_merge_opts => '-R 1:1-100' }
+    options     => { samtools_merge_options => '-R 1:1-100' }
 );
 
 ok handle_pipeline(), 'samtools_merge pipeline ran ok on a specified region';
