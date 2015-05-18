@@ -38,7 +38,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
     around options_definition {
         return {
             %{ $self->$orig },
-            samtools_merge_opts             => VRPipe::StepOption->create(description => 'options for samtools merge',                                                                optional => 1, default_value => '-u'),
+            samtools_merge_options          => VRPipe::StepOption->create(description => 'options for samtools merge',                                                                optional => 1, default_value => '-u'),
             bamstreamingmarkduplicates_exe  => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
             bamstreamingmarkduplicates_opts => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
         };
@@ -49,7 +49,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
             my $self                            = shift;
             my $options                         = $self->options;
             my $samtools                        = $options->{samtools_exe};
-            my $samtools_merge_opts             = $options->{samtools_merge_opts};
+            my $samtools_merge_opts             = $options->{samtools_merge_options};
             my $bamstreamingmarkduplicates_exe  = $options->{bamstreamingmarkduplicates_exe};
             my $bamstreamingmarkduplicates_opts = $options->{bamstreamingmarkduplicates_opts};
             my $check_read_sum                  = $samtools_merge_opts =~ m/-R/ ? 0 : 1;

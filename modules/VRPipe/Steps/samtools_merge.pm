@@ -36,8 +36,8 @@ use VRPipe::Base;
 class VRPipe::Steps::samtools_merge with VRPipe::StepRole {
     method options_definition {
         return {
-            samtools_exe        => VRPipe::StepOption->create(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
-            samtools_merge_opts => VRPipe::StepOption->create(description => 'options for samtools merge',  optional => 1, default_value => ''),
+            samtools_exe           => VRPipe::StepOption->create(description => 'path to samtools executable', optional => 1, default_value => 'samtools'),
+            samtools_merge_options => VRPipe::StepOption->create(description => 'options for samtools merge',  optional => 1, default_value => ''),
         };
     }
     
@@ -62,7 +62,7 @@ class VRPipe::Steps::samtools_merge with VRPipe::StepRole {
             my $self                = shift;
             my $options             = $self->options;
             my $samtools            = $options->{samtools_exe};
-            my $samtools_merge_opts = $options->{samtools_merge_opts};
+            my $samtools_merge_opts = $options->{samtools_merge_options};
             my $check_read_sum      = $samtools_merge_opts =~ m/-R/ ? 0 : 1;
             
             $self->set_cmd_summary(
