@@ -72,7 +72,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'study_id'                => 2625,
         'study_title'             => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
         'sample'                  => 'qc1hip5529781',
-        'public_name'             => 'HPSI0813i-fpdr',
+        'public_name'             => 'HPSI0813er-fpdr',
         'sample_created_date'     => '2013-05-10 06:45:32',
         'beadchip_section'        => 'E',
         'sample_consent'          => '1',
@@ -83,6 +83,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'beadchip'                => '9252616016',
         'sample_id'               => '1625281',
         'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
+        'expected_md5'            => '41b6f345a2f92f095f09a7ff22bbbc00',
         'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
         'irods_analysis_files'    => [qw(/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.xlsx /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Control_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)],
         'irods_local_storage_dir' => $output_root
@@ -100,7 +101,7 @@ is_deeply $sample_probe_profile_file->metadata,
     irods_path           => '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt',
     md5                  => 'd3946d9dd42a86a4ad04b8538ea387a8',
     normalisation_method => 'none',
-    public_name          => [qw(HPSI0813i-fpdk HPSI0813i-fpdk_1 HPSI0813i-fpdk_2 HPSI0813i-fpdk_3 HPSI0813i-fpdr HPSI0813i-fpdr_1 HPSI0813i-fpdr_2)],
+    public_name          => [qw(HPSI0813er-fpdk HPSI0813er-fpdr HPSI0813i-fpdk_1 HPSI0813i-fpdk_2 HPSI0813i-fpdk_3 HPSI0813i-fpdr_1 HPSI0813i-fpdr_2)],
     sample               => [qw(qc1hip5529779 qc1hip5529780 qc1hip5529781 qc1hip5529782 qc1hip5529783 qc1hip5529784 qc1hip5529785)],
     sample_cohort        => [qw(27af9a9b-01b2-4cb6-acef-ea52d83e3d26 6d3d2acf-29a5-41a2-8992-1414706a527d)],
     sample_common_name   => 'Homo Sapien',
@@ -147,7 +148,7 @@ my $expected = {
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-    individual_alias      => 'HPSI0813i-fpdr',
+    individual_alias      => 'HPSI0813er-fpdr',
     individual_acc        => undef,
     control               => 1
 };
@@ -211,6 +212,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'beadchip'                => '9300870057',
         'sample_id'               => '1625188',
         'md5'                     => '17b7159554bca4ff4376384b385da51f',
+        'expected_md5'            => '17b7159554bca4ff4376384b385da51f',
         'sample_supplier_name'    => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
         'irods_analysis_files'    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
         'irods_local_storage_dir' => $output_root
@@ -247,7 +249,7 @@ $expected = {
     species_taxon_id      => 9606,
     species_name          => 'Homo Sapien',
     individual_name       => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
-    individual_alias      => 'HPSI0813i-fpdk',
+    individual_alias      => 'HPSI0813er-fpdk',
     control               => 0
 };
 
@@ -318,7 +320,8 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'study_accession_number'  => 'ERP002262',
         'manual_qc'               => '1',
         'sample_id'               => '1571700',
-        'md5'                     => '675b0b2b2f5991aa5a4695bb1914c0c7'
+        'md5'                     => '675b0b2b2f5991aa5a4695bb1914c0c7',
+        'expected_md5'            => '675b0b2b2f5991aa5a4695bb1914c0c7'
       },
       'correct file metadata was present on the first bam file';
 }
