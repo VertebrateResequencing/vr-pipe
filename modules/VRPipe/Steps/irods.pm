@@ -217,7 +217,9 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # relate source file to dest file in the graph database
         $schema ||= VRPipe::Schema->create('VRPipe');
         my $source_graph_node = $schema->get('File', { path => $source, protocol => 'irods:' }) || $schema->get('File', { path => $source });
-        $self->relate_input_to_output($source_graph_node, 'imported', $dest_file->path->stringify);
+        if ($source_graph_node) {
+            $self->relate_input_to_output($source_graph_node, 'imported', $dest_file->path->stringify);
+        }
     }
     
     method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {
