@@ -177,8 +177,9 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 if ($stats_node) {
                     my $graph = $schema->graph;
                     
-                    $meta->{ $meta_key_prefix . 'filtered_reads' }     = $graph->node_property($stats_node, 'filtered sequences');
-                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'raw total sequences');
+                    $meta->{ $meta_key_prefix . 'filtered_reads' } = $graph->node_property($stats_node, 'filtered sequences');
+                    #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
+                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'sequences') || $graph->node_property($stats_node, 'raw total sequences');
                     $meta->{ $meta_key_prefix . 'bases' }              = $graph->node_property($stats_node, 'total length');
                     $meta->{ $meta_key_prefix . 'reads_mapped' }       = $graph->node_property($stats_node, 'reads mapped');
                     $meta->{ $meta_key_prefix . 'reads_paired' }       = $graph->node_property($stats_node, 'reads paired');
@@ -203,6 +204,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                     $meta->{reads}           = $graph->node_property($stats_node, 'raw total sequences');
                     $meta->{paired}          = $graph->node_property($stats_node, 'reads properly paired') ? 1 : 0;
                     $meta->{avg_read_length} = $graph->node_property($stats_node, 'average length');
+                    $meta->{npg_qc_status} = $bam_graph_node->property('manual_qc') ? 1 : 0;
                 }
             }
             
@@ -233,7 +235,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 
                 # fill in the mapstats based on our metadata
                 
-                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'filtered_reads' } || $meta->{ $meta_key_prefix . 'reads' });
+                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'reads' });
                 my $raw_bases = $meta->{ $meta_key_prefix . 'bases' };
                 $mapstats->raw_bases($raw_bases);
                 $mapstats->reads_mapped($meta->{ $meta_key_prefix . 'reads_mapped' });
@@ -283,6 +285,9 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 $vrlane->read_len(int($meta->{avg_read_length}));
                 if ($vrlane->qc_status eq 'no_qc') {
                     $vrlane->qc_status('pending');
+                }
+                if (defined $meta->{npg_qc_status}) {
+                    $vrlane->npg_qc_status($meta->{npg_qc_status} ? 'pass' : 'fail');
                 }
                 $vrlane->is_processed(import => 1);
                 $vrlane->update;
