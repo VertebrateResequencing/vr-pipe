@@ -212,7 +212,9 @@ role VRPipe::StepRole {
         my $hashing_string = 'VRPipe::DataElementState::' . $des_id;
         my @subdirs        = $self->hashed_dirs($hashing_string);
         
-        return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number . '_' . $self->name);
+        my $dir = dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number . '_' . $self->name);
+        $self->make_path($dir);
+        return $dir;
     }
     
     method _build_last_output_dir {
@@ -581,9 +583,9 @@ role VRPipe::StepRole {
             $output_dir = dir($output_dir, $sub_dir);
         }
         $self->throw("output_dir must be absolute ($output_dir)") unless $output_dir->is_absolute;
-        unless ($protocol && $protocol ne 'file:/') {
+        if (!$protocol || ($protocol eq 'file:/')) {
             my $lod = $self->_last_output_dir;
-            if (!defined $lod || $lod ne $output_dir) {
+            if (!defined $lod || ($lod ne $output_dir)) {
                 $self->make_path($output_dir);
                 $self->_last_output_dir($output_dir);
             }
