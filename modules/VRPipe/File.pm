@@ -405,6 +405,13 @@ class VRPipe::File extends VRPipe::Persistent {
         return 1;
     }
     
+    method last_line {
+        my $fh = $self->open('<', backwards => 1);
+        my $line = <$fh>;
+        close($fh);
+        return $line;
+    }
+    
     # speed critical, so sub instead of method
     sub metadata {
         my ($self, $meta) = @_;
