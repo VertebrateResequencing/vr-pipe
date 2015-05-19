@@ -5,7 +5,7 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 13;
+    use Test::Most tests => 19;
     use VRPipeTest;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
@@ -26,12 +26,12 @@ BEGIN {
 
 my $output_root = get_output_dir('irods_qc');
 
-ok my $pipeline = VRPipe::Pipeline->create(name => 'sequencing_qc_from_irods'), 'able to get the sequencing_qc_from_irods pipeline';
+ok my $pipeline = VRPipe::Pipeline->create(name => 'sequencing_qc_from_irods_and_update_vrtrack'), 'able to get the sequencing_qc_from_irods_and_update_vrtrack pipeline';
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(samtools_fasta_gc_stats npg_cram_stats_parser plot_bamstats);
+my @expected_step_names = qw(samtools_fasta_gc_stats npg_cram_stats_parser plot_bamstats vrtrack_populate_from_graph_db);
 is_deeply \@s_names, \@expected_step_names, 'the pipeline has the correct steps';
 
 ok my $ds = VRPipe::DataSource->create(
@@ -40,12 +40,10 @@ ok my $ds = VRPipe::DataSource->create(
     source  => 'seq',
     options => {
         file_query       => q[id_run = 16131 and target = 1 and type = cram],
-        require_qc_files => 1
+        require_qc_files => 1,
     }
   ),
   'could create an irods datasource using all_with_warehouse_metadata method with require_qc_files option';
-
-# create_fresh_vrtrack_test_db();
 
 my $ref_fa_source = file(qw(t data GRCm38.MT.ref.fa));
 my $ref_dir = dir($output_root, 'ref');
@@ -53,13 +51,15 @@ $pipeline->make_path($ref_dir);
 my $ref_fa = file($ref_dir, 'ref.fa')->stringify;
 copy($ref_fa_source, $ref_fa);
 
+create_fresh_vrtrack_test_db();
+
 VRPipe::PipelineSetup->create(
     name        => 'qc from irods',
     datasource  => $ds,
     output_root => $output_root,
     pipeline    => $pipeline,
     options     => {
-        #vrtrack_db => $ENV{VRPIPE_VRTRACK_TESTDB},
+        vrtrack_db      => $ENV{VRPIPE_VRTRACK_TESTDB},
         reference_fasta => $ref_fa,
     }
 );
@@ -218,38 +218,44 @@ is_deeply $props,
   'Verify_Bam_ID node had the correct properties';
 
 my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
-# my @lanes = $vrtrack->get_lanes();
-# is @lanes, 8, 'the correct number of lanes were populated in the vrtrack db';
-# $lane_info = lane_info(grep { $_->name eq '15744_1' } @lanes);
+my @lanes = $vrtrack->get_lanes();
+is @lanes, 8, 'the correct number of lanes were populated in the vrtrack db';
+my ($first_lane) = grep { $_->name eq '16131_1' } @lanes;
+my $lane_info = lane_info($first_lane);
 
-# my $expected = {
-#     lane_name             => '9417_4#1',
-#     lane_hierarchy_name   => '9417_4#1',
-#     raw_reads             => 70486376,
-#     is_paired             => 1,
-#     lane_acc              => undef,
-#     storage_path          => undef,
-#     npg_qc_status         => 'pass',
-#     file_name             => '9417_4#1.bam',
-#     file_type             => 4,
-#     file_md5              => '675b0b2b2f5991aa5a4695bb1914c0c7',
-#     library_name          => 'MEK_res_1 6784051',
-#     library_ssid          => 6784051,
-#     library_ts            => undef,
-#     project_id            => 2547,
-#     project_name          => 'De novo and acquired resistance to MEK inhibitors ',
-#     study_acc             => 'ERP002262',
-#     sample_name           => 'MEK_res_1',
-#     sample_hierarchy_name => 'MEK_res_1',
-#     sample_ssid           => '1571700',
-#     species_taxon_id      => 10090,
-#     species_name          => 'Mouse',
-#     individual_name       => 'MEK_res_1',
-#     individual_acc        => 'ERS215816',
-#     individual_alias      => ''
-# };
+my $expected = {
+    lane_name             => '16131_1',
+    lane_hierarchy_name   => '16131_1',
+    raw_reads             => 747630612,
+    is_paired             => 1,
+    lane_acc              => undef,
+    storage_path          => undef,
+    npg_qc_status         => 'pass',
+    file_name             => '16131_1.cram',
+    file_type             => 6,
+    file_md5              => '67de7687a3c87570b0c28af67bf3f7f5',
+    library_name          => '13607695',
+    library_ssid          => 13607695,
+    library_ts            => undef,
+    project_id            => 3474,
+    project_name          => 'IHTP_MWGS ESGI - WGS of samples from the INGI-Val Borbera genetic isolate (X10)',
+    study_acc             => 'EGAS00001001123',
+    sample_name           => 'vbseqx106041566',
+    sample_hierarchy_name => 'XX339024',
+    sample_ssid           => '2218372',
+    species_taxon_id      => 9606,
+    species_name          => 'Homo Sapien',
+    individual_name       => 'vbseqx106041566',
+    individual_acc        => 'EGAN00001264662',
+    individual_alias      => ''
+};
 
-# is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first cram lane';
+is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first cram lane';
+
+ok my $mapstats = $first_lane->latest_mapping, 'the first lane had a mapstats in the VRTrack db';
+is_deeply [$mapstats->raw_reads, $mapstats->clip_bases, $mapstats->reads_mapped, $mapstats->error_rate], [747630612, 112892222412, 747365206, 0.0117523], 'the mapstats had some correct values stored'; #*** assuming 'clip_bases' is supposed to return number of bases after clipping, and not the number of clipped bases
+ok my $images = $mapstats->images, 'the mapstats had images';
+is_deeply [sort map { $_->caption } @$images], ['ACGT Cycles', 'Coverage', 'GC Content', 'GC Depth', 'Indel distribution', 'Indels per cycle', 'Insert Size', 'Qualities', 'Qualities', 'Qualities', 'Qualities'], 'the images had the correct captions';
 
 exit;
 
