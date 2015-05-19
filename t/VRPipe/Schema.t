@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 143;
+    use Test::Most tests => 146;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -150,7 +150,7 @@ is $schema->date_to_epoch('2013-05-10 06:45:32'), 1368168332, 'date_to_epoch() w
 # unique uuid properties auto-fill if not supplied
 ok my $bam_stats = $schema->add('Bam_Stats', { mode => 'normal', options => '-foo', 'raw total sequences' => 100, date => $bs_date }), 'could add a new node without supplying its unique value when the unique is a uuid';
 like $bam_stats->uuid, qr/\w{8}-\w{4}-\w{4}-\w{4}-\w{12}/, 'the resulting node has a uuid';
-is $bam_stats->raw_total_sequences(), 100, 'we can call a property method that has spaces in the name';
+is $bam_stats->property('raw total sequences'), 100, 'we can get a property that has spaces in the name';
 
 # test the VRTrack-specific ensure_sequencing_hierarchy method
 ok my $hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane1', library => 'esh_library1', sample => 'esh_sample1', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1'), 'ensure_sequencing_hierarchy() worked';
@@ -186,6 +186,15 @@ my @second_queue = ($schema->get('Sample', { name => 'enqueue1' }), $schema->get
 is_deeply [[sort map { $_->name() } @second_queue], [sort map { $_->node_id() } @second_queue], $second_queue[0]->public_name], [['enqueue1', 'enqueue2', 'enqueue3'], [$expected_queue[0]->node_id, $expected_queue[1]->node_id, $second_queue[2]->node_id], 'enqueue1_public_b'], 'dispatch_queue() was able to update, leave alone and add a new node';
 @history = $second_queue[0]->property_history();
 is_deeply [$history[0]->{properties}->{public_name}, $history[1]->{properties}->{public_name}], ['enqueue1_public_b', 'enqueue1_public_a'], 'history was maintained on a node updated via dispatch_queue()';
+
+# before creating the VRPipe schema, test that related() on a VRTrack node can
+# return fully-functional VRPipe nodes
+$graph->add_schema(namespace => 'VRPipe', label => 'FileSystemElement', unique => [qw(uuid)], indexed => [qw(basename md5 path)]);
+my $fse_node = $graph->add_node(namespace => 'VRPipe', label => 'FileSystemElement', properties => { uuid => 'myuuid', basename => 'basename.txt', foo => 'bar' });
+$eshsam2->relate_to($fse_node, 'file');
+ok my ($rel) = $eshsam2->related(outgoing => { type => 'file' }), 'got the FSE node related to a Sample node before creating a VRPipe schema';
+ok $rel->can("basename"), 'the FSE node is fully functional, with a basename method';
+is $rel->property('foo'), 'bar', 'and the property() method works as well, useful for allow_anything properties';
 
 # test some VRPipe-specific things
 my $vrpipe = VRPipe::Schema->create('VRPipe');
