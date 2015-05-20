@@ -54,7 +54,9 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
             macs2_exe              => VRPipe::StepOption->create(description => 'path to your MACS2 executable',                                                                                                                         optional => 1, default_value => 'macs2'),
             sample_metadata_key    => VRPipe::StepOption->create(description => 'sample metadata key that determines the antibody used for enrichment (e.g. ChIPseq of H3K4me3 markers may include the string H3K4me3 in its metadata)', optional => 1),
             control_sample_regex   => VRPipe::StepOption->create(description => 'regular expression string that determines the control sample',                                                                                          optional => 1, default_value => 'INPUT'),
-            macs2_callpeak_options => VRPipe::StepOption->create(description => 'options to macs2 callpeak (a comma separated list of marker:macs2_options would be acceptable when peak calling depends on the antibody used)',         optional => 1, default_value => 'K27AC:-g hs,K4ME3:-g hs,K27ME3:-g hs --broad,INPUT:-g hs --broad')
+            macs2_callpeak_options => VRPipe::StepOption->create(description => 'options to macs2 callpeak (a comma separated list of marker:macs2_options would be acceptable when peak calling depends on the antibody used)',         optional => 1, default_value => 'K27AC:-g hs,K4ME3:-g hs,K27ME3:-g hs --broad,INPUT:-g hs --broad'),
+            bedtools_exe           => VRPipe::StepOption->create(description => 'path to your bedtools executable',                                                                                                                      optional => 1, default_value => 'bedtools'),
+            samtools_exe           => VRPipe::StepOption->create(description => 'path to your samtools executable',                                                                                                                      optional => 1, default_value => 'samtools'),
         };
     }
     
@@ -77,6 +79,8 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
             my $macs2_opts    = $options->{macs2_callpeak_options};
             my $sample_key    = $options->{sample_metadata_key};
             my $control_regex = $options->{control_sample_regex};
+            my $bedtools_exe  = $options->{bedtools_exe};
+            my $samtools_exe  = $options->{samtools_exe};
             
             if ($macs2_opts =~ /\s-[tcn]\s/) {
                 $self->throw("macs2_callpeak_options should not include -t, -c or -n");
@@ -125,7 +129,6 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 my $gappedPeak_file = $self->output_file(output_key => 'bed_files', basename => "${sample}_peaks.gappedPeak", type => 'txt', metadata => { $sample_key => $sample });
                 my $R_script        = $self->output_file(output_key => 'r_file',    basename => "${sample}_model.r",          type => 'txt', metadata => { $sample_key => $sample });
                 my $pdf_file        = $self->output_file(output_key => 'plot_file', basename => "${sample}_model.pdf",        type => 'any', metadata => { $sample_key => $sample });
-                
                 my @outfiles = ($xls_file, $narrowPeak_file, $broadPeak_file, $gappedPeak_file, $R_script, $pdf_file);
                 
                 my $macs2_options = "";
@@ -134,6 +137,14 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                         $macs2_options = $marker_options{$marker};
                     }
                 }
+                my $peak_file;
+                if ($macs2_options =~ /broad/i) {
+                    $peak_file = $broadPeak_file->path;
+                }
+                else {
+                    $peak_file = $narrowPeak_file->path;
+                }
+                
                 #output files when $macs2_options=~/-B|-bdg/:
                 my $bedGraph1_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_pileup.bdg",   type => 'txt', metadata => { $sample_key => $sample });
                 my $bedGraph2_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_control_lambda.bdg", type => 'txt', metadata => { $sample_key => $sample });
@@ -142,8 +153,7 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 push(@outfiles, ($bedGraph1_file, $bedGraph2_file)); #,$bedGraph3_file,$bedGraph4_file));
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
                 my $bam_path = $input_bam->path;
-                my $xls_path = $xls_file->path;
-                my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], control => q[$control_bam], chip => q[$bam_path], macs2_options =>q[$macs2_options], sample => q[$sample], output => q[$xls_path], r_cmd_prefix => q[$r_cmd_prefix]);";
+                my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], samtools => q[$samtools_exe], bedtools => q[$bedtools_exe], control => q[$control_bam], bamfile => q[$bam_path], macs2_options => q[$macs2_options], sample => q[$sample], peakfile => q[$peak_file], r_cmd_prefix => q[$r_cmd_prefix]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
         };
@@ -194,28 +204,40 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         return 0;          # meaning unlimited
     }
     
-    method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$control!, Str :$chip!, Str :$macs2_options!, Str :$sample!, Str :$output!, Str :$r_cmd_prefix!) {
-        my $input_bam   = VRPipe::File->get(path => file($chip));
-        my $output_file = VRPipe::File->get(path => file($output));
-        my $ctrl_str    = "";
+    method run_macs2 (ClassName|Object $self: Str :$macs2!, Str :$samtools!, Str :$bedtools!, Str :$control!, Str :$bamfile!, Str :$macs2_options!, Str :$sample!, Str :$peakfile!, Str :$r_cmd_prefix!) {
+        my $input_bam = VRPipe::File->get(path => file($bamfile));
+        my $peak_file = VRPipe::File->get(path => file($peakfile));
+        my $ctrl_str  = "";
         if ($control) {
             $ctrl_str = " -c $control";
         }
-        my $cmd_line = "$macs2 callpeak$ctrl_str -t $chip -n $sample -B $macs2_options";
+        my $cmd_line = "$macs2 callpeak$ctrl_str -t $bamfile -n $sample -B $macs2_options";
         $input_bam->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $peaks_file   = $output_file->dir . "/${sample}_peaks.xls";
-        my $num_of_peaks = `grep -cvE '^#|^$|^chr' $peaks_file`;
-        chomp($num_of_peaks);
-        $input_bam->add_metadata({ num_of_peaks => $num_of_peaks });
+        $peak_file->update_stats_from_disc(retries => 3);
         
-        my $R_script = $output_file->dir . "/${sample}_model.r";
+        $input_bam->add_metadata({ num_of_peaks => $peak_file->num_records });
+        
+        my $R_script = $peak_file->dir . "/${sample}_model.r";
         if (-e "$R_script") {
             my $this_cmd = $r_cmd_prefix . " $R_script";
             $input_bam->disconnect;
             system($this_cmd) && $self->throw("failed to run [$this_cmd]");
         }
+        
+        #Proportion of fragments in peaks (FrIP): first-cut metric for the success of the immunoprecipitation
+        my $samtools_filter;
+        if ($input_bam->metadata->{paired}) {
+            $samtools_filter = "-f 3";
+        }
+        else {
+            $samtools_filter = "-F 4";
+        }
+        my $FRIP = `$samtools view -b $samtools_filter $bamfile | $bedtools intersect -abam stdin -b $peakfile -bed -wa -u -sorted | cut -f 4 | sed 's/#.*//' | sort | uniq | wc -l`;
+        chomp($FRIP);
+        $input_bam->add_metadata({ FRIP => $FRIP });
+    
     }
 
 }
