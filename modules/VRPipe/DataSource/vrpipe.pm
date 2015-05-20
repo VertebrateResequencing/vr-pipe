@@ -459,7 +459,7 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
         my $vrpipe_sources        = $self->vrpipe_sources;
         my $iiae_sources          = $self->include_in_all_elements_sources;
         my $options               = $self->options;
-        my $filter_after_grouping = $options->{filter_after_grouping};
+        my $filter_after_grouping = defined $options->{filter_after_grouping} ? $options->{filter_after_grouping} : ($self->method eq 'group_all' ? 0 : 1);
         my $filter                = $options->{filter};
         my $graph_filter          = $options->{graph_filter};
         my ($krs, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters($filter, $graph_filter);
