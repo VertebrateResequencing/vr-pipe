@@ -378,7 +378,9 @@ role VRPipe::Base::FileMethods {
         $dmd5->add($hashing_string);
         my $md5 = $dmd5->hexdigest;
         my @chars = split("", $md5);
-        return @chars[0 .. $levels - 1];
+        @chars = @chars[0 .. $levels - 1];
+        $chars[-1] .= substr($md5, $levels);
+        return @chars;
     }
 }
 
