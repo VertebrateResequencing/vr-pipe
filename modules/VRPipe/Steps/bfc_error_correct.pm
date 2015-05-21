@@ -83,8 +83,8 @@ class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
                     metadata   => $aln->metadata
                 );
                 my $bam2fq_cmd = qq[$samtools bam2fq $samtools_bam2fq_opts ] . $aln->path;
-                my $bfc_cmd    = qq[$bfc $bfc_opts - | gzip -1 > ] . $ec_fastq_file->path;
-                $self->dispatch(["$bam2fq_cmd | $bfc_cmd", $req, { output_files => [$ec_fastq_file] }]);
+                my $cmd        = qq[$bfc $bfc_opts <($bam2fq_cmd) <($bam2fq_cmd) | gzip -1 > ] . $ec_fastq_file->path;
+                $self->dispatch([$cmd, $req, { output_files => [$ec_fastq_file] }]);
             }
         };
     }

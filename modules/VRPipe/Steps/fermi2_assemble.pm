@@ -65,8 +65,8 @@ class VRPipe::Steps::fermi2_assemble with VRPipe::StepRole {
             foreach my $fmd (@{ $self->inputs->{fmd_index_files} }) {
                 my $prefix = $fmd->basename;
                 $prefix =~ s/\.fmd//;
-                my $unitigs = $self->output_file(output_key => 'assembled_unitigs', basename => "$prefix.fq.gz", type => 'fq', metadata => $fq->metadata);
-                my $this_cmd = "$fermi2_exe assemble $fermi2_opts " . $fmd->path . " gzip -1 > " . $unitigs->path;
+                my $unitigs = $self->output_file(output_key => 'assembled_unitigs', basename => "$prefix.fq.gz", type => 'fq', metadata => $fmd->metadata);
+                my $this_cmd = "$fermi2_exe assemble $fermi2_opts " . $fmd->path . " | gzip -1 > " . $unitigs->path;
                 $self->dispatch([$this_cmd, $req, { output_files => [$unitigs] }]);
             }
         };

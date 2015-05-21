@@ -72,7 +72,7 @@ class VRPipe::Steps::bfc_filter_error_corrected_reads with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 40000, time => 1, $cpus ? (cpus => $cpus) : ());
             foreach my $fq (@{ $self->inputs->{bfc_error_corrected_reads} }) {
                 my $filt_fq = $self->output_file(
-                    output_key => 'filtered_error_corrected_reads',
+                    output_key => 'bfc_filtered_error_corrected_reads',
                     basename   => $fq->basename,
                     type       => 'fq',
                     metadata   => $fq->metadata
@@ -88,7 +88,7 @@ class VRPipe::Steps::bfc_filter_error_corrected_reads with VRPipe::StepRole {
             bfc_filtered_error_corrected_reads => VRPipe::StepIODefinition->create(
                 type        => 'fq',
                 max_files   => -1,
-                description => 'filtered error corrected fastq reads',
+                description => 'bfc filtered error corrected fastq reads',
             )
         };
     }

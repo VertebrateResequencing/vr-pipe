@@ -56,7 +56,7 @@ class VRPipe::Steps::fmd_index with VRPipe::StepRole {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'ropebwt2',
                     version => VRPipe::StepCmdSummary->determine_version($ropebwt2_exe, '^Usage:\s+ropebwt2-(\S+)'),
-                    summary => 'ropebwt2 ' . $ropebwt2_opts . ' $reads_file'
+                    summary => 'ropebwt2 ' . $ropebwt2_opts . ' $reads_file > $fmd_index'
                 )
             );
             
