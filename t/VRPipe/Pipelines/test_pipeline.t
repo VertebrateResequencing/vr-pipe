@@ -127,7 +127,7 @@ ok handle_pipeline(@output_files, @final_files), 'pipeline ran and recreated fil
 # check that we can access job and scheduler std output/err files
 my $submission = VRPipe::Submission->create(id => 1);
 my $scheduler  = VRPipe::Scheduler->create();
-my $subm_dir   = dir($scheduler->output_root, qw(b f a 2 VRPipe__Job__1));
+my $subm_dir   = dir($scheduler->output_root, qw(b f a 2c61173822246c466574d9464b73b VRPipe__Job__1));
 is $submission->job_stdout_file->path, file($subm_dir, 'job_stdout'), 'job_stdout_file was correct';
 is $submission->job_stderr_file->path, file($subm_dir, 'job_stderr'), 'job_stderr_file was correct';
 
