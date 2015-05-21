@@ -1,3 +1,53 @@
+0.199   This is a big change from the previous version. Re-read README.md for
+        installation changes and study IMPORTANT_NOTES if upgrading.
+        Newer steps and pipelines, and some vrpipe internal and website
+        features, use the Neo4J graph database to store information. Neo4J may
+        eventually replace the use of MySQL/postrgres.
+        Issues with running out of database connections have been (mostly)
+        resolved, so you can increase or get rid of --max_submissions arg to
+        vrpipe-server.
+        Now multiple setup handlers are run on the farm, each handling a few
+        setups, to spread the load and help avoid some setups never being
+        updated because a single setup handler never got around to dealing with
+        it before being killed.
+        The location of output files has been improved to better avoid different
+        PipelineSetups with the same datasource and pipeline writing to the
+        same paths.
+        New supported filetypes hts, aln and var allow steps to work with
+        bams, crams, vcf and bcf files easily. num_records() now only considers
+        primary alignments.
+        Copying files using VRPipe API now preserves mode and ownership.
+        New file "protocol" system, allowing things like open() to work on
+        files stored on remote filesystems such as irods without downloading
+        them to local disc first.
+        The irods datasource no longer requires the local_root_dir option,
+        making use of the protocol system to represent the files as their
+        location in irods instead of a non-existent local file. The
+        *_with_warehouse_metadata methods also now look for qc files associated
+        with queried bam/cram files.
+        The vrpipe_with_genome_chunking datasource now works with all its
+        methods.
+        The irods and vrpipe datasources can now use a graph_filter, to filter
+        based on properties of nodes related to the file of interest.
+        New web front-end (vastly improved status) and beginnings of a QC
+        sub-site. All pages are now served securely with https.
+        vrpipe-rm can take a fofn.
+        vrpipe-permissions can now change permissions on input files by
+        selecting step 0.
+        vrpipe-fileinfo can now work from a fofn, and has options to suppress
+        the header and get info on setup input files by selecting step 0.
+        Various minor bug fixes and speed improvements, especially for steps
+        that deal with thousands of files. Unsticking stalled setups should now
+        also be many times faster on multi-processor systems.
+        New pipelines: sequencing_qc_from_irods*, bam_2015_vrtrack_processing*,
+        irods_sample_import, gatk_combine_gvcfs, gatk_genotype_gvcfs,
+        chipseq_qc_and_peak_calling, 
+        Cram-related steps now use samtools (1.2+) instead of cramtools.jar.
+        Added support for picard 1.128+ to picard steps, which has a new command
+        line format.
+        New irods_convert_cram_to_bam option for irods_get_files_by_basename
+        step.
+        bamtofastq now done with biobambam bamtofastq.
 0.198   Fixes the vcf_merge_different_samples* steps to cope with hundreds of
         input VCFs (requires latest bcftools).
         vrpipe-submissions has new --partial_reset option which is useful when

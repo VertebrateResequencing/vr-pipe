@@ -1,3 +1,51 @@
+# version 0.199
+(you must first upgrade to 0.198 if you haven't done so already, see notes
+below)
+
+Neo4J is now required. See README.md for a brief installation guide. Re-run
+'perl Build.PL' and say 'yes' to go through the installation questions and
+supply answers to new questions, including your neo4j server access details.
+This will also let you auto-install new required modules from CPAN:
+Authen::Simple::PAM, Bytes::Random::Secure, Data::UUID, File::Share,
+MIME::Base64, Mojo::UserAgent, Sort::Naturally and Twiggy::TLS.
+
+'./Build install' is now required prior to running the production server. Do
+not attempt to run it from the build directory. See README.md for non-root
+installation.
+
+The database schema has changed, so run vrpipe-db_upgrade. Make sure no VRPipe-
+related processes are running first (stop the server, kill any jobs running in
+your job scheduler). You may also take this opportunity to clear out your log
+table in your MySQL production database:
+mysql> truncate table pipelinesetuplog;
+
+The new web-frontend is served with https; during your run of 'perl Build.PL'
+above you get asked where your private TLS key and certificate files are stored.
+If you don't have any these will be created for you, but that is considered
+bad practice, since your users will have to accept an untrusted certificate.
+Either way, afterwards ensure that these files are only readable by the user who
+will run vrpipe-server. Because you will be accessing https over a non-standard
+port, you may find that you can no longer access the website over a generic
+ssh tunnelled connection. You'll have to explicitly forward the port.
+
+To use steps that expect or create bam/cram/vcf/bcf files, you will need to set
+the environment variable HTSLIB to point to the directory where you have built
+htslib (http://www.htslib.org); this directory should have bin/htsfile inside
+it.
+
+Newer bam/cram/vcf/bcf-related steps and pipelines probably only work with
+samtools v1.3+. Upgrade your samtools installation if you work with these kinds
+of files.
+
+The new vrtrack_qc sub-site on the web interface will make the first user to
+log in the administrator of the qc sub-site. After upgrading, the desired admin
+should log in with their unix username and password.
+
+When starting vrpipe-server, you can probably now not use the --max_submissions
+option, since you're now much less likely to run out of database connections.
+Your MySQL database server should still allow around a third as many connections
+as you have processors in your farm, to be safe.
+
 # version 0.198
 (you must first upgrade to 0.190 if you haven't done so already, see notes
 below)
