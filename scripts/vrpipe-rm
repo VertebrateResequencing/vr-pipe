@@ -36,6 +36,9 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[To delete specified files, use standard unix 'rm' arguments.]],
         [],
+        [q[To delete specified files in a file of filenames supply the --fofn option]],
+        ['fofn=s@', 'Remove files listed in in a file of filenames. Can be repeated'],
+        [],
         [q[To delete pipeline outputs, supply both:]],
         ['setup=s',  'Pipeline setup (id or name)', { persistent_object => 'PipelineSetup' }],
         ['steps=s@', q[A step name/number to choose which step outputs you want to delete. If a step outputs more than one kind of file, you can limit to just one of the kinds by saying something like --steps "stepname|kindname". Can be repeated multiple times]],
@@ -56,6 +59,7 @@ my $pretend     = $frontend->opts('pretend');
 my $verbose     = $frontend->opts('verbose');
 my $force       = $frontend->opts('force');
 my $recurse     = $frontend->opts('recursive');
+my @fofns       = $frontend->option_was_set('fofn') ? @{ $frontend->opts('fofn') } : ();
 my $setup       = $frontend->get_pipelinesetups();
 my @steps       = $frontend->option_was_set('steps') ? @{ $frontend->opts('steps') } : ();
 my @meta_search = $frontend->option_was_set('search_by_metadata') ? @{ $frontend->opts('search_by_metadata') } : ();
@@ -75,7 +79,7 @@ elsif (@meta_search) {
 if ($pretend) {
     $verbose = 1;
 }
-if (!$setup && !@paths) {
+if (!$setup && !@paths && !@fofns) {
     $frontend->die_with_error(qq[rm: missing operand\nTry `vrpipe-rm --help' for more information.]);
 }
 
@@ -236,6 +240,17 @@ if ($setup) {
         $frontend->output("$skipped_deleting files were not deleted because other setups created them");
     }
     $frontend->output("$deleted files ", ($pretend ? "would have been" : "were"), " deleted for $num_elements elements") if $verbose;
+}
+
+# handle --fofns
+foreach my $fofn (@fofns) {
+    open my $fh, "<$fofn" || $frontend->error("Could not open fofn $fofn");
+    while (my $path = <$fh>) {
+        chomp $path;
+        $path = file($path)->absolute;
+        push @paths, $path;
+    }
+    close $fh || $frontend->error("Could not close fofn $fofn");
 }
 
 my %protected_dirs;

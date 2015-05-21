@@ -135,7 +135,7 @@ class VRPipe::FrontEnd {
                         if ($type eq 's@') {
                             unless ($self->no_user_option) {
                                 $default->[4] = $default->[2];
-                                $default->[2] = ['user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' }];
+                                $default->[2] = ['user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => scalar(getpwuid($<)) || 'vrpipe' }];
                                 $default->[3] = ['deactivated', 'Also show deactivated PipelineSetups', { default => 0 }];
                             }
                             $self->_multiple_setups(1);

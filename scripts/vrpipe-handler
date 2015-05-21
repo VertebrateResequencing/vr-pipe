@@ -36,6 +36,7 @@ use VRPipe::Interface::BackEnd;
 use Proc::ProcessTable;
 use Proc::Killfam;
 use DateTime;
+use Parallel::ForkManager;
 
 # handle options
 my $cmdline = VRPipe::FrontEnd->new(
@@ -56,7 +57,8 @@ my $cmdline = VRPipe::FrontEnd->new(
     ]
 );
 
-my $max_forks = Sys::CPU::cpu_count();
+my $max_forks = int(Sys::CPU::cpu_count() / 2);
+$max_forks ||= 1;
 my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 
 # initialize the VRPipe backend
@@ -114,15 +116,36 @@ sub handle_setups {
     my %setups;
     my %datasource_watchers;
     my %setup_watchers;
-    my $setups_timer_interval      = $deployment eq 'production' && !$debug ? 150  : 5;
-    my $datasource_timer_interval  = $deployment eq 'production' && !$debug ? 300  : 10;
+    my $setups_timer_interval = $deployment eq 'production' && !$debug ? 150 : 5;
+    my $datasource_timer_interval = $deployment eq 'production' ? 300 : 10;
     my $setup_state_timer_interval = $deployment eq 'production' && !$debug ? 1800 : 15;
-    my %currently_triggering;
+    my (%currently_triggering, %currently_unstalling);
     my $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
         my @setups = ();
         eval {
             unless ($debug) { $fs->locked || die "no farmserver" }
-            @setups = $single_setup ? ($single_setup) : VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm }, { prefetch => ['datasource', 'pipeline'] });
+            if ($single_setup) {
+                @setups = ($single_setup);
+            }
+            else {
+                # the server has queued datasources that need handling; grab as
+                # many as we can cope with and note that we grabbed them so the
+                # server doesn't reque them
+                my $already_handling = keys %setups;
+                unless ($already_handling == $max_forks) {
+                    my $start = $already_handling + 1;
+                    for ($start .. $max_forks) {
+                        my $ds_id = $im->dequeue('ds_for_handlers.' . $farm);
+                        last unless $ds_id;
+                        my @these_setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm, datasource => $ds_id }, { prefetch => ['datasource', 'pipeline'] });
+                        redo unless @these_setups;
+                        foreach my $setup (@these_setups) {
+                            $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
+                            push(@setups, $setup);
+                        }
+                    }
+                }
+            }
         };
         if ($@) {
             if ($@ =~ /no farmserver/) {
@@ -133,18 +156,34 @@ sub handle_setups {
             }
         }
         else {
-            if (@setups) {
+            my %all_setups = map { $_->id => $_ } @setups;
+            while (my ($id, $setup) = each %setups) {
+                $all_setups{$id} = $setup;
+            }
+            my @all_setups = values %all_setups;
+            
+            if (@all_setups) {
                 # remove handling and watchers for setups no longer active/
                 # controlled by our farm
-                my %current_setup_ids = map { $_->id => 1 } @setups;
-                foreach my $stored_setup_id (keys %setups) {
-                    unless (exists $current_setup_ids{$stored_setup_id}) {
-                        my $ds_id = $setups{$stored_setup_id}->datasource->id;
+                while (my ($stored_setup_id, $stored_setup) = each %setups) {
+                    $stored_setup->reselect_values_from_db;
+                    my $active     = $stored_setup->active;
+                    my $controller = $stored_setup->controlling_farm;
+                    
+                    if (($active && ($controller eq $farm)) || ($debug && $single_setup)) {
+                        $stored_setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
+                    }
+                    else {
+                        my $ds_id = $stored_setup->datasource->id;
                         $datasource_watchers{$ds_id}->{count}--;
                         delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
                         delete $setup_watchers{$stored_setup_id};
                         delete $setups{$stored_setup_id};
+                        $stored_setup->datasource->forget_note('grabbed');
                     }
+                }
+                unless (@setups || keys %setups) {
+                    exit_handler("There are no longer any more setups to handle for farm $farm");
                 }
                 
                 # trigger new setups, in parallel
@@ -171,6 +210,7 @@ sub handle_setups {
                 };
                 
                 foreach my $setup (@setups) {
+                    $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
                     my $sid = $setup->id;
                     next if exists $setups{$sid};
                     $setups{$sid} = $setup;
@@ -208,10 +248,10 @@ sub handle_setups {
                 # after all the setups have completed
                 if ($deployment eq 'testing' && !($debug && $single_setup)) {
                     my $completed = 0;
-                    foreach my $setup (@setups) {
+                    foreach my $setup (@all_setups) {
                         $completed++ if $setup->currently_complete;
                     }
-                    exit_handler("All the setups are currently complete") if $completed == @setups;
+                    exit_handler("All the setups are currently complete") if $completed == @all_setups;
                 }
                 
                 # create a watcher for each setup's datasource to keep it
@@ -222,6 +262,7 @@ sub handle_setups {
                     my $ds_id = $ds->id;
                     $datasource_watchers{$ds_id}->{count}++;
                     next if defined $datasource_watchers{$ds_id}->{watcher};
+                    $datasource_watchers{$ds_id}->{watcher} = 1; # will replace with actual watcher later; this stops us doing this multiple times
                     
                     $im->debug("will create watcher for ds $ds_id for setup " . $setup->id);
                     
@@ -288,11 +329,12 @@ sub handle_setups {
                     my $sid = $setup->id;
                     next if defined $setup_watchers{$sid};
                     
+                    $im->debug("will create stall watcher for setup $sid");
+                    
                     $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
-                        return if $currently_triggering{$sid};
-                        $currently_triggering{$sid} = 1;
-                        my $ds_id = $setup->datasource->id;
-                        $datasource_watchers{$ds_id}->{working} = 1;
+                        $im->debug("in stall watcher for setup $sid, currently_unstalling = " . ($currently_unstalling{$sid} ? 1 : 0));
+                        return if $currently_unstalling{$sid};
+                        $currently_unstalling{$sid} = 1;
                         
                         $setup->disconnect;
                         fork_call {
@@ -331,6 +373,16 @@ sub handle_setups {
                             $im->debug("looking for stalls");
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             my $error_message;
+                            my $pm = Parallel::ForkManager->new($max_forks);
+                            $pm->run_on_finish(
+                                sub {
+                                    my ($pid, $this_error) = @_;
+                                    if ($this_error && !$error_message) {
+                                        $error_message = $this_error;
+                                    }
+                                }
+                            );
+                            
                             if ($ie_pager) {
                                 $im->debug("got incomplete_element_states");
                                 while (my $dess = $ie_pager->next) {
@@ -354,13 +406,13 @@ sub handle_setups {
                                             next unless $complete_subs == $have_subs;
                                         }
                                         
+                                        $pm->start and next;
                                         $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
                                         my $this_error = $setup->trigger(dataelement => $de);
-                                        if ($this_error && !$error_message) {
-                                            $error_message = $this_error;
-                                        }
+                                        $pm->finish($this_error);
                                     }
                                 }
+                                $pm->wait_all_children;
                             }
                             $im->debug("after looking for stalls");
                             
@@ -375,12 +427,12 @@ sub handle_setups {
                                         next unless $same->complete;
                                         my $de = $step_state->dataelement;
                                         $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
+                                        $pm->start and next;
                                         my $this_error = $setup->trigger(dataelement => $de);
-                                        if ($this_error && !$error_message) {
-                                            $error_message = $this_error;
-                                        }
+                                        $pm->finish($this_error);
                                     }
                                 }
+                                $pm->wait_all_children;
                             }
                             
                             unless ($perma_fails) {
@@ -402,8 +454,7 @@ sub handle_setups {
                             return;
                         }
                         sub {
-                            delete $currently_triggering{$sid};
-                            delete $datasource_watchers{$ds_id}->{working};
+                            delete $currently_unstalling{$sid};
                             my $err = $@ || return;
                             my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             unless ($mt->already_sent("unknown problem")) {
@@ -430,6 +481,10 @@ sub handle_setups {
     # run the event loop
     $im->log("The setups handler for farm $farm is now running.");
     EV::run;
+    
+    foreach my $grabbed_setup (values %setups) {
+        $grabbed_setup->datasource->forget_note('grabbed');
+    }
     
     $im->log("The setups handler for farm $farm is now exiting!");
     kill_remaining_children();

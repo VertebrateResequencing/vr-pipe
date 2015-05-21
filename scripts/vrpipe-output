@@ -333,7 +333,7 @@ while (my $estates = $estates_pager->next) {
                         foreach my $key (@subdir_keys) {
                             if (defined $metadata->{$key}) {
                                 my $sub_dir = $metadata->{$key};
-                                $sub_dir =~ s/[^\w#]/_/g;
+                                $sub_dir =~ s/[^\w#-]/_/g;
                                 push(@these_dirs, $sub_dir);
                             }
                         }

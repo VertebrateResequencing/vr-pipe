@@ -3,29 +3,15 @@ use strict;
 use warnings;
 use Path::Class;
 use File::Copy;
-use Data::Dumper;
 
 BEGIN {
-    use Test::Most tests => 34;
+    use Test::Most tests => 30;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip bcftools)]
     );
     use TestPipelines;
-    
-    use_ok('VRTrack::Factory');
 }
-
-# create an empty vrtrack db
-my %cd = VRTrack::Factory->connection_details('rw');
-open(my $mysqlfh, "| mysql -h$cd{host} -u$cd{user} -p$cd{password} -P$cd{port}") || die "could not connect to VRTrack database for testing\n";
-print $mysqlfh "drop database if exists $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-print $mysqlfh "create database $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-print $mysqlfh "use $ENV{VRPIPE_VRTRACK_TESTDB};\n";
-foreach my $sql (VRTrack::VRTrack->schema()) {
-    print $mysqlfh $sql;
-}
-close($mysqlfh);
 
 my $output_dir = get_output_dir('genome_studio');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
@@ -36,28 +22,28 @@ my $ds = VRPipe::DataSource->create(
     method  => 'all_with_warehouse_metadata',
     source  => 'archive',
     options => {
-        file_query      => q[study_id = 2624 and type = gtc and dcterms:created '<' 2013-06-01],
-        local_root_dir  => $irods_dir,
-        update_interval => 99999999
+        file_query     => q[study_id = 2624 and type = gtc and beadchip = 9439653037],
+        local_root_dir => $irods_dir
     }
 );
 
-my $pipeline = VRPipe::Pipeline->create(name => 'vrtrack_populate_from_irods_and_download_files');
+my $pipeline = VRPipe::Pipeline->create(name => 'irods_analysis_files_download');
 
-VRPipe::PipelineSetup->create(
-    name        => 'gtc populate',
+my $setup1 = VRPipe::PipelineSetup->create(
+    name        => 'gtc import',
     datasource  => $ds,
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        vrtrack_db                 => $ENV{VRPIPE_VRTRACK_TESTDB},
         vrlane_storage_dir         => $irods_dir,
         irods_download_input_files => 1
     }
 );
 
-my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz'));
-ok handle_pipeline(@analysis_files), 'vrtrack_populate_from_vrpipe_metadata pipeline ran ok and got the analysis files';
+my @analysis_files = (file($irods_dir, '/archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/coreex_hips_20140620.fcr.txt.gz'));
+ok handle_pipeline(@analysis_files), 'irods_analysis_files_download pipeline ran ok and got the analysis files';
+$setup1->active(0);
+$setup1->update;
 
 # create split->vcf setup using the output gtc files from the import
 $output_dir = get_output_dir('genome_studio_split_and_convert_to_vcf');
@@ -81,7 +67,7 @@ my $split_convert_setup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe',
         method  => 'all',
-        source  => 'gtc populate[2:input_files]',
+        source  => 'gtc import[1:input_files]',
         options => {}
     ),
     output_root => $output_dir,
@@ -93,32 +79,35 @@ my $split_convert_setup = VRPipe::PipelineSetup->create(
     }
 );
 
-my @samples    = qw(HPSI0813i-fpdk_3_qc1hip5529688 HPSI0813i-fpdr_qc1hip5529685 HPSI0813i-fpdl_3_qc1hip5533827 HPSI0813i-fpdj_1_qc1hip5533821 HPSI0813i-fpdm_3_qc1hip5533831 HPSI0813i-fpdl_2_qc1hip5533826 HPSI0813i-fpdl_1_qc1hip5533825 HPSI0813i-fpdk_2_qc1hip5529687 HPSI0813i-fpdm_2_qc1hip5533830 HPSI0813i-fpdj_qc1hip5533824 HPSI0813i-fpdl_qc1hip5533828 fpdk_2_qc1hip5529687 HPSI0813i-fpdj_3_qc1hip5533823 HPSI0813i-fpdj_2_qc1hip5533822 HPSI0813i-fpdr_1_qc1hip5529683 fpdj_2_qc1hip5533822 HPSI0813i-fpdk_1_qc1hip5529686 HPSI0813i-fpdm_qc1hip5533832 HPSI0813i-fpdr_2_qc1hip5529684 HPSI0813i-fpdm_1_qc1hip5533829);
-my $element_id = 20;
+my @samples    = qw(HPSI1013i-garx_2_QC1Hip-2193 HPSI1013pf-garx_QC1Hip-2191 HPSI1013i-funy_1_QC1Hip-2196 HPSI1013i-garx_1_QC1Hip-2192 HPSI0813pf-uaqe_QC1Hip-2188 HPSI1013pf-funy_QC1Hip-2195 HPSI0813i-uaqe_2_QC1Hip-2190 HPSI0613i-dium_3_QC1Hip-2224 HPSI1013i-funy_2_QC1Hip-2197 HPSI0813i-uaqe_1_QC1Hip-2189 HPSI1013i-garx_3_QC1Hip-2194 HPSI1013i-funy_3_QC1Hip-2198);
+my $element_id = 12;
 my @genotype_files;
 my @vcf_files;
+my @vcf_files_with_control;
 foreach my $sample (@samples) {
     $element_id++;
     my @output_subdirs = output_subdirs($element_id, 2);
     
     # for testing purposes we'll fake a sample swap between 2 of the cohorts by
     # altering sample names and cohort
-    if ($sample eq 'fpdk_2_qc1hip5529687' || $sample eq 'fpdj_2_qc1hip5533822') {
+    if ($sample eq 'HPSI1013i-garx_1_QC1Hip-2192' || $sample eq 'HPSI1013i-funy_2_QC1Hip-2197') {
         my ($input_file) = @{ VRPipe::DataElement->get(id => $element_id)->files };
-        if ($sample eq 'fpdk_2_qc1hip5529687') {
-            $input_file->add_metadata({ public_name => 'fpdj_2', sample => 'qc1hip5533822', sample_cohort => 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2' });
-            $sample = 'fpdj_2_qc1hip5533822';
+        if ($sample eq 'HPSI1013i-garx_1_QC1Hip-2192') {
+            $input_file->add_metadata({ public_name => 'HPSI1013i-funy_2', sample => 'QC1Hip-2197', sample_cohort => '446ed213-1c31-427b-b314-2636ad8188d5' });
+            $sample = 'HPSI1013i-funy_2_QC1Hip-2197';
         }
         else {
-            $input_file->add_metadata({ public_name => 'fpdk_2', sample => 'qc1hip5529687', sample_cohort => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26' });
-            $sample = 'fpdk_2_qc1hip5529687';
+            $input_file->add_metadata({ public_name => 'HPSI1013i-garx_1', sample => 'QC1Hip-2192', sample_cohort => 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86' });
+            $sample = 'HPSI1013i-garx_1_QC1Hip-2192';
         }
     }
     
-    my ($sanger_name) = $sample =~ /(qc\S+)/;
+    my ($sanger_name) = $sample =~ /(QC\S+)/;
     push(@genotype_files, file(@output_subdirs, '1_split_genome_studio_genotype_files', $sanger_name . '.genotyping.fcr.txt'));
     
-    push(@vcf_files, file(@output_subdirs, '3_genome_studio_fcr_to_vcf', "$sample/$sample.vcf.gz"));
+    my $vcf_file = file(@output_subdirs, '3_genome_studio_fcr_to_vcf', "$sample/$sample.vcf.gz");
+    push(@vcf_files, $vcf_file);
+    push(@vcf_files_with_control, $vcf_file) unless ($element_id == 20);
 }
 
 # run pipeline and check outputs
@@ -128,28 +117,28 @@ ok handle_pipeline(@genotype_files, @vcf_files), 'genome_studio_split_and_conver
 my $meta = VRPipe::File->get(path => $genotype_files[0])->metadata;
 is_deeply $meta,
   {
-    analysis_uuid           => [qw(45a53a77-50bc-4062-b9cb-8dfe82e589f2 12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab 3f5acca0-304c-480f-8a61-3e68c33c707d)],
-    beadchip                => '9300870057',
-    beadchip_design         => 'HumanCoreExome-12v1-0',
+    analysis_uuid           => 'c837da60-20e7-43a5-bb52-b24759a4033d',
+    beadchip                => 9439653037,
     beadchip_section        => 'R06C01',
-    infinium_plate          => 'WG0206884-DNA',
-    infinium_sample         => '283163_F01_qc1hip5529688',
-    infinium_well           => 'F01',
-    irods_analysis_files    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
+    expected_md5            => '00d2cd3e5df1fd5fc73476458a75107b',
+    infinium_plate          => 'WG0207474-DNA',
+    infinium_sample         => '344265_F04_QC1Hip-2193',
+    infinium_well           => 'F04',
+    irods_analysis_files    => [qw(/archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/coreex_hips_20140620.fcr.txt.gz  /archive/GAPI/gen/analysis/de/a3/63/coreex_hips/20140620/genotyping.db)],
     irods_local_storage_dir => $irods_dir,
-    irods_path              => '/archive/GAPI/gen/infinium/17/b7/15/9300870057_R06C01.gtc',
-    md5                     => '17b7159554bca4ff4376384b385da51f',
-    public_name             => 'HPSI0813i-fpdk_3',
-    sample                  => 'qc1hip5529688',
-    sample_accession_number => 'SAMEA2398958',
-    sample_cohort           => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
-    sample_common_name      => 'Homo Sapien',
+    irods_path              => '/archive/GAPI/gen/infinium/00/d2/cd/9439653037_R06C01.gtc',
+    md5                     => '00d2cd3e5df1fd5fc73476458a75107b',
+    public_name             => 'HPSI1013i-garx_2',
+    sample                  => 'QC1Hip-2193',
+    sample_accession_number => 'SAMEA2398552',
+    sample_cohort           => 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86',
+    sample_common_name      => 'Homo sapiens',
     sample_consent          => 1,
     sample_control          => 0,
-    sample_created_date     => '2013-05-10 06:44:46',
-    sample_donor_id         => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
-    sample_id               => 1625188,
-    sample_supplier_name    => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
+    sample_created_date     => '2014-05-08 15:33:27',
+    sample_donor_id         => 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86',
+    sample_id               => 1943009,
+    sample_supplier_name    => 'b91c722d-ee69-46db-bd02-5a32867bb838',
     study_id                => 2624,
     study_title             => 'G0325 [coreex] Wellcome Trust Strategic Award application – HIPS',
     taxon_id                => 9606
@@ -157,7 +146,7 @@ is_deeply $meta,
   'metadata correct for one of the genotype files';
 
 $meta = VRPipe::File->get(path => $vcf_files[0])->metadata;
-is $meta->{sample_cohort}, '27af9a9b-01b2-4cb6-acef-ea52d83e3d26', 'the VCF file has sample_cohort metadata';
+is $meta->{sample_cohort}, 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86', 'the VCF file has sample_cohort metadata';
 
 # we'll take this opportunity to test the vcf_merge_and_compare_genotypes
 # pipeline as well
@@ -166,7 +155,7 @@ my $vrpipe_ds = VRPipe::DataSource->create(
     type    => 'vrpipe',
     method  => 'group_by_metadata',
     source  => '2[3:vcf_files]',
-    options => { metadata_keys => 'sample_cohort|beadchip' }
+    options => { metadata_keys => 'sample_cohort' }
 );
 
 # check pipeline has correct steps
@@ -187,27 +176,25 @@ VRPipe::PipelineSetup->create(
 );
 
 my (@merged_vcf_files, @gtypex_files, @expected_metadata);
-foreach my $element_id (41 .. 45) {
+# check whether swapped samples can be identified by genotype comparision pipeline
+foreach my $element_id (25 .. 28) {
     my @output_subdirs = output_subdirs($element_id, 3);
     push(@merged_vcf_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'));
     push(@gtypex_files,     file(@output_subdirs, '2_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
     
     my $group = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (group => $group);
-    if ($group eq '2a39941c-12b2-41bf-92f3-70b88b66a3a4|9300870166') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdm_1_qc1hip5533829'];
+    if ($group eq '9f6e6b87-957a-4226-b9b9-ea0734d1b8c1') {
+        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0613i-dium_3_QC1Hip-2224'];
     }
-    elsif ($group eq '27af9a9b-01b2-4cb6-acef-ea52d83e3d26|9300870057') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdk_1_qc1hip5529686'];
+    elsif ($group eq '750c3684-c29d-4ead-b8fb-3d9ded319b83') {
+        $expected{genotype_maximum_deviation} = ['>=', 1, 'HPSI0813i-uaqe_1_QC1Hip-2189'];
     }
-    elsif ($group eq 'ca04b23b-c5b0-4389-95a3-5c7c8e6d51f2|9300870057') {
-        $expected{genotype_maximum_deviation} = ['>=', 18, 'fpdj_2_qc1hip5533822'];
+    elsif ($group eq 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86') {
+        $expected{genotype_maximum_deviation} = ['>=', 10, 'HPSI1013i-garx_1_QC1Hip-2192'];
     }
-    elsif ($group eq '647d3009-5603-4b07-bf02-6161c8662f46|9300870166') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdl_qc1hip5533828'];
-    }
-    elsif ($group eq '6d3d2acf-29a5-41a2-8992-1414706a527d|9300870057') {
-        $expected{genotype_maximum_deviation} = ['==', 0, 'HPSI0813i-fpdr_2_qc1hip5529684'];
+    elsif ($group eq '446ed213-1c31-427b-b314-2636ad8188d5') {
+        $expected{genotype_maximum_deviation} = ['>=', 10, 'HPSI1013i-funy_2_QC1Hip-2197'];
     }
     push(@expected_metadata, \%expected);
 }
@@ -218,7 +205,7 @@ foreach my $vcf_path (@merged_vcf_files) {
     $meta = VRPipe::File->get(path => $vcf_path)->metadata;
     my $expected = shift @expected_metadata;
     
-    is "$meta->{sample_cohort}|$meta->{beadchip}", $expected->{group}, "sample_cohort and beadchip metadata was correct for one of the merged VCF files";
+    is "$meta->{sample_cohort}", $expected->{group}, "sample_cohort and beadchip metadata was correct for one of the merged VCF files";
     
     my ($cmp, $eval, $esample) = @{ $expected->{genotype_maximum_deviation} };
     my ($aval, $asample) = split(':', $meta->{genotype_maximum_deviation});
@@ -226,11 +213,28 @@ foreach my $vcf_path (@merged_vcf_files) {
     is $asample, $esample, "genotype_maximum_deviation metadata sample was correct for one of the merged VCF files";
 }
 
+# create fofn datasource for cnv and loh pipelines
+my $fofn_file = file($output_dir, 'sample_vcfs.fofn');
+my $fh = $fofn_file->openw;
+print $fh "path\tsample_cohort\n";
+foreach my $path (@vcf_files_with_control) {
+    my $file = VRPipe::File->get(path => $path);
+    my $sample_cohort = $file->metadata->{sample_cohort};
+    print $fh "$path\t$sample_cohort\n";
+}
+close($fh);
+my $fofn_ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'grouped_by_metadata',
+    options => { metadata_keys => 'sample_cohort' },
+    source  => $fofn_file->stringify
+);
+
 # we'll also take the opportunity to test hipsci cnv caller pipeline, since that
 # also uses files from the genome studio import
 SKIP: {
     my $num_tests = 4;
-    skip "hipsci cnv calling tests disabled without polysomy, plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('polysomy') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
+    skip "hipsci cnv calling tests disabled without plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('bcftools') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
     
     $output_dir = get_output_dir('polysomy_cnv_caller');
     
@@ -245,18 +249,18 @@ SKIP: {
     my $cnv_setup = VRPipe::PipelineSetup->create(
         name        => 'cnv_calling',
         pipeline    => $cnv_pipeline,
-        datasource  => $vrpipe_ds,
+        datasource  => $fofn_ds,
         output_root => $output_dir,
         options     => {}
     );
     
     # figure out output files
     my (@merged_vcfs, @summary_files);
-    foreach my $element_id (41 .. 45) {
+    foreach my $element_id (29 .. 31) {
         my @output_subdirs = output_subdirs($element_id, $cnv_setup->id);
         push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
-        if ($element_id == 41) {
-            foreach my $sub_dir (qw(HPSI0813i-fpdk_1_qc1hip5529686 HPSI0813i-fpdk_2_qc1hip5529687 HPSI0813i-fpdk_3_qc1hip5529688)) {
+        if ($element_id == 30) {
+            foreach my $sub_dir (qw(HPSI1013i-funy_2_QC1Hip-2197 HPSI1013i-funy_1_QC1Hip-2196 HPSI1013i-funy_3_QC1Hip-2198)) {
                 push(@summary_files, file(@output_subdirs, '4_bcftools_cnv', $sub_dir, 'summary.tab'));
             }
         }
@@ -264,7 +268,7 @@ SKIP: {
     ok handle_pipeline(@merged_vcfs, @summary_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
     
     my $cnv_vrfile = VRPipe::File->get(path => $summary_files[0]);
-    is $cnv_vrfile->meta_value('sample_control'), 'fpdk_2_qc1hip5529687', 'sample_control metadata exists on the file';
+    is $cnv_vrfile->meta_value('sample_control'), 'HPSI1013pf-funy_QC1Hip-2195', 'sample_control metadata exists on the file';
 }
 
 # we'll also take the opportunity to test the loh caller pipeline, since that
@@ -286,23 +290,23 @@ SKIP: {
     my $loh_setup = VRPipe::PipelineSetup->create(
         name        => 'loh_calling',
         pipeline    => $loh_pipeline,
-        datasource  => $vrpipe_ds,
+        datasource  => $fofn_ds,
         output_root => $output_dir,
         options     => {}
     );
     
     # figure out output files
     my (@merged_vcfs, @loh_files_with_results, @loh_files_no_results);
-    foreach my $element_id (41 .. 45) {
+    foreach my $element_id (29 .. 31) {
         my @output_subdirs = output_subdirs($element_id, $loh_setup->id);
         push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
         
         my $result_file = file(@output_subdirs, '2_hipsci_loh_caller', 'merged.txt');
-        if ($element_id == 45) {
-            push(@loh_files_with_results, $result_file);
+        if ($element_id == 31) {
+            push(@loh_files_no_results, $result_file);
         }
         else {
-            push(@loh_files_no_results, $result_file);
+            push(@loh_files_with_results, $result_file);
         }
     }
     ok handle_pipeline(@merged_vcfs, @loh_files_with_results), 'hipsci_loh_caller pipeline ran ok and produced the expected output files';
@@ -311,10 +315,10 @@ SKIP: {
     foreach my $file (@loh_files_no_results) {
         $created_empty++ if (-e $file && !-s $file);
     }
-    is $created_empty, 4, 'it also produced empty result files for the good cohorts';
+    is $created_empty, 1, 'it also produced empty result files for the good cohorts';
     
     my $loh_vrfile = VRPipe::File->get(path => $loh_files_with_results[0]);
-    is $loh_vrfile->meta_value('sample_control'), 'HPSI0813i-fpdj_qc1hip5533824', 'sample_control metadata exists on the file';
+    is $loh_vrfile->meta_value('sample_control'), 'HPSI1013pf-garx_QC1Hip-2191', 'sample_control metadata exists on the file';
 }
 
 finish;

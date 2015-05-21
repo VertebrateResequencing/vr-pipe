@@ -11,11 +11,11 @@ and ancillary data for analysis of pluripotency.
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+John Maslen <jm23@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -48,8 +48,7 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
         (
             'pluritest_annotation_profile_files',
             'pluritest_reformat_genome_studio_expression_files',
-            'pluritest_plot_gene_expression',
-            'pluritest_vrtrack_update_images',
+            'pluritest_plot_gene_expression'
         );
     }
     
@@ -59,13 +58,12 @@ class VRPipe::Pipelines::pluritest_gene_expression_analysis with VRPipe::Pipelin
             { from_step => 1, to_step => 2, from_key => 'profile_file', to_key => 'profile_files' },
             { from_step => 1, to_step => 2, from_key => 'annotation_file', to_key => 'annotation_files' },
             { from_step => 1, to_step => 2, from_key => 'mapping_file', to_key => 'mapping_files' },
-            { from_step => 2, to_step => 3, from_key => 'reformat_files', to_key => 'conv_files' },
-            { from_step => 3, to_step => 4, from_key => 'pluritest_plots', to_key => 'pluritest_plots' },
+            { from_step => 2, to_step => 3, from_key => 'reformat_files', to_key => 'conv_files' }
         );
     }
     
     method behaviour_definitions {
-        ({ after_step => 4, behaviour => 'delete_outputs', act_on_steps => [1, 2], regulated_by => 'cleanup', default_regulation => 0 });
+        ({ after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1, 2], regulated_by => 'cleanup', default_regulation => 0 });
     }
 }
 

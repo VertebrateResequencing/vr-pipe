@@ -57,7 +57,7 @@ use MooseX::Types -declare => [
       MaybeStrOrEnv Datetime VRPFileOrHandle
       Persistent PersistentObject RelationshipArg
       PersistentArrayRef PersistentHashRef
-      FileType AbsoluteFile PersistentFileHashRef
+      FileType FileProtocol AbsoluteFile PersistentFileHashRef
       OpenMode AnyFileHandle
       ParserType MapperType PreviousStepOutput
       Text)
@@ -104,8 +104,8 @@ class_type('VRPipe::DataElementState');
 class_type('Path::Class::Dir');
 class_type('Path::Class::File');
 
-subtype Dir,  as 'Path::Class::Dir',  where { "$_" =~ /^[-\w.,#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
-subtype File, as 'Path::Class::File', where { "$_" =~ /^[-\w.,#\/\\~]+$/ }, message { defined $_ ? "'$_' does not seem like a file"      : "no file specified" };
+subtype Dir,  as 'Path::Class::Dir',  where { "$_" =~ /^[-+\w.,#\/\\~:]+$/ }, message { defined $_ ? "'$_' does not seem like a directory" : "no directory specified" };
+subtype File, as 'Path::Class::File', where { "$_" =~ /^[-+\w.,#\/\\~:]+$/ }, message { defined $_ ? "'$_' does not seem like a file"      : "no file specified" };
 subtype MaybeFile, as Maybe [File];
 subtype MaybeDir,  as Maybe [Dir];
 subtype AbsoluteFile, as File, where { $_->is_absolute }, message {
@@ -169,6 +169,13 @@ subtype FileType, as Str, where {
     return 1;
 }, message { "Not a valid VRPipe::FileType type" };
 coerce FileType, from Str, via { lc($_) };
+
+subtype FileProtocol, as Str, where {
+    my $type = $_;
+    eval "require VRPipe::FileProtocol::$type;";
+    return $@ ? 0 : 1;
+}, message { "Not a valid VRPipe::FileProtocol type" };
+coerce FileProtocol, from Str, via { lc($_) };
 
 subtype ParserType, as Str, where {
     my $type = $_;

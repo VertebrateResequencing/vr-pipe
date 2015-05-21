@@ -70,6 +70,6 @@ my $merge_pipelinesetup = VRPipe::PipelineSetup->create(
 
 ok handle_pipeline(), 'pipeline ran ok';
 
-is_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary], ['java $jvm_args -jar MergeSamFiles.jar INPUT=$bam_file(s) OUTPUT=$merged_bam VALIDATION_STRINGENCY=SILENT', 'java $jvm_args -jar MarkDuplicates.jar INPUT=$bam_file OUTPUT=$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT'], 'cmd summaries for the major steps were as expected';
+cmp_deeply [VRPipe::StepState->create(pipelinesetup => 1, stepmember => 4, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->create(pipelinesetup => 1, stepmember => 5, dataelement => 1)->cmd_summary->summary], [re('java \$jvm_args -jar .*MergeSamFiles(\.jar)? INPUT=\$bam_file\(s\) OUTPUT=\$merged_bam VALIDATION_STRINGENCY=SILENT'), re('java \$jvm_args -jar .*MarkDuplicates(\.jar)? INPUT=\$bam_file OUTPUT=\$markdup_bam_file ASSUME_SORTED=TRUE METRICS_FILE=/dev/null VALIDATION_STRINGENCY=SILENT')], 'cmd summaries for the major steps were as expected';
 
 finish;

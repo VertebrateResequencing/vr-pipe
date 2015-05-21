@@ -53,6 +53,7 @@ class VRPipe::Persistent::InMemory {
     use AnyEvent;
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
+    use Bytes::Random::Secure;
     
     has '_maintenance_children' => (
         is      => 'ro',
@@ -338,10 +339,11 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Int :$unlock_after = 900, Str :$key_prefix = 'lock') {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Int :$unlock_after?) {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         my $sleep_time = 0.01;
+        $unlock_after ||= $deployment eq 'testing' ? 30 : 900;
         while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
             if ($sleep_time >= $check_every) {
                 $sleep_time = $check_every;
@@ -426,6 +428,103 @@ class VRPipe::Persistent::InMemory {
     
     method drop_queue (Str $key!) {
         return $self->_redis->del('queue.' . $key);
+    }
+    
+    method create_session (HashRef $data!, Int :$idle_expiry = 86400, Int :$max_life = 432000) {
+        # (the idle_expiry and max_life are very lax by default, designed to
+        #  allow someone to keep a session for a working week if they use the
+        #  session at least once per day during work hours)
+        my $redis     = $self->_redis;
+        my $random    = Bytes::Random::Secure->new(Bits => 128, NonBlocking => 1);
+        my $key       = $random->bytes_hex(16);
+        my $redis_key = 'session.' . $key;
+        if ($redis->exists($redis_key)) {
+            # wow, this should be basically impossible
+            $self->throw("A session with key '$key' already exists, we've lost randomness!");
+        }
+        
+        my $absolute_expiry = time() + $max_life;
+        my $set             = $redis->hmset(
+            $redis_key,
+            %$data,
+            'session.idle_expiry'     => $idle_expiry,
+            'session.absolute_expiry' => $absolute_expiry
+        );
+        
+        if ($set) {
+            $redis->expire($redis_key, $idle_expiry);
+            # (exireat overrides expire, so I implement my own in get_session())
+            return $key;
+        }
+        return;
+    }
+    
+    method get_session (Str $key!) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'session.' . $key;
+        
+        my %hash = $redis->hgetall($redis_key);
+        if (keys %hash) {
+            # refresh expiry
+            my $absolute_expiry = delete $hash{'session.absolute_expiry'};
+            if (time() > $absolute_expiry) {
+                $self->drop_session($key);
+                return;
+            }
+            my $idle_expiry = delete $hash{'session.idle_expiry'};
+            $redis->expire($redis_key, $idle_expiry);
+            
+            return \%hash;
+        }
+        return;
+    }
+    
+    method session_set (Str $key!, Str $set_key!, Str $value!) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'session.' . $key;
+        if ($redis->exists($redis_key)) {
+            # we only set new key vals for existing sessions
+            return $redis->hset($redis_key, $set_key => $value);
+        }
+        return 0;
+    }
+    
+    method session_get (Str $key!, Str $get_key!) {
+        return $self->_redis->hget('session.' . $key, $get_key);
+    }
+    
+    method session_del (Str $key!, Str $del_key!) {
+        return $self->_redis->hdel('session.' . $key, $del_key);
+    }
+    
+    method drop_session (Str $key!) {
+        return $self->_redis->del('session.' . $key);
+    }
+    
+    method rate_limit (Str $key!, Int :$per_second = 1, Bool :$punish_excess = 0) {
+        my $redis     = $self->_redis;
+        my $redis_key = 'rate_limit.' . $key;
+        my $count     = $redis->incr($redis_key);
+        
+        if ($count) {
+            my $expire_time = 1;
+            if ($punish_excess) {
+                # instead of rate limiting to 1 per second, if rate_limit is
+                # called before expiration, we ramp up the expiration time
+                if ($count <= 10) {
+                    $expire_time = $count;
+                }
+                else {
+                    $expire_time = 45;
+                }
+            }
+            $redis->expire($redis_key, $expire_time);
+            return $count <= $per_second ? 1 : 0;
+        }
+        else {
+            # something went wrong in redis, treat it as limit
+            return 0;
+        }
     }
     
     method log_stderr {

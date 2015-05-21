@@ -51,6 +51,9 @@ use warnings;
 use base 'Test::DBIx::Class';
 use VRPipe::Persistent::SchemaBase;
 use VRPipe::Persistent::InMemory;
+use VRPipe::Persistent::Graph;
+use Module::Find;
+use VRPipe::Schema;
 use File::Spec;
 use File::Which qw(which);
 $SQL::Translator::Schema::DEBUG = 0; # suppress stupid warning in test harness
@@ -101,6 +104,9 @@ sub import {
                 result_with_inflated_paths => sub {
                     return \&result_with_inflated_paths;
                 },
+                result_with_inflated_files => sub {
+                    return \&result_with_inflated_files;
+                },
                 can_execute => sub {
                     return \&can_execute;
                   }
@@ -109,7 +115,7 @@ sub import {
         }
     );
     
-    $class->$exporter(qw/Schema get_elements result_with_inflated_paths can_execute/, @exports);
+    $class->$exporter(qw/Schema get_elements result_with_inflated_paths result_with_inflated_files can_execute/, @exports);
 }
 
 sub _initialize_schema {
@@ -124,6 +130,18 @@ sub _initialize_schema {
     
     my $im = VRPipe::Persistent::InMemory->new;
     $im->_redis->flushdb;
+    my $graph = VRPipe::Persistent::Graph->new;
+    $graph->drop_database;
+    
+    # also add or update all graph database schemas
+    foreach my $module (findallmod(VRPipe::Schema)) {
+        eval "require $module;";
+        unless ($@) {
+            my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
+            $type || next;
+            VRPipe::Schema->create($type, update_schemas_in_db => 1);
+        }
+    }
     
     return $class->SUPER::_initialize_schema($config);
 }
@@ -238,6 +256,15 @@ sub result_with_inflated_paths {
     my $result = $de->result;
     if (defined $result->{paths}) {
         $result->{paths} = [$de->paths] unless ref($result->{paths});
+    }
+    return $result;
+}
+
+sub result_with_inflated_files {
+    my $de     = shift;
+    my $result = $de->result;
+    if (defined $result->{paths}) {
+        $result->{files} = $de->files;
     }
     return $result;
 }

@@ -171,7 +171,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 my @vals = split(/\s+/, $vals);
                 if ($type eq 'users') {
                     my %users = map { $_ => 1 } @vals;
-                    my $me = getlogin || getpwuid($<);
+                    my $me = getpwuid($<);
                     unless (exists $users{all} || exists $users{$me}) {
                         delete $queues{$queue};
                         undef $queue;

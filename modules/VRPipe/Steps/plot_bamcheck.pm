@@ -13,7 +13,7 @@ John Maslen <jm23@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -71,10 +71,11 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
             my $plot_bc_opts = '-r ' . $self->inputs->{fasta_gc_stats_file}->[0]->path;
             
             foreach my $bc_file (@{ $self->inputs->{bamcheck_files} }) {
-                my $meta       = $bc_file->metadata;
-                my $prefix     = $meta->{lane} || $bc_file->basename;
-                my $source_bam = $meta->{source_bam};
-                my $sb_meta    = VRPipe::File->get(path => $source_bam)->metadata;
+                my $meta        = $bc_file->metadata;
+                my $prefix      = $meta->{lane} || $bc_file->basename;
+                my $source_bam  = $meta->{source_bam};
+                my $source_file = VRPipe::File->get(path => $source_bam);
+                my $sb_meta     = $source_file->metadata;
                 
                 $self->output_file(temporary  => 1,                basename => $prefix . '-quals.gp',     type => 'txt');
                 $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-quals.png',    type => 'bin', metadata => { caption => 'Qualities', source_bam => $source_bam });
@@ -94,12 +95,24 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
                 $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-acgt-cycles.png',    type => 'bin', metadata => { caption => 'ACGT Cycles', source_bam => $source_bam });
                 $self->output_file(temporary  => 1,                basename => $prefix . '-coverage.gp',        type => 'txt');
                 $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-coverage.png',       type => 'bin', metadata => { caption => 'Coverage', source_bam => $source_bam });
-                $self->output_file(temporary  => 1,                basename => $prefix . '-indel-dist.gp',      type => 'txt');
-                $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-indel-dist.png',     type => 'bin', metadata => { caption => 'Indel distribution', source_bam => $source_bam });
-                $self->output_file(temporary  => 1,                basename => $prefix . '-indel-cycles.gp',    type => 'txt');
-                $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-indel-cycles.png',   type => 'bin', metadata => { caption => 'Indels per cycle', source_bam => $source_bam });
                 $self->output_file(temporary  => 1,                basename => $prefix . '-mism-per-cycle.gp',  type => 'txt');
                 $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-mism-per-cycle.png', type => 'bin', metadata => { caption => 'Mismatches per cycle', source_bam => $source_bam });
+                
+                # if the bam file was small it's possible there are no indels,
+                # so we'll have to do a quick look into the bamcheck file for ID
+                # lines
+                my $add_indel_files = 1;
+                if ($source_file->s() <= 10000000) {
+                    my $bc_path = $bc_file->path;
+                    $add_indel_files = `grep -c "^ID" $bc_path`;
+                    chomp $add_indel_files;
+                }
+                if ($add_indel_files) {
+                    $self->output_file(temporary  => 1,                basename => $prefix . '-indel-dist.gp',    type => 'txt');
+                    $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-indel-dist.png',   type => 'bin', metadata => { caption => 'Indel distribution', source_bam => $source_bam });
+                    $self->output_file(temporary  => 1,                basename => $prefix . '-indel-cycles.gp',  type => 'txt');
+                    $self->output_file(output_key => 'bamcheck_plots', basename => $prefix . '-indel-cycles.png', type => 'bin', metadata => { caption => 'Indels per cycle', source_bam => $source_bam });
+                }
                 
                 my $bc_path = $bc_file->path;
                 my $cmd     = qq[$plot_bc_exe $plot_bc_opts -p $prefix $bc_path];
@@ -113,7 +126,7 @@ class VRPipe::Steps::plot_bamcheck with VRPipe::StepRole {
             bamcheck_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamcheck, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 10,
                 max_files   => -1
             )
         };

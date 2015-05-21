@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012-2013 Genome Research Limited.
+Copyright (c) 2012-2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -32,12 +32,18 @@ use AnyEvent::Util qw(fork_call);
 use VRPipe::Interface::CmdLine;
 use VRPipe::Interface::BackEnd;
 use Sys::CPU;
-use POSIX qw(floor);
+use POSIX qw(floor ceil);
 use List::Util 'shuffle';
 use Path::Class;
 use Cwd 'getcwd';
 use Digest::MD5;
 use VRPipe::Persistent::InMemory;
+use VRPipe::Persistent::Graph;
+use VRPipe::Schema;
+use File::Share ':all';
+use Module::Find;
+use DateTime;
+use Authen::Simple::PAM;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -61,7 +67,21 @@ my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $scheduler;
-my $im = VRPipe::Persistent::InMemory->new();
+my $im        = VRPipe::Persistent::InMemory->new();
+my $dist_dir  = dir(dist_dir('VRPipe'))->absolute;
+my $pages_dir = dir($dist_dir, 'pages');
+my @pages;
+
+while (my $sub_dir = $pages_dir->next) {
+    next unless -d $sub_dir;
+    my $index = file($sub_dir, 'index.html');
+    next unless -e $index;
+    push(@pages, $sub_dir->basename);
+}
+my $pages   = [sort @pages];
+my %pages   = map { $_ => 1 } @pages;
+my $graph   = VRPipe::Persistent::Graph->new(throw_with_no_stacktrace => 1);
+my $vrtrack = VRPipe::Schema->create('VRTrack');
 
 my $command = shift;
 unless ($command) {
@@ -264,6 +284,17 @@ sub start_server {
                     unless ($deployment eq 'testing') {
                         fork_call {
                             $backend->install_pipelines_and_steps;
+                            
+                            # also add or update all graph database schemas
+                            foreach my $module (findallmod(VRPipe::Schema)) {
+                                eval "require $module;";
+                                unless ($@) {
+                                    my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
+                                    $type || next;
+                                    VRPipe::Schema->create($type, update_schemas_in_db => 1);
+                                }
+                            }
+                            
                             return;
                         }
                         $watcher_error_sub;
@@ -341,17 +372,82 @@ sub start_server {
                             return;
                         }
                         
-                        # make sure we have a setups handler running for our
-                        # farm. since our setups handler will run on a node
+                        # make sure we have setups handlers running for our
+                        # farm. each one will grab a certain number of setups
+                        # based on datasources that we will queue.
+                        # since our setups handler will run on a node
                         # and needs access to the t directory when testing, we
                         # will cd to the git root first for scheduler that need
                         # to
+                        my $ds_handler_queue = 'ds_for_handlers.' . $farm;
+                        $im->drop_queue($ds_handler_queue);
                         my $shcmd = "$handler_path --mode setups --farm $farm";
-                        $scheduler->ensure_running(
-                            cmd => $shcmd,
-                            $deployment eq 'testing' ? (cwd => $cwd) : (),
-                            requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
-                        );
+                        my %ds_queued;
+                        my %grabbed;
+                        my %ds_wanted;
+                        foreach my $setup (@setups) {
+                            my $ds    = $setup->datasource;
+                            my $ds_id = $ds->id;
+                            $ds_wanted{$ds_id} = 1;
+                            if ($ds->noted('grabbed')) {
+                                $grabbed{$ds_id} = $ds;
+                                next;
+                            }
+                            next if $ds_queued{$ds_id};
+                            $im->enqueue($ds_handler_queue, $ds_id);
+                            $ds_queued{$ds_id} = 1;
+                        }
+                        my $grabbed = keys %grabbed;
+                        
+                        # based on number of datasources that need work and
+                        # the number that have already been grabbed, pick
+                        # an appropriate number of handlers that should be
+                        # running
+                        my $num_setup_handlers_needed = 0;
+                        my $max_setup_handlers        = $max_subs ? int($max_subs / 2) : 500;
+                        my $ds_wanted                 = keys %ds_wanted;
+                        if ($ds_wanted) {
+                            if ($grabbed) {
+                                my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_setup_handlers);
+                                if ($already_running) {
+                                    my $grabbed_per_handler = floor($grabbed / $already_running);
+                                    $grabbed_per_handler ||= 1;
+                                    $num_setup_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
+                                    
+                                    if ($num_setup_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
+                                        $num_setup_handlers_needed = $already_running + 1;
+                                    }
+                                    if ($num_setup_handlers_needed > $max_setup_handlers) {
+                                        $num_setup_handlers_needed = $max_setup_handlers;
+                                    }
+                                }
+                                else {
+                                    # nothing's running but we still have
+                                    # grabbed datasources - handlers must have
+                                    # been killed such that they didn't release
+                                    # their grabbed note; clear them all now
+                                    foreach my $ds (values %grabbed) {
+                                        $ds->forget_note('grabbed');
+                                    }
+                                    $num_setup_handlers_needed = 1;
+                                }
+                            }
+                            else {
+                                # nothing being grabbed yet suggests we have
+                                # no handlers running at all, so we'll start
+                                # with 1 to see how many that grabs
+                                $num_setup_handlers_needed = 1;
+                            }
+                        }
+                        
+                        if ($num_setup_handlers_needed) {
+                            $scheduler->ensure_running(
+                                cmd   => $shcmd,
+                                count => $num_setup_handlers_needed,
+                                $deployment eq 'testing' ? (cwd => $cwd) : (),
+                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
+                            );
+                        }
                         
                         # make sure we have sufficient submission handlers
                         # running...
@@ -642,10 +738,59 @@ sub start_server {
     # set up the http page requests we'll respond to
     $backend->register_psgi_pages(
         '/' => sub {
-            $backend->psgi_text_response(200, 'html', "<html><body><h1>VRPipe Homepage</h1>" . q[<p>Complete web interface to VRPipe coming soon; currently you can just look at the <a href="/status?brief=1&amp;incomplete=1">status</a> page (like the vrpipe-status command line script).</p>] . "</body></html>", shift);
+            $backend->psgi_file_response(file($dist_dir, 'web_interface.html')->stringify, shift);
         },
-        '/status' => sub { $backend->psgi_nonblocking_xml_response(\&status, shift); },
-        '/dsn'    => sub {
+        '/login_template.html' => sub {
+            $backend->psgi_file_response(file($dist_dir, 'login_template.html')->stringify, shift);
+        },
+        '/js/(.+\.js)$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(file($dist_dir, 'js', $basename)->stringify, $env, max_age => 525200);
+        },
+        '/css/(.+\.(?:css|png|gif))$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(file($dist_dir, 'css', $basename)->stringify, $env, max_age => 525200);
+        },
+        '/fonts/(.+)$' => sub {
+            my ($env, $basename) = @_;
+            $backend->psgi_file_response(file($dist_dir, 'fonts', $basename)->stringify, $env, max_age => 525200);
+        },
+        '/pages/(.+)$' => sub {
+            my ($env, $path) = @_;
+            $path =~ s/[\?#].+$//;
+            $path =~ s/\/$//;
+            my $abs = file($dist_dir, 'pages', $path);
+            if (exists $pages{ $abs->basename }) {
+                $abs = file($abs, 'index.html');
+            }
+            $backend->psgi_file_response($abs->stringify, $env, max_age => 525200);
+        },
+        '/file/(.+)$' => sub {
+            my ($env, $path) = @_;
+            $backend->psgi_file_response('/' . $path, $env, check_permissions => 1);
+        },
+        '/rest/status/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&status, $env, $method);
+        },
+        '/rest/graph/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&graph, $env, $method);
+        },
+        '/rest/qc/(.+)$' => sub {
+            my ($env, $method) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&qc, $env, $method);
+        },
+        '/rest/authenticate' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&authenticate_via_pam, shift);
+        },
+        '/rest/authenticated_user' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&authenticated_user, shift);
+        },
+        '/rest/deauthenticate_user' => sub {
+            $backend->psgi_nonblocking_json_response($graph, \&deauthenticate_user, shift);
+        },
+        '/dsn' => sub {
             $backend->psgi_text_response(200, 'plain', $backend->dsn, shift);
         },
         '/stop' => sub {
@@ -752,367 +897,929 @@ sub _get_steplimit {
 }
 
 # "page" subs
-sub status {
-    my $req = shift;
+sub authenticate_via_pam {
+    my $args = shift;
     
-    my $opts = $backend->req_to_opts($req, ['setup!PipelineSetup']);
-    $opts->{'_multiple_setups'} = 1;
-    my $list            = $opts->{list};
-    my $incomplete_only = $opts->{incomplete};
-    my $brief           = $opts->{brief};
-    my $show_steps      = $brief ? 0 : $opts->{show_steps};
-    my $defunct_only    = $opts->{defunct};
-    my $gs              = $opts->{global_summary};
-    if ($defunct_only) {
-        undef $list;
-        undef $incomplete_only;
-        undef $brief;
-        $opts->{deactivated} = 1;
-    }
-    my $deactivated = $opts->{deactivated} || 0;
+    my $auth_hash = { user => $args->{authenticated_user} };
     
-    my $xml = '<title>Current status of PipelineSetups</title>';
-    
-    # $xml .= '<options><bool></bool></options>';
-    
-    my @setups = $backend->get_pipelinesetups($opts, $deactivated, $gs);
-    
-    if ($gs) {
-        my $do_single_ps = (@setups && @setups == 1 && ($deactivated ? 1 : $setups[0]->active)) ? $setups[0]->id : 0;
+    if (!$auth_hash->{user} && $args->{user} && $args->{password}) {
+        # user has supplied their username and password and wants to
+        # authenticate for the first time since we started up
+        my $user = $args->{user};
         
-        my $active                   = 0;
-        my $incomplete               = 0;
-        my $global_should_be_running = 0;
-        my $global_actually_running  = 0;
-        my $global_incomplete_des    = 0;
-        my $global_working_des       = 0;
-        my @lines;
-        foreach my $setup (VRPipe::PipelineSetup->search({ $deactivated ? () : (active => 1) })) {
-            $active++;
-            unless ($setup->currently_complete) {
-                $incomplete++;
-                
-                if ($do_single_ps) {
-                    next unless $setup->id == $do_single_ps;
+        # prevent rapid-fire brute-force login attempts; PAM itself
+        # probably prevents brute-force, but I don't know how it's
+        # configured, so I implement this myself
+        return $auth_hash unless $im->rate_limit('authenticate_via_pam.' . $user, punish_excess => 1);
+        
+        my $pam = Authen::Simple::PAM->new(service => "login");
+        if ($pam->authenticate($user, $args->{password})) {
+            # delete any existing session
+            my $session = $args->{vrpipe_session};
+            if ($session) {
+                $im->drop_session($session);
+            }
+            
+            # store the user (implying authentication success) in redis under
+            # a new session (using default lax expiry that allows a session to
+            # last for a working week if user loads a new page once per day and
+            # does not close their browser window)
+            $session = $im->create_session({ user => $user });
+            
+            # return json that says we're successful by presenting the validated
+            # username (just for client presentational purposes), and the
+            # vrpipe_session string which will be placed in the client's cookie
+            $auth_hash->{user}           = $user;
+            $auth_hash->{vrpipe_session} = $session;
+            $args->{authenticated_user}  = $user;
+        }
+    }
+    
+    return $auth_hash;
+}
+
+sub deauthenticate_user {
+    my $args    = shift;
+    my $session = $args->{vrpipe_session};
+    if ($session) {
+        $im->drop_session($session);
+        $args->{authenticated_user} = undef;
+    }
+    return { user => undef, vrpipe_session => '' };
+}
+
+sub graph {
+    my ($args, $method) = @_;
+    
+    my $data;
+    if ($method eq 'get_schema') {
+        my ($uniques, $indexed, $required) = $graph->get_schema(namespace => $args->{namespace}, label => $args->{label});
+        $data = { uniques => $uniques, indexed => $indexed, required => $required };
+    }
+    elsif ($method eq 'root_nodes') {
+        $data = { nodes => [$graph->root_nodes()] };
+    }
+    elsif ($method eq 'relations_of') {
+        $data = $graph->related({ id => $args->{start_node} }, undef, { min_depth => 0, max_depth => 1 }, { min_depth => 0, max_depth => $args->{depth} });
+    }
+    elsif ($method eq 'cypher_match') {
+        my $cypher = $args->{cypher};
+        if ($cypher =~ /\b(?:create|merge|set|delete|remove)\b/i) {
+            $data = { errors => ["Writing clauses are not allowed"] };
+        }
+        else {
+            $data = $graph->_run_cypher([[$cypher]]);
+        }
+    }
+    elsif ($method eq 'get_pages') {
+        $data = $pages;
+    }
+    else {
+        $data = { errors => ["Invalid graph method '$method'"] };
+    }
+    
+    return $data;
+}
+
+sub status {
+    my ($args, $method) = @_;
+    
+    my $data = {};
+    if ($method eq 'get_setup_ids_by_id_or_name') {
+        my $ids_or_name = $args->{ids_or_name};
+        if ($ids_or_name =~ /^[\d\s,]+$/) {
+            # it's one or more setup ids, check they're all valid
+            while ($ids_or_name =~ /(\d+)/g) {
+                my $id = $1;
+                my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
+                if ($setup) {
+                    push(@{ $data->{ids} }, $id);
                 }
-                
-                # do what the main --farm mode code does to decide what subs
-                # to handle
-                my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, scheduler => $scheduler->id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.id' => $setup->id, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['job', { stepstate => { stepmember => 'step' } }] });
-                
-                my (%step_limits, %step_counts, %completed_setups);
-                my $sub_count                     = 0;
-                my $skipped_due_to_failed         = 0;
-                my $skipped_due_to_block_and_skip = 0;
-                my $skipped_due_to_step_limit     = 0;
-                my $should_be_running             = 0;
-                my $actually_running              = 0;
-                while (my $subs = $sub_pager->next(no_resetting => 1)) {
-                    foreach my $sub (@$subs) {
-                        $sub_count++;
-                        
-                        if ($sub->_failed && $sub->retries >= 3) {
-                            $skipped_due_to_failed++;
-                            next;
+                else {
+                    push(@{ $data->{errors} }, "No setup with id $id was found.");
+                }
+            }
+        }
+        else {
+            # it's a setup name, search for matching setups
+            my @setups = VRPipe::PipelineSetup->search({ name => { like => '%' . $ids_or_name . '%' } });
+            if (@setups) {
+                $data->{ids} = [map { $_->id } @setups];
+            }
+            else {
+                $data->{errors} = ["No setups match the name '$ids_or_name'"];
+            }
+        }
+    }
+    elsif ($method eq 'get_setup_ids_by_user') {
+        my $user        = $args->{user};
+        my $incomplete  = $args->{incomplete};
+        my $deactivated = $args->{deactivated};
+        my @setups      = VRPipe::PipelineSetup->search({ $user eq 'all' ? () : (user => $user), $deactivated ? () : (active => 1) });
+        if ($incomplete) {
+            foreach my $setup (@setups) {
+                next if $setup->currently_complete;
+                push(@{ $data->{ids} }, $setup->id);
+            }
+        }
+        else {
+            $data->{ids} = [map { $_->id } @setups];
+        }
+        unless (defined $data->{ids} && @{ $data->{ids} }) {
+            my $complete_string = $incomplete ? ' incomplete' : '';
+            my $active_string = $deactivated ? '' : ($complete_string ? ', active' : ' active');
+            $data->{errors} = ["There are no$complete_string$active_string setups for user '$user'"];
+        }
+    }
+    elsif ($method eq 'get_setups') {
+        my $setups = $args->{setups};
+        if ($setups) {
+            my (@setups, %pipeline_details, %step_details, %datasource_details);
+            foreach my $id (sort { $a <=> $b } @$setups) {
+                my ($setup) = VRPipe::PipelineSetup->search({ id => $id });
+                if ($setup) {
+                    my $setup_data = { id => $id };
+                    
+                    # store simple things as parameters
+                    foreach my $col (qw(desired_farm user name active description output_root unix_group controlling_farm)) {
+                        my $val = $setup->$col();
+                        if ($col eq 'output_root') {
+                            $val = $val->stringify;
                         }
-                        
-                        my $job = $sub->job;
-                        if ($job->block_and_skip_if_ok) {
-                            my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
-                            unless ($first_sub && $first_sub->id == $sub->id) {
-                                $skipped_due_to_block_and_skip++;
-                                next;
-                            }
-                        }
-                        
-                        # global step limit handling
-                        my $step       = $sub->stepstate->stepmember->step;
-                        my $step_id    = $step->id;
-                        my $step_limit = _get_steplimit($step, \%step_limits, \%completed_setups, \%step_counts);
-                        if ($step_limit && $step_counts{$step_id} >= $step_limits{$step_id}) {
-                            $skipped_due_to_step_limit++;
-                            next;
-                        }
-                        
-                        $step_counts{$step_id}++;
-                        $should_be_running++;
-                        
-                        if ($job->locked) {
-                            $actually_running++;
-                        }
+                        $setup_data->{parameters}->{$col} = $val;
                     }
-                }
-                $global_should_be_running += $should_be_running;
-                $global_actually_running  += $actually_running;
-                
-                push(@lines, 'Setup ' . $setup->id . qq[ Submission status: incomplete=$sub_count; failed=$skipped_due_to_failed; blocking=$skipped_due_to_block_and_skip; limited=$skipped_due_to_step_limit; should be running=$should_be_running; actually running=$actually_running]);
-                
-                # do what the setups handler does to see if there are any
-                # stalled (submissionless, incomplete) dataelementstates
-                my $des_count      = VRPipe::DataElementState->search({ pipelinesetup => $setup->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
-                my $incomplete_des = 0;
-                my $working_des    = 0;
-                my $stalled_des    = 0;
-                my $ie_pager       = $setup->datasource->incomplete_element_states($setup, prepare => 0);
-                if ($ie_pager) {
-                    while (my $dess = $ie_pager->next) {
-                        foreach my $des (@$dess) {
-                            $incomplete_des++;
-                            my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $des->dataelement->id, 'stepstate.pipelinesetup' => $setup->id }, { join => 'stepstate' });
-                            
-                            my $working = 1;
-                            if ($have_subs) {
-                                my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $des->dataelement->id, 'stepstate.pipelinesetup' => $setup->id, '_done' => 1 }, { join => 'stepstate' });
-                                if ($complete_subs == $have_subs) {
-                                    $working = 0;
+                    
+                    # store options in their own hashref
+                    $setup_data->{options} = $setup->options();
+                    
+                    # store details of the datasource in its own hashref
+                    my $ds    = $setup->datasource();
+                    my $ds_id = $ds->id;
+                    unless (exists $datasource_details{$ds_id}) {
+                        my $ds_data = { id => $ds_id };
+                        
+                        foreach my $col (qw(id type method source)) {
+                            my $val = $ds->$col();
+                            $ds_data->{parameters}->{$col} = $val;
+                        }
+                        
+                        $ds_data->{options} = $ds->options();
+                        $datasource_details{$ds_id} = $ds_data;
+                    }
+                    $setup_data->{datasource} = $datasource_details{$ds_id};
+                    
+                    # store details of the pipeline in its own hashref
+                    my $p    = $setup->pipeline();
+                    my $p_id = $p->id;
+                    unless (exists $pipeline_details{$p_id}) {
+                        my $p_data = { id => $ds_id };
+                        
+                        foreach my $col (qw(id name description)) {
+                            my $val = $p->$col();
+                            $p_data->{properties}->{$col} = $val;
+                        }
+                        
+                        my $step_details = [{ id => 0, properties => { id => 0, name => 'DataSource', description => 'Input from the DataSource', max_simultaneous => 0 } }];
+                        foreach my $sm ($p->step_members) {
+                            my $s    = $sm->step();
+                            my $s_id = $s->id;
+                            unless (exists $step_details{$s_id}) {
+                                my $step_data = { id => $s_id };
+                                
+                                foreach my $col (qw(id name description max_simultaneous)) {
+                                    my $val = $s->$col();
+                                    $step_data->{properties}->{$col} = $val;
+                                }
+                                
+                                $step_data->{properties}->{inputs}  = [keys %{ $s->inputs_definition() }];
+                                $step_data->{properties}->{outputs} = [keys %{ $s->outputs_definition() }];
+                                
+                                $step_details{$s_id} = $step_data;
+                            }
+                            push(@$step_details, $step_details{$s_id});
+                        }
+                        
+                        $p_data->{steps} = $step_details;
+                        $pipeline_details{$p_id} = $p_data;
+                    }
+                    $setup_data->{pipeline} = $pipeline_details{$p_id};
+                    my $num_steps = scalar(@{ $setup_data->{pipeline}->{steps} }) - 1;
+                    
+                    # store details of current progress through the pipeline in
+                    # a final hashref
+                    my ($progressions, $errors, $warnings);
+                    my $num_elements;
+                    my $incomplete_pager;
+                    
+                    eval {
+                        $num_elements = VRPipe::DataElementState->search({ pipelinesetup => $id, 'dataelement.datasource' => $ds_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+                        $incomplete_pager = $ds->incomplete_element_states($setup, prepare => 0);
+                    };
+                    if ($@ || !$incomplete_pager) {
+                        push(@$errors, "There is a problem with the DataSource for this setup, so no more information can be retrieved about it: $@\n");
+                        $setup_data->{status} = 'stalled';
+                    }
+                    else {
+                        my $num_incomplete = $incomplete_pager->total_entries;
+                        if ($num_incomplete) {
+                            my %status_hash;
+                            my $fully_complete = $num_elements - $num_incomplete;
+                            $status_hash{$num_steps} = $fully_complete if $fully_complete;
+                            my $num_steps_complete = $fully_complete * $num_steps;
+                            while (my $incompletes = $incomplete_pager->next) {
+                                foreach my $es (@$incompletes) {
+                                    my $completed_steps = $es->completed_steps;
+                                    $num_steps_complete += $completed_steps;
+                                    $status_hash{$completed_steps}++;
                                 }
                             }
-                            else {
-                                $working = 0;
-                            }
                             
-                            $working ? $working_des++ : $stalled_des++;
-                        }
-                    }
-                }
-                
-                $global_incomplete_des += $incomplete_des;
-                $global_working_des    += $working_des;
-                
-                push(@lines, 'Setup ' . $setup->id . qq[ DataElement status: total=$des_count; incomplete=$incomplete_des; working=$working_des; stalled=$stalled_des]);
-            }
-        }
-        
-        unless ($do_single_ps) {
-            unshift(@lines, qq[All setups: incomplete submissions=$global_should_be_running; submissions actually running=$global_actually_running; incomplete dataelements=$global_incomplete_des; working dataelements=$global_working_des]);
-        }
-        unshift(@lines, 'Total active' . ($deactivated ? ' and deactivated' : '') . qq[ setups=$active; Total incomplete setups=$incomplete]);
-        
-        $xml .= join('', map { '<response_line>' . $_ . '</response_line>' } @lines);
-        return $xml;
-    }
-    
-    if (@setups) {
-        my @objects;
-        foreach my $setup (@setups) {
-            my $object;
-            foreach my $attr (qw(id name user active)) {
-                $object .= $backend->xml_tag('attribute', $setup->$attr(), qq[name="$attr"]);
-            }
-            
-            if ($list) {
-                push(@objects, $object);
-                next;
-            }
-            
-            my $datasource = $setup->datasource;
-            my $num_elements;
-            my $incomplete_pager;
-            my $ps_id = $setup->id;
-            eval {
-                $num_elements = VRPipe::DataElementState->search({ pipelinesetup => $setup->id, 'dataelement.datasource' => $datasource->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
-                $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
-            };
-            my $ds_error = $@;
-            if ($ds_error || !$incomplete_pager) {
-                $ds_error ||= 'Could not create an incomplete_element_states pager for setup ' . $setup->id;
-                if ($defunct_only) {
-                    #*** due to prepare => 0 above, this will never happen, but
-                    #    to prepare => 1 in $defunct_only mode would be too slow
-                    my $prob = $ds_error ? 'a bad datasource' : 'no dataelements';
-                    $object .= $backend->xml_tag('attribute', "This has $prob; investigate with [vrpipe-status --setup $ps_id] and consider deleting it with [vrpipe-setup --setup $ps_id --delete]", qq[name="problems"]);
-                }
-                else {
-                    $object .= $backend->xml_tag('attribute', "There is a problem with the DataSource for this pipeline, so no more information can be retrieved about it.\n$ds_error\n", qq[name="problems"]);
-                }
-                push(@objects, $object);
-                next;
-            }
-            
-            my $num_incomplete = $incomplete_pager->total_entries;
-            next if $incomplete_only && !$num_incomplete;
-            
-            if ($defunct_only) {
-                if ($num_incomplete && $setup->active == 0) {
-                    $object .= $backend->xml_tag('attribute', "This is inactive but has $num_incomplete incomplete dataelements; if this setup was started but then abandoned (due to an error setting it up, or it being replaced by another setup) consider deleting it with [vrpipe-setup --setup $ps_id --delete]", qq[name="problems"]);
-                    push(@objects, $object);
-                }
-                next;
-            }
-            
-            my $pipeline     = $setup->pipeline;
-            my $step_members = $pipeline->step_members;
-            unless ($brief) {
-                # pipeline details
-                $object .= '<attribute name="pipeline"><object class="Pipeline" display_mode="full">';
-                foreach my $attr (qw(id name description)) {
-                    $object .= $backend->xml_tag('attribute', $pipeline->$attr(), qq[name="$attr"]);
-                }
-                $object .= $backend->xml_tag('attribute', $step_members, q[name="num_steps"]);
-                $object .= '</object></attribute>';
-                
-                if ($show_steps) {
-                    # pipeline step details
-                    $object .= '<attribute name="steps">';
-                    my (%steps, @step_order);
-                    foreach my $sm ($pipeline->step_members) {
-                        my $step_num = $sm->step_number;
-                        my $step     = $sm->step;
-                        my $name     = $step->name;
-                        my $inputs   = join(', ', keys %{ $step->inputs_definition || {} }) || '';
-                        my $outputs  = join(', ', keys %{ $step->outputs_definition || {} }) || '';
-                        my $step_id  = "$step_num.$name";
-                        $steps{$step_id} = "Description: " . $step->description . "; Inputs: $inputs; Outputs: $outputs";
-                        push(@step_order, $step_id);
-                    }
-                    $object .= $backend->hash_to_xml(\%steps, \@step_order);
-                    $object .= '</attribute>';
-                }
-                
-                # setup options and output root
-                my $ps_opts = $setup->options;
-                $object .= '<attribute name="options">';
-                if (keys %$ps_opts) {
-                    $object .= $backend->hash_to_xml($ps_opts);
-                }
-                else {
-                    $object .= '(used with default/no options)';
-                }
-                $object .= '</attribute>';
-                $object .= $backend->xml_tag('attribute', $setup->output_root->stringify, q[name="output_root"]);
-                $object .= $backend->xml_tag('attribute', $setup->unix_group || 'default', q[name="unix_group"]);
-                
-                # datasource details
-                $object .= '<attribute name="datasource"><object class="DataSource" display_mode="full">';
-                foreach my $attr (qw(id type method source)) {
-                    $object .= $backend->xml_tag('attribute', $datasource->$attr(), qq[name="$attr"]);
-                }
-                my $ds_opts = $datasource->options;
-                $object .= '<attribute name="options">';
-                if (keys %$ds_opts) {
-                    $object .= $backend->hash_to_xml($ds_opts);
-                }
-                else {
-                    $object .= '(used with default/no options)';
-                }
-                $object .= '</attribute>';
-                $object .= '</object></attribute>';
-            }
-            
-            $object .= $backend->xml_tag('attribute', $num_elements,   q[name="elements_total"]);
-            $object .= $backend->xml_tag('attribute', $num_incomplete, q[name="elements_incomplete"]);
-            if ($num_incomplete) {
-                my %status_hash;
-                my $fully_complete = $num_elements - $num_incomplete;
-                $status_hash{$step_members} = $fully_complete;
-                my $num_steps_complete = $fully_complete * $step_members;
-                while (my $incompletes = $incomplete_pager->next) {
-                    foreach my $es (@$incompletes) {
-                        my $completed_steps = $es->completed_steps;
-                        $num_steps_complete += $completed_steps;
-                        $status_hash{$completed_steps}++;
-                    }
-                }
-                $object .= '<attribute name="steps_completed">' . $backend->hash_to_xml(\%status_hash, [sort { my ($ay) = $a =~ /^(\d+)/; my ($be) = $b =~ /^(\d+)/; $ay <=> $be } keys %status_hash]) . '</attribute>';
-                
-                my $steps_to_complete = $num_elements * $step_members;
-                my $percent_complete = sprintf("%0.2f", (100 / $steps_to_complete) * $num_steps_complete);
-                $object .= $backend->xml_tag('attribute', "$percent_complete\%", qq[name="completion" explanation="Pipeline currently $percent_complete\% complete ($num_steps_complete / $steps_to_complete steps completed)"]);
-                
-                my $farm = $setup->controlling_farm;
-                if ($farm) {
-                    my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
-                    if (!$farm_server || !$farm_server->locked) {
-                        $object .= $backend->xml_tag('attribute', "WARNING! setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm is currently alive", q[name="problems"]);
-                    }
-                }
-                
-                my $pager = VRPipe::Submission->search_paged({ "_done" => 0, 'stepstate.pipelinesetup' => $setup->id, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => 'dataelement' }, prefetch => 'job' });
-                my %sub_stats;
-                while (my $subs = $pager->next(no_resetting => 1)) {
-                    foreach my $sub (@$subs) {
-                        next if $sub->done;
-                        my $sub_state = $sub->failed ? 'failed' : 'scheduled';
-                        if ($sub_state eq 'scheduled') {
-                            my $job = $sub->job;
-                            $sub_state = $job->end_time ? 'processing' : ($job->locked ? 'running' : 'pending');
-                        }
-                        $sub_stats{$sub_state}++;
-                    }
-                }
-                if (keys %sub_stats) {
-                    $object .= '<attribute name="submission_state">' . $backend->hash_to_xml(\%sub_stats, [qw(running processing pending failed)]) . '</attribute>';
-                    if (keys %sub_stats == 1 && exists $sub_stats{failed}) {
-                        my $failed = $sub_stats{failed};
-                        if ($failed >= $num_incomplete) {
-                            $object .= $backend->xml_tag('attribute', "WARNING! It looks like this setup may be STALLED due to repeated failures.\nInvestigate using: vrpipe-submissions --setup " . $setup->id . " --failed", q[name="problems"]);
-                        }
-                    }
-                }
-                else {
-                    # well, what is happening to this setup then? probably we
-                    # have the same submissions as some other setup
-                    $incomplete_pager = $datasource->incomplete_element_states($setup, prepare => 0);
-                    my @step_members  = $pipeline->step_members;
-                    my $found_problem = 0;
-                    ESCHECKER: while (my $incompletes = $incomplete_pager->next) {
-                        foreach my $es (@$incompletes) {
-                            my $element         = $es->dataelement;
-                            my $completed_steps = $es->completed_steps;
-                            next if $completed_steps == $step_members;
-                            
-                            foreach my $member (@step_members) {
-                                my $step_number = $member->step_number;
-                                my ($state) = VRPipe::StepState->search({
-                                        stepmember    => $member,
-                                        dataelement   => $element,
-                                        pipelinesetup => $setup
-                                    }
-                                );
-                                next unless $state;
-                                next if $state->complete;
-                                
-                                my @submissions = $state->submissions;
-                                if (@submissions) {
-                                    my $other_state = $state->same_submissions_as;
-                                    if ($other_state) {
-                                        my $other_setup = $other_state->pipelinesetup->id;
-                                        if ($other_setup != $setup->id && $other_state->complete != 1) {
-                                            $object .= $backend->xml_tag('attribute', "Note: this setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
-                                            $found_problem = 1;
-                                            last ESCHECKER;
+                            my $had_subs = 0;
+                            my $failed   = 0;
+                            my $unknown  = 0;
+                            foreach my $step_num (sort { $a <=> $b } keys %status_hash) {
+                                my $completed_els = $status_hash{$step_num};
+                                if ($step_num < $num_steps) {
+                                    my $pager = VRPipe::Submission->search_paged({ '_done' => 0, 'stepstate.pipelinesetup' => $setup->id, 'stepmember.step_number' => $step_num + 1, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => ['dataelement', 'stepmember'] }, prefetch => ['job', 'stepstate'] });
+                                    my %sss;
+                                    my %ss;
+                                    while (my $subs = $pager->next(no_resetting => 1)) {
+                                        foreach my $sub (@$subs) {
+                                            $had_subs = 1;
+                                            my $sub_state;
+                                            if ($sub->done) {
+                                                $sub_state = 'complete';
+                                            }
+                                            else {
+                                                $sub_state = $sub->failed ? 'failed' : 'scheduled';
+                                                if ($sub_state eq 'scheduled') {
+                                                    my $job = $sub->job;
+                                                    $sub_state = $job->end_time ? 'processing' : ($job->locked ? 'running' : 'pending');
+                                                }
+                                            }
+                                            my $ss_id = $sub->stepstate->id;
+                                            $sss{$sub_state}->{$ss_id}++;
+                                            $ss{$ss_id} = 1;
                                         }
+                                    }
+                                    
+                                    my $unaccounted_for = $completed_els - scalar(keys %ss);
+                                    if ($unaccounted_for) {
+                                        push(@$progressions, { step => $step_num, num_elements => $unaccounted_for, percent => _percent_rounder((100 / $num_elements) * $unaccounted_for), status => 'unknown', setup => $id });
+                                        $unknown += $unaccounted_for;
+                                    }
+                                    
+                                    foreach my $state (qw(running processing pending failed)) {
+                                        my $ss_hash = $sss{$state} || next;
+                                        my $num_ss = scalar(keys %$ss_hash);
+                                        push(@$progressions, { step => $step_num + 1, num_elements => $num_ss, percent => _percent_rounder((100 / $num_elements) * $num_ss), status => $state, setup => $id });
+                                        $failed += $num_ss if $state eq 'failed';
                                     }
                                 }
                                 else {
-                                    $object .= $backend->xml_tag('attribute', "Note: currently processing step $step_number (" . $member->step->name . ").\nIt's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
-                                    $found_problem = 1;
-                                    last ESCHECKER;
+                                    push(@$progressions, { step => $step_num, num_elements => $completed_els, percent => _percent_rounder((100 / $num_elements) * $completed_els), status => 'complete', setup => $id });
+                                }
+                            }
+                            
+                            my $steps_to_complete = $num_elements * $num_steps;
+                            $setup_data->{progress_percent} = _percent_rounder((100 / $steps_to_complete) * $num_steps_complete);
+                            
+                            my $farm = $setup->controlling_farm;
+                            if ($farm) {
+                                my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
+                                if (!$farm_server) {
+                                    push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm exists.");
+                                }
+                                elsif (!$farm_server->locked) {
+                                    #*** this is broken, because dead detection
+                                    # is based on checking ->locked(), which is
+                                    # only asking the local redis server, while
+                                    # the server may be running somewhere
+                                    # physically else and have its own redis
+                                    # server. Detection must be based on a
+                                    # last_lock_time column in db...
+                                    #push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but the server for that farm seems dead.");
+                                }
+                            }
+                            
+                            if ($failed) { #  >= $num_incomplete
+                                #push(@$errors, "It looks like this setup may be STALLED due to repeated failures. Investigate using: vrpipe-submissions --setup " . $setup->id . " --failed");
+                                $setup_data->{status} = 'stalled';
+                            }
+                            elsif ($unknown) {
+                                $setup_data->{status} = 'unknown';
+                            }
+                            
+                            unless ($had_subs) {
+                                # well, what is happening to this setup then? probably we
+                                # have the same submissions as some other setup
+                                $incomplete_pager = $ds->incomplete_element_states($setup, prepare => 0);
+                                my @step_members  = $p->step_members;
+                                my $found_problem = 0;
+                                ESCHECKER: while (my $incompletes = $incomplete_pager->next) {
+                                    foreach my $es (@$incompletes) {
+                                        my $element         = $es->dataelement;
+                                        my $completed_steps = $es->completed_steps;
+                                        next if $completed_steps == $num_steps;
+                                        
+                                        foreach my $member (@step_members) {
+                                            my $step_number = $member->step_number;
+                                            my ($state) = VRPipe::StepState->search({
+                                                    stepmember    => $member,
+                                                    dataelement   => $element,
+                                                    pipelinesetup => $setup
+                                                }
+                                            );
+                                            next unless $state;
+                                            next if $state->complete;
+                                            
+                                            my @submissions = $state->submissions;
+                                            if (@submissions) {
+                                                my $other_state = $state->same_submissions_as;
+                                                if ($other_state) {
+                                                    my $other_setup = $other_state->pipelinesetup->id;
+                                                    if ($other_setup != $setup->id && $other_state->complete != 1) {
+                                                        push(@$warnings, "This setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
+                                                        $found_problem = 1;
+                                                        last ESCHECKER;
+                                                    }
+                                                }
+                                            }
+                                            else {
+                                                # push(@$warnings, "Currently processing step $step_number (" . $member->step->name . "). It's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
+                                                # instead of giving a warning on the setup, user can get the actual error by clicking a progression
+                                                $found_problem = 1;
+                                                last ESCHECKER;
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                $setup_data->{status} = 'unknown';
+                                unless ($found_problem) {
+                                    push(@$warnings, "The setup hasn't completed but there are no submissions for it and I can't detect obvious problems; maybe it's in the middle of processing and something will happen soon.");
                                 }
                             }
                         }
+                        else {
+                            if ($num_elements == 0) {
+                                push(@$warnings, "Pipeline has no inputs to work on (yet?), so has done nothing.");
+                                $setup_data->{status} = 'unknown';
+                            }
+                            else {
+                                $setup_data->{progress_percent} = 100;
+                                $setup_data->{status}           = 'complete';
+                                $progressions = [{ step => $num_steps, num_elements => $num_elements, percent => 100, status => 'complete', setup => $id }];
+                            }
+                        }
                     }
+                    $setup_data->{errors}   = $errors;
+                    $setup_data->{warnings} = $warnings;
+                    $setup_data->{status} ||= 'ok';
                     
-                    $object .= $backend->xml_tag('attribute', "Note: the setup hasn't completed but there are no submissions for it and I can't detect obvious problems; maybe it's in the middle of processing and something will happen soon.") unless $found_problem;
-                }
-            }
-            else {
-                if ($num_elements == 0) {
-                    $object .= '<attribute name="completion" explanation="Pipeline has no inputs to work on (yet?), so has done nothing.">n/a</attribute>';
+                    unless ($progressions && @$progressions) {
+                        $setup_data->{progress_percent} ||= 0;
+                        if ($num_elements) {
+                            $progressions = [{ step => 0, num_elements => $num_elements, percent => 100, status => 'unknown', setup => $id }];
+                        }
+                        else {
+                            $progressions = [{ step => 0, num_elements => 0, percent => 0, status => 'unknown', setup => $id }];
+                        }
+                    }
+                    $setup_data->{progressions} = $progressions;
+                    
+                    push(@setups, $setup_data);
                 }
                 else {
-                    $object .= '<attribute name="completion" explanation="Pipeline currently 100% complete!">100%</attribute>';
+                    push(@{ $data->{errors} }, "No setup with id $id was found.");
                 }
             }
             
-            push(@objects, $object);
+            $data = \@setups;
         }
-        
-        if (@objects) {
-            my $mode = $list ? 'list' : ($brief ? 'brief' : ($defunct_only ? 'defunct' : 'full'));
-            $xml .= '<objects>' . join('', map { qq[<object class="PipelineSetup" display_mode="$mode">] . $_ . '</object>' } @objects) . '</objects>';
+        else {
+            $data->{errors} = ["setups must be supplied to get_setups()"];
         }
     }
+    elsif ($method eq 'step_progression_details') {
+        my $setup = $args->{setup};
+        my $step  = $args->{step};
+        my $type  = $args->{type};
+        if ($setup && defined $step) {
+            my $search_args = {
+                $type eq 'failed' ? ('_failed' => 1, '_done' => 0) : ('_done' => $type eq 'complete' ? 1 : 0),
+                'stepstate.pipelinesetup' => $setup,
+                'stepmember.step_number'  => $step
+            };
+            my $search_join_args = ['stepstate', { stepstate => { stepmember => 'step' } }];
+            my $max_subs = 1000;
+            
+            my @subs =
+              $step
+              ? VRPipe::Submission->search(
+                $search_args,
+                {
+                    order_by => { -desc => 'me.id' },
+                    rows     => $max_subs,
+                    join     => $search_join_args,
+                    prefetch => [qw(stepstate job requirements scheduler)]
+                }
+              )
+              : ();
+            
+            $data->{setup}    = $setup;
+            $data->{step_num} = $step;
+            
+            if (@subs) {
+                # get details for an example sub
+                my $sub       = $subs[0];
+                my $state     = $sub->stepstate;
+                my $stepm     = $state->stepmember;
+                my $step_num  = $stepm->step_number;
+                my $job       = $sub->job;
+                my $req       = $sub->requirements;
+                my $sub_state = $sub->done ? 'done' : ($sub->failed ? 'failed' : 'scheduled');
+                
+                $data->{setup_name} = $state->pipelinesetup->name;
+                $data->{step_name}  = $stepm->step->name;
+                
+                my $example_sub_data = {};
+                $example_sub_data->{submission_state}       = $sub_state;
+                $example_sub_data->{submission_id}          = $sub->id;
+                $example_sub_data->{job_id}                 = $job->id;
+                $example_sub_data->{dataelement_id}         = $state->dataelement->id;
+                $example_sub_data->{submission_retries}     = $sub->retries;
+                $example_sub_data->{job_state}              = $job->end_time ? 'finished' : ($job->start_time ? 'running' : 'pending');
+                $example_sub_data->{job_host}               = $job->host if defined $job->host;
+                $example_sub_data->{job_exit_code}          = $job->exit_code if defined $job->exit_code;
+                $example_sub_data->{job_cmd}                = $job->cmd;
+                $example_sub_data->{job_dir}                = $job->dir->stringify;
+                $example_sub_data->{submission_reserved_mb} = $req->memory;
+                my $rsecs = $req->time();
+                $example_sub_data->{submission_reserved_seconds} = $rsecs;
+                $example_sub_data->{submission_reserved_time}    = _seconds_to_friendly($rsecs);
+                
+                if ($job->wall_time) {
+                    my $mem = $job->peak_memory || '??';
+                    my $sec = $job->wall_time;
+                    $example_sub_data->{job_actual_mb}      = $mem;
+                    $example_sub_data->{job_actual_seconds} = $sec;
+                    $example_sub_data->{job_actual_time}    = _seconds_to_friendly($sec);
+                }
+                
+                my $stdout = _submission_std($sub->job_stdout);
+                if ($stdout && @$stdout) {
+                    $example_sub_data->{job_stdout} = $stdout;
+                }
+                
+                my $stderr = _submission_std($sub->job_stderr);
+                if ($stderr && @$stderr) {
+                    $example_sub_data->{job_stderr} = $stderr;
+                }
+                
+                $data->{example_submission} = $example_sub_data;
+                
+                # get a summary of all the subs (we don't use StepStats since
+                # we want stats particular to this particular set of @subs)
+                my $num_subs = scalar(@subs);
+                if ($num_subs == $max_subs) {
+                    # get the real count quickly
+                    $num_subs = VRPipe::Submission->search($search_args, { join => $search_join_args });
+                    if ($num_subs > $max_subs) {
+                        $num_subs .= " (stats are for the latest $max_subs subs)";
+                    }
+                }
+                my $submission_summary = { num_submissions => $num_subs };
+                
+                my (@rmbs, @rsecs, @ambs, @asecs);
+                foreach my $sub (@subs) {
+                    my $req = $sub->requirements;
+                    push(@rmbs,  $req->memory);
+                    push(@rsecs, $req->time);
+                    
+                    my $job = $sub->job;
+                    push(@ambs,  $job->peak_memory) if $job->peak_memory;
+                    push(@asecs, $job->wall_time)   if $job->wall_time;
+                }
+                
+                $submission_summary->{reserved_mb_percentile}   = _percentile(\@rmbs);
+                $submission_summary->{reserved_mb_mean}         = _mean(\@rmbs);
+                $submission_summary->{reserved_sec_percentile}  = _percentile(\@rsecs);
+                $submission_summary->{reserved_time_percentile} = _seconds_to_friendly($submission_summary->{reserved_sec_percentile});
+                $submission_summary->{reserved_sec_mean}        = _mean(\@rsecs);
+                $submission_summary->{reserved_time_mean}       = _seconds_to_friendly($submission_summary->{reserved_sec_mean});
+                
+                if (@ambs) {
+                    $submission_summary->{actual_mb_percentile} = _percentile(\@ambs);
+                    $submission_summary->{actual_mb_mean}       = _mean(\@ambs);
+                }
+                if (@asecs) {
+                    $submission_summary->{actual_sec_percentile}  = _percentile(\@asecs);
+                    $submission_summary->{actual_time_percentile} = _seconds_to_friendly($submission_summary->{actual_sec_percentile});
+                    $submission_summary->{actual_sec_mean}        = _mean(\@asecs);
+                    $submission_summary->{actual_time_mean}       = _seconds_to_friendly($submission_summary->{actual_sec_mean});
+                }
+                
+                $data->{submission_summary} = $submission_summary;
+            }
+            else {
+                # there are no submissions, try and get at an error
+                my $setup_obj = VRPipe::PipelineSetup->get(id => $setup);
+                $data->{setup_name} = $setup_obj->name;
+                
+                # get the step name and step member of the next step
+                my $pipeline = $setup_obj->pipeline;
+                my @sms      = $pipeline->step_members;
+                my $step_member;
+                foreach my $sm (@sms) {
+                    my $num = $sm->step_number;
+                    if ($num == $step) {
+                        $data->{step_name} = $sm->step->name;
+                    }
+                    elsif ($num == $step + 1) {
+                        $step_member = $sm;
+                        last;
+                    }
+                }
+                $data->{step_name} ||= 'datasource';
+                
+                # try and trigger an incomplete element through the next
+                # step
+                my ($des) = VRPipe::DataElementState->search({ pipelinesetup => $setup, completed_steps => $step, 'dataelement.withdrawn' => 0 }, { rows => 1, join => 'dataelement' });
+                if ($des) {
+                    my $element = $des->dataelement;
+                    
+                    my $step_state = VRPipe::StepState->create(
+                        stepmember    => $step_member,
+                        dataelement   => $element,
+                        pipelinesetup => $setup_obj
+                    );
+                    
+                    # work out which step inputs each step needs
+                    my %step_inputs;
+                    foreach my $adaptor (@{ $pipeline->adaptors || [] }) {
+                        my $hash = $adaptor->adaptor_hash || next;
+                        my %from_steps;
+                        while (my ($to_key, $from_keys) = each %{$hash}) {
+                            foreach my $from_step (values %{$from_keys}) {
+                                next unless $from_step;
+                                $from_steps{$from_step} = 1;
+                            }
+                        }
+                        if (keys %from_steps) {
+                            $step_inputs{ $adaptor->to_step } = [keys %from_steps];
+                        }
+                    }
+                    
+                    # work out the previous step outputs relevant to
+                    # the next step
+                    my %previous_step_outputs;
+                    foreach my $input_step_number (@{ $step_inputs{ $step + 1 } || [] }) {
+                        my $input_member = $sms[$input_step_number - 1];
+                        my ($input_ss) = VRPipe::StepState->search({ stepmember => $input_member, dataelement => $element, pipelinesetup => $setup_obj });
+                        my $input_step = $input_member->step(step_state => $input_ss);
+                        while (my ($key, $val) = each %{ $input_step->outputs() }) {
+                            $previous_step_outputs{$key}->{$input_step_number} = $val;
+                        }
+                    }
+                    
+                    my $parsable_step = $step_member->step(previous_step_outputs => \%previous_step_outputs, step_state => $step_state);
+                    my $parse_return;
+                    eval { $parse_return = $parsable_step->parse(); };
+                    my $error = $@ || $parse_return;
+                    if ($error) {
+                        $data->{progression_problem} = "Unable to parse the next step (DataElementState " . $des->id . "): $error";
+                    }
+                    else {
+                        $data->{progression_problem} = "Was able to parse the next step without error, so not sure why things are stalled - perhaps something will happen soon? (Or ask the admin to check DataElementState " . $des->id . ', DataElement ' . $element->id . ')';
+                    }
+                }
+                else {
+                    $data->{progression_problem} = "Most likely all data elements are withdrawn right now until the setup we depend on has completed.";
+                }
+            }
+        }
+        else {
+            $data->{errors} = ["setup and step must be supplied to step_progression_details()"];
+        }
+    }
+    else {
+        $data->{errors} = ["Invalid status method '$method'"];
+    }
     
-    return $xml;
+    return $data;
+}
+
+sub _percent_rounder {
+    my $percent = shift;
+    my $rounded_percent = sprintf("%0.2f", $percent);
+    if ($rounded_percent == 100 && $percent < 100) {
+        $rounded_percent = 99.99;
+    }
+    elsif ($rounded_percent == 0 && $percent > 0) {
+        $rounded_percent = 0.01;
+    }
+    return $rounded_percent;
+}
+
+sub _percentile {
+    my $list    = shift;
+    my $percent = shift || 95;
+    my @list    = sort { $b <=> $a } @$list;
+    @list = sort { $a <=> $b } @$list;
+    return $list[sprintf('%.0f', (0.95 * ($#list)))];
+}
+
+sub _mean {
+    my $list = shift;
+    my $sum;
+    foreach (@$list) {
+        $sum += $_;
+    }
+    return sprintf('%0.0f', $sum / @$list);
+}
+
+sub _seconds_to_friendly {
+    my $sec = shift;
+    if ($sec <= 60) {
+        return "$sec secs";
+    }
+    
+    my $days = int($sec / (24 * 60 * 60));
+    my $hrs            = ($sec / (60 * 60)) % 24;
+    my $mins           = ($sec / 60) % 60;
+    my $remaining_secs = $sec % 60;
+    my @friendly;
+    foreach ([$days, "$days days"], [$hrs, "$hrs hrs"], [$mins, "$mins mins"], [$remaining_secs, "$remaining_secs secs"]) {
+        if ($_->[0]) {
+            push(@friendly, $_->[1]);
+        }
+    }
+    return join(', ', @friendly);
+}
+
+sub _submission_std {
+    my $pars = shift || return;
+    my $file = $pars->file;
+    
+    my @outputs;
+    my $lines = $pars->parsed_record;
+    my @orig  = ();
+    my $got_output;
+    while ($pars->next_record) {
+        push(@orig, [@{ $pars->parsed_record }]);
+        my $num_lines = @$lines;
+        my @selected_lines;
+        if ($num_lines > 45) {
+            for (1 .. 10) {
+                push(@selected_lines, $lines->[$_ - 1]);
+            }
+            my $other_lines = $num_lines - 40;
+            push(@selected_lines, "\n[... $other_lines more lines in $file ...]\n\n");
+            for (($num_lines - 30) .. $num_lines) {
+                push(@selected_lines, $lines->[$_ - 1]);
+            }
+        }
+        else {
+            @selected_lines = @$lines;
+        }
+        
+        unless ($got_output) {
+            foreach my $line (@selected_lines) {
+                if ($line) {
+                    $got_output = 1;
+                    last;
+                }
+            }
+        }
+        
+        push(@outputs, \@selected_lines);
+    }
+    
+    return $got_output ? \@outputs : undef;
+}
+
+sub qc {
+    my ($args, $method) = @_;
+    
+    unless ($vrtrack) {
+        return { errors => ["Could not load up the VRTrack schema in the graph database; is it installed and working?"] };
+    }
+    
+    my $auth_user = $args->{authenticated_user};
+    unless ($auth_user) {
+        return { errors => ["You must be logged in to view the QC website."] };
+    }
+    
+    my $data;
+    if ($method eq 'qc_website_admin') {
+        my $admins = $args->{admins};
+        if ($admins) {
+            $admins =~ s/^\s+//;
+            $admins =~ s/\s+$//;
+        }
+        
+        my $group = $args->{group};
+        my (@group_admins, @group_qc_fail_reasons);
+        if ($group) {
+            my $g_admins = $args->{group_admins};
+            if (defined $g_admins) {
+                if ($g_admins) {
+                    foreach my $g_admin (split(/[\s,]+/, $g_admins)) {
+                        $g_admin =~ s/^\s+//;
+                        $g_admin =~ s/\s+$//;
+                        push(@group_admins, $g_admin);
+                    }
+                }
+                else {
+                    push(@group_admins, '');
+                }
+            }
+            
+            my $gqfr = $args->{group_qc_fail_reasons};
+            if (defined $gqfr) {
+                if ($gqfr) {
+                    foreach my $reason (split(/,/, $gqfr)) {
+                        $reason =~ s/^\s+//;
+                        $reason =~ s/\s+$//;
+                        push(@group_qc_fail_reasons, $reason);
+                    }
+                }
+                else {
+                    push(@group_qc_fail_reasons, '');
+                }
+            }
+        }
+        
+        $data = $vrtrack->administer_qc_web_interface(
+            user => $auth_user,
+            $admins ? (admins => [split(/[\s,]+/, $admins)]) : (),
+            @group_admins          ? (group => $group, group_admins          => \@group_admins)          : (),
+            @group_qc_fail_reasons ? (group => $group, group_qc_fail_reasons => \@group_qc_fail_reasons) : ()
+        );
+    }
+    elsif ($method eq 'labels') {
+        $data = $vrtrack->labels;
+    }
+    elsif ($method eq 'nodes_of_label') {
+        my $label = $args->{label};
+        if ($label) {
+            my $cypher_labels = $vrtrack->cypher_labels($label);
+            
+            my $cypher;
+            my $groups = $args->{groups};
+            if ($groups) {
+                my $params       = { group => { ids => $groups } };
+                my $group_labels = $vrtrack->cypher_labels('Group');
+                my $match        = "MATCH (group:$group_labels) WHERE id(group) IN {group}.ids";
+                
+                my $studies  = $args->{studies};
+                my $previous = 'group';
+                my ($donors, $samples);
+                if ($studies) {
+                    $params->{study}->{ids} = $studies;
+                    my $study_labels = $vrtrack->cypher_labels('Study');
+                    $match .= " MATCH (group)-->(study:$study_labels) WHERE id(study) IN {study}.ids";
+                    $previous = 'study';
+                    
+                    $donors = $args->{donors};
+                    if ($donors) {
+                        $params->{donor}->{ids} = $donors;
+                        my $donor_labels = $vrtrack->cypher_labels('Donor');
+                        $match .= " MATCH ($previous)-->(donor:$donor_labels) WHERE id(donor) IN {donor}.ids";
+                        $previous = 'donor';
+                    }
+                    
+                    $samples = $args->{samples};
+                    if ($samples) {
+                        $params->{sample}->{ids} = $samples;
+                        my $sample_labels = $vrtrack->cypher_labels('Sample');
+                        $match .= " MATCH ($previous)-->(sample:$sample_labels) WHERE id(sample) IN {sample}.ids";
+                        $previous = 'sample';
+                    }
+                }
+                
+                my $donor_special;
+                if ($label eq 'Donor') {
+                    # donor's just have meaningless ids; user will always want
+                    # to see the donor's control sample public name and the
+                    # most recent created_date of its member samples, so we will
+                    # add those as psuedo properties on the donor nodes; first
+                    # adjust the cypher to get the donor's samples
+                    my $dtsmc = $vrtrack->donor_to_sample_match_cypher('donor');
+                    $donor_special = "WITH donor $dtsmc";
+                }
+                
+                my $query;
+                if ($label eq 'Donor' && $donors) {
+                    $query = $donor_special;
+                }
+                elsif ($label eq 'Sample' && $samples) {
+                    $query = 'RETURN sample';
+                }
+                else {
+                    my $min_d = $args->{min_depth} || 1;
+                    my $max_d = $args->{max_depth} || 1;
+                    my $depth = "$min_d..$max_d";
+                    my $return = 'RETURN n';
+                    if ($donor_special) {
+                        $donor_special =~ s/donor/n/g;
+                        $return = $donor_special;
+                    }
+                    
+                    $query = "MATCH ($previous)-[*$depth]->(n:$cypher_labels) $return";
+                }
+                
+                $cypher = ["$match $query", $params];
+            }
+            else {
+                $cypher = ["MATCH (n:$cypher_labels) RETURN n"];
+            }
+            
+            my $graph_data = $graph->_run_cypher([$cypher]);
+            if ($label eq 'Donor') {
+                # we have sample nodes related to our donor nodes; figure out
+                # which samples belong to which donors, then add the relevant
+                # sample properties to the donor node
+                $data = $vrtrack->add_sample_info_to_donors($graph_data);
+            }
+            else {
+                if ($label eq 'Sample') {
+                    # convert created_date property from epoch to ymd
+                    foreach my $sample (@{ $graph_data->{nodes} }) {
+                        if (defined $sample->{properties}->{created_date}) {
+                            my $dt = DateTime->from_epoch(epoch => $sample->{properties}->{created_date});
+                            $sample->{properties}->{created_date} = $dt->ymd;
+                        }
+                    }
+                }
+                
+                $data = $graph_data->{nodes};
+            }
+        }
+        else {
+            $data = { errors => ["label must be supplied to nodes_of_label()"] };
+        }
+    }
+    elsif ($method eq 'node_by_id') {
+        my $id = $args->{node_id};
+        if ($id) {
+            my $label = $args->{label};
+            
+            if ($label) {
+                $data = $vrtrack->get_node_by_id_with_extra_info($label, $id);
+            }
+            else {
+                $data = $graph->get_node_by_id($id);
+            }
+        }
+        else {
+            $data = { errors => ["node_id must be supplied to node_by_id()"] };
+        }
+    }
+    elsif ($method eq 'donor_qc') {
+        my $donor = $args->{donor};
+        if ($donor) {
+            # get the information about which samples have been failed or
+            # selected, along with config info on who is allowed to change these
+            # and what reasons are allowed
+            my $status = $vrtrack->donor_sample_status($donor, $auth_user);
+            push(@$data, @$status) if $status;
+            
+            # get the gender info for all samples from this donor
+            my $g_results = $vrtrack->donor_gender_results($donor);
+            push(@$data, @$g_results) if $g_results;
+            
+            # get the discordance results between all samples from this donor
+            my $d_results = $vrtrack->donor_discordance_results($donor);
+            push(@$data, @$d_results) if $d_results;
+            
+            # get the copy number/polysomy/loh results for this donor
+            my $c_results = $vrtrack->donor_cnv_results($donor);
+            push(@$data, @$c_results) if $c_results;
+            
+            # get the pluritest results for this donor
+            my $p_results = $vrtrack->donor_pluritest_results($donor);
+            push(@$data, @$p_results) if $p_results;
+        }
+        else {
+            $data = { errors => ["donor node id must be supplied to donor_qc()"] };
+        }
+    }
+    elsif ($method eq 'sample_discordance') {
+        my $sample = $args->{sample};
+        if ($sample) {
+            # get the discordance results between this sample and all others,
+            # along with any donor info to apply to those other samples
+            $data = $vrtrack->sample_discordance_results($sample);
+        }
+        else {
+            $data = { errors => ["sample node id must be supplied to sample_discordance()"] };
+        }
+    }
+    else {
+        $data = { errors => ["Invalid qc method '$method'"] };
+    }
+    
+    return $data;
 }

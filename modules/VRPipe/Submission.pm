@@ -426,7 +426,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
     
     method start_over {
         my $ss = $self->stepstate;
-        $ss->pipelinesetup->log_event("Submission->start_over was called", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id, record_stack => 1);
+        #$ss->pipelinesetup->log_event("Submission->start_over was called", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id, record_stack => 1);
         
         # reset the job
         $self->_reset_job;
@@ -435,14 +435,14 @@ class VRPipe::Submission extends VRPipe::Persistent {
         $self->retries(0);
         $self->_reset;
         
-        $ss->pipelinesetup->log_event("Submission->start_over call returning", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id);
+        #$ss->pipelinesetup->log_event("Submission->start_over call returning", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $self->id, job => $self->job->id);
     }
     
     method _reset_job {
         my $job = $self->job;
         $job->reselect_values_from_db;
         if ($job->start_time && !$job->end_time) {
-            $self->stepstate->pipelinesetup->log_event("Submission->_reset_job() call will kill the currently running Job", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
+            #$self->stepstate->pipelinesetup->log_event("Submission->_reset_job() call will kill the currently running Job", dataelement => $self->stepstate->dataelement->id, stepstate => $self->stepstate->id, submission => $self->id, job => $self->job->id);
             $job->kill_job($self);
         }
         else {

@@ -54,11 +54,13 @@ class VRPipe::Config {
     use Cwd 'abs_path';
     use File::HomeDir;
     use Path::Class;
+    use Crypt::CBC;
     
     # we will suggest a default port that is randomly chosen from the "dynamic
     # range" block of ports 49152-65535, minus 20 to allow user to then have
     # multiple test server ports that are increments of their production port
     my $default_port = int(rand(16364)) + 49152;
+    my $crypt;
     
     my $question_number = 0;
     
@@ -307,6 +309,64 @@ class VRPipe::Config {
         question_number => ++$question_number
     );
     
+    has tls_dir => (
+        is              => 'rw',
+        question        => q[Where are (or should be) your server private TLS key and certificate files stored? (it is up to you to properly secure these files; they should only be readable by the user who will run vrpipe-server)],
+        question_number => ++$question_number
+    );
+    
+    has tls_key => (
+        is              => 'rw',
+        question        => q[What is the basename of your PEM-format server private TLS key file? (if it does not exist in the previously specified directory, a key will be generated the first time vrpipe-server is run)],
+        question_number => ++$question_number
+    );
+    
+    has tls_cert => (
+        is              => 'rw',
+        question        => q[What is the basename your PEM-format server TLS certificate file? (if it does not exist in the previously specified directory, a self-signed certificate will be generated the first time vrpipe-server is run)],
+        question_number => ++$question_number
+    );
+    
+    has production_neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your production neo4j server?',
+        question_number => ++$question_number
+    );
+    
+    has production_neo4j_user => (
+        is              => 'rw',
+        question        => 'What is the authenticating user of your production neo4j server?',
+        default         => 'neo4j',
+        question_number => ++$question_number
+    );
+    
+    has production_neo4j_password => (
+        is              => 'rw',
+        question        => 'What is the password for your production neo4j server?',
+        question_number => ++$question_number,
+        secure          => 1
+    );
+    
+    has testing_neo4j_server_url => (
+        is              => 'rw',
+        question        => 'What is the url of your testing neo4j server?',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_user => (
+        is              => 'rw',
+        question        => 'What is the authenticating user of your testing neo4j server?',
+        default         => 'neo4j',
+        question_number => ++$question_number
+    );
+    
+    has testing_neo4j_password => (
+        is              => 'rw',
+        question        => 'What is the password for your testing neo4j server?',
+        question_number => ++$question_number,
+        secure          => 1
+    );
+    
     has server_umask => (
         is              => 'rw',
         question        => 'When the VRPipe server runs, what should its file creation mask (umask) be?',
@@ -461,6 +521,31 @@ class VRPipe::Config {
         # the faster one since fewer hours may be used. Because of this we just
         # hard-code a preferred order that makes the most sense.
         return join(',', 't1.micro', 'c1.medium', 'm1.small', 'm1.medium', 'm1.large', 'm2.xlarge', 'm3.xlarge', 'c1.xlarge', 'm1.xlarge', 'm2.2xlarge', 'm3.2xlarge', 'm2.4xlarge');
+    }
+    
+    # this is not used internally here, but is for other modules that may want
+    # to encrypt and decrypt their own strings in a deterministic way
+    method crypter {
+        unless ($crypt) {
+            my $key_file = $self->encryption_key_file;
+            $key_file || $self->throw("No encryption_key_file configured");
+            open(my $fh, $key_file);
+            my $decryption_key = <$fh>;
+            $decryption_key || $self->throw("No decryption key found in encryption_key_file $key_file");
+            close($fh);
+            chomp($decryption_key);
+            $crypt = Crypt::CBC->new(
+                -key    => $decryption_key,
+                -cipher => 'Blowfish',
+                -header => 'salt',
+                # we have a fixed salt so that the same input string will always
+                # encrypt to the same output string; this is bad for security
+                # but necessary for the usage of this method - I don't see any
+                # way around this?
+                -salt => substr($decryption_key, 0, 8)
+            );
+        }
+        return $crypt;
     }
 }
 

@@ -3,10 +3,12 @@ use strict;
 use warnings;
 use Path::Class;
 use File::Spec;
+use Fcntl ':mode';
 use Parallel::ForkManager;
+use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 74;
+    use Test::Most tests => 97;
     use VRPipeTest;
 }
 
@@ -86,14 +88,34 @@ is $vrofile->lines, 3, 'raw_lines works correctly on a compressed file';
 
 # test copying, moving and symlinking files
 my $source_path = file($tmp_dir, 'source.txt');
-my $vrsource = VRPipe::File->create(path => $source_path, type => 'txt', metadata => { test => 'meta' });
+my $host        = hostname();
+my $is_author   = $host eq 'vr-2-2-02' && $ENV{VRPIPE_AUTHOR_TESTS};
+my $vrsource    = VRPipe::File->create(path => $source_path, type => 'txt', metadata => { test => 'meta' });
 $ofh = $vrsource->openw;
 print $ofh "foo\n";
 $vrsource->close;
 
-my $vrcopy = VRPipe::File->create(path => file($tmp_dir, 'copy.txt'));
+if ($is_author) {
+    # we'll change permission and group from defaults to later test that these
+    # things are kept when copying
+    system("chmod u+x $source_path; chgrp g1k $source_path; chmod o+rX $tmp_dir");
+}
+
+my $sub_dir = dir($tmp_dir, 'subdir');
+$vrsource->make_path($sub_dir);
+my $vrcopy = VRPipe::File->create(path => file($sub_dir, 'copy.txt'));
 $vrsource->copy($vrcopy);
 is_deeply [$vrsource->e, $vrcopy->e, $vrsource->md5, $vrcopy->md5], [1, 1, 'd3b07384d113edec49eaa6238ad5ff00', 'd3b07384d113edec49eaa6238ad5ff00'], 'copy of a file worked, and it updated the md5s';
+SKIP: {
+    skip "author-only tests", 3 unless $is_author;
+    ok -x $vrcopy->path, 'file permissions were carried over to the copied file';
+    my @stat = stat($vrcopy->path);
+    my ($group) = getgrgid($stat[5]);
+    is $group, 'g1k', 'file ownership was carried over to the copied file';
+    @stat = stat($sub_dir);
+    my $world_readable = $stat[2] & S_IROTH;
+    ok $world_readable, 'world readability of parent directory is maintained';
+}
 
 my $vrdest1 = VRPipe::File->create(path => file($tmp_dir, 'dest.txt'));
 my $vrdest2 = VRPipe::File->create(path => file($tmp_dir, 'dest2.txt'));
@@ -367,6 +389,51 @@ close($fh);
 ok $vrfile = VRPipe::File->create(path => $comma_file), 'could create a VRPipe::File when the path has a comma';
 $fh = $vrfile->openr;
 is <$fh>, "comma\n", 'could read from that file';
+
+# test protocols
+is $vrfile->protocol, 'file:/', 'files by default have a protocol of file:/';
+ok my $pfile = VRPipe::File->create(path => '/remote/file.txt', protocol => 'irods:'), 'could create a file with a protocol';
+is $pfile->path, 'irods:/remote/file.txt', 'path() returns the absolute path prefixed with the protocol for non-standard protocol files';
+my $pfile2 = VRPipe::File->get(path => '/remote/file.txt', protocol => 'irods:');
+my $pfile3 = VRPipe::File->create(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
+my $pfile4 = VRPipe::File->get(path => '/remote/file.txt', protocol => 'ftp://user:pass@server:port');
+is $pfile->id,   $pfile2->id, 'you can get a irods file when the abs path is duplicated';
+isnt $pfile->id, $pfile3->id, 'the duplicated path for a different protocol has a different id';
+is $pfile3->id,  $pfile4->id, 'having a password in the protocol does not stop you getting the correct file from the db';
+isnt $pfile4->{_column_data}->{protocol}, 'ftp://user:pass@server:port', 'the raw protocol in the db is encrypted';
+is $pfile4->path,              'ftp:/user:pass@server:port/remote/file.txt', 'path() works when the protocol had a password in it, doing decryption, though ftp:// becomes ftp:/';
+is $pfile4->basename,          'file.txt',                                   'passthrough Path::Class method basename works fine on protocol files';
+is $pfile4->protocolless_path, '/remote/file.txt',                           'protocolless_path() method works';
+throws_ok { $pfile4->cat_cmd } qr/Invalid implementation class/, 'using cat() on a file with ftp protocol causes a throw, because FileProtocol::ftp not yet implemented';
+is $pfile->cat_cmd, 'iget /remote/file.txt -', 'cat_cmd() works correctly on an irods file';
+my $pfile5 = VRPipe::File->create(path => '/remote/file.txt.gz', protocol => 'irods:');
+is $pfile5->cat_cmd, 'iget /remote/file.txt.gz - | gzip -dc', 'cat_cmd() works correctly on a compressed irods file';
+my $lfile = VRPipe::File->create(path => '/local/file.txt');
+is $lfile->cat_cmd, 'cat /local/file.txt', 'cat_cmd() works correctly on a local file';
+$lfile = VRPipe::File->create(path => '/local/file.txt.gz');
+is $lfile->cat_cmd, 'zcat /local/file.txt.gz', 'cat_cmd() works correctly on a compressed local file';
+SKIP: {
+    my $num_tests = 4;
+    skip "author-only tests for reading a file from irods", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
+    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
+    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    system("irm -fr $irods_root > /dev/null 2> /dev/null");
+    system("imkdir -p $irods_root");
+    system("iput -R $irods_resource t/data/file.txt $irods_root");
+    
+    my $real_irods_path = "$irods_root/file.txt";
+    my $real_irods_file = VRPipe::File->create(path => $real_irods_path, protocol => 'irods:');
+    is $real_irods_file->cat_cmd, "iget $real_irods_path -", 'cat_cmd() works on an irods file';
+    ok $fh = $real_irods_file->openr, 'openr() method worked on an irods file';
+    @lines = <$fh>;
+    is_deeply \@lines, ["a text file\n", "with two lines\n"], 'the filehandle really works on an irods file and let us read the file';
+    ok $real_irods_file->close, 'close() worked on an irods file';
+    
+    system("irm -fr $irods_root");
+}
+
+# test FileMethods hashed_dirs()
+is_deeply [$lfile->hashed_dirs('foo')], ['a', 'c', 'b', 'd18db4cc2f85cedef654fccc4a4d8'], 'hashed_dirs() works correctly';
 
 done_testing;
 exit;

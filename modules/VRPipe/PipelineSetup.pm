@@ -208,14 +208,16 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # don't trigger while datasource is updating, wait until we get the
         # lock
         my $datasource = $self->datasource;
-        $datasource->block_until_locked;
-        $self->reselect_values_from_db;
-        if ($self->datasource->id != $datasource->id) {
-            # (user might have changed the datasource while we were waiting)
-            $datasource->unlock;
-            return;
+        unless ($dataelement) {
+            $datasource->block_until_locked;
+            $self->reselect_values_from_db;
+            if ($self->datasource->id != $datasource->id) {
+                # (user might have changed the datasource while we were waiting)
+                $datasource->unlock;
+                return;
+            }
+            $datasource->maintain_lock;
         }
-        $datasource->maintain_lock;
         
         my $output_root = $self->output_root;
         $self->make_path($output_root);
@@ -640,7 +642,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             }
         }
         
-        $datasource->unlock;
+        $datasource->unlock unless $dataelement;
         
         $self->debug("trigger returning");
         return $error_message;
@@ -705,6 +707,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             if ($record_stack) {
                 warn $self->stack_trace, "\n";
             }
+        }
+        
+        # the msg can't be longer than 65535 chars or it will fail to be stored
+        # in the db. And actually, if its longer than a 1000 it's crazy, so we
+        # truncate
+        if (length($msg) > 1000) {
+            $msg = substr($msg, 0, 1000) . ' ...[truncated]...';
         }
         
         return VRPipe::PipelineSetupLog->create(

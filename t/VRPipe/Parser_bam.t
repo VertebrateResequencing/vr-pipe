@@ -4,7 +4,7 @@ use warnings;
 use Path::Class qw(file);
 
 BEGIN {
-    use Test::Most tests => 52;
+    use Test::Most tests => 57;
     use VRPipeTest (required_env => 'SAMTOOLS');
     
     use_ok('VRPipe::Parser');
@@ -35,6 +35,14 @@ is $pb2->sequence_info('2', 'LN'), 243199373, 'chrom length could be parsed from
 is $pb2->program_info('bwa', 'VN'), '0.5.5', 'program info could be parsed from bam file';
 is $pb2->readgroup_info('SRR035022', 'LB'), 'Solexa-16652', 'readgroup info could be parsed from bam file';
 is_deeply [$pb2->samples], ['NA06984'], 'could get all samples from bam file';
+
+my $pc2 = VRPipe::Parser->create('cram', { file => file(qw(t data file.cram)) });
+is $pc2->sam_version, '1.0', 'sam version could be parsed from cram file';
+is $pc2->sequence_info('2', 'LN'), 243199373, 'chrom length could be parsed from cram file';
+is $pc2->program_info('bwa', 'VN'), '0.5.5', 'program info could be parsed from cram file';
+is $pc2->readgroup_info('SRR035022', 'LB'), 'Solexa-16652', 'readgroup info could be parsed from cram file';
+is_deeply [$pc2->samples], ['NA06984'], 'could get all samples from cram file';
+
 my $num_records = 0;
 while ($pb2->next_record) {
     $num_records++;

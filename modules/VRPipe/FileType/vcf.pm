@@ -40,43 +40,24 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::FileType::vcf extends VRPipe::FileType::txt {
+class VRPipe::FileType::vcf extends VRPipe::FileType::hts {
     method check_type {
-        # we don't use txt type check, because we allow for compressed and
-        # uncompressed vcf files
-        
-        #*** worth doing something like checking the first line of file?
-        my $file = $self->file;
-        my $type = $self->type;
-        $file =~ s/\.gz$// unless $type eq 'gz';
-        if ($file =~ /\.(?:$type)$/) { #*** this sucks as a test...
-            return 1;
-        }
-        return 0;
+        return ($self->hts_file_type =~ /^VCF/) ? 1 : 0;
     }
     
-    method num_header_lines {
-        my $path   = $self->file;
-        my $vrfile = VRPipe::File->create(path => $path);
-        my $fh     = $vrfile->openr;
-        my $count  = 0;
-        while (<$fh>) {
-            if (/^#/) {
-                $count++;
-            }
-            else {
-                last;
-            }
-        }
-        $vrfile->close;
-        return $count;
+    method samples {
+        my $header_lines = $self->_header_lines;
+        $self->throw("No header lines found in, " . $self->file) unless (@$header_lines);
+        my @line = split(/\t/, ${ $self->_header_lines }[-1]);
+        my @samples = @line[9 .. $#line];
+        @samples || $self->throw("No samples found in " . $self->file);
+        return \@samples;
     }
     
-    around num_records {
-        my $total_lines  = $self->$orig();
-        my $header_lines = $self->num_header_lines;
-        return $total_lines - $header_lines;
+    method num_samples {
+        return scalar(@{ $self->samples });
     }
+
 }
 
 1;

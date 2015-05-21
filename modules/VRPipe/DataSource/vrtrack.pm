@@ -59,7 +59,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             return "An element will comprise the name of a lane (only).";
         }
         elsif ($method eq 'lane_bams') {
-            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
+            return "An element will comprise all the bams for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library. NB: This will also get lane cram files.";
         }
         elsif ($method eq 'lane_improved_bams') {
             return "An element will comprise all the bams output by the VRPipe improvement pipeline for a single lane, and the bam files will have all relevant available metadata associated with them. The group_by_metadata option takes a '|' separated list of metadata keys by which dataelements will be grouped. e.g. group_by_metadata => 'sample|platform|library' will group all bams with the same sample, platform and library into one dataelement. Valid keys are: project, study, species, population, individual, sample, platform and library.";
@@ -119,7 +119,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', '(type=0 or type=1 or type=2) and latest=true') });
         }
         elsif ($method eq 'lane_bams') {
-            push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=4 and latest=true') });
+            push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', '(type=4 or type=6) and latest=true') });
         }
         elsif ($method eq 'lane_improved_bams') {
             push(@$lane_changes, @{ VRTrack::File->_all_values_by_field($vrtrack_source, 'md5', 'hierarchy_name', 'type=5 and latest=true') });
@@ -199,7 +199,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         $args{group_by_metadata} = $group_by_metadata if defined($group_by_metadata);
         
         # add to the argument list to filter on bam files
-        $args{'file_type'} = 4;
+        $args{'file_type'} = '4|6';
         return $self->_lane_files(%args);
     }
     
@@ -262,9 +262,7 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         unless (defined $file_type) {
             $self->throw("file_type is required");
         }
-        my ($file_type_key) = split('|', $file_type);
-        my $vrpipe_filetype = $file_type_to_type{$file_type_key};
-        my $local_root_dir  = delete $args{local_root_dir};
+        my $local_root_dir = delete $args{local_root_dir};
         unless ($file_type eq "5") {
             $self->throw("local_root_dir is required") unless $local_root_dir;
         }
@@ -288,10 +286,11 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
             
             my @files;
             foreach my $file (@{ $lane->files }) {
-                next unless $file->type =~ /^($file_type)$/;
+                my $this_type = $file->type;
+                next unless $this_type =~ /^($file_type)$/;
                 
                 my ($file_abs_path, $vrfile);
-                if ($file_type eq "5") {
+                if ($this_type eq "5") {
                     my $file_name = $file->name;
                     my ($fid) = $file_name =~ /VRPipe::File::(\d+)/;
                     $fid || $self->throw("file " . $file->id . " was type 5, but did not have a VRPipe::File name (was '$file_name')");
@@ -300,7 +299,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 else {
                     $file_abs_path = file($local_root_dir, $file->name)->stringify;
-                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $vrpipe_filetype)->original;
+                    $vrfile = VRPipe::File->create(path => $file_abs_path, type => $file_type_to_type{$this_type})->original;
+                }
+                
+                my $individual = $lane_info{individual_alias} || $lane_info{individual}; #*** should we make the alias preference an option?
+                if ($individual eq 'change_me') {
+                    $individual = $lane_info{individual};
                 }
                 
                 my $new_metadata = {
@@ -310,12 +314,12 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                     study        => $lane_info{study},
                     $lane_info{species} ? (species => $lane_info{species}) : (),
                     population  => $lane_info{population},
-                    individual  => $lane_info{individual_alias} || $lane_info{individual}, #*** should we make the alias preference an option?
+                    individual  => $individual,
                     sample      => $lane_info{sample},
                     platform    => $lane_info{seq_tech},
                     library     => $lane_info{library},
                     lane        => $lane_info{lane},
-                    withdrawn   => $lane_info{withdrawn} || 0,                             #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
+                    withdrawn   => $lane_info{withdrawn} || 0,   #*** we don't actually handle withdrawn files properly atm; if all withdrawn we shouldn't create the element...
                     insert_size => $lane_info{insert_size} || 0,
                     reads       => $file->raw_reads || 0,
                     bases       => $file->raw_bases || 0,
@@ -424,12 +428,13 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
         
         my $did = $self->_datasource_id;
         my @element_args;
+        my $anti_repeat_store = {};
         foreach my $result (@$results) {
             my $result_hash = { paths => $result->{paths}, $group_name => $result->{$group_name} };
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($result->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($result, \@changed_details);
+                $self->_start_over_elements_due_to_file_metadata_change($result, \@changed_details, $anti_repeat_store);
             }
         }
         $self->_create_elements(\@element_args);

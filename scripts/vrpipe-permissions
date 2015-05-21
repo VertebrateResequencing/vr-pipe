@@ -119,6 +119,26 @@ while (my $estates = $estates_pager->next) {
         # collect outputs
         my $element = $element_state->dataelement;
         $num_elements++;
+        
+        # get element input files (step "0")
+        if (exists $desired_steps{numbers}->{0}) {
+            my $files = $element->files;
+            
+            EFILE: foreach my $file (grep { $_->update_stats_from_disc; $_->e } map { $_->resolve } @$files) {
+                if ($filter) {
+                    my $meta = $file->metadata;
+                    foreach my $key (keys %filters) {
+                        my $val = $meta->{$key} || next EFILE;
+                        my $regex = $filters{$key};
+                        next EFILE unless $val =~ /$regex/;
+                    }
+                }
+                
+                $paths{ $file->path->stringify } = 1;
+            }
+        }
+        
+        # get step output files
         foreach my $stepm (@allowed_step_members) {
             my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
             $step_state || next;

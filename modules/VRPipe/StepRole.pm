@@ -45,9 +45,13 @@ role VRPipe::StepRole {
     use Digest::MD5;
     use VRPipe::StepStatsUtil;
     use VRPipe::Persistent::InMemory;
+    use VRPipe::Schema;
     use Cwd 'abs_path';
     use File::stat;
     use Fcntl qw(:mode);
+    
+    our $graph;
+    our $schema;
     
     method name {
         my $class = ref($self);
@@ -208,7 +212,9 @@ role VRPipe::StepRole {
         my $hashing_string = 'VRPipe::DataElementState::' . $des_id;
         my @subdirs        = $self->hashed_dirs($hashing_string);
         
-        return dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number . '_' . $self->name);
+        my $dir = dir($pipeline_root, @subdirs, $de_id, $step_state->stepmember->step_number . '_' . $self->name);
+        $self->make_path($dir);
+        return $dir;
     }
     
     method _build_last_output_dir {
@@ -447,30 +453,40 @@ role VRPipe::StepRole {
         # (in inputs_mode we do not have to check file existence and type since
         # inputs() already did that)
         
+        my %file_type_objs;
+        
         my (@missing, @messages, %missing_metadata);
         # check the files we actually need/output are as expected
         while (my ($key, $val) = each %$hash) {
             my $def     = $defs->{$key};
             my $check_s = 1;
+            my @required_metadata_keys;
             if ($def && $def->isa('VRPipe::StepIODefinition')) {
-                $check_s = $def->check_existence;
+                $check_s                = $def->check_existence;
+                @required_metadata_keys = $def->required_metadata_keys;
             }
             
             foreach my $file (@$val) {
                 my $resolved = $inputs_mode ? $file : $file->resolve;
                 
+                my $ignore_s = 0;
+                if ($check_s && $file->protocol ne 'file:/') {
+                    # we can't check the existence of non-local files
+                    $ignore_s = 1;
+                }
+                
                 # we may be in a situation where $file has been moved elsewhere
                 # in the past, but now we've recreated a possibly different
                 # $file, so $resolved is out-of-date (or possibly doesn't exist
                 # any more)
-                if ($check_s && !$inputs_mode) {
+                if (!$ignore_s && $check_s && !$inputs_mode) {
                     # double-check incase the step did not update_stats_from_disc
-                    my $actual_s   = -s $resolved->path;
+                    my $actual_s   = $resolved->check_file_size_on_disc();
                     my $resolved_s = $resolved->s;
                     if ((defined $actual_s && defined $resolved_s && $actual_s != $resolved_s) || (!defined $actual_s && $resolved_s) || (defined $actual_s && !defined $resolved_s)) {
-                        $resolved->update_stats_from_disc(retries => 1);
+                        $resolved->update_stats_from_disc(keep_stat_cache => 1);
                     }
-                    $file->update_stats_from_disc(retries => 1) unless $resolved->id == $file->id;
+                    $file->update_stats_from_disc(keep_stat_cache => 1) unless $resolved->id == $file->id;
                 }
                 if ($file->e && (!$resolved->s || $file->mtime > $resolved->mtime)) {
                     $file->moved_to(undef);
@@ -478,16 +494,22 @@ role VRPipe::StepRole {
                     $resolved = $file;
                 }
                 
-                if ($check_s && !$resolved->s) {
+                if (!$ignore_s && $check_s && !$resolved->s) {
                     push(@missing, $file->path);
                     push(@messages, $file->path . ($resolved->e ? " is an empty file." : " does not exist."));
                 }
                 else {
                     my $bad = 0;
                     
-                    # check the filetype is correct
-                    if ($check_s && !$inputs_mode) {
-                        my $type = VRPipe::FileType->create($resolved->type, { file => $resolved->path });
+                    # check the filetype is correct (except for temp files,
+                    # since the check is expensive)
+                    if (!$ignore_s && $check_s && !$inputs_mode && $key ne 'temp') {
+                        my $type_str = $resolved->type;
+                        unless (exists $file_type_objs{$type_str}) {
+                            $file_type_objs{$type_str} = VRPipe::FileType->create($type_str, { file => 'to_be_replaced' });
+                        }
+                        my $type = $file_type_objs{$type_str};
+                        $type->file($resolved->path);
                         unless ($type->check_type) {
                             push(@messages, $resolved->path . " exists, but is the wrong type (not a " . $resolved->type . " file)!");
                             $bad = 1;
@@ -495,16 +517,13 @@ role VRPipe::StepRole {
                     }
                     
                     # check the expected metadata keys exist
-                    if ($def && $def->isa('VRPipe::StepIODefinition')) {
-                        my @needed = $def->required_metadata_keys;
-                        if (@needed) {
-                            my $meta = $file->metadata;
-                            foreach my $key (@needed) {
-                                unless (exists $meta->{$key}) {
-                                    push(@messages, $file->path . " exists, but lacks required metadata key $key!");
-                                    $bad = 1;
-                                    $missing_metadata{ $file->path } = 1;
-                                }
+                    if (@required_metadata_keys) {
+                        my $meta = $file->metadata;
+                        foreach my $key (@required_metadata_keys) {
+                            unless (exists $meta->{$key}) {
+                                push(@messages, $file->path . " exists, but lacks required metadata key $key!");
+                                $bad = 1;
+                                $missing_metadata{ $file->path } = 1;
                             }
                         }
                     }
@@ -550,7 +569,7 @@ role VRPipe::StepRole {
         return $self->_missing($hash, $defs);
     }
     
-    method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Bool :$temporary = 0) {
+    method output_file (Str :$output_key?, File|Str :$basename!, FileType :$type!, Dir|Str :$output_dir?, Dir|Str :$sub_dir?, HashRef :$metadata?, Str :$protocol?, Bool :$temporary = 0) {
         if (!$temporary && !$output_key) {
             $self->throw("output_key is required");
         }
@@ -564,10 +583,15 @@ role VRPipe::StepRole {
             $output_dir = dir($output_dir, $sub_dir);
         }
         $self->throw("output_dir must be absolute ($output_dir)") unless $output_dir->is_absolute;
-        $self->make_path($output_dir); #*** repeated, potentially unecessary filesystem access...
-        $self->_last_output_dir($output_dir);
+        if (!$protocol || ($protocol eq 'file:/')) {
+            my $lod = $self->_last_output_dir;
+            if (!defined $lod || ($lod ne $output_dir)) {
+                $self->make_path($output_dir);
+                $self->_last_output_dir($output_dir);
+            }
+        }
         
-        my $vrfile = VRPipe::File->create(path => file($output_dir, $basename), type => $type);
+        my $vrfile = VRPipe::File->create(path => file($output_dir, $basename), type => $type, $protocol ? (protocol => $protocol) : ());
         $vrfile->add_metadata($metadata) if $metadata;
         
         if ($temporary) {
@@ -1030,6 +1054,79 @@ role VRPipe::StepRole {
         }
         
         return $override_options;
+    }
+    
+    # a step can use normal VRPipe::Schema methods to create whatever graph
+    # nodes it likes to store some results, but these will not be associated
+    # with the stepstate (the pipelinesetup, datalement and step) that created
+    # them; supplying the result nodes to this sub (either in the body_sub where
+    # we created the Step as an instance with step_state passed to new(), or
+    # while running as a Job from code made by dispatch_vrpipecode/wrapped_cmd
+    # where we can find out the stepstate id from an env var) will give the
+    # desired association
+    method result_nodes (ClassName|Object $self: ArrayRef $nodes, Object $ss?) {
+        $schema ||= VRPipe::Schema->create('VRPipe');
+        
+        unless ($ss) {
+            if (defined $ENV{VRPIPE_STEPSTATE}) {
+                $ss = VRPipe::StepState->get(id => $ENV{VRPIPE_STEPSTATE});
+            }
+            elsif (ref($self)) {
+                $ss = $self->step_state;
+            }
+            else {
+                return;
+            }
+        }
+        
+        # if and when we stop using MySQL and switch completely to the graph db,
+        # there will already be a stepstate node in the graph connected to
+        # pipelinesetup etc, but for now we'll create the appropriate hierarchy
+        # right now
+        my $schema_ss = $schema->ensure_state_hierarchy($ss);
+        
+        foreach my $result_node (@$nodes) {
+            $schema_ss->relate_to($result_node, 'result');
+        }
+    }
+    
+    # you can specify multiple inputs here, but only 1 output
+    #*** if this is an issue, this could be reimplemented to work with multiple
+    #     outputs as well...
+    method relate_input_to_output (ClassName|Object $self: Str|Object|ArrayRef[Str|Object] $input, Str $type, Str|Object $output, HashRef $output_file_meta?) {
+        $schema ||= VRPipe::Schema->create('VRPipe');
+        
+        my $output_file = ref($output) ? $output : $schema->add('File', { path => $output });
+        if ($output_file_meta) {
+            $output_file->add_properties($output_file_meta);
+        }
+        
+        my (@input_hash_specs, @inputs);
+        foreach my $input ((ref($input) && ref($input) eq 'ARRAY') ? @$input : ($input)) {
+            if (ref($input)) {
+                push(@inputs, $input);
+            }
+            else {
+                push(@input_hash_specs, { path => $input });
+            }
+        }
+        if (@input_hash_specs) {
+            push(@inputs, $schema->add('File', \@input_hash_specs));
+        }
+        
+        if (@inputs == 1) {
+            $inputs[0]->relate_to($output_file, $type);
+        }
+        else {
+            my @spec_list;
+            foreach my $input_file (@inputs) {
+                push(@spec_list, { from => $input_file, to => $output_file, type => $type });
+            }
+            $graph ||= VRPipe::Persistent::Graph->new();
+            $graph->create_mass_relationships(\@spec_list);
+        }
+        
+        $self->result_nodes([$output_file]);
     }
 }
 

@@ -5,11 +5,12 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 115;
+    use Test::Most tests => 146;
     use VRPipeTest;
     use TestPipelines;
     
     use_ok('VRPipe::DataSourceFactory');
+    use_ok('VRPipe::Schema');
 }
 
 # list
@@ -200,6 +201,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0]] }, { paths => [$fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'group_all',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => {}
@@ -214,6 +229,20 @@ is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe:
 
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_metadata',
+    method  => 'group_all',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata datasource with group_all method and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [@results, VRPipe::File->get(path => $fwm_paths[0])->metadata, VRPipe::File->get(path => $fwm_paths[1])->metadata], [{ paths => [$fwm_paths[0], $fwm_paths[1]] }, { %fwm_common_meta, sample => 'JB953', library => '4858080', lane => '7816_3#95' }, { %fwm_common_meta, sample => 'JB953', library => '4074406', lane => '7413_5#95' }], 'got correct results for fofn_with_metadata group_all + filtering, and the metadata on the files was correct';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
     method  => 'grouped_by_metadata',
     source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
     options => { metadata_keys => 'study|sample' }
@@ -225,6 +254,20 @@ foreach my $element (@{ get_elements($ds) }) {
     push(@results, result_with_inflated_paths($element));
 }
 is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[2]], group => 'ERP000979|JB951' }, { paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata';
+
+ok $ds = VRPipe::DataSource->create(
+    type    => 'fofn_with_metadata',
+    method  => 'grouped_by_metadata',
+    source  => file(qw(t data datasource.fofn_with_metadata))->absolute->stringify,
+    options => { metadata_keys => 'study|sample', filter => 'sample#JB953' }
+  ),
+  'could create a fofn_with_metadata grouped_by_metadata datasource and filter';
+
+@results = ();
+foreach my $element (@{ get_elements($ds) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+is_deeply [sort { $a->{group} cmp $b->{group} } @results], [{ paths => [$fwm_paths[0], $fwm_paths[1]], group => 'ERP000979|JB953' }], 'got correct results for fofn_with_metadata grouped_by_metadata + filtering';
 
 # sequence_index
 ok $ds = VRPipe::DataSource->create(
@@ -284,11 +327,12 @@ my $override = file(qw(t data wgs_calling_override_options))->absolute->stringif
 # genome chunking
 my $chunks = [{ chrom => 11, from => 1, to => 10000000, seq_no => 1, chunk_override_file => $override }, { chrom => 11, from => 10000001, to => 20000000, seq_no => 2, chunk_override_file => $override }, { chrom => 11, from => 20000001, to => 30000000, seq_no => 3, chunk_override_file => $override }, { chrom => 11, from => 30000001, to => 40000000, seq_no => 4, chunk_override_file => $override }, { chrom => 11, from => 40000001, to => 50000000, seq_no => 5, chunk_override_file => $override }, { chrom => 11, from => 50000001, to => 60000000, seq_no => 6, chunk_override_file => $override }, { chrom => 11, from => 60000001, to => 70000000, seq_no => 7, chunk_override_file => $override }, { chrom => 11, from => 70000001, to => 80000000, seq_no => 8, chunk_override_file => $override }, { chrom => 11, from => 80000001, to => 90000000, seq_no => 9, chunk_override_file => $override }, { chrom => 11, from => 90000001, to => 100000000, seq_no => 10, chunk_override_file => $override }, { chrom => 11, from => 100000001, to => 110000000, seq_no => 11, chunk_override_file => $override }, { chrom => 11, from => 110000001, to => 120000000, seq_no => 12, chunk_override_file => $override }, { chrom => 11, from => 120000001, to => 130000000, seq_no => 13, chunk_override_file => $override }, { chrom => 11, from => 130000001, to => 135006516, seq_no => 14, chunk_override_file => $override }, { chrom => 20, from => 1, to => 10000000, seq_no => 15, chunk_override_file => $override }, { chrom => 20, from => 10000001, to => 20000000, seq_no => 16, chunk_override_file => $override }, { chrom => 20, from => 20000001, to => 30000000, seq_no => 17, chunk_override_file => $override }, { chrom => 20, from => 30000001, to => 40000000, seq_no => 18, chunk_override_file => $override }, { chrom => 20, from => 40000001, to => 50000000, seq_no => 19, chunk_override_file => $override }, { chrom => 20, from => 50000001, to => 60000000, seq_no => 20, chunk_override_file => $override }, { chrom => 20, from => 60000001, to => 63025520, seq_no => 21, chunk_override_file => $override }];
 
+my $chunking_ds_options = { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 };
 ok $ds = VRPipe::DataSource->create(
     type    => 'fofn_with_genome_chunking',
     method  => 'group_all',
     source  => file(qw(t data bams.fofn))->absolute->stringify,
-    options => { reference_index => $fai, chunk_override_file => $override, chrom_list => '11 20', chunk_size => 10000000 }
+    options => $chunking_ds_options
   ),
   'could create a fofn_with_genome_chunking datasource with group_all method';
 
@@ -298,7 +342,7 @@ foreach my $element (@{ get_elements($ds) }) {
 }
 my @expected = ();
 foreach my $chunk (@$chunks) {
-    push @expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chunk },;
+    push(@expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chunk });
 }
 is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method';
 
@@ -306,6 +350,139 @@ my $ds_si = $ds->_source_instance;
 is_deeply [$ds_si->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
 
 is $ds_si->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+# vrpipe genome chunking with all the methods
+{
+    # create a fofn_with_metadata ds setup first
+    ok my $ds = VRPipe::DataSource->create(
+        type   => 'fofn_with_metadata',
+        method => 'all',
+        source => file(qw(t data calling_datasource.fofn))->absolute->stringify
+      ),
+      'could create a fofn_with_metadata datasource for use in next test';
+    
+    my $single_step = VRPipe::Step->create(
+        name              => 'bam_symlink',
+        inputs_definition => { bams => VRPipe::StepIODefinition->create(type => 'bam', description => 'bams', max_files => -1) },
+        body_sub          => sub {
+            my $self = shift;
+            foreach my $bam (@{ $self->inputs->{bams} || [] }) {
+                my $ofile = $self->output_file(output_key => 'the_output', basename => $bam->basename, type => 'bam');
+                $bam->symlink($ofile);
+            }
+            return 1;
+        },
+        outputs_definition => { the_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'the output') },
+        post_process_sub   => sub          { return 1; },
+        description        => 'a step'
+    );
+    my $single_step_pipeline = VRPipe::Pipeline->create(name => 'bam symlink pipeline', description => 'symlink bams');
+    $single_step_pipeline->add_step($single_step);
+    VRPipe::StepAdaptor->create(pipeline => $single_step_pipeline, to_step => 1, adaptor_hash => { bams => { data_element => 0 } });
+    my $output_root = get_output_dir('bam_symlink_output');
+    my $ps = VRPipe::PipelineSetup->create(name => 'bam symlink ps', datasource => $ds, output_root => $output_root, pipeline => $single_step_pipeline, active => 0);
+    $ps->trigger();
+    
+    my @parent_element_ids;
+    my @expected_bams;
+    my %symlink_path_to_parent_element_id;
+    foreach my $element (@{ get_elements($ds) }) {
+        my $parent_id = $element->id;
+        push(@parent_element_ids, $parent_id);
+        
+        my ($orig_file)  = @{ $element->files() };
+        my ($symlink)    = VRPipe::File->search({ parent => $orig_file->id });
+        my $symlink_path = $symlink->path->stringify;
+        push(@expected_bams, $symlink_path);
+        $symlink_path_to_parent_element_id{$symlink_path} = $parent_id;
+    }
+    @parent_element_ids = sort { $a <=> $b } @parent_element_ids;
+    
+    # group_by_metadata
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'group_by_metadata',
+        source  => $ps->id . '[1]',
+        options => { metadata_keys => 'sample', %$chunking_ds_options }
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with group_by_metadata method';
+    
+    @results = ();
+    my $correct_parents = 0;
+    
+    my $check_results = sub {
+        my $ds = shift;
+        foreach my $element (@{ get_elements($ds) }) {
+            push(@results, result_with_inflated_paths($element));
+            my ($symlink_path) = $element->paths();
+            my $expected_parent = $symlink_path_to_parent_element_id{$symlink_path};
+            my @actual_parent = VRPipe::DataElementLink->get_column_values(['parent'], { child => $element->id });
+            if (@actual_parent == 1 && $actual_parent[0] == $expected_parent) {
+                $correct_parents++;
+            }
+            else {
+                $correct_parents--;
+            }
+        }
+    };
+    &$check_results($ds);
+    @expected = ();
+    foreach my $bam (@expected_bams) {
+        my ($group) = $bam =~ /(NA\d+)\.bam$/;
+        foreach my $chunk (@$chunks) {
+            push(@expected, { paths => [$bam], %$chunk, group => $group });
+        }
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking group_by_metadata method';
+    is $correct_parents, 42, 'all the created dataelements had the correct parent dataelements linked';
+    
+    # all
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'all',
+        source  => $ps->id . '[1]',
+        options => $chunking_ds_options
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with all method';
+    
+    @results         = ();
+    $correct_parents = 0;
+    &$check_results($ds);
+    foreach my $hash (@expected) {
+        delete $hash->{group};
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking all method';
+    is $correct_parents, 42, 'all the created dataelements had the correct parent dataelements linked';
+    
+    # group_all
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'vrpipe_with_genome_chunking',
+        method  => 'group_all',
+        source  => $ps->id . '[1]',
+        options => $chunking_ds_options
+      ),
+      'could create a vrpipe_with_genome_chunking datasource with group_all method';
+    
+    @results         = ();
+    $correct_parents = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+        my $child_id = $element->id;
+        my @parent_ids = sort { $a <=> $b } VRPipe::DataElementLink->get_column_values(['parent'], { child => $child_id });
+        if (@parent_ids == 2 && $parent_ids[0] == $parent_element_ids[0] && $parent_ids[1] == $parent_element_ids[1]) {
+            $correct_parents++;
+        }
+        else {
+            $correct_parents--;
+        }
+    }
+    @expected = ();
+    foreach my $chunk (@$chunks) {
+        push(@expected, { paths => [@expected_bams], %$chunk });
+    }
+    is_deeply \@results, \@expected, 'got correct results for vrpipe_with_genome_chunking group_all method';
+    is $correct_parents, 21, 'all the created dataelements had the correct parent dataelements linked';
+}
 
 # confirm that a step that accepts multiple file types from the datasource only
 # receives the bam files for the bam input and nothing for the other
@@ -483,7 +660,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $vrpipe_ds->_changed_marker, undef, 'vrpipe changed marker starts out undefined';
     my $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '2ac25fb69c8eda2a27dd365bd531d13b', 'vrpipe changed marker got set after elements call';
+    is $vrpipe_ds->_changed_marker, '16e80f05c8d5aabea6f51165cb884958', 'vrpipe changed marker got set after elements call';
     is $ps2_element_count, 0, 'since ps1 has completed no elements, ps2 has no elements';
     
     # now make a vrpipe ds and setup that relies on both ps1 and ps2
@@ -499,7 +676,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     is $group_ds->_changed_marker, undef, 'group changed marker starts out undefined';
     my $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '1ad98ff0de2294b7f085afbe63019bd5', 'group changed marker got set after elements call';
+    is $group_ds->_changed_marker, '94bc93ad88f62c61a16b2ecc44e6702a', 'group changed marker got set after elements call';
     is $ps3_element_count, 0, 'since ps1 and ps2 have completed no elements, ps3 has no elements';
     
     # complete a single ps1 dataelement
@@ -508,20 +685,20 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     get_elements($fofn_ds);
     is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker unchanged after completing 1 ps1 element';
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker changed after completing 1 ps1 element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker changed after completing 1 ps1 element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, 'aa41d2f4c899fa5b4fc8c0d19f32048f', 'group changed marker changed after completing 1 ps1 element';
+    is $group_ds->_changed_marker, 'acc9847ff1fb7d835175a233de398040', 'group changed marker changed after completing 1 ps1 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are incomplete, ps3 has no elements';
     
     # complete a single ps2 dataelement
     my ($ps2_de1) = VRPipe::DataElement->search({ datasource => $vrpipe_ds->id });
     $ps2->trigger(dataelement => $ps2_de1);
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, '90bb0f0b438c696c36f4bd88af4ca9c4', 'vrpipe changed marker unchanged after completing its element';
+    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker unchanged after completing its element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '7cbec880d86bbc41ab65f65fd233d8b8', 'group changed marker changed after completing 1 ps2 element';
+    is $group_ds->_changed_marker, '5117e85f2294cbdeb107186d80d7d9ec', 'group changed marker changed after completing 1 ps2 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are still incomplete, ps3 has no elements';
     
     # complete all of ps1, then trigger all 3 setups simultaneously
@@ -534,8 +711,14 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     }
     $fm->wait_all_children;
     
-    $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, 'efc81219f56d7c2ed7838431e0ebac35', 'vrpipe changed marker changed after ps1 completed';
+    my @ps1_file_paths;
+    $ps2_element_count = 0;
+    foreach my $element (@{ get_elements($vrpipe_ds) }) {
+        $ps2_element_count++;
+        push(@ps1_file_paths, map { @{ $_->{paths} } } result_with_inflated_paths($element));
+    }
+    
+    is $vrpipe_ds->_changed_marker, 'b3ed212622b776f82d266ea1d239db08', 'vrpipe changed marker changed after ps1 completed';
     is $ps2_element_count, 3, 'since ps1 has completed 3 elements, ps2 has 3 elements';
     
     # there was a bug that meant the following test would fail due to elements
@@ -623,19 +806,56 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     # test that the include_in_all_elements datasource update when the include
     # setup(s) change
-    is $iiae_ds->_changed_marker, 'dc4663ec1645a5298ec7ea94983d143f', 'ps5 changed marker starts as expected';
+    is $iiae_ds->_changed_marker, 'd47a47b55efab92995dde298dd54706d', 'ps5 changed marker starts as expected';
     is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0';
     $de_to_withdraw->withdrawn(1);
     $de_to_withdraw->update;
     is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 after withdrawing one of the include_in_all_elements setup elements';
+    
+    # pretend ps1's datasource uses DataSourceRole's
+    # _start_over_elements_due_to_file_metadata_change() and 2 files changed
+    # to test that we only start_over ps5's elements once... I don't know how
+    # to actually test for that without looking at debug output, hence these
+    # tests are commented out but behaved as desired after solving this problem
+    # $ps5->trigger();
+    # my $anti_repeat_store = {};;
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.bam))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    # $fofn_ds->_source_instance->_start_over_elements_due_to_file_metadata_change({ changed => [[VRPipe::File->get(path => file(qw(t data file.cat))->absolute)]] }, ['foo', 'bar'], $anti_repeat_store);
+    
+    # test the filter and graph_filter options of the vrpipe datasource
+    my $schema    = VRPipe::Schema->create("VRTrack");
+    my @ps1_nodes = map { $schema->add_file($_) } @ps1_file_paths;
+    my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_failed => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
+    my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_failed => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
+    my $vrsample3 = $schema->add("Sample", { name => "sample3" }, outgoing => { node => $ps1_nodes[2], type => 'has' });
+    my @ps1_files = map { VRPipe::File->get(path => $_) } @ps1_file_paths;
+    $ps1_files[1]->add_metadata({ filtkey => 'filtvalue' });
+    my $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0' }
+    );
+    my @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 0, 'filter and graph_filter options can cancel each other out';
+    $ps1_files[2]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 1, 'filter and graph_filter options can work together correctly';
+    $ps1_files[0]->add_metadata({ filtkey => 'filtvalue' });
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 2, 'graph_filter with a 0 value can get both 0 value and unset properties';
 }
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 15;
-    skip "author-only tests for an iRods datasource", $num_tests unless $ENV{VRPIPE_AUTHOR_TESTS};
+    my $num_tests = 26;
+    skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
-    my $output_root = get_output_dir('datasource_irods_import_dir');
+    my $output_root    = get_output_dir('datasource_irods_import_dir');
+    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
+    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    my (undef, $irods_zone) = split('/', $irods_root);
+    my $schema = VRPipe::Schema->create("VRTrack");
     
     # real-world test
     ok my $ds = VRPipe::DataSource->create(
@@ -656,7 +876,7 @@ SKIP: {
     is_deeply \@results, [{ paths => [file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv))], irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv' }, { paths => [file($output_root, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv))], irods_path => '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv' }, { paths => [file($output_root, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv))], irods_path => '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv' }, { paths => [file($output_root, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], irods_path => '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv' }], 'got correct results for irods all';
     
     my $file = VRPipe::File->create(path => file($output_root, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)));
-    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_accession_number => 'SAMEA2398742', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1 };
+    my $expected_file_meta = { sample_cohort => '20f8a331-69ac-4510-94ab-e3a69c50e46f', sequenom_well => 'G01', sample_common_name => 'Homo sapiens', sequenom_plate => 'QC288261____20130701', study_id => 2622, sample_consent => 1, sample_supplier_name => 'd2b57a6a-9dd8-4e7d-868e-9209a399711b', sample_id => 1653292, sample => 'QC1Hip-1', sample_accession_number => 'SAMEA2398742', sample_control => 0, md5 => '059443dbff29215ff8b6aa6e247b072f', irods_path => '/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', manual_qc => 1, sequenom_plex => 'W30467', expected_md5 => '059443dbff29215ff8b6aa6e247b072f', sample_donor_id => '20f8a331-69ac-4510-94ab-e3a69c50e46f' };
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
     
     # check the warehouse method
@@ -679,6 +899,27 @@ SKIP: {
     $expected_file_meta->{study_title}         = 'G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS';
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files, including warehouse metadata';
     
+    my $output_root_grouped = get_output_dir('datasource_irods_import_dir_grouped');
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'group_by_metadata_with_warehouse_metadata',
+        source  => 'seq',
+        options => {
+            file_query        => q[sequenom_plate LIKE '%' and study_id = 2622 and dcterms:created '<' 2013-07-26],
+            local_root_dir    => $output_root_grouped,
+            required_metadata => 'sample_cohort,public_name',
+            metadata_keys     => 'study_id'
+        }
+      ),
+      'could create an irods datasource with group_by_metadata_with_warehouse_metadata method';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, result_with_inflated_paths($element));
+    }
+    is_deeply \@results, [{ paths => [file($output_root_grouped, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)), file($output_root_grouped, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv)), file($output_root_grouped, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv)), file($output_root_grouped, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], group => '2622' }], 'got correct results for irods group_by_metadata_with_warehouse_metadata';
+    is_deeply [VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv)))->metadata->{irods_path}], ['/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv', '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv', '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv'], 'files have correct irods_path metadata for group_by_metadata_with_warehouse_metadata';
+    
     # check that we can aggregate results from multiple imeta queries specified
     # in a file
     ok $ds = VRPipe::DataSource->create(
@@ -694,23 +935,44 @@ SKIP: {
     my $els = get_elements($ds);
     is scalar(@$els), 27, 'aggregating 2 imeta queries using a file source worked';
     
+    # check the warehouse method with the option to get qc-related files, and
+    # also check we don't need a local_root_dir
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all_with_warehouse_metadata',
+        source  => 'seq',
+        options => {
+            file_query       => q[id_run = 15744 and target = 1 and type = cram],
+            require_qc_files => 1
+        }
+      ),
+      'could create an irods datasource using all_with_warehouse_metadata method with require_qc_files option and no local_root_dir';
+    is scalar(@{ get_elements($ds) }), 8, 'got the correct number of elements';
+    $file = VRPipe::File->get(path => '/seq/15744/15744_8.cram', protocol => 'irods:');
+    $expected_file_meta = { expected_md5 => 'af0d56cce970925d7bba207784a5e1c2', md5 => 'af0d56cce970925d7bba207784a5e1c2', reference => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa', lane => '15744_8', library => 'HiSeqX_NX_Titration_NA19239_H 13237756', study => 'HX Test Plan', id_run => 15744, library_id => 13237756, sample_id => 2247346, target => 1, study_title => 'HX Test Plan', total_reads => 623053650, alignment => 1, study_id => 3165, sample => 'HiSeqX_NX_Titration_NA19239_H', sample_created_date => '2015-03-12 08:49:13', is_paired_read => 1 };
+    is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
+    ok my $graph_file = $schema->get_file($file->protocolless_path->stringify, $file->protocol), 'there was a node in the graph db for one of the cram files';
+    my @qc_files = $graph_file->related(outgoing => { type => 'qc_file' }) if $graph_file;
+    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['irods:/seq/15744/15744_8_F0x900.stats', 'irods:/seq/15744/qc/15744_8.genotype.json', 'irods:/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
+    
     # more complete test with our own freshly-added files and metadata
-    system("irm -fr /uk10k/home/sb10#Sanger1/vrpipe_testing > /dev/null 2> /dev/null");
-    system("imkdir -p /uk10k/home/sb10#Sanger1/vrpipe_testing");
-    system("iput -R uk10k-green t/data/file.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
-    system("iput -R uk10k-green t/data/file2.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt study_id 2623");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt study_id 2623");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt foo bar");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt simon says");
+    system("irm -fr $irods_root > /dev/null 2> /dev/null");
+    system("imkdir -p $irods_root");
+    system("iput -R $irods_resource t/data/file.txt $irods_root");
+    system("iput -R $irods_resource t/data/file2.txt $irods_root");
+    system("imeta -z $irods_zone add -d $irods_root/file.txt study_id 2623");
+    system("imeta -z $irods_zone add -d $irods_root/file2.txt study_id 2623");
+    system("imeta -z $irods_zone add -d $irods_root/file.txt foo bar");
+    system("imeta -z $irods_zone add -d $irods_root/file2.txt simon says");
     
     ok $ds = VRPipe::DataSource->create(
         type    => 'irods',
         method  => 'all',
-        source  => 'uk10k',
+        source  => $irods_zone,
         options => {
-            file_query     => q[study_id = 2623],
-            local_root_dir => $output_root
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 10
         }
       ),
       'could create another irods datasource';
@@ -720,39 +982,80 @@ SKIP: {
         push(@results, result_with_inflated_paths($element));
     }
     
-    no warnings; # because my irods paths have #'s in them
+    is_deeply \@results, [{ paths => [file($output_root, $irods_root, 'file.txt')], irods_path => "$irods_root/file.txt" }, { paths => [file($output_root, $irods_root, 'file2.txt')], irods_path => "$irods_root/file2.txt" }], 'got correct results for irods all';
     
-    is_deeply \@results, [{ paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file2.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt' }], 'got correct results for irods all';
-    
-    $file = VRPipe::File->create(path => file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt)));
-    is_deeply $file->metadata, { study_id => 2623, foo => 'bar', irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, 'correct file metadata was present on one of the irods files';
+    $file = VRPipe::File->create(path => file($output_root, $irods_root, 'file.txt'));
+    is_deeply $file->metadata, { study_id => 2623, foo => 'bar', irods_path => "$irods_root/file.txt" }, 'correct file metadata was present on one of the irods files';
     
     # alter a bit of metadata and test that VRPipe notices the change
-    system("imeta -z uk10k mod -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt foo bar v:car");
+    system("imeta -z $irods_zone mod -d $irods_root/file.txt foo bar v:car");
     get_elements($ds);
     $file->reselect_values_from_db;
-    is_deeply $file->metadata, { study_id => 2623, foo => 'bar', irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, 'metadata in VRPipe unchanged after change in irods, due to cached result';
-    sleep(5);
+    is_deeply $file->metadata, { study_id => 2623, foo => 'bar', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe unchanged after change in irods, due to cached result';
+    sleep(11);
     get_elements($ds);
     $file->reselect_values_from_db;
-    is_deeply $file->metadata, { study_id => 2623, foo => 'car', irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, 'metadata in VRPipe updated correctly after waiting 5 seconds';
+    is_deeply $file->metadata, { study_id => 2623, foo => 'car', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe updated correctly after waiting 10 seconds';
     
     # add a new file to make sure we pick that up as well
-    system("iput -R uk10k-green t/data/file3.txt /uk10k/home/sb10#Sanger1/vrpipe_testing");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt study_id 2623");
-    system("imeta -z uk10k add -d /uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt simple simon");
-    sleep(5);
+    system("iput -R $irods_resource t/data/file3.txt $irods_root");
+    system("imeta -z $irods_zone add -d $irods_root/file3.txt study_id 2623");
+    system("imeta -z $irods_zone add -d $irods_root/file3.txt simple simon");
+    sleep(11);
     @results = ();
     foreach my $element (@{ get_elements($ds) }) {
         push(@results, result_with_inflated_paths($element));
     }
     
-    is_deeply \@results, [{ paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file2.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file2.txt' }, { paths => [file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file3.txt))], irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt' }], 'got correct results for irods all after adding a new file';
+    my @local_files = (file($output_root, $irods_root, 'file.txt'), file($output_root, $irods_root, 'file2.txt'), file($output_root, $irods_root, 'file3.txt'));
+    is_deeply \@results, [{ paths => [$local_files[0]], irods_path => "$irods_root/file.txt" }, { paths => [$local_files[1]], irods_path => "$irods_root/file2.txt" }, { paths => [$local_files[2]], irods_path => "$irods_root/file3.txt" }], 'got correct results for irods all after adding a new file';
     
-    $file = VRPipe::File->create(path => file($output_root, qw(uk10k home sb10#Sanger1 vrpipe_testing file3.txt)));
-    is_deeply $file->metadata, { study_id => 2623, simple => 'simon', irods_path => '/uk10k/home/sb10#Sanger1/vrpipe_testing/file3.txt' }, 'correct file metadata was present on the newly added irods file';
+    $file = VRPipe::File->create(path => $local_files[2]);
+    is_deeply $file->metadata, { study_id => 2623, simple => 'simon', irods_path => "$irods_root/file3.txt" }, 'correct file metadata was present on the newly added irods file';
     
-    system("irm -fr /uk10k/home/sb10#Sanger1/vrpipe_testing");
+    # test graph_filter option of the irods datasource
+    system("imeta -z $irods_zone add -d $irods_root/file.txt sample samplea");
+    system("imeta -z $irods_zone add -d $irods_root/file2.txt sample sampleb");
+    system("imeta -z $irods_zone add -d $irods_root/file3.txt sample sampleb");
+    my $filt_ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'all_with_warehouse_metadata',
+        source  => $irods_zone,
+        options => {
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 10,
+            graph_filter    => 'VRTrack#Sample#qc_failed#0'
+        }
+    );
+    my @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 3, 'all_with_warehouse_metadata graph_filter with a 0 value passes all files with the property unset';
+    my @lf_nodes = map { $schema->add_file($_->stringify, 'irods:') } @local_files;
+    my $vrsamplea = $schema->get("Sample", { name => "samplea" });
+    $vrsamplea->qc_failed(0);
+    my $vrsampleb = $schema->add("Sample", { name => "sampleb" });
+    $vrsampleb->qc_failed(1);
+    sleep(11);
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 1, 'changes to what would pass the graph_filter are picked up correctly';
+    
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'group_by_metadata_with_warehouse_metadata',
+        source  => $irods_zone,
+        options => {
+            file_query      => q[study_id = 2623],
+            local_root_dir  => $output_root,
+            update_interval => 10,
+            graph_filter    => 'VRTrack#Sample#qc_failed#1',
+            metadata_keys   => 'sample'
+        }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    @results = map { result_with_inflated_paths($_) } @filt_elements;
+    is_deeply [scalar(@filt_elements), $results[0]], [1, { paths => [$local_files[1], $local_files[2]], group => "sampleb" }], 'group_by_metadata_with_warehouse_metadata graph_filter with a 1 value returns a single dataelement with the 2 paths associated with the passing sample';
+    
+    system("irm -fr $irods_root");
 }
 
 # test a special vrtrack test database; these tests are meant for the author

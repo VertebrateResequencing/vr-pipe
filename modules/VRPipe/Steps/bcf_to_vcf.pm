@@ -5,7 +5,7 @@ VRPipe::Steps::bcf_to_vcf - a step
 
 =head1 DESCRIPTION
 
-Generates a compressed VCF from a BCF file using bcftools view, optionally
+Generates a compressed VCF from a BCF file using bcftools call, optionally
 restricting output on samples or sites
 
 =head1 AUTHOR
@@ -38,7 +38,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
     around options_definition {
         return {
             %{ $self->$orig },
-            bcftools_view_options => VRPipe::StepOption->create(
+            bcftools_call_options => VRPipe::StepOption->create(
                 description => 'bcftools calling options; v0 defaults to "-p 0.99 -vcgN"; v1 defaults to "-m"',
                 optional    => 1
             ),
@@ -57,7 +57,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 default_value => 0
             ),
             post_calling_vcftools => VRPipe::StepOption->create(
-                description => 'After calling with bcftools view, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
+                description => 'After calling with bcftools call, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
                 optional    => 1
             ),
             vcf_sample_from_metadata => VRPipe::StepOption->create(
@@ -82,8 +82,8 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             my $options = $self->handle_override_options($vcf_meta);
             
             my $bcftools  = $options->{bcftools_exe};
-            my $view_opts = $options->{bcftools_view_options};
-            $view_opts ||= $self->_bcftools_calling_defaults;
+            my $call_opts = $options->{bcftools_call_options};
+            $call_opts ||= $self->_bcftools_calling_defaults;
             my $calling_command = $self->_bcftools_calling_command;
             my $samples_option  = $self->_bcftools_samples_option;
             my $assumed_sex     = $options->{assumed_sex};
@@ -97,8 +97,8 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 $self->throw("sample_sex_file must be an absolute path") unless $sample_sex_file->is_absolute;
             }
             if ($self->inputs->{sites_file}) {
-                $self->throw("bcftools_view_options cannot contain the -l/-R/-T option if a sites_file is an input to this step") if ($view_opts =~ /-[lR]/); # can't throw on -T since that was a option with a different meaning in v0
-                $view_opts .= $self->_bcftools_site_files_option($self->inputs->{sites_file}[0]->path);
+                $self->throw("bcftools_call_options cannot contain the -l/-R/-T option if a sites_file is an input to this step") if ($call_opts =~ /-[lR]/); # can't throw on -T since that was a option with a different meaning in v0
+                $call_opts .= $self->_bcftools_site_files_option($self->inputs->{sites_file}[0]->path);
             }
             
             my $output = $self->_bcftools_compressed_vcf_output($post_filter);
@@ -118,7 +118,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $bcf_meta);
                 my $vcf_path = $vcf_file->path;
-                my $cmd_line = qq[$bcftools $calling_command $view_opts $samples_option $temp_samples_path $bcf_path $output > $vcf_path];
+                my $cmd_line = qq[$bcftools $calling_command $call_opts $samples_option $temp_samples_path $bcf_path $output > $vcf_path];
                 
                 my $bcf_id = $bcf->id;
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
@@ -132,7 +132,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bcftools',
                     version => $self->bcftools_version_string,
-                    summary => "bcftools $calling_command $view_opts $samples_option \$samples_file \$bcf_file $output > \$vcf_file"
+                    summary => "bcftools $calling_command $call_opts $samples_option \$samples_file \$bcf_file $output > \$vcf_file"
                 )
             );
         };
@@ -147,7 +147,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
     }
     
     method description {
-        return "Run bcftools view option to generate one compressed vcf file per input bcf. Will take care of ploidy if sample_sex_file is provided and bcf files contain male_ploidy and female_ploidy metadata.";
+        return "Run bcftools call option to generate one compressed vcf file per input bcf. Will take care of ploidy if sample_sex_file is provided and bcf files contain male_ploidy and female_ploidy metadata.";
     }
     
     method max_simultaneous {

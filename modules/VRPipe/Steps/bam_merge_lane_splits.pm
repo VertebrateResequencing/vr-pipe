@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011,2012,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -45,6 +45,10 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                 description   => 'path to your samtools executable',
                 optional      => 1,
                 default_value => 'samtools'
+            ),
+            samtools_merge_options => VRPipe::StepOption->create(
+                description => 'options to samtools merge command',
+                optional    => 1,
             )
         };
     }
@@ -82,12 +86,34 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self      = shift;
-            my $options   = $self->options;
-            my $samtools  = $options->{samtools_exe};
-            my $separate  = $options->{bam_merge_keep_single_paired_separate};
-            my $dict_path = $self->inputs->{dict_file}->[0]->path;
+            my $self          = shift;
+            my $options       = $self->options;
+            my $samtools      = $options->{samtools_exe};
+            my $samtools_opts = $options->{samtools_merge_options};
+            my $separate      = $options->{bam_merge_keep_single_paired_separate};
+            my $dict_path     = $self->inputs->{dict_file}->[0]->path;
             
+            if ($samtools_opts =~ /\s-\S*?[hbcp]\s/) {
+                $self->throw("samtools options should not include -h,-b,-c or -p");
+            }
+            
+            my $samtools_version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+            if ($samtools_version =~ /^(\d+)\.\d+/) {
+                if ($1 > 0) {
+                    $samtools_opts .= ' -cp';
+                }
+            }
+            $samtools_opts =~ s/^\s+//;
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'samtools',
+                    version => $samtools_version,
+                    summary => "samtools merge $samtools_opts -h \$header_file \$output_file \@bam_files"
+                )
+            );
+            
+            my $source_key;
             my ($lane, %bams, %metas);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $this_path = $bam->path;
@@ -109,13 +135,27 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     }
                     
                     my @fqs = split(',', $meta->{mapped_fastqs});
-                    my @these_parents;
+                    my @these_parents = ();
                     foreach my $fq (@fqs) {
                         my $fq_file = VRPipe::File->get(path => $fq, auto_resolve => 1);
-                        my $parent = $fq_file->metadata->{source_fastq} || $self->throw("no source_fastq for one of the mapped fastqs of $this_path - was it really mapped from a fastq_split result?");
-                        push(@these_parents, $parent);
+                        my $parent = $fq_file->metadata->{source_fastq};
+                        if ($parent) {
+                            $source_key = 'mapped_fastqs';
+                            push(@these_parents, $parent);
+                        }
+                        else {
+                            $parent = $fq_file->metadata->{source_bam};
+                            if ($parent) {
+                                $source_key = 'source_bam';
+                                push(@these_parents, $parent) unless ($parent ~~ @these_parents);
+                            }
+                        }
+                        $self->throw("no source_fastq or source_bam for one of the mapped fastqs of $this_path") unless $source_key;
                     }
-                    $metas{$paired}->{mapped_fastqs} = join(',', @these_parents);
+                    if ($source_key eq "source_bam" && scalar(@these_parents) != 1) {
+                        $self->throw("mapped_fastqs of $this_path belong to multiple source_bams!");
+                    }
+                    $metas{$paired}->{$source_key} = join(',', @these_parents);
                 }
                 $metas{$paired}->{reads} += $meta->{reads};
                 $metas{$paired}->{bases} += $meta->{bases};
@@ -131,7 +171,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     $metas{2} = $metas{1};
                     $metas{2}->{reads} += $metas{0}->{reads};
                     $metas{2}->{bases} += $metas{0}->{bases};
-                    $metas{2}->{mapped_fastqs} = join(',', $metas{0}->{mapped_fastqs}, $metas{1}->{mapped_fastqs});
+                    $metas{2}->{$source_key} = join(',', $metas{0}->{$source_key}, $metas{1}->{$source_key});
                     $metas{2}->{paired} = 2;
                 }
             }
@@ -176,7 +216,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     );
                 }
                 
-                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)]);";
+                my $this_cmd = "use VRPipe::Steps::bam_merge_lane_splits; VRPipe::Steps::bam_merge_lane_splits->merge_and_check(samtools => q[$samtools], samtools_opts => q[$samtools_opts], dict => q[$dict_path], output => q[$merge_path], step_state => $step_state, bams => [qw(@$in_bams)] );";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@ofiles });
             }
         };
@@ -202,7 +242,8 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
                     reads          => 'total number of reads (sequences)',
                     paired         => '0=unpaired reads were mapped; 1=paired reads were mapped; 2=mixture of paired and unpaired reads were mapped',
                     mapped_fastqs  => 'comma separated list of the fastq file(s) that were mapped',
-                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                    source_bam     => 'path to the original bam file which was realigned',
+                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study', 'mapped_fastqs', 'source_bam']
                 }
             )
         };
@@ -220,7 +261,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         return 0;                                                                                                                                                                                                                                      # meaning unlimited
     }
     
-    method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
+    method merge_and_check (ClassName|Object $self: Str|File :$samtools!, Str :$samtools_opts!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, ArrayRef[Str|File] :$bams!) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output . '.header');
         my $header_path = $header_file->path;
@@ -276,7 +317,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         my %step_name_counts;
         
         foreach my $stepm ($pipeline->step_members) {
-            last if $stepm->id == $this_stepm_id;
+            last if $stepm->id > $this_stepm_id;
             
             my $cmd_summary = VRPipe::StepState->get(pipelinesetup => $pipelinesetup, stepmember => $stepm, dataelement => $dataelement)->cmd_summary || next;
             
@@ -298,7 +339,7 @@ class VRPipe::Steps::bam_merge_lane_splits with VRPipe::StepRole {
         
         my $cmd_line;
         if (@$bams > 1) {
-            $cmd_line = "$samtools merge -h $header_path $output @$bams";
+            $cmd_line = "$samtools merge $samtools_opts -h $header_path $output @$bams";
         }
         else {
             my $sam_path = $output;

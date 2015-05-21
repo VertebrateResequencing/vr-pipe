@@ -87,6 +87,7 @@ foreach my $chunk (@$chunks) {
     my @output_subdirs = output_subdirs($element_id, 1);
     my $region = "$$chunk{chrom}_$$chunk{from}-$$chunk{to}";
     push(@calling_files, file(@output_subdirs, '2_mpileup_bcf', qq[$region.mpileup.bcf]));
+    push(@calling_files, file(@output_subdirs, '2_mpileup_bcf', qq[$region.mpileup.bcf.csi]));
     push(@calling_files, file(@output_subdirs, '3_bcf_to_vcf',  qq[$region.mpileup.vcf.gz]));
     push(@calling_files, file(@output_subdirs, '3_bcf_to_vcf',  qq[$region.mpileup.vcf.gz.tbi]));
     push(@restart_files, ($calling_files[-1], $calling_files[-2], $calling_files[-3])) if ($region eq '20_1-10000000');
@@ -95,7 +96,7 @@ foreach my $chunk (@$chunks) {
 
 ok handle_pipeline(@calling_files), 'pipeline ran ok and all calling files were created';
 
-is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -EDSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta -b $bams_list > $bcf_file', 'bcftools view -p 0.99 -vcgN -s $samples_file $bcf_file | bgzip -c > $vcf_file'], 'cmd summaries for the major steps were as expected';
+is_deeply [VRPipe::StepState->get(pipelinesetup => 1, stepmember => 2, dataelement => 1)->cmd_summary->summary, VRPipe::StepState->get(pipelinesetup => 1, stepmember => 3, dataelement => 1)->cmd_summary->summary], ['samtools mpileup -EDSV -C50 -m2 -F0.0005 -d 10000 -g -r $region -f $reference_fasta -b $bams_list > $bcf_file && bcftools index $bcf_file', 'bcftools call -m -S $samples_file $bcf_file -O z > $vcf_file'], 'cmd summaries for the major steps were as expected';
 
 # check override options work
 # indel calling is turned off for chromosome 20 by options in override file

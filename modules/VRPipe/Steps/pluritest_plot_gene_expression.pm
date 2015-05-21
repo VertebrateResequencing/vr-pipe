@@ -11,11 +11,11 @@ determine the pluripotency of different stem cell lines
 
 =head1 AUTHOR
 
-John Maslen <jm23@sanger.ac.uk>.
+John Maslen <jm23@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -65,11 +65,13 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
             
             my ($conv_file) = @{ $self->inputs->{conv_files} };
             my $meta        = $conv_file->metadata;
-            my $conv_path   = $conv_file->path;
-            $self->output_file(temporary  => 1,          basename => 'pluritest_log.txt', type => 'txt', metadata => $meta);
-            $self->output_file(output_key => 'csv_file', basename => 'pluritest.csv',     type => 'txt', metadata => $meta);
+            my $conv_path   = $conv_file->path->stringify;
+            $self->output_file(temporary => 1, basename => 'pluritest_log.txt', type => 'txt', metadata => $meta);
+            my $csv_path = $self->output_file(output_key => 'csv_file', basename => 'pluritest.csv', type => 'txt', metadata => $meta)->path->stringify;
+            $self->relate_input_to_output($conv_path, 'pluritest_summary', $csv_path);
             foreach my $basename (qw(pluritest_image01.png pluritest_image02a.png pluritest_image02.png pluritest_image03.png pluritest_image03c.png)) {
-                $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $meta);
+                my $plot_path = $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $meta)->path->stringify;
+                $self->relate_input_to_output($conv_path, 'pluritest_plot', $plot_path);
             }
             
             my $cmd = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];

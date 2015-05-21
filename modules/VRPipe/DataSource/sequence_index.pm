@@ -187,15 +187,16 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             }
         }
         
-        my @element_args = ();
-        my $did          = $self->_datasource_id;
+        my @element_args      = ();
+        my $did               = $self->_datasource_id;
+        my $anti_repeat_store = {};
         foreach my $lane (sort keys %$lanes_hash) {
             my $hash_ref = $lanes_hash->{$lane};
             my $result_hash = { paths => $hash_ref->{paths}, lane => $lane };
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details);
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details, $anti_repeat_store);
             }
         }
         $self->_create_elements(\@element_args);
@@ -322,15 +323,16 @@ class VRPipe::DataSource::sequence_index with VRPipe::DataSourceTextRole {
             }
         }
         
-        my @element_args = ();
-        my $did          = $self->_datasource_id;
+        my @element_args      = ();
+        my $did               = $self->_datasource_id;
+        my $anti_repeat_store = {};
         foreach my $sample (sort keys %$samples_hash) {
             my $hash_ref = $samples_hash->{$sample};
             my $result_hash = { paths => $hash_ref->{paths}, sample => $sample };
             push(@element_args, { datasource => $did, result => $result_hash });
             
             if ($hash_ref->{changed}) {
-                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details);
+                $self->_start_over_elements_due_to_file_metadata_change($hash_ref, \@changed_details, $anti_repeat_store);
             }
         }
         $self->_create_elements(\@element_args);

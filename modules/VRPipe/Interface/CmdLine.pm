@@ -20,7 +20,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011,2012,2014 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -43,11 +43,15 @@ use VRPipe::Base;
 class VRPipe::Interface::CmdLine {
     use Getopt::Long qw(GetOptions GetOptionsFromString);
     use Perl6::Form;
-    use LWP::UserAgent;
     use Sys::Hostname::Long;
     use VRPipe::Config;
     use VRPipe::Persistent::SchemaBase;
     use Config;
+    use Mojo::UserAgent;
+    use JSON::XS;
+    
+    our $json = JSON::XS->new->allow_nonref(1);
+    our $ua_headers = { 'Accept' => 'application/json', 'Content-Type' => 'application/json', 'Charset' => 'UTF-8', 'X-Stream' => 'true' };
     
     has 'description' => (
         is       => 'rw',
@@ -99,7 +103,7 @@ class VRPipe::Interface::CmdLine {
     
     has '_ua' => (
         is      => 'ro',
-        isa     => 'LWP::UserAgent',
+        isa     => 'Mojo::UserAgent',
         lazy    => 1,
         builder => '_build_ua'
     );
@@ -135,7 +139,8 @@ class VRPipe::Interface::CmdLine {
     }
     
     method _build_ua {
-        my $ua = LWP::UserAgent->new(timeout => 200, agent => 'VRPipe-Client');
+        my $ua = Mojo::UserAgent->new(timeout => 200, agent => 'VRPipe-Client');
+        $ua->connect_timeout(60)->inactivity_timeout(0)->request_timeout(0);
         return $ua;
     }
     
@@ -158,7 +163,7 @@ class VRPipe::Interface::CmdLine {
                         if ($type eq 's@') {
                             unless ($self->no_user_option) {
                                 $default->[4] = $default->[2];
-                                $default->[2] = ['user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => getlogin || getpwuid($<) || 'vrpipe' }];
+                                $default->[2] = ['user|u=s', 'Only show entries for PipelineSetups created by this user; use "all" to show entries for all users', { default => scalar(getpwuid($<)) || 'vrpipe' }];
                                 $default->[3] = ['deactivated', 'Also show deactivated PipelineSetups', { default => 0 }];
                             }
                             $self->_multiple_setups(1);
@@ -299,11 +304,17 @@ class VRPipe::Interface::CmdLine {
     
     method output (@messages) {
         chomp($messages[-1]);
+        foreach (@messages) {
+            s/\t/    /g;
+        }
         print @messages, "\n";
     }
     
     method error (@messages) {
         chomp($messages[-1]);
+        foreach (@messages) {
+            s/\t/    /g;
+        }
         warn @messages, "\n";
     }
     
@@ -315,7 +326,7 @@ class VRPipe::Interface::CmdLine {
     method _build_ua_port_baseurl {
         my $ua       = $self->_ua;
         my $port     = $self->port;
-        my $base_url = 'http://' . hostname_long . ':' . $port;
+        my $base_url = 'https://' . hostname_long . ':' . $port;
         return [$ua, $port, $base_url];
     }
     
@@ -328,16 +339,18 @@ class VRPipe::Interface::CmdLine {
         
         # try and get a response from the port
         my @post_args = ($base_url . '/dsn');
-        my $response  = $ua->post(@post_args);
+        my $tx        = $ua->post(@post_args);
         my $server_dsn;
-        if ($response->is_success) {
-            $server_dsn = $response->decoded_content;
+        my $res = $tx->success;
+        if ($res) {
+            $server_dsn = $res->body;
         }
         elsif ($no_auto_start_or_die) {
             return 0;
         }
         else {
-            if ($response->code == 500) {
+            my $err = $tx->error;
+            if ($err->{code} == 500) {
                 $self->error("Can't connect to VRPiper server at $base_url, will attempt to auto-start it...");
                 my $script = $self->vrpipe_script_command('vrpipe-server', $self->opts('deployment'));
                 my $cmd = $script . ' start'; # (this confuses perltidy if put directly in the system() call)
@@ -348,15 +361,20 @@ class VRPipe::Interface::CmdLine {
                 # trying for the next 20 seconds
                 my $seconds = 20;
                 while ($seconds--) {
-                    $response = $ua->post(@post_args);
-                    if ($response->is_success) {
-                        $server_dsn = $response->decoded_content;
+                    $tx  = $ua->post(@post_args);
+                    $res = $tx->success;
+                    if ($res) {
+                        $server_dsn = $res->body;
                         last;
                     }
                     sleep(1);
                 }
             }
-            $self->die_with_error($response->status_line) unless $server_dsn;
+            
+            unless ($server_dsn) {
+                $err = $tx->error;
+                $self->die_with_error($err->{message});
+            }
         }
         
         # make sure the response is valid
@@ -388,12 +406,51 @@ class VRPipe::Interface::CmdLine {
         my ($ua, undef, $base_url) = @{ $self->_ua_port_baseurl };
         my @post_args = ($base_url . $page, [$self->_deref_hash($self->_opts_hash), '_multiple_setups' => $self->_multiple_setups, $self->_deref_hash($opts)]);
         
-        my $response = $ua->post(@post_args);
-        if ($response->is_success) {
-            return $response->decoded_content;
+        my $tx  = $ua->post(@post_args);
+        my $res = $tx->success;
+        if ($res) {
+            return $res->body;
         }
         else {
-            $self->die_with_error("Failed to get $post_args[0] (@{$post_args[1]}):" . $response->status_line);
+            my $err = $tx->error;
+            $self->die_with_error("Failed to get $post_args[0] (@{$post_args[1]}): [$err->{code}] $err->{message}");
+        }
+    }
+    
+    method rest_query (Str $category, Str $method, HashRef $post_content = {}) {
+        # first we need to make sure that the server bound to the port we
+        # configured for our database is actually connected to our database
+        # (and we'll auto-start the server if it isn't running at all)
+        $self->die_with_error("Can't connect to server.") unless $self->server_ok && $self->server_ok > 0;
+        
+        # now we'll handle the desired request
+        my ($ua, undef, $base_url) = @{ $self->_ua_port_baseurl };
+        my $url = $base_url . '/rest/' . $category . '/' . $method;
+        
+        my $tx = $ua->post($url => $ua_headers => json => $post_content);
+        my $res = $tx->success;
+        unless ($res) {
+            my $err = $tx->error;
+            $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
+        }
+        my $decoded = $json->decode($res->body);
+        
+        if (ref($decoded) eq 'HASH' && defined $decoded->{errors}) {
+            $self->die_with_error(@{ $decoded->{errors} });
+        }
+        else {
+            return $decoded;
+        }
+    }
+    
+    method display_hash (HashRef $hash, Str :$name?, ArrayRef[Str] :$key_order?) {
+        $key_order ||= [sort { $a cmp $b } keys %$hash];
+        $self->output("$name:") if $name;
+        my ($extra_tabs) = $name =~ /^(\t+)/ if $name;
+        $extra_tabs ||= '';
+        foreach my $key (@$key_order) {
+            next unless defined $hash->{$key};
+            $self->output("$extra_tabs\t", $key, ' => ', $hash->{$key});
         }
     }
     
@@ -505,7 +562,7 @@ class VRPipe::Interface::CmdLine {
     method vrpipe_script_command (ClassName|Object $self: Str $script, Str $deployment) {
         my $command = $self->vrpipe_perl_command($deployment) . ' ';
         
-        my $local_script = file('scripts', $script)->absolute;
+        my $local_script = file('blib', 'script', $script)->absolute;
         if ($deployment eq 'testing' && -x $local_script) {
             $command .= $local_script;
         }
@@ -540,8 +597,8 @@ class VRPipe::Interface::CmdLine {
             $command .= $Config{_exe} unless $command =~ m/$Config{_exe}$/i;
         }
         
-        if ($deployment eq 'testing' && -d 'modules' && -d 't') {
-            $command .= ' -I' . dir('modules')->absolute . ' -I' . dir('t')->absolute;
+        if ($deployment eq 'testing' && -d dir(qw(blib lib)) && -d 't') {
+            $command .= ' -I' . dir(qw(blib lib))->absolute . ' -I' . dir('t')->absolute;
         }
         
         return $command;

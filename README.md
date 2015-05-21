@@ -15,15 +15,11 @@ for all versions since your currently installed version.
 
 # Install Pre-Requisites
 
-You will need the source version of samtools compiled with -fPIC and -m64 in the
-CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
-(which should now contain bam.h and libbam.a, and MUST contain the samtools
-executable). Samtools can be downloaded from here:
-http://sourceforge.net/projects/samtools/files/samtools/
-(Note that tests use the samtools in your PATH, not the samtools in your
-SAMTOOLS dir; production pipelines will use the samtools at the absolute path
-you configure them with during setup - the default will be the first one in your
-PATH.)
+You need Neo4J 2.2.1 or greater installed. You could use the same installation
+for both production and testing, but it is safer to use 2 different ones (these
+can run on the same machine). Edit neo4j-server.properties to enable
+non-localhost access, and change ports for each different install.
+Neo4J can be download from here: http://neo4j.com
 
 You need Redis 2.6 or greater installed. Compile it as normal ('make') and
 simply include redis-server in your PATH. You do not have to configure it in any
@@ -34,6 +30,20 @@ Redis can be downloaded from here: http://redis.io/download
 
 It is recommended that you set PERL_INLINE_DIRECTORY to ~/.Inline and create
 that directory.
+
+For dealing with sam/bam/cram/vcf/bcf related steps and pipelines, you will need
+the source version of samtools < v1 compiled with -fPIC and -m64 in the
+CFLAGS, and the environment variable SAMTOOLS pointing to that source directory
+(which should now contain bam.h and libbam.a, and MUST contain the samtools
+executable). Old samtools can be downloaded from here:
+https://github.com/samtools/samtools/tree/0.1.20
+(Note that tests use the samtools in your PATH, not the samtools in your
+SAMTOOLS dir; production pipelines will use the samtools at the absolute path
+you configure them with during setup - the default will be the first one in your
+PATH.)
+You will also need samtools v1.3+ (https://github.com/samtools/samtools) for
+use in your actual setups, and htslib (https://github.com/samtools/htslib)
+installed and pointed to with the HTSLIB environment variable.
 
 You require Module::Build in order for the Build.PL script to work. It is
 recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
@@ -59,6 +69,14 @@ Possible problems you may encounter in installing your missing prerequisites:
 * You will likely find that Inline::Filters fails its preprocess.t test; this is
   ok and you can manually use `cpan` to:  
   `cpan> force install Inline::Filters`
+* If you have trouble with Authen::PAM (required by Authen::Simple::PAM), you
+  may have to install it manually instead of via a non-interactive system like
+  cpan minus. Enter the build directory where it tried to build Authen::PAM,
+  then do:
+  `perl Makefile.PL`
+  `make`
+  `make test`
+  `make install`  
 * You may find that MooseX::Types::Parameterizable fails its tests. In that case
   you can manually use 'cpan' to install an earlier version that should work:  
   `cpan> install JJNAPIORK/MooseX-Types-Parameterizable-0.07.tar.gz`
@@ -78,19 +96,6 @@ Possible problems you may encounter in installing your missing prerequisites:
   force install it:  
   `cpan> force install Class::Accessor::Grouped`  
   and then try the DBIx::Class installation again normally.
-* If you run into a problem installing XML::LibXML due to an inability to find
-  the required libs, try using your OS package management system to install it,
-  eg. for Ubuntu:  
-  `sudo apt-get install libxml-libxml-perl`
-* Likewise for XML::LibXSLT:  
-  `sudo apt-get install libxml-libxslt-perl`
-* Crypt::Random has a prerequisite of Math::Pari, which in turn requires pari-gp
-  and may have trouble finding and using it. If you encounter problems, try
-  entering the cpan build directory where it tried to build Math::Pari, then
-  do:  
-  `sudo wget ftp://megrez.math.u-bordeaux.fr/pub/pari/unix/OLD/pari-2.3.5.tar.gz`  
-  `sudo perl Makefile.PL Configure pari_tgz=./pari-2.3.5.tgz`  
-  `sudo make; sudo make test; sudo make install`
 * Time::Format may fail some tests with errors mentioning problems with
   Date::Manip. As long as you actually have Date::Manip installed, these
   failures are probably fine and you can force the install:  
@@ -162,7 +167,8 @@ is this file that holds your site-wide configuration of VRPipe.
 
 # Test
 
-To test the code prior to using it:  
+To test the code prior to using it:
+`./Build`
 `./Build test`
 
 (Note that there is currently an issue where the first time you ever run tests
@@ -207,8 +213,11 @@ have those executables in your PATH.
 
 `./Build install`
 
-(or just include the modules subdirectory in your PERL5LIB, and include the
-scripts subdirectory in your PATH)
+If you don't have root access, provide relevant options to ./Build install or
+use local::lib; in the latter case VRPipe would get installed in the directory
+that your PERL_LOCAL_LIB_ROOT points to, and you should include
+$PERL_LOCAL_LIB_ROOT/bin in your $PATH and $PERL_LOCAL_LIB_ROOT/lib/perl5 in
+your $PERL5LIB.
 
 To create your production database (testing database is created automatically):  
 `vrpipe-db_deploy`
@@ -281,6 +290,7 @@ variable you need to set, and the value you should set it to, separated by
 commas.
 
 * samtools,SAMTOOLS,/path/to/samtools/source_directory
+* htslib,HTSLIB,/path/to/htslib/install_directory_containing_bin
 * cramtools,CRAMTOOLS,/path/to/cramtools_jar_files
 
 eg. to have cramtools work properly in the pipelines you might do:  
@@ -306,7 +316,7 @@ just manually enter the required path each time you setup the pipeline):
 
 # COPYRIGHT & LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 

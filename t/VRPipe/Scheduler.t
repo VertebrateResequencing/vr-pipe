@@ -25,7 +25,7 @@ ok $scheduler = VRPipe::Scheduler->create(type => 'lsf'), q[able to get the lsf 
 is $scheduler->type, 'lsf', 'the type really is lsf';
 SKIP: {
     my $host = hostname();
-    skip "author-only lsf tests", 5 unless $host eq 'uk10k-1-1-01';
+    skip "author-only lsf tests", 5 unless $host eq 'vr-2-2-02';
     
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave normal queue for 10MB and 1hr';
     $requirements = VRPipe::Requirements->create(memory => 1, time => 300);
@@ -34,8 +34,8 @@ SKIP: {
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave test queue for 37GB and 1hr'; # used to be 'test' before our memory limits were removed from all queues
     $requirements = VRPipe::Requirements->create(memory => 1, time => 13);
     is $scheduler->determine_queue($requirements), 'long', 'determine_queue() gave long queue for 10MB and 13hr';
-    $requirements = VRPipe::Requirements->create(memory => 1, time => 49);
-    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 49hr';
+    $requirements = VRPipe::Requirements->create(memory => 1, time => 262800);
+    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 73hr';
 }
 
 # ec2
