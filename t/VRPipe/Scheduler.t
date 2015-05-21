@@ -34,8 +34,8 @@ SKIP: {
     is $scheduler->determine_queue($requirements), 'normal', 'determine_queue() gave test queue for 37GB and 1hr'; # used to be 'test' before our memory limits were removed from all queues
     $requirements = VRPipe::Requirements->create(memory => 1, time => 13);
     is $scheduler->determine_queue($requirements), 'long', 'determine_queue() gave long queue for 10MB and 13hr';
-    $requirements = VRPipe::Requirements->create(memory => 1, time => 49);
-    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 49hr';
+    $requirements = VRPipe::Requirements->create(memory => 1, time => 262800);
+    is $scheduler->determine_queue($requirements), 'basement', 'determine_queue() gave basement queue for 10MB and 73hr';
 }
 
 # ec2

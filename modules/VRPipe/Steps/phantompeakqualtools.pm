@@ -48,7 +48,8 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
         return {
             %{ $self->$orig },
             phantompeak_script  => VRPipe::StepOption->create(description => 'The R script to compute the frag length, data quality characteristics based on cross-correlation analysis and/or peak calling', optional => 1, default_value => 'run_spp.R'),
-            sample_metadata_key => VRPipe::StepOption->create(description => 'metadata key for sample name',                                                                                                  optional => 1, default_value => 'sample')
+            sample_metadata_key => VRPipe::StepOption->create(description => 'metadata key for sample name',                                                                                                  optional => 1, default_value => 'sample'),
+            samtools_exe        => VRPipe::StepOption->create(description => 'path to your samtools executable',                                                                                              optional => 1, default_value => 'samtools'),
         };
     }
     
@@ -69,6 +70,7 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
             $self->handle_standard_options($options);
             my $sample_key         = $options->{sample_metadata_key};
             my $phantompeak_script = $options->{phantompeak_script};
+            my $samtools_exe       = $options->{samtools_exe};
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
@@ -85,9 +87,10 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
                 my $pdfile  = $self->output_file(output_key => 'plot_file', basename => "$sample.pdf", type => 'any', metadata => { $sample_key => $sample });
                 
                 my @outfiles = ($profile, $logfile, $pdfile);
-                my $this_cmd = $self->r_cmd_prefix . " $phantompeak_script -rf -savp -c=" . $input_bam->path . " -odir=" . $profile->dir . " -out=$sample > $sample.log";
+                my $cmd      = $self->r_cmd_prefix . " $phantompeak_script -rf -savp -c=" . $input_bam->path . " -odir=" . $profile->dir . " -out=$sample > $sample.log";
+                my $this_cmd = "use VRPipe::Steps::phantompeakqualtools; VRPipe::Steps::phantompeakqualtools->compute_and_add_metadata(q[$cmd], samtools => $samtools_exe);";
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::phantompeakqualtools', 'compute_and_add_metadata', [$this_cmd, $req, { output_files => \@outfiles }]);
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
             }
         };
     }
@@ -119,9 +122,9 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
         return 0;          # meaning unlimited
     }
     
-    method compute_and_add_metadata (ClassName|Object $self: Str $cmd_line) {
-        my ($in, $out_dir, $out) = $cmd_line =~ /-c=(\S+) -odir=(\S+) -out=(\S+)/;
-        my $input_bam = VRPipe::File->get(path => $in);
+    method compute_and_add_metadata (ClassName|Object $self: Str $cmd_line, Str :$samtools!) {
+        my ($input, $out_dir, $out) = $cmd_line =~ /-c=(\S+) -odir=(\S+) -out=(\S+)/;
+        my $input_bam = VRPipe::File->get(path => $input);
         my $out_file  = VRPipe::File->get(path => "$out_dir/$out");
         
         $input_bam->disconnect;
@@ -134,9 +137,10 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
         $self->throw("file $out_dir/$out does not contain 11 tab delimited columns") unless ($#scores == 10);
         $fh->close;
         
-        if ($input_bam->metadata->{reads}) {
-            my $bam_reads = $input_bam->metadata->{reads};
-            $self->throw("phantompeakqualtools processed $scores[1] reads while input file $in contains $bam_reads reads. Make sure input bam does not include multiple-alignments and is filtered for -F 0x0204.") unless ($bam_reads == $scores[1]);
+        my $bam_meta = $input_bam->metadata;
+        if ($bam_meta->{reads}) {
+            my $bam_reads = $bam_meta->{reads};
+            $self->throw("phantompeakqualtools processed $scores[1] reads while input file $input contains $bam_reads reads. Make sure input bam does not include multiple-alignments and is filtered for -F 0x0204.") unless ($bam_reads == $scores[1]);
         } #This condition may be too stringent, so the step almost always is preceded by a bam filtering step.
         
         my $meta = {};
@@ -145,6 +149,43 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
             $meta->{"$keys[$i]"} = $scores[$i];
         }
         $input_bam->add_metadata($meta);
+        
+        my @qc_fails;
+        #In paired end experiments count "fragments" instead of "reads":
+        my $samtools_filter;
+        if ($bam_meta->{paired}) {
+            $samtools_filter = "-f 67";
+            if ($scores[1] / 2 < 20000000) {
+                push(@qc_fails, "numReads<20M");
+            }
+        }
+        else {
+            $samtools_filter = "-F 4";
+            if ($scores[1] < 20000000) {
+                push(@qc_fails, "numReads<20M");
+            }
+        }
+        
+        #Non-redundant fraction (NRF):
+        #The ratio between the number of positions in the genome that uniquely mappable reads map to and the total number of uniquely mappable reads.
+        my $unique_fragments = `$samtools view $samtools_filter -c $input`;
+        my $unique_positions = `$samtools view $samtools_filter $input | cut -f3,4,8 | sort | uniq | wc -l`;
+        chomp($unique_positions);
+        chomp($unique_fragments);
+        my $NRF = $unique_positions / $unique_fragments;
+        $input_bam->add_metadata({ NRF => $NRF });
+        
+        #for now, use fixed thresholds for auto_qc
+        if ($NRF < 0.50) {
+            push(@qc_fails, "NRF<0.50");
+        }
+        if ($bam_meta->{NSC} < 1.05) {
+            push(@qc_fails, "NSC<1.05");
+        }
+        if ($bam_meta->{RSC} < 0.80) {
+            push(@qc_fails, "RSC<0.80");
+        }
+        $input_bam->add_metadata({ qc_fails => join(",", @qc_fails) });
     }
 
 }
