@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::FileType::vcf - VCF filetype
+VRPipe::FileType::aln - generic filetype for bam/cram
 
 =head1 SYNOPSIS
 
@@ -9,18 +9,15 @@ VRPipe::FileType::vcf - VCF filetype
 
 =head1 DESCRIPTION
 
-The VCF format is described here: L<http://vcftools.sourceforge.net/specs.html>
-It is used to describe variants in biological sequences.
-
 *** more documentation to come
 
 =head1 AUTHOR
 
-Sendu Bala <sb10@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -40,22 +37,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::FileType::vcf extends VRPipe::FileType::hts {
+class VRPipe::FileType::aln extends VRPipe::FileType::bam {
     method check_type {
-        return ($self->hts_file_type =~ /^VCF/) ? 1 : 0;
-    }
-    
-    method samples {
-        my $header_lines = $self->_header_lines;
-        $self->throw("No header lines found in, " . $self->file) unless (@$header_lines);
-        my @line = split(/\t/, ${ $self->_header_lines }[-1]);
-        my @samples = @line[9 .. $#line];
-        @samples || $self->throw("No samples found in " . $self->file);
-        return \@samples;
-    }
-    
-    method num_samples {
-        return scalar(@{ $self->samples });
+        my $type = $self->hts_file_type;
+        return ($type =~ /^BAM/ || $type =~ /^CRAM/) ? 1 : 0;
     }
 
 }

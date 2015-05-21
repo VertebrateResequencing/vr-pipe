@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 96;
+    use Test::Most tests => 97;
     use VRPipeTest;
 }
 
@@ -431,6 +431,9 @@ SKIP: {
     
     system("irm -fr $irods_root");
 }
+
+# test FileMethods hashed_dirs()
+is_deeply [$lfile->hashed_dirs('foo')], ['a', 'c', 'b', 'd18db4cc2f85cedef654fccc4a4d8'], 'hashed_dirs() works correctly';
 
 done_testing;
 exit;

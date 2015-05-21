@@ -45,6 +45,8 @@ role VRPipe::SchemaLabelRole {
     my $graph = VRPipe::Persistent::Graph->new();
     my $pwh;
     
+    our %created_namespaces;
+    
     has 'valid_properties' => (
         traits  => ['Hash'],
         is      => 'ro',
@@ -101,6 +103,10 @@ role VRPipe::SchemaLabelRole {
     method own_lock {
         my $lock_key = 'Schema.Node.' . $self->node_id();
         return $im->locked($lock_key, by_me => 1);
+    }
+    
+    method property (Str $property) {
+        return $graph->node_property($self, $property);
     }
     
     method properties (Bool :$flatten_parents = 0) {
@@ -206,8 +212,16 @@ role VRPipe::SchemaLabelRole {
         my @nodes = $graph->related_nodes($self, $outgoing ? (outgoing => $outgoing) : (), $incoming ? (incoming => $incoming) : (), $undirected ? (undirected => $undirected) : ());
         
         # bless them into the correct classes
+        $created_namespaces{ $self->{namespace} } = 1;
         foreach my $node (@nodes) {
-            bless $node, 'VRPipe::Schema::' . $node->{namespace} . '::' . $node->{label};
+            my $namespace = $node->{namespace};
+            bless $node, 'VRPipe::Schema::' . $namespace . '::' . $node->{label};
+            
+            # load the associated schema so that methods can be called on it
+            unless (exists $created_namespaces{$namespace}) {
+                VRPipe::Schema->create($namespace);
+                $created_namespaces{$namespace} = 1;
+            }
         }
         
         return @nodes;

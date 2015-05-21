@@ -72,7 +72,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 # we need to know some related info on this stats file;
                 # find it in the graph database under the vrtrack schema or die
                 my $vrtrack = VRPipe::Schema->create('VRTrack');
-                my $vrstats_file = $vrtrack->get_file($s_file->path->stringify, protocol => $s_file->protocol);
+                my $vrstats_file = $vrtrack->get_file($s_file->protocolless_path, $s_file->protocol);
                 $self->throw($s_file->path . " was not in the graph database") unless $vrstats_file;
                 my ($vr_lane) = $vrstats_file->related(incoming => { namespace => 'VRTrack', label => 'Lane', max_depth => 5 });
                 my ($vr_stats) = $vrstats_file->related(outgoing => { type => 'summary_stats' });
@@ -123,16 +123,20 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-indel-cycles.png', type => 'bin');
                 push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Indels per cycle' });
                 
-                $self->output_file(temporary => 1, basename => $prefix . '-mism-per-cycle.gp', type => 'txt');
-                $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-mism-per-cycle.png', type => 'bin');
-                push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Mismatches per cycle' });
+                if ($vr_stats->properties->{'options'} =~ /(?<!\S)-r(?!\S)/) {
+                    $self->output_file(temporary => 1, basename => $prefix . '-mism-per-cycle.gp', type => 'txt');
+                    $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-mism-per-cycle.png', type => 'bin');
+                    push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Mismatches per cycle' });
+                }
+                
+                $self->output_file(temporary => 1, basename => $prefix . '.html', type => 'txt');
                 
                 foreach my $params (@vr_plot_params) {
                     my $path = delete $params->{path};
                     $self->relate_input_to_output($vrstats_file, 'bamstats_plot', $path, $params);
                 }
                 
-                my $cat = $s_file->cat;
+                my $cat = $s_file->cat_cmd;
                 my $cmd = qq[$cat | $plot_bamstats $plot_opts -p $prefix -];
                 $self->dispatch([$cmd, $req]);
             }

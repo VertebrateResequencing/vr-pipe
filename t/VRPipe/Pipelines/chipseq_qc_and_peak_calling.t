@@ -8,7 +8,7 @@ BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_PHANTOMPEAK_RSCRIPT VRPIPE_PHANTOMPEAK_RLIBS)],
-        required_exe => [qw(samtools bamcheck macs2 bedGraphToBigWig Rscript)]
+        required_exe => [qw(samtools bedtools bamcheck macs2 bedGraphToBigWig Rscript)]
     );
     use TestPipelines;
 }

@@ -49,8 +49,8 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
     method inputs_definition {
         return {
             bam_files => VRPipe::StepIODefinition->create(
-                type        => 'bam',
-                description => 'bam file with associated bamcheck statistics in the metadata',
+                type        => 'aln',
+                description => 'bam (or cram) file with associated bamcheck statistics in the metadata',
                 max_files   => -1,
                 metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
             ),
@@ -136,7 +136,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
         return "Add the bamcheck QC statistics and graphs to the VRTrack database, so that they're accessible with QCGrind etc.";
     }
     
-    method update_mapstats (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!, Bool :$targets_mode?) {
+    method update_mapstats (ClassName|Object $self: Str :$db!, Str|File :$bam!, Str :$lane!, Str|Dir :$plot_dir!, ArrayRef :$plots!, Bool :$targets_mode = 0) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta = $bam_file->metadata;
         my (%plot_files, $schema);
@@ -177,8 +177,9 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 if ($stats_node) {
                     my $graph = $schema->graph;
                     
-                    $meta->{ $meta_key_prefix . 'filtered_reads' }     = $graph->node_property($stats_node, 'filtered sequences');
-                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'raw total sequences');
+                    $meta->{ $meta_key_prefix . 'filtered_reads' } = $graph->node_property($stats_node, 'filtered sequences');
+                    #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
+                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'sequences') || $graph->node_property($stats_node, 'raw total sequences');
                     $meta->{ $meta_key_prefix . 'bases' }              = $graph->node_property($stats_node, 'total length');
                     $meta->{ $meta_key_prefix . 'reads_mapped' }       = $graph->node_property($stats_node, 'reads mapped');
                     $meta->{ $meta_key_prefix . 'reads_paired' }       = $graph->node_property($stats_node, 'reads paired');
@@ -203,6 +204,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                     $meta->{reads}           = $graph->node_property($stats_node, 'raw total sequences');
                     $meta->{paired}          = $graph->node_property($stats_node, 'reads properly paired') ? 1 : 0;
                     $meta->{avg_read_length} = $graph->node_property($stats_node, 'average length');
+                    $meta->{npg_qc_status} = $bam_graph_node->property('manual_qc') ? 1 : 0;
                 }
             }
             
@@ -212,11 +214,18 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
         # do we need to sanity check the .dict file vs the SQ lines in the bam
         # header?
         
+        $self->meta_to_mapstats(meta => $meta, plot_files => \%plot_files, lane_file => $bam_file, db => $db, lane => $lane, meta_key_prefix => $meta_key_prefix, targets_mode => $targets_mode);
+    }
+    
+    method meta_to_mapstats (ClassName|Object $self: HashRef :$meta!, HashRef :$plot_files!, Object :$lane_file!, Str :$db!, Str :$lane!, Str :$meta_key_prefix!, Bool :$targets_mode!) {
         # get the lane and mapstats object from VRTrack
         my $vrtrack = $self->get_vrtrack(db => $db);
         my $vrlane = VRTrack::Lane->new_by_hierarchy_name($vrtrack, $lane) || $self->throw("No lane named '$lane' in database '$db'");
         my $mapstats = $vrlane->latest_mapping;
         
+        # build a transaction to create/update a mapstats for the lane based on
+        # supplied metadata, and add plot files to it based on supplied plot
+        # hash
         my $worked = $vrtrack->transaction(
             sub {
                 unless ($mapstats) {
@@ -226,7 +235,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 
                 # fill in the mapstats based on our metadata
                 
-                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'filtered_reads' } || $meta->{ $meta_key_prefix . 'reads' });
+                $mapstats->raw_reads($meta->{ $meta_key_prefix . 'reads' });
                 my $raw_bases = $meta->{ $meta_key_prefix . 'bases' };
                 $mapstats->raw_bases($raw_bases);
                 $mapstats->reads_mapped($meta->{ $meta_key_prefix . 'reads_mapped' });
@@ -250,7 +259,7 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 }
                 
                 # add the images
-                while (my ($path, $caption) = each %plot_files) {
+                while (my ($path, $caption) = each %{$plot_files}) {
                     my $img = $mapstats->add_image_by_filename($path);
                     $img->caption($caption);
                     $img->update;
@@ -259,10 +268,10 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 $mapstats->update;
                 
                 # say that the file is imported
-                my $vrfile = $vrlane->get_file_by_name($bam_file->basename);
+                my $vrfile = $vrlane->get_file_by_name($lane_file->basename);
                 if ($vrfile) {
                     $vrfile->is_processed(import => 1);
-                    $vrfile->md5($bam_file->md5);
+                    $vrfile->md5($lane_file->md5);
                     $vrfile->update;
                     $vrfile->is_processed(mapped => 1);
                     $vrfile->update;
@@ -276,6 +285,9 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                 $vrlane->read_len(int($meta->{avg_read_length}));
                 if ($vrlane->qc_status eq 'no_qc') {
                     $vrlane->qc_status('pending');
+                }
+                if (defined $meta->{npg_qc_status}) {
+                    $vrlane->npg_qc_status($meta->{npg_qc_status} ? 'pass' : 'fail');
                 }
                 $vrlane->is_processed(import => 1);
                 $vrlane->update;
