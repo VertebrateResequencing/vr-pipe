@@ -36,9 +36,10 @@ use VRPipe::Base;
 class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
     method options_definition {
         return {
+            samtools_exe                 => VRPipe::StepOption->create(description => 'path to samtools executable',      optional      => 1, default_value => 'samtools'),
+            samtools_bam2fq_options      => VRPipe::StepOption->create(description => 'options for samtools bam2fq',      optional      => 1, default_value => ''),
             bfc_exe                      => VRPipe::StepOption->create(description => 'path to bfc executable',           default_value => 'bfc'),
             bfc_error_correction_options => VRPipe::StepOption->create(description => 'options for bcf error correction', default_value => '-s 3g -t 16'),
-            samtools_bam2fq_options      => VRPipe::StepOption->create(description => 'options for samtools bam2fq',      optional      => 1, default_value => ''),
         };
     }
     
