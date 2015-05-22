@@ -75,8 +75,15 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
                 $mpileup_opts .= " -l " . $sites_file->path;
             }
             
-            my $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
-            my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
+            my ($bams_list_path, $file_list_id);
+            if (@{ $self->inputs->{bam_files} } > 1) {
+                $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
+                $bams_list_path = "-b $bams_list_path";
+                $file_list_id   = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
+            }
+            else {
+                $bams_list_path = $self->inputs->{bam_files}->[0]->path;
+            }
             
             my $summary_opts = $mpileup_opts;
             my $basename     = 'mpileup.bcf';
@@ -99,17 +106,18 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
             my $bcf_index = $self->output_file(output_key => 'bcf_index', basename => "$basename.csi", type => 'bin', metadata => $bcf_meta);
             my $bcf_path  = $bcf_file->path;
             
-            my $req      = $self->new_requirements(memory => 500, time => 1);
-            my $cmd      = qq[$samtools mpileup $mpileup_opts -f $reference_fasta -b $bams_list_path > $bcf_path && $bcftools index $bcf_path];
-            my $this_cmd = "use VRPipe::Steps::mpileup_bcf; VRPipe::Steps::mpileup_bcf->mpileup_bcf_and_check(q[$cmd], input_ids => [qw(@input_ids)]);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bcf_file] });
+            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $cmd = qq[q[$samtools mpileup $mpileup_opts -f $reference_fasta $bams_list_path > $bcf_path && $bcftools index $bcf_path]];
+            $cmd .= qq[, input_file_list => $file_list_id] if (defined $file_list_id);
+            my $this_cmd = "use VRPipe::Steps::mpileup_bcf; VRPipe::Steps::mpileup_bcf->mpileup_bcf_and_check($cmd);";
+            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bcf_file, $bcf_index] });
         };
     }
     
     method outputs_definition {
         return {
-            bcf_files => VRPipe::StepIODefinition->create(type => 'bcf', max_files => -1, description => 'a .bcf file for each set of input bam files'),
-            bcf_index => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a .bcf.csi file for each set of input bam files')
+            bcf_files => VRPipe::StepIODefinition->create(type => 'bcf', max_files => 1, description => 'a .bcf file for each set of input bam files'),
+            bcf_index => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => 'a .bcf.csi file for each set of input bam files')
         };
     }
     
@@ -125,17 +133,19 @@ class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
         return 0;            # meaning unlimited
     }
     
-    method mpileup_bcf_and_check (ClassName|Object $self: Str $cmd_line!, ArrayRef[Int] :$input_ids!) {
-        my ($fofn_path, $output_path) = $cmd_line =~ /-b (\S+) > (\S+) &&/;
-        $fofn_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+    method mpileup_bcf_and_check (ClassName|Object $self: Str $cmd_line!, Int :$input_file_list?) {
+        my ($input_path, $output_path) = $cmd_line =~ /(\S+) > (\S+) &&/;
+        $input_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $output_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
-        my $fofn = VRPipe::File->get(path => $fofn_path);
         my $bcf = VRPipe::FileType->create('bcf', { file => $output_path });
         my $bcf_file = VRPipe::File->get(path => $output_path);
         
-        my @input_files = map { VRPipe::File->get(id => $_) } @$input_ids;
-        $fofn->create_fofn(\@input_files);
+        if ($input_file_list) {
+            my @input_files = VRPipe::FileList->get(id => $input_file_list)->files;
+            my $fofn = VRPipe::File->get(path => $input_path);
+            $fofn->create_fofn(\@input_files);
+        }
         
         $bcf_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");

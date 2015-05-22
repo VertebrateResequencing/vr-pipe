@@ -110,8 +110,14 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 }
             }
             
-            my $bams_list_path = $self->output_file(basename => 'bams.list', type => 'txt', temporary => 1)->path;
-            my @input_ids = map { $_->id } @{ $self->inputs->{bam_files} };
+            my ($bams_list_path, $file_list_id);
+            if (@{ $self->inputs->{bam_files} } > 1) {
+                $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
+                $file_list_id = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
+            }
+            else {
+                $bams_list_path = $self->inputs->{bam_files}->[0]->path;
+            }
             
             my $summary_opts = $haplotyper_opts;
             my $basename     = 'gatk_haplotype.vcf.gz';
@@ -135,8 +141,9 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             
             my $req      = $self->new_requirements(memory => 6000, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-            my $cmd      = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts];
-            my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check(q[$cmd], input_ids => [qw(@input_ids)], minimum_records => $minimum_records);";
+            my $cmd      = 'q[' . $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
+            $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;
+            my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check($cmd, minimum_records => $minimum_records);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
         };
     }
@@ -157,7 +164,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
         return 0;            # meaning unlimited
     }
     
-    method genotype_and_check (ClassName|Object $self: Str $cmd_line, ArrayRef[Int] :$input_ids!, Int :$minimum_records = 0) {
+    method genotype_and_check (ClassName|Object $self: Str $cmd_line, Int :$input_file_list!, Int :$minimum_records = 0) {
         my ($fofn_path, $out_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
         $fofn_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
@@ -165,7 +172,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
         my $fofn     = VRPipe::File->get(path => $fofn_path);
         my $out_file = VRPipe::File->get(path => $out_path);
         
-        my @input_files = map { VRPipe::File->get(id => $_) } @$input_ids;
+        my @input_files = VRPipe::FileList->get(id => $input_file_list)->files;
         $fofn->create_fofn(\@input_files);
         
         $fofn->disconnect;
