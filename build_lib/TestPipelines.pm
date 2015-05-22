@@ -133,13 +133,14 @@ sub output_subdirs {
 }
 
 sub create_single_step_pipeline {
-    my ($step_name, $input_key) = @_;
+    my ($step_name, @input_keys) = @_;
     
     my $step          = VRPipe::Step->get(name => $step_name) || die "Could not create a step named '$step_name'\n";
     my $pipeline_name = $step_name . '_pipeline';
     my $pipeline      = VRPipe::Pipeline->create(name => $pipeline_name, description => 'test pipeline for the ' . $step_name . ' step');
     VRPipe::StepMember->create(step => $step, pipeline => $pipeline, step_number => 1);
-    VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 1, adaptor_hash => { $input_key => { data_element => 0 } });
+    my %adapter_hash = map { $_ => { data_element => 0 } } @input_keys;
+    VRPipe::StepAdaptor->create(pipeline => $pipeline, to_step => 1, adaptor_hash => \%adapter_hash);
     
     my $output_dir = get_output_dir($pipeline_name);
     
