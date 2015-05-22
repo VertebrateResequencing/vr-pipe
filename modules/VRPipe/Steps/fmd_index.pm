@@ -65,7 +65,7 @@ class VRPipe::Steps::fmd_index with VRPipe::StepRole {
                 my $prefix = $fq->basename;
                 $prefix =~ s/\.(fq|fastq)(\.gz)?//;
                 my $fmd_index = $self->output_file(output_key => 'fmd_index_files', basename => "$prefix.fmd", type => 'bin', metadata => $fq->metadata);
-                my $this_cmd = "$ropebwt2_exe $ropebwt2_opts > " . $fmd_index->path;
+                my $this_cmd = "$ropebwt2_exe $ropebwt2_opts " . $fq->path . " > " . $fmd_index->path;
                 $self->dispatch([$this_cmd, $req, { output_files => [$fmd_index] }]);
             }
         };
