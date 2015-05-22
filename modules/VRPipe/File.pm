@@ -1105,12 +1105,10 @@ class VRPipe::File extends VRPipe::Persistent {
     }
     
     method num_header_lines {
-        my $s = $self->s || return 0;
         return $self->_filetype->num_header_lines;
     }
     
     method header_lines {
-        my $s = $self->s || return 0;
         return $self->_filetype->header_lines;
     }
     
