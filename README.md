@@ -43,7 +43,9 @@ you configure them with during setup - the default will be the first one in your
 PATH.)
 You will also need samtools v1.3+ (https://github.com/samtools/samtools) for
 use in your actual setups, and htslib (https://github.com/samtools/htslib)
-installed and pointed to with the HTSLIB environment variable.
+installed and pointed to with the HTSLIB environment variable. Be sure to
+configure it with support for irods files if you expect to work with files
+stored in irods.
 
 You require Module::Build in order for the Build.PL script to work. It is
 recommended you 'install Bundle::CPAN' using 'cpan' prior to attempting setup.
