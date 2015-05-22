@@ -54,10 +54,10 @@ class VRPipe::FileType::hts with VRPipe::FileTypeRole {
     }
     
     method num_header_lines {
-        return scalar(@{ $self->_header_lines });
+        return scalar(@{ $self->header_lines });
     }
     
-    method _header_lines {
+    method header_lines {
         my $path         = $self->file;
         my $headers      = `$htsfile_exe -ch $path`;
         my @header_lines = split(/\n/, $headers);

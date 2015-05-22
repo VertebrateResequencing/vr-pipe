@@ -109,6 +109,11 @@ role VRPipe::FileTypeRole {
         return 0;
     }
     
+    # if implemented, this should return an array ref of chomped header lines
+    method header_lines {
+        return undef;
+    }
+    
     method num_records {
         my $path = $self->file;
         my $cat = $path =~ /\.gz$/ ? 'zcat' : 'cat';

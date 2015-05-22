@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 97;
+    use Test::Most tests => 101;
     use VRPipeTest;
 }
 
@@ -434,6 +434,18 @@ SKIP: {
 
 # test FileMethods hashed_dirs()
 is_deeply [$lfile->hashed_dirs('foo')], ['a', 'c', 'b', 'd18db4cc2f85cedef654fccc4a4d8'], 'hashed_dirs() works correctly';
+
+# test the FileType pass-through methods
+SKIP: {
+    my $num_tests = 3;
+    skip "SAMTOOLS and HTSLIB env vars are needed to test cram filetype pass-through methods", $num_tests unless ($ENV{SAMTOOLS} && $ENV{HTSLIB});
+    my $cram = VRPipe::File->create(path => file(qw(t data hs_chr20.c.cram))->absolute);
+    is $cram->num_records,      4995, 'num_records() works';
+    is $cram->num_header_lines, 5,    'num_header_lines() works';
+    my $header = VRPipe::File->create(path => file(qw(t data hs_chr20.c.cram.header))->absolute);
+    is_deeply $cram->header_lines, [$header->slurp(chomp => 1)], 'header_lines() works for a cram file';
+}
+ok !$pfile->header_lines, 'header_lines() returns undef for a txt file';
 
 done_testing;
 exit;
