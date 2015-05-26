@@ -8,7 +8,7 @@ use POSIX qw(getgroups);
 use VRPipe::Interface::CmdLine;
 
 BEGIN {
-    use Test::Most tests => 17;
+    use Test::Most tests => 19;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -232,6 +232,114 @@ $md5_pipelinesetup = VRPipe::PipelineSetup->create(
 @md5_output_files = (file(output_subdirs(7, 4), '1_md5_file_production', 'file.bam.md5'), file(output_subdirs(8, 4), '1_md5_file_production', 'file.cat.md5'), file(output_subdirs(9, 4), '1_md5_file_production', 'file.txt.md5'), file(output_subdirs(7, 4), '2_md5_file_production', 'file.bam.md5.md5'), file(output_subdirs(8, 4), '2_md5_file_production', 'file.cat.md5.md5'), file(output_subdirs(9, 4), '2_md5_file_production', 'file.txt.md5.md5'));
 
 is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manager, using a previously completed datasource';
+
+# test that the step behaviour delete_inputs() won't delete input files needed
+# by other setups that haven't finished yet
+{
+    my %initial_sofs;
+    foreach my $f (@first_output_files) {
+        my $file = VRPipe::File->get(path => $f);
+        my ($sof) = VRPipe::StepOutputFile->search({ file => $file->id });
+        $initial_sofs{ $file->id } = $sof->id;
+    }
+    
+    my $sleep_step = VRPipe::Step->create(
+        name              => 'sleep_step',
+        inputs_definition => {},
+        body_sub          => sub {
+            my $self  = shift;
+            my $sleep = int(rand(120)) + 60;
+            $self->dispatch([qq{sleep $sleep}, $self->new_requirements(memory => 60, time => 1)]);
+        },
+        outputs_definition => {},
+        post_process_sub   => sub { return 1 },
+        description        => 'sleep for a variable amount of time'
+    );
+    
+    my $step = VRPipe::Step->create(
+        name              => 'file_input_to_output',
+        inputs_definition => { file_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'file input', max_files => -1) },
+        body_sub          => sub {
+            my $self        = shift;
+            my @input_files = @{ $self->inputs->{file_input} };
+            my $basename    = join('-', map { $_->basename } @input_files);
+            my $ofile       = $self->output_file(output_key => 'file_output', basename => "$basename.fito", type => 'txt')->path;
+            $self->dispatch([qq{echo "output for $basename" > $ofile}, $self->new_requirements(memory => 60, time => 1)]);
+        },
+        outputs_definition => { file_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'fito file') },
+        post_process_sub   => sub           { return 1 },
+        description        => 'outputs a file corresponding to the input file'
+    );
+    
+    my $fito_pipeline = VRPipe::Pipeline->create(name => 'fito_pipeline', description => 'file input to output pipeline');
+    $fito_pipeline->add_step($sleep_step);
+    $fito_pipeline->add_step($step);
+    VRPipe::StepAdaptor->create(pipeline => $fito_pipeline, to_step => 2, adaptor_hash => { file_input => { data_element => 0 } });
+    VRPipe::StepBehaviour->create(pipeline => $fito_pipeline, after_step => 2, behaviour => 'delete_inputs', behaviour_array => [['delete_inputs', 0]], default_regulation => 1);
+    
+    $step = VRPipe::Step->create(
+        name              => 'file_input_to_output_2',
+        inputs_definition => { file_input => VRPipe::StepIODefinition->create(type => 'txt', description => 'file input') },
+        body_sub          => sub {
+            my $self         = shift;
+            my ($input_file) = @{ $self->inputs->{file_input} };
+            my $basename     = $input_file->basename;
+            my $ofile        = $self->output_file(output_key => 'file_output', basename => "$basename.fito2", type => 'txt')->path;
+            $self->dispatch([qq{echo "output for $basename 2" > $ofile}, $self->new_requirements(memory => 60, time => 1)]);
+        },
+        outputs_definition => { file_output => VRPipe::StepIODefinition->create(type => 'txt', description => 'fito2 file') },
+        post_process_sub   => sub           { return 1 },
+        description        => 'outputs a file corresponding to the input file'
+    );
+    
+    my $fito2_pipeline = VRPipe::Pipeline->create(name => 'fito2_pipeline', description => 'file input to output pipeline 2');
+    $fito2_pipeline->add_step($sleep_step);
+    $fito2_pipeline->add_step($step);
+    VRPipe::StepAdaptor->create(pipeline => $fito2_pipeline, to_step => 2, adaptor_hash => { file_input => { data_element => 0 } });
+    VRPipe::StepBehaviour->create(pipeline => $fito2_pipeline, after_step => 2, behaviour => 'delete_inputs', behaviour_array => [['delete_inputs', 0]], default_regulation => 1);
+    
+    my $fito_output_dir = dir($output_root, 'fito_pipeline');
+    
+    my $vrds = VRPipe::DataSource->create(
+        type   => 'vrpipe',
+        method => 'all',
+        source => 'ps1[1]'
+    );
+    my $fito_ps_1 = VRPipe::PipelineSetup->create(name => 'fito_ps1', datasource => $vrds, output_root => $fito_output_dir, pipeline => $fito_pipeline);
+    my $fito_ps_2 = VRPipe::PipelineSetup->create(name => 'fito_ps2', datasource => $vrds, output_root => $fito_output_dir, pipeline => $fito2_pipeline);
+    my $vrds2     = VRPipe::DataSource->create(
+        type   => 'vrpipe',
+        method => 'group_all',
+        source => 'ps1[1]'
+    );
+    my $fito_ps_3 = VRPipe::PipelineSetup->create(name => 'fito_ps1', datasource => $vrds2, output_root => $fito_output_dir, pipeline => $fito_pipeline);
+    
+    my @fito_output_files;
+    my $pager = $vrds->elements;
+    while (my $elements = $pager->next) {
+        my $i = 1;
+        foreach my $el (@$elements) {
+            push(@fito_output_files, file(output_subdirs($el->id, $fito_ps_1->id), '2_file_input_to_output',   "fed_result_$i.o.fito"));
+            push(@fito_output_files, file(output_subdirs($el->id, $fito_ps_2->id), '2_file_input_to_output_2', "fed_result_$i.o.fito2"));
+            $i++;
+        }
+    }
+    $pager = $vrds2->elements;
+    my ($el) = @{ $pager->next };
+    push(@fito_output_files, file(output_subdirs($el->id, $fito_ps_3->id), '2_file_input_to_output', "fed_result_1.o-fed_result_2.o-fed_result_3.o-fed_result_4.o-fed_result_5.o.fito"));
+    
+    ok handle_pipeline(@fito_output_files), '3 setups that use the same input files and delete their inputs all ran successfully';
+    my $ok = 0;
+    foreach my $f (@first_output_files) {
+        next if -e $f;
+        my $file = VRPipe::File->get(path => $f);
+        my ($sof) = VRPipe::StepOutputFile->search({ file => $file->id });
+        if ($sof->id == $initial_sofs{ $file->id }) {
+            $ok++;
+        }
+    }
+    is $ok, 5, 'the input files got deleted, and were not recreated at any point';
+}
 
 # we can have the input step to a pipeline take 2 different types of file from
 # the datasource
