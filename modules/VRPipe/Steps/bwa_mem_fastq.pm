@@ -73,6 +73,11 @@ class VRPipe::Steps::bwa_mem_fastq with VRPipe::StepRole {
                     chunk          => 'if the fastq file was produced by fastq_split Step, the chunk number',
                     optional       => ['mate', 'chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
+            ),
+            dict_file => VRPipe::StepIODefinition->create(
+                type        => 'txt',
+                min_files   => 0,
+                description => 'optional sequence dictionary file for your reference fasta'
             )
         };
     }
@@ -90,6 +95,9 @@ class VRPipe::Steps::bwa_mem_fastq with VRPipe::StepRole {
                 $self->throw("bwa_mem_options should not include the reference or the mem sub command");
             }
             my $cmd = $bwa_exe . ' mem ' . $bwa_opts;
+            if ($self->inputs->{dict_file}) {
+                $cmd .= ' -H ' . $self->inputs->{dict_file}->[0]->path;
+            }
             
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'bwa', version => VRPipe::StepCmdSummary->determine_version($bwa_exe, '^Version: (.+)$'), summary => 'bwa mem ' . $bwa_opts . ' $reference_fasta $fastq_file(s) > $sam_file'));
             
