@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Steps::gatk_haplotype_caller - a step
+VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking - a step
 
 =head1 DESCRIPTION
 
@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012-2013 Genome Research Limited.
+Copyright (c) 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -43,27 +43,7 @@ use VRPipe::Base;
 #      [-L targets.interval_list]
 #      -o output.raw.snps.indels.vcf
 
-class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
-    around options_definition {
-        return {
-            %{ $self->$orig }, # gatk options
-            haplotype_caller_options => VRPipe::StepOption->create(description => 'Options for GATK HaplotypeCaller, excluding -R,-I,-o'),
-            minimum_records          => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0)
-        };
-    }
-    
-    method inputs_definition {
-        return {
-            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
-            bai_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
-                max_files   => -1,
-                description => 'index files for the input bam files'
-            ),
-            sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
-        };
-    }
-    
+class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::Steps::gatk_haplotype_caller with VRPipe::StepGenomeChunkingRole {
     method body_sub {
         return sub {
             my $self     = shift;
@@ -110,46 +90,53 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 }
             }
             
-            my ($bams_list_path, $file_list_id);
+            my $file_list_id;
             if (@{ $self->inputs->{bam_files} } > 1) {
-                $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
                 $file_list_id = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
-            }
-            else {
-                $bams_list_path = $self->inputs->{bam_files}->[0]->path;
-            }
-            
-            my $summary_opts = $haplotyper_opts;
-            my $basename     = 'gatk_haplotype.vcf.gz';
-            if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
-                my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
-                $summary_opts    .= ' -L $region';
-                $haplotyper_opts .= " -L $chrom:$from-$to";
-                $basename = "${chrom}_${from}-${to}.$basename";
             }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'GenomeAnalysisTK',
                     version => $self->gatk_version(),
-                    summary => 'java $jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R $reference_fasta -I $bams_list -o $vcf_file ' . $summary_opts
+                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region]
                 )
             );
             
-            my $vcf_file = $self->output_file(output_key => 'gatk_vcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
-            my $vcf_path = $vcf_file->path;
-            
             my $req      = $self->new_requirements(memory => 6000, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
-            my $cmd      = 'q[' . $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
-            $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;
-            my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check($cmd, minimum_records => $minimum_records);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
+            my $basename = 'gatk_haplotype.vcf.gz';
+            
+            my $chunks = $self->chunks();
+            foreach my $chunk (@$chunks) {
+                my $chrom          = $chunk->{chrom};
+                my $from           = $chunk->{from};
+                my $to             = $chunk->{to};
+                my $chunk_opts     = "$haplotyper_opts -L ${chrom}:${from}-${to}";
+                my $chunk_basename = "${chrom}_${from}-${to}.$basename";
+                my $chunk_meta     = { %$vcf_meta, %$chunk };
+                
+                my $bams_list_path;
+                if ($file_list_id) {
+                    $bams_list_path = $self->output_file(basename => "$chunk_basename.bams.list", type => 'txt', temporary => 1)->path;
+                }
+                else {
+                    $bams_list_path = $self->inputs->{bam_files}->[0]->path;
+                }
+                
+                my $vcf_file = $self->output_file(output_key => 'gatk_hc_vcf_files', basename => $chunk_basename, type => 'vcf', metadata => $chunk_meta);
+                my $vcf_path = $vcf_file->path;
+                
+                my $cmd = 'q[' . $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $chunk_opts] . ']';
+                $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;
+                my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check($cmd, minimum_records => $minimum_records);";
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
+            }
         };
     }
     
     method outputs_definition {
-        return { gatk_vcf_file => VRPipe::StepIODefinition->create(type => 'vcf', max_files => 1, description => 'a single vcf file') };
+        return { gatk_hc_vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a single vcf file') };
     }
     
     method post_process_sub {
@@ -162,34 +149,6 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
     
     method max_simultaneous {
         return 0;            # meaning unlimited
-    }
-    
-    method genotype_and_check (ClassName|Object $self: Str $cmd_line, Int :$input_file_list?, Int :$minimum_records = 0) {
-        my ($input_path, $out_path) = $cmd_line =~ /-I (\S+) -o (\S+)/;
-        $input_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $out_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        
-        my $out_file = VRPipe::File->get(path => $out_path);
-        
-        if ($input_file_list) {
-            my @input_files = VRPipe::FileList->get(id => $input_file_list)->files;
-            my $fofn = VRPipe::File->get(path => $input_path);
-            $fofn->create_fofn(\@input_files);
-        }
-        
-        $out_file->disconnect;
-        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
-        
-        $out_file->update_stats_from_disc(retries => 3);
-        
-        my $output_records = $out_file->num_records;
-        if ($output_records < $minimum_records) {
-            $out_file->unlink;
-            $self->throw("Output VCF has $output_records data lines, fewer than required minimum $minimum_records");
-        }
-        else {
-            return 1;
-        }
     }
 }
 

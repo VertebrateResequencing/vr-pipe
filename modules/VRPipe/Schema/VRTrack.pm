@@ -166,6 +166,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 required       => [qw(freemix date pass)],
                 allow_anything => 1
             },
+            {
+                label          => 'Header_Mistakes',
+                unique         => [qw(uuid)],
+                required       => [qw(num_mistakes)],
+                allow_anything => 1
+            },
             
             # gender (for expected or calculated from sequenom/fluidgm)
             {

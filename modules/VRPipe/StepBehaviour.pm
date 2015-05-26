@@ -99,6 +99,7 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
         is  => 'rw',
         isa => 'VRPipe::DataElement'
     );
+    
     has 'pipelinesetup' => (
         is  => 'rw',
         isa => 'VRPipe::PipelineSetup'
@@ -175,10 +176,59 @@ class VRPipe::StepBehaviour extends VRPipe::Persistent {
     
     method delete_inputs {
         my $data_element = $self->dataelement;
-        my $files = $data_element->files || $self->throw("data element " . $data_element->id . " gave a result with no paths");
+        my $files        = $data_element->files || $self->throw("data element " . $data_element->id . " gave a result with no paths");
+        my $my_de_id     = $data_element->id;
+        my $my_setup_id  = $self->pipelinesetup->id;
+        my %setup_to_lsttdi;
         foreach my $file (@$files) {
-            $file->unlink;
+            # check that no other active setup is going to need this file as an
+            # input to a step that hasn't run yet
+            my $ok = 1;
+            FLLOOP: foreach my $fl_id (VRPipe::FileListMember->get_column_values('filelist', { file => $file->id })) {
+                foreach my $de_id (VRPipe::DataElement->get_column_values('id', { filelist => $fl_id })) {
+                    foreach my $des (VRPipe::DataElementState->search({ dataelement => $de_id }, { prefetch => 'pipelinesetup' })) {
+                        my $ps_id = $des->pipelinesetup->id;
+                        next if ($de_id == $my_de_id && $ps_id == $my_setup_id);
+                        
+                        unless (exists $setup_to_lsttdi{$ps_id}) {
+                            $setup_to_lsttdi{$ps_id} = $self->_setup_to_last_step_that_takes_datasource_input($des->pipelinesetup);
+                        }
+                        
+                        # we don't block and lock the des here so suffer a
+                        # potential race condition, but this is better than
+                        # constant dead-lock...
+                        my $completed_steps = $des->completed_steps;
+                        if ($completed_steps < $setup_to_lsttdi{$ps_id}) {
+                            $ok = 0;
+                            last FLLOOP;
+                        }
+                    }
+                }
+            }
+            
+            $file->unlink if $ok;
         }
+    }
+    
+    method _setup_to_last_step_that_takes_datasource_input (Object $setup) {
+        return 0 unless $setup->active;
+        my $pipeline = $setup->pipeline;
+        
+        my $highest_step = 0;
+        foreach my $adaptor (@{ $pipeline->adaptors || [] }) {
+            my $hash = $adaptor->adaptor_hash || next;
+            my %from_steps;
+            my $to_step = $adaptor->to_step;
+            while (my ($to_key, $from_keys) = each %{$hash}) {
+                foreach my $from_step (values %{$from_keys}) {
+                    if ($from_step == 0 && $to_step > $highest_step) {
+                        $highest_step = $to_step;
+                    }
+                }
+            }
+        }
+        
+        return $highest_step;
     }
 }
 

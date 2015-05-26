@@ -171,6 +171,13 @@ class VRPipe::File extends VRPipe::Persistent {
         builder => '_build_vrpipe_schema',
     );
     
+    has _filetype => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_filetype',
+    );
+    
     has _fileprotocol => (
         is      => 'ro',
         isa     => 'Object',
@@ -187,6 +194,10 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method _build_vrpipe_schema {
         return VRPipe::Schema->create('VRPipe');
+    }
+    
+    method _build_filetype {
+        return VRPipe::FileType->create($self->type, { file => $self->path });
     }
     
     method _build_fileprotocol {
@@ -1089,13 +1100,16 @@ class VRPipe::File extends VRPipe::Persistent {
     
     method num_records {
         my $s = $self->s || return 0;
-        
-        my $records = 0;
-        my $ft = VRPipe::FileType->create($self->type, { file => $self->path });
         $self->disconnect if $s > 640000;
-        $records = $ft->num_records;
-        
-        return $records;
+        return $self->_filetype->num_records;
+    }
+    
+    method num_header_lines {
+        return $self->_filetype->num_header_lines;
+    }
+    
+    method header_lines {
+        return $self->_filetype->header_lines;
     }
     
     method update_md5 (Str $md5?) {

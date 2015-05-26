@@ -46,9 +46,9 @@ class VRPipe::FileType::vcf extends VRPipe::FileType::hts {
     }
     
     method samples {
-        my $header_lines = $self->_header_lines;
+        my $header_lines = $self->header_lines;
         $self->throw("No header lines found in, " . $self->file) unless (@$header_lines);
-        my @line = split(/\t/, ${ $self->_header_lines }[-1]);
+        my @line = split(/\t/, ${$header_lines}[-1]);
         my @samples = @line[9 .. $#line];
         @samples || $self->throw("No samples found in " . $self->file);
         return \@samples;

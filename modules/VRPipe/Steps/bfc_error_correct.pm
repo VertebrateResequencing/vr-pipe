@@ -36,10 +36,11 @@ use VRPipe::Base;
 class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
     method options_definition {
         return {
-            samtools_exe                 => VRPipe::StepOption->create(description => 'path to samtools executable',      optional      => 1, default_value => 'samtools'),
-            samtools_bam2fq_options      => VRPipe::StepOption->create(description => 'options for samtools bam2fq',      optional      => 1, default_value => ''),
-            bfc_exe                      => VRPipe::StepOption->create(description => 'path to bfc executable',           default_value => 'bfc'),
-            bfc_error_correction_options => VRPipe::StepOption->create(description => 'options for bcf error correction', default_value => '-s 3g -t 16'),
+            samtools_exe                 => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                      optional      => 1, default_value => 'samtools'),
+            samtools_view_options        => VRPipe::StepOption->create(description => 'options for samtools view excluding -u; default set to filter QCFAIL,SECONDARY,DUP,SUPPLEMENTARY', optional      => 1, default_value => '-F0xf00'),
+            samtools_bam2fq_options      => VRPipe::StepOption->create(description => 'options for samtools bam2fq',                                                                      optional      => 1, default_value => ''),
+            bfc_exe                      => VRPipe::StepOption->create(description => 'path to bfc executable',                                                                           default_value => 'bfc'),
+            bfc_error_correction_options => VRPipe::StepOption->create(description => 'options for bcf error correction',                                                                 default_value => '-s 3g -t 16'),
         };
     }
     
@@ -52,6 +53,7 @@ class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
             my $self                 = shift;
             my $options              = $self->options;
             my $samtools             = $options->{samtools_exe};
+            my $samtools_view_opts   = $options->{samtools_view_options};
             my $samtools_bam2fq_opts = $options->{samtools_bam2fq_options};
             my $bfc                  = $options->{bfc_exe};
             my $bfc_opts             = $options->{bfc_error_correction_options};
@@ -82,8 +84,14 @@ class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
                     type       => 'fq',
                     metadata   => $aln->metadata
                 );
-                my $bam2fq_cmd = qq[$samtools bam2fq $samtools_bam2fq_opts ] . $aln->path;
-                my $cmd        = qq[$bfc $bfc_opts <($bam2fq_cmd) <($bam2fq_cmd) | gzip -1 > ] . $ec_fastq_file->path;
+                my $bam2fq_cmd;
+                if ($samtools_view_opts) {
+                    $bam2fq_cmd = qq[$samtools view -u $samtools_view_opts ] . $aln->path . qq[ | $samtools bam2fq - ];
+                }
+                else {
+                    $bam2fq_cmd = qq[$samtools bam2fq $samtools_bam2fq_opts ] . $aln->path;
+                }
+                my $cmd = qq[$bfc $bfc_opts <($bam2fq_cmd) <($bam2fq_cmd) | gzip -1 > ] . $ec_fastq_file->path;
                 $self->dispatch([$cmd, $req, { output_files => [$ec_fastq_file] }]);
             }
         };

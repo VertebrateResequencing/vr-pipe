@@ -43,7 +43,10 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
     use JSON::XS;
     
     method options_definition {
-        return { qc_file_suffixes => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.', default_value => '_F0x900.stats,.genotype.json,.verify_bam_id.json') };
+        return {
+            qc_file_suffixes => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.',                                                     default_value => '_F0x900.stats,.genotype.json,.verify_bam_id.json'),
+            sample_id_type   => VRPipe::StepOption->create(description => 'The type of sample identifier to check in the cram file header; allowed values are id, public_name, supplier_name or accession', default_value => 'accession')
+        };
     }
     
     method inputs_definition {
@@ -52,11 +55,17 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self = shift;
+            my $self           = shift;
+            my $opts           = $self->options;
+            my $sample_id_type = $opts->{sample_id_type};
+            my $suffixes       = $opts->{qc_file_suffixes};
+            my $schema         = VRPipe::Schema->create('VRTrack');
             
-            my $req      = $self->new_requirements(memory => 500, time => 1);
-            my $schema   = VRPipe::Schema->create('VRTrack');
-            my $suffixes = $self->options->{qc_file_suffixes};
+            unless ($sample_id_type =~ /^(?:id|public_name|supplier_name|accession)$/) {
+                $self->throw("Invalid sample_id_type $sample_id_type; must be one of id|public_name|supplier_name|accession");
+            }
+            
+            my $req = $self->new_requirements(memory => 500, time => 1);
             my $stats_suffix;
             foreach my $suffix (split(/,/, $suffixes)) {
                 if ($suffix =~ /stats/) {
@@ -87,7 +96,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                 }
                 
                 my $cram_file_id = $cram_file->id;
-                $self->dispatch_vrpipecode("use VRPipe::Steps::npg_cram_stats_parser; VRPipe::Steps::npg_cram_stats_parser->parse_stats($cram_file_id, qq[$suffixes])", $req);
+                $self->dispatch_vrpipecode("use VRPipe::Steps::npg_cram_stats_parser; VRPipe::Steps::npg_cram_stats_parser->parse_stats($cram_file_id, qq[$suffixes], qq[$sample_id_type])", $req);
             }
         };
     }
@@ -108,14 +117,14 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
     }
     
     method description {
-        return "Parse qc files that have been associated with the input cram file by the irods datasource, storing the information in the graph db.";
+        return "Parse qc files that have been associated with the input cram file by the irods datasource, storing the information in the graph db. Also compares the cram header to stored information and records a diff of essential data. NB: HTSLIB environment variable must be set.";
     }
     
     method max_simultaneous {
         return 50;
     }
     
-    method parse_stats (ClassName|Object $self: Int $cram_file_id, Str $suffixes) {
+    method parse_stats (ClassName|Object $self: Int $cram_file_id, Str $suffixes, Str $sample_id_type) {
         my $cram_file = VRPipe::File->get(id => $cram_file_id);
         my @desired_suffixes = split(/,/, $suffixes) if $suffixes;
         my $desired_suffixes = join('|', @desired_suffixes) if @desired_suffixes;
@@ -286,6 +295,48 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                 incoming => { type => 'verify_bam_id_data', node => $verify_graph_node }
             );
         }
+        
+        # compare the cram header to what we know about the sequencing
+        my $header_lines       = $cram_file->header_lines;                                                                                                       # automagically works with irods files if HTSLIB has been compiled with irods support
+        my $props              = $graph_file->properties(flatten_parents => 1);
+        my %rg_key_to_prop_key = (LB => ['vrtrack_library_id', 'vrtrack_library_name'], SM => 'vrtrack_sample_accession', DS => "vrtrack_study_$sample_id_type");
+        my (%diffs, $did_ref);
+        foreach (@$header_lines) {
+            if (/^\@RG/) {
+                while (my ($rg_key, $prop_keys) = each %rg_key_to_prop_key) {
+                    my $ok = 0;
+                    foreach my $prop_key (ref($prop_keys) ? @$prop_keys : ($prop_keys)) {
+                        if (/\t$rg_key:([^\t]+)/ && defined $props->{$prop_key}) {
+                            my $val = $1;
+                            
+                            if ($rg_key eq 'DS') {
+                                ($val) = $val =~ /^Study ([^:]+)/;
+                                $val || next;
+                            }
+                            
+                            if ("$val" ne "$props->{$prop_key}") {
+                                # like a test, we store [actual, expected]
+                                $diffs{$rg_key} = [$val, $props->{$prop_key}] unless exists $diffs{$rg_key};
+                            }
+                            else {
+                                $ok = 1;
+                            }
+                        }
+                    }
+                    
+                    delete $diffs{$rg_key} if $ok;
+                }
+                last;
+            }
+        }
+        $schema->add(
+            'Header_Mistakes',
+            {
+                num_mistakes => scalar keys %diffs,
+                %diffs
+            },
+            incoming => { type => 'header_mistakes', node => $graph_file }
+        );
     }
     
     method json_node_to_data (ClassName|Object $self: Object $node) {

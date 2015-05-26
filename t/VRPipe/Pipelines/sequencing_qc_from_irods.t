@@ -5,10 +5,10 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 19;
+    use Test::Most tests => 21;
     use VRPipeTest;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER SAMTOOLS HTSLIB)],
         required_exe => [qw(imeta)]
     );
     use TestPipelines;
@@ -45,6 +45,17 @@ ok my $ds = VRPipe::DataSource->create(
   ),
   'could create an irods datasource using all_with_warehouse_metadata method with require_qc_files option';
 
+# artificially change the library on one of the lanes so that we can later test
+# that the cram header is "wrong"
+$ds->elements;
+my $schema = VRPipe::Schema->create('VRTrack');
+my $wrong_lane = $schema->get('Lane', { unique => '16131_7' });
+my ($correct_lib) = $wrong_lane->related(incoming => { type => 'sequenced' });
+my ($correct_sample) = $correct_lib->related(incoming => { type => 'prepared' });
+my $wrong_lib = $schema->add('Library', { name => 'wrong_library_name', id => '999' });
+$wrong_lib->relate_to($wrong_lane, 'sequenced', selfish => 1);
+$correct_sample->relate_to($wrong_lib, 'prepared');
+
 my $ref_fa_source = file(qw(t data GRCm38.MT.ref.fa));
 my $ref_dir = dir($output_root, 'ref');
 $pipeline->make_path($ref_dir);
@@ -75,8 +86,7 @@ foreach my $lane (1 .. 8) {
 
 ok handle_pipeline(@expected_output_files), 'sequencing_qc_from_irods pipeline downloaded all the expected qc files';
 
-my $files  = 0;
-my $schema = VRPipe::Schema->create('VRTrack');
+my $files = 0;
 foreach my $result (map { result_with_inflated_files($_) } @{ get_elements($ds) }) {
     $files++;
     next if $files > 1;
@@ -127,11 +137,12 @@ foreach my $result (map { result_with_inflated_files($_) } @{ get_elements($ds) 
 is $files, 8, 'irods datasource returned the correct number of files';
 
 ok my $lane = $schema->get('Lane', { unique => '16131_8' }), 'One of the lanes was in the db';
-my ($stats)  = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Bam_Stats' });
-my ($geno)   = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Genotype' });
-my ($verify) = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Verify_Bam_ID' });
-my $all_made = $stats && $geno && $verify;
-ok $all_made, 'There were related Bam_Stats, Genotype and Verify_Bam_ID nodes in the db';
+my ($stats)    = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Bam_Stats' });
+my ($geno)     = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Genotype' });
+my ($verify)   = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Verify_Bam_ID' });
+my ($mistakes) = $lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Header_Mistakes' });
+my $all_made = $stats && $geno && $verify && $mistakes;
+ok $all_made, 'There were related Bam_Stats, Genotype, Verify_Bam_ID and Header_Mistakes nodes in the db';
 
 my $props = $stats->properties;
 delete @{$props}{qw(date uuid)};
@@ -216,6 +227,21 @@ is_deeply $props,
     freeLK1        => 9399169.37
   },
   'Verify_Bam_ID node had the correct properties';
+
+$props = $mistakes->properties;
+delete $props->{uuid};
+is_deeply $props, { num_mistakes => 0 }, 'Header_Mistakes node had the correct properties';
+
+# and test the one we artificially made a mistake for
+my ($fake_mistakes) = $wrong_lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Header_Mistakes' });
+$props = $fake_mistakes->properties;
+delete $props->{uuid};
+is_deeply $props,
+  {
+    num_mistakes => 1,
+    LB           => ['13607731', '999']
+  },
+  'Header_Mistakes nodes can correctly show mistakes';
 
 my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
 my @lanes = $vrtrack->get_lanes();

@@ -1,0 +1,5 @@
+@HD	VN:1.0	GO:none	SO:coordinate
+@PG	ID:bwa	VN:0.5.5
+@PG	ID:GATK TableRecalibration	VN:1.0.3727	CL:Covariates=[ReadGroupCovariate, QualityScoreCovariate, CycleCovariate, DinucCovariate], default_read_group=null, default_platform=ILLUMINA, force_read_group=null, force_platform=null, solid_recal_mode=SET_Q_ZERO, window_size_nqs=5, homopolymer_nback=7, exception_if_no_tile=false, ignore_nocall_colorspace=false, pQ=5, maxQ=40, smoothing=1
+@SQ	SN:20	LN:600000	AS:NCBI37	UR:ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/technical/reference/human_g1k_v37.fasta.gz	M5:0dec9660ec1efaaf33281c0d5ea2560f	SP:Human
+@RG	ID:ERR012999	PL:ILLUMINA	LB:g1k-sc-NA20526-TOS-1	PI:175	DS:SRP000540	SM:NA20526	CN:SC
