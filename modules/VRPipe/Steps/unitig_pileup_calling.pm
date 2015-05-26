@@ -107,8 +107,15 @@ class VRPipe::Steps::unitig_pileup_calling with VRPipe::StepRole {
             my $vcf_index = $self->output_file(output_key => 'unitig_pileup_vcf_index_files', basename => "$basename.tbi", type => 'bin', metadata => $vcf_meta);
             my $vcf_path  = $vcf_file->path;
             
-            my $req      = $self->new_requirements(memory => 500, time => 1);
-            my $cmd      = qq[q[$htsbox pileup $pileup_opts -f $reference_fasta @inputs | bgzip -c > $vcf_path && $htsbox tabix -p vcf $vcf_path]];
+            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $sample_id_fix = '';
+            if (@inputs == 1 && $$vcf_meta{sample}) {
+                my $input = $inputs[0];
+                $input =~ s/\//\\\//g;
+                my $sample_id = $$vcf_meta{sample};
+                $sample_id_fix = qq[ | sed '/^#CHROM/s/$input\$/$sample_id/'];
+            }
+            my $cmd      = qq[q[$htsbox pileup $pileup_opts -f $reference_fasta @inputs$sample_id_fix | bgzip -c > $vcf_path && $htsbox tabix -p vcf $vcf_path]];
             my $this_cmd = "use VRPipe::Steps::unitig_pileup_calling; VRPipe::Steps::unitig_pileup_calling->pileup_vcf_and_check($cmd);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
         };
