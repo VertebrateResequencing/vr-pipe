@@ -234,7 +234,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 }
             }
             if (keys %from_steps) {
-                $step_inputs{ $adaptor->to_step } = [keys %from_steps];
+                $step_inputs{ $adaptor->to_step } = [sort { $a <=> $b } keys %from_steps];
             }
         }
         
@@ -627,7 +627,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     $redos++;
                     if ($redos <= $max_redos) {
                         $self->debug("redo");
-                        $estate->unlock;
                         redo ESTATE;
                     }
                     else {
@@ -650,6 +649,13 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     
     method _complete_state (VRPipe::Step $step, VRPipe::StepState $state, Int $step_number, VRPipe::Pipeline $pipeline, VRPipe::DataElementState $estate) {
         my $transaction = sub {
+            my $completed_steps = $estate->completed_steps;
+            if ($step_number > $completed_steps) {
+                $estate->completed_steps($step_number);
+                $estate->update;
+                $self->log_event("PipelineSetup->trigger found the DataElementState has now completed $step_number steps", dataelement => $estate->dataelement->id);
+            }
+            
             unless ($state->complete) {
                 $self->log_event("PipelineSetup->trigger will now complete the StepState", dataelement => $estate->dataelement->id, stepstate => $state->id);
                 
@@ -672,13 +678,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 
                 $state->complete(1);
                 $state->update;
-            }
-            
-            my $completed_steps = $estate->completed_steps;
-            if ($step_number > $completed_steps) {
-                $estate->completed_steps($step_number);
-                $estate->update;
-                $self->log_event("PipelineSetup->trigger found the DataElementState has now completed $step_number steps", dataelement => $estate->dataelement->id);
             }
         };
         $self->do_transaction($transaction, "Failed to complete state for StepState " . $state->id);
