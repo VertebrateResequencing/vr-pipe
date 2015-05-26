@@ -1,3 +1,11 @@
+0.200   delete_inputs step behaviour now checks that input files are not needed
+        by another setup before deleting.
+        New pipeline for calling with fermikit.
+        Bwa mem steps can now take sequence dict file as input.
+        Steps can get chunks across the gnome with the new
+        StepGenomeChunkingRole.
+        npg_cram_stats_parser step now compares cram header to expectations,
+        with result stored in new Header_Mistakes graph node.
 0.199   This is a big change from the previous version. Re-read README.md for
         installation changes and study IMPORTANT_NOTES if upgrading.
         Newer steps and pipelines, and some vrpipe internal and website
