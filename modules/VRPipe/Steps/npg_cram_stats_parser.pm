@@ -343,9 +343,6 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             $dmd5->add($ref_md5s);
             $ref_md5s = $dmd5->hexdigest;
         }
-        else {
-            warn "no ref_md5s\n";
-        }
         $schema->add(
             'Header_Mistakes',
             {
