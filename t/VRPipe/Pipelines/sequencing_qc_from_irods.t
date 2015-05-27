@@ -230,7 +230,7 @@ is_deeply $props,
 
 $props = $mistakes->properties;
 delete $props->{uuid};
-is_deeply $props, { num_mistakes => 0 }, 'Header_Mistakes node had the correct properties';
+is_deeply $props, { num_mistakes => 0, md5_of_ref_seq_md5s => 'f95dcc1c1300f59b028fba79f49878a4' }, 'Header_Mistakes node had the correct properties';
 
 # and test the one we artificially made a mistake for
 my ($fake_mistakes) = $wrong_lane->related(outgoing => { max_depth => 5, namespace => 'VRTrack', label => 'Header_Mistakes' });
@@ -238,8 +238,9 @@ $props = $fake_mistakes->properties;
 delete $props->{uuid};
 is_deeply $props,
   {
-    num_mistakes => 1,
-    LB           => ['13607731', '999']
+    num_mistakes        => 1,
+    md5_of_ref_seq_md5s => 'f95dcc1c1300f59b028fba79f49878a4',
+    LB                  => ['13607731', '999']
   },
   'Header_Mistakes nodes can correctly show mistakes';
 
