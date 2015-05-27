@@ -627,7 +627,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my @element_args;
         my $did = $self->_datasource_id;
         foreach my $result ($self->_all_files(%args)) {
-            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, irods_path => $result->{irods_path} } });
+            my $protocol   = $result->{protocol};
+            my $irods_path = $result->{irods_path};
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $protocol ? (protocol => $protocol) : (), $irods_path ? (irods_path => $irods_path) : () } });
         }
         $self->_create_elements(\@element_args);
     }
@@ -641,7 +643,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my @element_args;
         my $did = $self->_datasource_id;
         foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : (), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ())) {
-            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $result->{irods_path} ? (irods_path => $result->{irods_path}) : (protocol => 'irods:') } });
+            my $protocol   = $result->{protocol};
+            my $irods_path = $result->{irods_path};
+            push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $protocol ? (protocol => $protocol) : (), $irods_path ? (irods_path => $irods_path) : () } });
         }
         $self->_create_elements(\@element_args);
     }
@@ -663,6 +667,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             }
             my $group_key = join '|', @group_keys;
             push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
+            $group_hash->{$group_key}->{protocol} = $result->{protocol} if defined $result->{protocol};
             if ($graph_filter && $filter_after_grouping && $result->{pass_filter}) {
                 $group_hash->{$group_key}->{passes_filter} = 1;
             }
@@ -674,7 +679,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             if ($graph_filter && $filter_after_grouping) {
                 next unless exists $group_hash->{$group}->{passes_filter};
             }
-            push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group } });
+            my $protocol = $data->{protocol};
+            push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group, $protocol ? (protocol => $protocol) : () } });
         }
         $self->_create_elements(\@element_args);
     }
@@ -752,13 +758,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $vrfile->add_metadata($new_metadata, replace_data => 0);
             $vrfile->add_metadata({ $protocol ? () : (irods_path => $path), defined $new_metadata->{md5} ? (expected_md5 => $new_metadata->{md5}) : () });
             
-            my $result_hash = { paths => [$file_abs_path], $protocol ? () : (irods_path => $path) };
+            my $result_hash = { paths => [$file_abs_path], $protocol ? (protocol => $protocol) : (irods_path => $path) };
             if ($changed) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
             }
-            push(@results, { paths => [$file_abs_path], $protocol ? () : (irods_path => $path), metadata => $new_metadata, defined($pass_filter) ? (pass_filter => $pass_filter) : () });
+            push(@results, { paths => [$file_abs_path], $protocol ? (protocol => $protocol) : (irods_path => $path), metadata => $new_metadata, defined($pass_filter) ? (pass_filter => $pass_filter) : () });
         }
         
         $self->_clear_file_filter_cache();

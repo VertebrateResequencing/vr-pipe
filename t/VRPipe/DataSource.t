@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 146;
+    use Test::Most tests => 148;
     use VRPipeTest;
     use TestPipelines;
     
@@ -848,7 +848,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
 
 # author-only tests for the irods datasource
 SKIP: {
-    my $num_tests = 26;
+    my $num_tests = 28;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
     my $output_root    = get_output_dir('datasource_irods_import_dir');
@@ -919,6 +919,27 @@ SKIP: {
     }
     is_deeply \@results, [{ paths => [file($output_root_grouped, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)), file($output_root_grouped, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv)), file($output_root_grouped, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv)), file($output_root_grouped, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv))], group => '2622' }], 'got correct results for irods group_by_metadata_with_warehouse_metadata';
     is_deeply [VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 05 94 43 QC288261____20130701_G01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 14 62 84 QC288261____20130701_C01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom 95 35 0e QC288261____20130701_A01.csv)))->metadata->{irods_path}, VRPipe::File->get(path => file($output_root_grouped, qw(seq sequenom d8 7c 21 QC288261____20130701_E01.csv)))->metadata->{irods_path}], ['/seq/sequenom/05/94/43/QC288261____20130701_G01.csv', '/seq/sequenom/14/62/84/QC288261____20130701_C01.csv', '/seq/sequenom/95/35/0e/QC288261____20130701_A01.csv', '/seq/sequenom/d8/7c/21/QC288261____20130701_E01.csv'], 'files have correct irods_path metadata for group_by_metadata_with_warehouse_metadata';
+    
+    # check that group_by_metadata_with_warehouse_metadata works with no
+    # local_root_dir
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'irods',
+        method  => 'group_by_metadata_with_warehouse_metadata',
+        source  => 'seq',
+        options => {
+            file_query    => q[target = 1 and study_id = 3474 and manual_qc = 1 and type = cram and sample = vbseqx106041591],
+            metadata_keys => 'library'
+        }
+      ),
+      'could create an irods datasource with group_by_metadata_with_warehouse_metadata method and no local_root_dir';
+    
+    @results = ();
+    my $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/16139/16139_7.cram', 'irods:/seq/16139/16139_8.cram'], 1], 'the resulting files had irods protocols, and grouping working correctly';
     
     # check that we can aggregate results from multiple imeta queries specified
     # in a file
