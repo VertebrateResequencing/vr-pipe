@@ -1,3 +1,5 @@
+0.201   irods datasource methods fixed to all work with the new irods protocol
+        system.
 0.200   delete_inputs step behaviour now checks that input files are not needed
         by another setup before deleting.
         New pipeline for calling with fermikit.
