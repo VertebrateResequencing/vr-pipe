@@ -47,14 +47,13 @@ if ($disk) {
     my %done_files;
     foreach my $s (VRPipe::PipelineSetup->search({ output_root => { like => $disk . '%' } })) {
         my $sid = $s->id;
-        print STDERR "\n$sid ";
         next if $skip_setup{$sid};
         my $sn = $s->name;
         
         my $pager = VRPipe::StepOutputFile->search_paged({ 'stepstate.pipelinesetup' => $sid, 'stepstate.same_submissions_as' => undef, output_key => { '!=' => 'temp' }, }, { join => ['stepstate'], prefetch => 'file' }, 10000); # -or => [{e => 1, moved_to => undef}, {moved_to => { '!=' => undef} }]  # join file, 'file.path' => { like => $disk.'%' } or where this applies to moved_to file id
         
         while (my $sofs = $pager->next(no_resetting => 1)) {
-            print STDERR ", ";
+            print STDERR ". ";
             foreach my $sof (@$sofs) {
                 my $f   = $sof->file;
                 my $fid = $f->id;
@@ -68,10 +67,10 @@ if ($disk) {
                 next unless $p =~ /^$disk/;
                 my $mtime = $f->mtime || '';
                 print join("\t", $sid, $sn, $p, $f->type, $s, $mtime), "\n";
-                print STDERR "! ";
                 $done_files{$rid} = 1;
             }
         }
+        print STDERR "\n";
     }
 }
 else {
