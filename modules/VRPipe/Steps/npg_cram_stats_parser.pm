@@ -41,6 +41,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
     use VRPipe::FileProtocol;
     use VRPipe::Parser;
     use JSON::XS;
+    use Digest::MD5;
     
     method options_definition {
         return {
@@ -300,7 +301,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
         my $header_lines       = $cram_file->header_lines;                                                                                                       # automagically works with irods files if HTSLIB has been compiled with irods support
         my $props              = $graph_file->properties(flatten_parents => 1);
         my %rg_key_to_prop_key = (LB => ['vrtrack_library_id', 'vrtrack_library_name'], SM => 'vrtrack_sample_accession', DS => "vrtrack_study_$sample_id_type");
-        my (%diffs, $did_ref);
+        my (%diffs, $ref_md5s);
         foreach (@$header_lines) {
             if (/^\@RG/) {
                 while (my ($rg_key, $prop_keys) = each %rg_key_to_prop_key) {
@@ -326,13 +327,30 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                     
                     delete $diffs{$rg_key} if $ok;
                 }
-                last;
             }
+            elsif (/^\@SQ.*\tM5:(\S+)/) {
+                # even though we know the reference it was supposed to be
+                # aligned to, the absolute path of that might differ to the abs
+                # path in the SQ line, so instead we'll store an md5 of all the
+                # md5s of the sequences here, and later some auto qc step could
+                # check all the sequence-md5s for crams in a study is the same
+                # (as each other, or the expected fasta)
+                $ref_md5s .= $1;
+            }
+        }
+        if ($ref_md5s) {
+            my $dmd5 = Digest::MD5->new();
+            $dmd5->add($ref_md5s);
+            $ref_md5s = $dmd5->hexdigest;
+        }
+        else {
+            warn "no ref_md5s\n";
         }
         $schema->add(
             'Header_Mistakes',
             {
                 num_mistakes => scalar keys %diffs,
+                $ref_md5s ? (md5_of_ref_seq_md5s => $ref_md5s) : (),
                 %diffs
             },
             incoming => { type => 'header_mistakes', node => $graph_file }

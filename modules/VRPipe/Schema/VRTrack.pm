@@ -170,6 +170,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 label          => 'Header_Mistakes',
                 unique         => [qw(uuid)],
                 required       => [qw(num_mistakes)],
+                indexed        => [qw(md5_of_ref_seq_md5s)],
                 allow_anything => 1
             },
             
