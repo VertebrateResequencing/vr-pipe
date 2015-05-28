@@ -636,10 +636,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
-        $args{handle}          = $handle;
-        $args{file_query}      = $file_query;
-        $args{local_root_dir}  = $local_root_dir if $local_root_dir;
-        $args{update_interval} = $update_interval if defined($update_interval);
+        $args{handle}           = $handle;
+        $args{file_query}       = $file_query;
+        $args{local_root_dir}   = $local_root_dir if $local_root_dir;
+        $args{update_interval}  = $update_interval if defined($update_interval);
+        $args{require_qc_files} = $require_qc_files;
+        $args{desired_qc_files} = $desired_qc_files;
+        
         my @element_args;
         my $did = $self->_datasource_id;
         foreach my $result ($self->_all_files(%args, add_metadata_from_warehouse => 1, $required_metadata ? (required_metadata => $required_metadata) : (), $vrtrack_group ? (vrtrack_group => $vrtrack_group) : (), $graph_filter ? (graph_filter => $graph_filter, filter_after_grouping => 0) : ())) {
@@ -652,10 +655,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
-        $args{handle}          = $handle;
-        $args{file_query}      = $file_query;
-        $args{local_root_dir}  = $local_root_dir if $local_root_dir;
-        $args{update_interval} = $update_interval if defined($update_interval);
+        $args{handle}           = $handle;
+        $args{file_query}       = $file_query;
+        $args{local_root_dir}   = $local_root_dir if $local_root_dir;
+        $args{update_interval}  = $update_interval if defined($update_interval);
+        $args{require_qc_files} = $require_qc_files;
+        $args{desired_qc_files} = $desired_qc_files;
         
         my @meta_keys = split /\|/, $metadata_keys;
         my $group_hash;
@@ -690,7 +695,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '');
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '', $require_qc_files, $desired_qc_files);
         $self->_clear_cache;
         
         my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);

@@ -1,3 +1,10 @@
+# version 0.203
+(you must first upgrade to 0.199 if you haven't done so already, see notes
+below)
+NB: if you have made a new irods datasource since v 0.199, the desired_qc_files
+option may be stored incorrectly in the database, with extraneous double quotes
+around the value. You will have to change this for it to work correctly.
+
 # version 0.199
 (you must first upgrade to 0.198 if you haven't done so already, see notes
 below)

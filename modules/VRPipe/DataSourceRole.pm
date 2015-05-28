@@ -125,7 +125,12 @@ role VRPipe::DataSourceRole {
                 $var =~ s/^\$//; #*** we only handle $ sigils atm...
                 my $tc_name = $param->meta_type_constraint->name;
                 $tc_name =~ s/VRPipe::Base::Types:://g;
-                push(@return, [$kind, $var, $param->required, $param->default_value, $tc_name]);
+                my $default = $param->default_value;
+                if ($default && $default =~ /^'.*'$/) {
+                    $default =~ s/^'//;
+                    $default =~ s/'$//;
+                }
+                push(@return, [$kind, $var, $param->required, $default, $tc_name]);
             }
         }
         
