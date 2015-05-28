@@ -1,3 +1,5 @@
+0.203   Fixed vrpipe-setup to handle new default options in the irods
+        datasource correctly.
 0.202   npg_cram_stats_parser step now stores md5_of_ref_seq_md5s
 0.201   irods datasource methods fixed to all work with the new irods protocol
         system.
