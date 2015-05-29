@@ -716,7 +716,8 @@ class VRPipe::Persistent::Graph {
     # with the same label (and relationship type) as the end_node.
     # selfish => 1, replace => 1 gives you a 1:1 relationship between nodes of
     # the relevant labels and with the given relationship type.
-    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, Bool :$selfish = 0, Bool :$replace = 0) {
+    # properties option are properties to set on the relationship itself.
+    method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, HashRef :$properties?, Bool :$selfish = 0, Bool :$replace = 0) {
         my @cypher;
         
         if ($selfish) {
@@ -729,12 +730,18 @@ class VRPipe::Persistent::Graph {
             push(@cypher, ["MATCH (a)-[r:$type]->(b:$labels) WHERE id(a) = $start_node->{id} AND id(b) <> $end_node->{id} DELETE r"]);
         }
         
-        push(@cypher, ["MATCH (a),(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} MERGE (a)-[r:$type]->(b) RETURN r"]);
+        my $r_props = '';
+        if ($properties) {
+            my $map = $self->_param_map($properties, 'param');
+            $r_props = " SET r = $map";
+        }
+        
+        push(@cypher, ["MATCH (a),(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} MERGE (a)-[r:$type]->(b)$r_props RETURN r", $r_props ? ({ 'param' => $properties }) : ()]);
         
         return @{ $self->_run_cypher(\@cypher)->{relationships} };
     }
     
-    # each hashref in $spec_list is { from => { id }|{ namespace, label, properties }, to => {...}, type => '...' }
+    # each hashref in $spec_list is { from => { id }|{ namespace, label, properties }, to => {...}, type => '...', properties => {} }
     method create_mass_relationships (ArrayRef[HashRef] $spec_list) {
         my @cypher;
         
@@ -758,7 +765,14 @@ class VRPipe::Persistent::Graph {
                 }
             }
             
-            push(@cypher, [$match . " MERGE (from)-[:$type]->(to)", $params]);
+            my $r_props = '';
+            if ($spec->{properties}) {
+                my $map = $self->_param_map($spec->{properties}, 'relparams');
+                $r_props = " SET r = $map";
+                $params->{relparams} = $spec->{properties};
+            }
+            
+            push(@cypher, [$match . " MERGE (from)-[r:$type]->(to)$r_props", $params]);
         }
         
         $self->_run_cypher(\@cypher);

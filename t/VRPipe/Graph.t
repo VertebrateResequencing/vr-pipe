@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 84;
+    use Test::Most tests => 87;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -261,12 +261,28 @@ is_deeply [sort map { $graph->node_property($_, 'sanger_id') } @queued], ['enque
 is_deeply [sort map { $graph->node_property($_, 'sanger_id') } ($graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue1' }), $graph->get_nodes(namespace => 'VRTrack', label => 'Sample', properties => { sanger_id => 'enqueue2' }))], ['enqueue1', 'enqueue2'], 'after dispatch_queue() the enqueued nodes are in the database';
 
 # we can set properties on a relationship (this is so far a rare-case usage, so
-# there isn't an easy way to set this at node/relationship creation time, nor
-# easy way to get relationships)
+# there isn't an easy way to set this at node creation time, nor an easy way to
+# get relationships)
 $image2 = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => 'img2', type => 'png' }, incoming => { node => $image, type => 'sub_image' });
 my ($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
 $graph->relationship_set_properties($rel, { reason => 'likes subs' });
 ($rel) = @{ $graph->related($image2, undef, {})->{relationships} };
 is_deeply $rel->{properties}, { reason => 'likes subs' }, 'relationship_set_properties() worked';
+my $image4 = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => 'img4', type => 'png' });
+$graph->relate($image4, $image2, type => 'sub_img', properties => { foo => 'bar', relprop => 'relval' });
+($rel) = @{ $graph->related($image4, undef, undef, {})->{relationships} };
+is_deeply $rel->{properties}, { foo => 'bar', relprop => 'relval' }, 'relate(properties => {}) worked';
+$graph->relate($image4, $image2, type => 'sub_img', properties => { foo => 'car' });
+($rel) = @{ $graph->related($image4, undef, undef, {})->{relationships} };
+is_deeply $rel->{properties}, { foo => 'car' }, 'relate(properties => {}) again replaces existing relationship properties';
+my $image5 = $graph->add_node(namespace => 'VRPipe', label => 'Image', properties => { path => 'img5', type => 'png' });
+@rel_details = ();
+
+for (2, 4) {
+    push(@rel_details, { from => $image5, to => { namespace => 'VRPipe', label => 'Image', properties => { path => "img$_", type => 'png' } }, type => 'sub_img', properties => { relprop => "relval$_" } });
+}
+$graph->create_mass_relationships(\@rel_details);
+my @rels = @{ $graph->related($image5, undef, undef, {})->{relationships} };
+is_deeply [map { $_->{properties}->{relprop} } sort { $a->{id} <=> $b->{id} } @rels], [qw(relval2 relval4)], 'create_mass_relationships() can create relationships with properties set';
 
 exit;
