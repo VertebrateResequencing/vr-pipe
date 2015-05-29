@@ -10,8 +10,8 @@
         <!-- Bootstrap for presentation and styling -->
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
-        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <link rel="stylesheet" href="/css/bootstrap-3.3.4.min.css">
+        <script src="/js/bootstrap-3.3.4.min.js"></script>
         <!--[if lt IE 9]>
           <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
           <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
@@ -19,6 +19,7 @@
         
         <!-- Knockout for event handling -->
         <script src="/js/knockout-3.1.0.min.js"></script>
+        <script src="/js/knockstrap-0.4.0.min.js"></script>
         
         <!-- Some of our own general helper functions -->
         <script src="/js/vrpipe.js"></script>
@@ -65,16 +66,52 @@
                                 <tr>
                                     <th>sample name</th>
                                     <th>sample public name</th>
-                                    <th>qc failed</th>
-                                    <th>qc selected</th>
+                                    <th>qc status</th>
+                                    <!-- ko if: donorAdmin() && donorAdmin()['is_admin'] -->
+                                        <th>change qc status</th>
+                                    <!-- /ko -->
                                 </tr>
                             </thead>
                             <tbody data-bind="foreach: donorSampleStatus">
-                                <tr data-bind="css: { danger: qc_failed, success: qc_selected }">
+                                <tr data-bind="css: { danger: qc_status == 'failed', success: qc_status == 'selected' }">
                                     <td data-bind="text: sample_name"></td>
                                     <td data-bind="text: sample_public_name"></td>
-                                    <td data-bind="text: qc_failed"></td>
-                                    <td data-bind="text: qc_selected"></td>
+                                    <td>
+                                        <!-- ko if: qc_status == 'pending' -->
+                                            <span class="glyphicon glyphicon-hourglass"></span>
+                                        <!-- /ko -->
+                                        <!-- ko if: qc_status == 'selected' -->
+                                            <span class="glyphicon glyphicon-ok-circle" data-bind="popover: { options: { content: 'selected by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                        <!-- /ko -->
+                                        <!-- ko if: qc_status == 'failed' -->
+                                            <span class="glyphicon glyphicon-remove-circle" data-bind="popover: { options: { content: 'failed by ' + qc_by + ' on ' + qc_time, title: qc_failed_reason, trigger: 'hover' } }"></span>
+                                        <!-- /ko -->
+                                    </td>
+                                    <!-- ko if: $parent.donorAdmin()['is_admin'] -->
+                                        <td>
+                                            <form class="form-inline">
+                                                <div class="form-group">
+                                                    <label class="radio-inline">
+                                                        <input type="radio" name="qcstatus" value="pending" data-bind="checked: new_qc_status" /> pending
+                                                    </label>
+                                                    <label class="radio-inline">
+                                                        <input type="radio" name="qcstatus" value="failed" data-bind="checked: new_qc_status" /> fail
+                                                    </label>
+                                                    <label class="radio-inline">
+                                                        <input type="radio" name="qcstatus" value="selected" data-bind="checked: new_qc_status" /> select
+                                                    </label>
+                                                    &nbsp;&nbsp;<input class="btn btn-sm" data-bind="css: { 'btn-danger': new_qc_status() == 'failed', 'btn-success': new_qc_status() == 'selected', 'btn-primary': new_qc_status() == 'pending', disabled: (qc_status == 'failed' && new_qc_status() == 'failed') ? (new_qc_failed_reason() == qc_failed_reason) : (new_qc_status() == qc_status) }, click: $parent.changeQCStatus" type="button" value="Submit">
+                                                </div>
+                                            <!-- ko if: new_qc_status() == "failed" -->
+                                                <br>
+                                                <div class="form-group top-margin">
+                                                    <label>Failure reason</label>
+                                                    <select class="form-control" data-bind="options: $parent.donorAdmin()['allowed_fail_reasons'], value: new_qc_failed_reason"></select>
+                                                </div>
+                                            <!-- /ko -->
+                                            </form>
+                                        </td>
+                                    <!-- /ko -->
                                 </tr>
                             </tbody>
                         </table>
@@ -373,6 +410,8 @@
                 // get the donor node because we need to know the example_sample for it
                 getQCGraphData('node_by_id', { node_id: +self.donorNodeID, label: 'Donor' }, { result: self.donorNode }, self.loading, self.errors);
                 
+                self.donorqcArgs = { donorAdmin: self.donorAdmin, donorSampleStatus: self.donorSampleStatus, donorGenderResults: self.donorGenderResults, donorFluidigmDiscordance: self.donorFluidigmDiscordance, donorGenotypingDiscordance: self.donorGenotypingDiscordance, donorCopyNumberSummary: self.donorCopyNumberSummary, donorAberrantRegions: self.donorAberrantRegions, donorAberrantPolysomy: self.donorAberrantPolysomy, donorCopyNumberPlot: self.donorCopyNumberPlot, donorLOHCalls: self.donorLOHCalls, donorPluritestPlots: self.donorPluritestPlots, donorPluritestSummary: self.donorPluritestSummary };
+                
                 // when the above call sets the donorNode, populate the donor qc
                 // tables and set our title
                 self.donorNode.subscribe(function(newValue) {
@@ -382,9 +421,15 @@
                             document.title = sample + ' [VRTrack Donor QC]';
                         }
                         
-                        getQCGraphData('donor_qc', { donor: +newValue['id'] }, { donorAdmin: self.donorAdmin, donorSampleStatus: self.donorSampleStatus, donorGenderResults: self.donorGenderResults, donorFluidigmDiscordance: self.donorFluidigmDiscordance, donorGenotypingDiscordance: self.donorGenotypingDiscordance, donorCopyNumberSummary: self.donorCopyNumberSummary, donorAberrantRegions: self.donorAberrantRegions, donorAberrantPolysomy: self.donorAberrantPolysomy, donorCopyNumberPlot: self.donorCopyNumberPlot, donorLOHCalls: self.donorLOHCalls, donorPluritestPlots: self.donorPluritestPlots, donorPluritestSummary: self.donorPluritestSummary }, self.loading, self.errors);
+                        getQCGraphData('donor_qc', { donor: +newValue['id'] }, self.donorqcArgs, self.loading, self.errors);
                     }
                 });
+                
+                // when a sample status is changed, set in db and update
+                // everything on the page
+                self.changeQCStatus = function(sampleStatus) {
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: sampleStatus['new_qc_status'](), new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                }
                 
                 // when a sample in the gender table is clicked on, open a
                 // new tab with the source result file for that sample
