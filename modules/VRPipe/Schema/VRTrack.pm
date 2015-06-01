@@ -610,7 +610,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     # get info on which samples have been QC failed/selected, along with config
     # info on who is allowed to change these and what reasons are allowed
-    method donor_sample_status (Int $donor, Str $user) {
+    method donor_sample_status (Int $donor, Str $user, ArrayRef $new) {
         my $study_labels = $self->cypher_labels('Study');
         my $group_labels = $self->cypher_labels('Group');
         my $user_labels  = $self->cypher_labels('User');
@@ -622,16 +622,25 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my %nodes = ();
         my %sample_nodes;
+        my %sample_nodes_by_name;
+        my %user_nodes;
         foreach my $node (@{ $graph_data->{nodes} }) {
             $nodes{ $node->{id} } = $node;
-            $sample_nodes{ $node->{id} } = $node if $node->{label} eq 'Sample';
+            if ($node->{label} eq 'Sample') {
+                $sample_nodes{ $node->{id} } = $node;
+                bless($node, 'VRPipe::Schema::VRTrack::Sample');
+                $sample_nodes_by_name{ $node->{properties}->{name} } = $node;
+            }
+            elsif ($node->{label} eq 'User') {
+                $user_nodes{ $node->{properties}->{username} } = $node;
+            }
         }
         
         my (%failed, %selected, @fail_reasons, %fail_reasons, $is_admin);
         foreach my $rel (@{ $graph_data->{relationships} }) {
             my $end_node = $nodes{ $rel->{endNode} } || next;
             if ($rel->{type} eq 'failed_by') {
-                $failed{ $rel->{startNode} } = [$end_node->{properties}->{username}, $rel->{properties}->{reason}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
+                $failed{ $rel->{startNode} } = [$end_node->{properties}->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd, $rel->{properties}->{reason}];
             }
             elsif ($rel->{type} eq 'selected_by') {
                 $selected{ $rel->{startNode} } = [$end_node->{properties}->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
@@ -649,6 +658,36 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
         }
         
+        # set new qc status if supplied
+        if ($is_admin && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|selected|pending)$/) {
+            my ($sample_name, $new_status, $reason) = @$new;
+            my $user_node = $user_nodes{$user};
+            my $sample    = $sample_nodes_by_name{$sample_name};
+            if ($sample) {
+                my $time = time();
+                if ($new_status eq 'selected') {
+                    $sample->qc_selected(1);
+                    $sample->qc_failed(0);
+                    $sample->relate_to($user_node, 'selected_by', replace => 1, properties => { time => $time });
+                    delete $failed{ $sample->{id} };
+                    $selected{ $sample->{id} } = [$user, $time];
+                }
+                elsif ($new_status eq 'failed' && $reason) {
+                    $sample->qc_selected(0);
+                    $sample->qc_failed(1);
+                    $sample->relate_to($user_node, 'failed_by', replace => 1, properties => { time => $time, reason => $reason });
+                    delete $selected{ $sample->{id} };
+                    $failed{ $sample->{id} } = [$user, $time, $reason];
+                }
+                elsif ($new_status eq 'pending') {
+                    $sample->qc_selected(0);
+                    $sample->qc_failed(0);
+                    delete $failed{ $sample->{id} };
+                    delete $selected{ $sample->{id} };
+                }
+            }
+        }
+        
         my @results;
         push(@results, { type => 'admin', is_admin => $is_admin ? 1 : 0, allowed_fail_reasons => \@fail_reasons });
         
@@ -662,13 +701,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     type               => 'sample_status',
                     sample_name        => $sample_props->{name},
                     sample_public_name => $sample_props->{public_name},
-                    qc_failed          => $sample_props->{qc_failed},
-                    qc_failed_by       => $failed->[0],
-                    qc_failed_reason   => $failed->[1],
-                    qc_failed_time     => $failed->[2],
-                    qc_selected        => $sample_props->{qc_selected},
-                    qc_selected_by     => $selected->[0],
-                    qc_selected_time   => $selected->[1]
+                    qc_status          => $sample_props->{qc_failed} ? 'failed' : ($sample_props->{qc_selected} ? 'selected' : 'pending'),
+                    qc_by   => $sample_props->{qc_failed} ? $failed->[0] : $selected->[0],
+                    qc_time => $sample_props->{qc_failed} ? $failed->[1] : $selected->[1],
+                    qc_failed_reason => $failed->[2]
                 }
             );
         }
@@ -695,6 +731,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my @results;
         foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
+            next if $sample->{properties}->{qc_failed};
             my $sid = $sample->{id};
             my ($eg, $ag, $result_file_path);
             foreach my $node_id (@{ $rels{$sid} }) {
@@ -795,18 +832,30 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         # parse $combined_cnvs_path
         if ($combined_cnvs_path && open(my $ifh, '<', $combined_cnvs_path)) {
-            my (@samples, %results, %done_chrs, @results);
+            my (@samples, %good_samples, %results, %done_chrs, @results);
             while (<$ifh>) {
                 next if /^#/;
                 chomp;
                 my @cols = split;
                 if ($cols[0] eq 'SM') {
                     @samples = @cols[1 .. $#cols];
+                    foreach my $sample (@samples) {
+                        my $node = $self->get('Sample', { name => $sample });
+                        unless ($node) {
+                            #*** this is a Sanger/Hipsci specific hack
+                            my ($true_name) = $sample =~ /([^_]+)$/;
+                            $node = $self->get('Sample', { name => $true_name });
+                        }
+                        if ($node && !$node->qc_failed) {
+                            $good_samples{$sample} = 1;
+                        }
+                    }
                 }
                 elsif ($cols[0] eq 'RG') {
                     my $chr = $cols[1];
                     foreach my $i (7 .. $#cols) {
                         my $sample = $samples[$i - 6];
+                        next unless exists $good_samples{$sample};
                         push(@results, { type => 'aberrant_regions', chr => $chr, start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], sample => $sample, cn => $cols[$i], graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample}) ? $cnv_plot_paths{$chr}->{$sample} : undef });
                     }
                     $done_chrs{$chr} = 1;
@@ -825,11 +874,13 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             foreach my $chr (nsort(keys %cnv_plot_paths)) {
                 my $s_hash = $cnv_plot_paths{$chr};
                 foreach my $sample (@samples) {
+                    next unless exists $good_samples{$sample};
                     push(@results, { type => 'aberrant_polysomy', chr => $chr, graph => $s_hash->{$sample}, sample => $sample }) if $s_hash->{$sample};
                 }
             }
             
             foreach my $sample (sort { $a cmp $b } keys %results) {
+                next unless exists $good_samples{$sample};
                 push(@results, { type => 'copy_number_summary', sample => $sample, %{ $results{$sample} } });
             }
             
@@ -840,6 +891,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 while (<$ifh>) {
                     chomp;
                     my ($chr, $start, $end, $sample, $count) = split(/\t/, $_);
+                    next unless exists $good_samples{$sample};
                     push(@calls, { type => 'loh_calls', chr => $chr, start => $start, end => $end, sample => $sample, control_sample => $loh_control_sample, count => $count });
                 }
                 push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || $a->{sample} cmp $b->{sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
@@ -886,6 +938,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 chomp;
                 my ($sample, $raw, $logitp, $novelty, $nov_logitp, $rmsd) = split(/,/, $_);
                 $sample =~ s/^"|"$//g;
+                my $snode = $self->get('Sample', { name => $sample });
+                unless ($snode) {
+                    #*** this is a Sanger/Hipsci specific hack
+                    my ($true_name) = $sample =~ /([^_]+)$/;
+                    $snode = $self->get('Sample', { name => $true_name });
+                }
+                next unless $snode;
+                next if $snode->qc_failed;
                 push(@summary_results, { type => 'pluritest_summary', sample => $sample, pluri_raw => $raw, pluri_logit_p => $logitp, novelty => $novelty, novelty_logit_p => $nov_logitp, rmsd => $rmsd });
             }
             close($ifh);

@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 146;
+    use Test::Most tests => 147;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -126,9 +126,11 @@ my $lane1 = $schema->add('Lane', { unique => 'lane1', lane => 1 });
 $lib3->relate_to($lane1, 'sequenced');
 @related = $lane1->related(incoming => {});
 is_deeply [sort map { $_->node_id } @related], [$lib3->node_id], 'related() worked with incoming specified';
-$lib1->relate_to($lane1, 'sequenced', selfish => 1);
+$lib1->relate_to($lane1, 'sequenced', selfish => 1, properties => { machine => 'big_one' });
 @related = $lane1->related(incoming => {});
 is_deeply [sort map { $_->node_id } @related], [$lib1->node_id], 'relate_to(selfish => 1) worked';
+my ($r) = @{ $graph->related($lib1, undef, undef, { type => 'sequenced' })->{relationships} };
+is $r->{properties}->{machine}, 'big_one', 'relate_to(properties => {}) worked';
 
 # make sure we delete history nodes when we delete a schema node
 $lib3->tag('A');
