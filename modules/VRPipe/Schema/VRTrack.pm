@@ -173,6 +173,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 indexed        => [qw(md5_of_ref_seq_md5s)],
                 allow_anything => 1
             },
+            {
+                label          => 'Discordance',
+                unique         => [qw(md5_sample)], # {md5 of the gtypex file}_{sample name}
+                required       => [qw(date type)],
+                allow_anything => 1
+            },
             
             # gender (for expected or calculated from sequenom/fluidgm)
             {

@@ -7,7 +7,8 @@ VRPipe::Steps::vcf_genotype_comparison - a step
 
 Compare the genotypes of the samples in a VCF using bcftools gtcheck. Adds
 'genotype_maximum_deviation' metadata to the VCF file indicating if all its
-samples were similar to each other.
+samples were similar to each other. And stores the details of all pairwise
+discordance results in the graph database.
 
 =head1 AUTHOR
 
@@ -15,7 +16,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -129,21 +130,143 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         my $output_file_in_graph = $vrtrack->add_file($output_path);
         $self->relate_input_to_output($vcf_path, 'genotypes_compared', $output_file_in_graph);
         
+        my $md5 = $output_file_in_graph->md5;
+        unless ($md5) {
+            $md5 = $output_file->file_md5($output_file);
+            $output_file_in_graph->md5($md5);
+        }
+        
+        my $graph = $vrtrack->graph;
+        
         my $fh    = $output_file->openr;
         my $count = 0;
         my %pairs;
         my $sample_source;
+        my $t      = time();
+        my $max_cn = 0;
+        my $gmd;
         while (<$fh>) {
-            if (/^MD\s+(\S+)\s+(\S+)/) {
-                my $md     = $1;
-                my $sample = $2;
+            if (/^SM\s/) {
+                # gmd used to be parsable direct from MD line, but now not all
+                # versions of bcftools produce it; they all produce SMs, so we
+                # just calculate it from here
+                my (undef, $discordance, undef, undef, $sample) = split;
                 
-                foreach my $file ($vcf_file, $output_file) {
-                    $file->add_metadata({ genotype_maximum_deviation => "$md:$sample" });
+                if ($discordance >= $max_cn) {
+                    $max_cn = $discordance;
+                    $gmd    = "$discordance:$sample";
+                }
+            }
+            elsif (/^CN\s/) {
+                chomp;
+                my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
+                
+                # there could be multiple rows with the same pair of samples and
+                # we need a unique identifier for each one; in the file they are
+                # uniqufied by adding some number prefix to one of the samples,
+                # but we don't like that
+                $sample_i =~ s/^\d+\://;
+                $sample_j =~ s/^\d+\://;
+                my $prop_key = join('.', sort ($sample_i, $sample_j));
+                my $i = 0;
+                while (1) {
+                    $i++;
+                    my $this_key = $prop_key . '.' . $i;
+                    next if exists $pairs{$this_key};
+                    $pairs{$this_key} = 1;
+                    $prop_key = $this_key;
+                    last;
+                }
+                
+                # before we can store the result we need to find the sample
+                # nodes in the graph database under the VRTrack schema;
+                # complication is that the sample names in the file could be
+                # name, public_name or some combination of both (or indeed
+                # anything else). Further problem is that since this is a
+                # wrapped cmd, we can't even pass in the info of what was used
+                # as an argument... for now we try out the obvious possibilities
+                # until found
+                unless (defined $sample_source) {
+                    my $sample_node;
+                    if ($sample_i =~ /^(.+)_([^_]+)$/) {
+                        # public_name+sample
+                        $sample_node = $vrtrack->get('Sample', { public_name => $1, name => $2 });
+                        if ($sample_node) {
+                            $sample_source = 'public_name+sample';
+                        }
+                    }
+                    if (!$sample_node) {
+                        # sample
+                        $sample_node = $vrtrack->get('Sample', { name => $sample_i });
+                        if ($sample_node) {
+                            $sample_source = 'sample';
+                        }
+                    }
+                    if (!$sample_node) {
+                        # ... give up for now
+                        $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
+                    }
+                }
+                
+                my @props;
+                foreach my $identifer ($sample_i, $sample_j) {
+                    my $sample_props;
+                    if ($sample_source eq 'public_name+sample') {
+                        my ($public_name, $sample) = $identifer =~ /^(.+)_([^_]+)$/;
+                        $sample_props = { public_name => $public_name, name => $sample };
+                    }
+                    elsif ($sample_source eq 'sample') {
+                        $sample_props = { name => $identifer };
+                    }
+                    push(@props, $sample_props);
+                }
+                
+                foreach my $i (1 .. 2) {
+                    # we add in enqueue mode which doesn't add straight away,
+                    # but only when we call dispatch_queue() every 10000 loops -
+                    # for database efficiency. The first time will create a
+                    # discordance node for this sample; subsequent times will
+                    # just add a new property keyed on $prop_key with the
+                    # discordance results in an array, with the other sample
+                    # name in there as well to make it easy to know which
+                    # results are vs which sample without additional db queries
+                    # later
+                    $vrtrack->add(
+                        'Discordance',
+                        {
+                            # we unique on md5 of the gtypex file and sample
+                            # name, so don't change the graph (other than date)
+                            # if we've parsed this file before, and don't
+                            # alter results on a node for a different gtypex
+                            # file or sample
+                            md5_sample => $md5 . '_' . $props[$i - 1]->{name},
+                            date       => $t,
+                            type       => $num_of_sites < 100 ? 'fluidigm' : 'genotype',
+                            $prop_key => ["$discordance", "$num_of_sites", "$avg_min_depth", $i == 1 ? $props[1]->{name} : $props[0]->{name}]
+                        },
+                        incoming => [
+                            { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => $props[$i - 1] }, type => 'discordance' },
+                            { node => $output_file_in_graph, type => 'parsed' }
+                        ],
+                        enqueue => 1
+                    );
+                }
+                
+                $count++;
+                if ($count == 10000) {
+                    $vrtrack->dispatch_queue;
+                    $count = 0;
                 }
             }
         }
         $output_file->close;
+        $vrtrack->dispatch_queue;
+        
+        if ($gmd) {
+            foreach my $file ($vcf_file, $output_file) {
+                $file->add_metadata({ genotype_maximum_deviation => $gmd });
+            }
+        }
     }
 }
 
