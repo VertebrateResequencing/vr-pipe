@@ -37,8 +37,9 @@ use VRPipe::Base;
 class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpileup_bcf with VRPipe::StepGenomeChunkingRole {
     method inputs_definition {
         return {
-            aln_files  => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files from which to call variants'),
-            sites_file => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
+            aln_files       => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files from which to call variants'),
+            aln_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more index files for BAM or CRAM files'),
+            sites_file      => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
         };
     }
     
