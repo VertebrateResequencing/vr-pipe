@@ -695,8 +695,7 @@ class VRPipe::Persistent::Graph {
     
     method node_set_properties (HashRef|Object $node!, HashRef $properties!) {
         my $id = $self->node_id($node);
-        my $properties_map = $self->_param_map($properties, 'param');
-        my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id SET n = $properties_map return n", { 'param' => $properties }]])->{nodes} };
+        my ($updated_node) = @{ $self->_run_cypher([["MATCH (n) WHERE id(n) = $id SET n = { props } return n", { 'props' => $properties }]])->{nodes} };
         $node->{properties} = $updated_node->{properties};
         return;
     }
