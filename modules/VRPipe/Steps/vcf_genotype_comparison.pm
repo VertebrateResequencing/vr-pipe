@@ -138,13 +138,11 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
         
         my $graph = $vrtrack->graph;
         
-        my $fh    = $output_file->openr;
-        my $count = 0;
+        my $fh = $output_file->openr;
         my %pairs;
         my $sample_source;
-        my $t      = time();
         my $max_cn = 0;
-        my $gmd;
+        my ($gmd, %disc_details, $type);
         while (<$fh>) {
             if (/^SM\s/) {
                 # gmd used to be parsable direct from MD line, but now not all
@@ -160,6 +158,7 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
             elsif (/^CN\s/) {
                 chomp;
                 my (undef, $discordance, $num_of_sites, $avg_min_depth, $sample_i, $sample_j) = split;
+                $type ||= $num_of_sites < 100 ? 'fluidigm' : 'genotype';
                 
                 # there could be multiple rows with the same pair of samples and
                 # we need a unique identifier for each one; in the file they are
@@ -222,51 +221,55 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                 }
                 
                 foreach my $i (1 .. 2) {
-                    # we add in enqueue mode which doesn't add straight away,
-                    # but only when we call dispatch_queue() every 10000 loops -
-                    # for database efficiency. The first time will create a
-                    # discordance node for this sample; subsequent times will
-                    # just add a new property keyed on $prop_key with the
-                    # discordance results in an array, with the other sample
-                    # name in there as well to make it easy to know which
-                    # results are vs which sample without additional db queries
-                    # later
-                    $vrtrack->add(
-                        'Discordance',
-                        {
-                            # we unique on md5 of the gtypex file and sample
-                            # name, so don't change the graph (other than date)
-                            # if we've parsed this file before, and don't
-                            # alter results on a node for a different gtypex
-                            # file or sample
-                            md5_sample => $md5 . '_' . $props[$i - 1]->{name},
-                            date       => $t,
-                            type       => $num_of_sites < 100 ? 'fluidigm' : 'genotype',
-                            $prop_key => ["$discordance", "$num_of_sites", "$avg_min_depth", $i == 1 ? $props[1]->{name} : $props[0]->{name}]
-                        },
-                        incoming => [
-                            { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => $props[$i - 1] }, type => 'discordance' },
-                            { node => $output_file_in_graph, type => 'parsed' }
-                        ],
-                        enqueue => 1
-                    );
-                }
-                
-                $count++;
-                if ($count == 10000) {
-                    $vrtrack->dispatch_queue;
-                    $count = 0;
+                    my $md5_sample = $md5 . '_' . $props[$i - 1]->{name};
+                    $disc_details{$md5_sample}->{$prop_key} = ["$discordance", "$num_of_sites", "$avg_min_depth", $i == 1 ? $props[1]->{name} : $props[0]->{name}];
+                    $disc_details{$md5_sample}->{node_spec} ||= { namespace => 'VRTrack', label => 'Sample', properties => $props[$i - 1] };
                 }
             }
         }
         $output_file->close;
-        $vrtrack->dispatch_queue;
         
         if ($gmd) {
             foreach my $file ($vcf_file, $output_file) {
                 $file->add_metadata({ genotype_maximum_deviation => $gmd });
             }
         }
+        
+        my $count = 0;
+        my $t     = time();
+        while (my ($md5_sample, $details) = each %disc_details) {
+            my $node_spec = delete $details->{node_spec};
+            
+            my $disc = $vrtrack->add(
+                'Discordance',
+                {
+                    # we unique on md5 of the gtypex file and sample
+                    # name, so don't change the graph (other than date)
+                    # if we've parsed this file before, and don't
+                    # alter results on a node for a different gtypex
+                    # file or sample
+                    md5_sample => $md5_sample,
+                    date       => $t,
+                    type       => $type,
+                    # we store a json string of $details instead of $details
+                    # directly because storing thousands of properties is
+                    # really really slow
+                    cns => $graph->json_encode($details)
+                },
+                incoming => [
+                    { node_spec => $node_spec,            type => 'discordance' },
+                    { node      => $output_file_in_graph, type => 'parsed' }
+                ],
+                enqueue => 1
+            );
+            
+            $count++;
+            if ($count == 10) { # we can't batch too many or we'll exceed the maximum message size
+                $vrtrack->dispatch_queue;
+                $count = 0;
+            }
+        }
+        $vrtrack->dispatch_queue;
     }
 }
 
