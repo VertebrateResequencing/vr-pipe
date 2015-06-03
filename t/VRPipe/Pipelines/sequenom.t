@@ -158,9 +158,10 @@ foreach my $disc (@disc) {
         $disc_to_sample++ if $sample->name eq $expected;
         
         if ($expected eq 'QC1Hip-2000') {
-            my $props = $disc->properties;
-            delete @{$props}{qw(md5_sample date)};
-            is_deeply $props,
+            my $cns_json = $disc->cns;
+            my $cns      = $schema->graph->json_decode($cns_json);
+            $cns->{type} = $disc->type;
+            is_deeply $cns,
               {
                 type                                                         => 'fluidigm',
                 'HPSI0513i-cuau_2_QC1Hip-2002.HPSI0513pf-cuau_QC1Hip-2000.1' => ['0', '22', '1.00', 'QC1Hip-2002'],
