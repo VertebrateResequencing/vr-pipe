@@ -882,6 +882,8 @@ class VRPipe::Persistent::Graph {
     
     sub json_decode {
         shift;
+        my $str = shift;
+        return unless $str;
         return $json->decode(shift);
     }
     
