@@ -142,9 +142,9 @@
                 
                 // when a sample in the discordance table is clicked on, open a
                 // new tab with that sample's donor qc
-                // self.openSampleDonor = function(node) {
-                //     window.open('/pages/vrtrack_qc/donor.html?id=' + node['donor_node_id'], '_blank', '', false);
-                // }
+                self.openSampleDonor = function(node) {
+                    window.open('/pages/vrtrack_qc/donor.html?id=' + node['donor_node_id'], '_blank', '', false);
+                }
             }
             
             var qcvm = new QCViewModel();
