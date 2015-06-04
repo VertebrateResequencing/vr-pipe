@@ -179,6 +179,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 required => [qw(date type)],
                 optional => [qw(cns)]         # this is 'optional' just so that the massive value isn't indexed
             },
+            {
+                label    => 'CNVs',
+                unique   => [qw(md5_sample)],
+                required => [qw(date type)],
+                optional => [qw(data)]
+            },
             
             # gender (for expected or calculated from sequenom/fluidgm)
             {
@@ -1026,6 +1032,45 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         return \@results if @results;
+    }
+    
+    # given some sample identifier sting, which might be the sample name, or
+    # public_name concatenated with name, find out which
+    method sample_source (Str $sample) {
+        my ($sample_source, $sample_node);
+        if ($sample =~ /^(.+)_([^_]+)$/) {
+            # public_name+sample
+            $sample_node = $self->get('Sample', { public_name => $1, name => $2 });
+            if ($sample_node) {
+                $sample_source = 'public_name+sample';
+            }
+        }
+        if (!$sample_node) {
+            # sample
+            $sample_node = $self->get('Sample', { name => $sample });
+            if ($sample_node) {
+                $sample_source = 'sample';
+            }
+        }
+        if (!$sample_node) {
+            # ... give up for now
+            $self->throw("Couldn't find a Sample node for $sample in the graph database");
+        }
+        return $sample_source;
+    }
+    
+    # given the same input sample identifer you supplied to sample_source(),
+    # get back a properties hashref that could be used to find the sample
+    method sample_props_from_string (Str $sample, Str $sample_source) {
+        my $sample_props;
+        if ($sample_source eq 'public_name+sample') {
+            my ($public_name, $name) = $sample =~ /^(.+)_([^_]+)$/;
+            $sample_props = { public_name => $public_name, name => $name };
+        }
+        elsif ($sample_source eq 'sample') {
+            $sample_props = { name => $sample };
+        }
+        return $sample_props;
     }
 }
 

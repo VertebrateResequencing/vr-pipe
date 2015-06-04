@@ -186,37 +186,12 @@ class VRPipe::Steps::vcf_genotype_comparison extends VRPipe::Steps::bcftools {
                 # as an argument... for now we try out the obvious possibilities
                 # until found
                 unless (defined $sample_source) {
-                    my $sample_node;
-                    if ($sample_i =~ /^(.+)_([^_]+)$/) {
-                        # public_name+sample
-                        $sample_node = $vrtrack->get('Sample', { public_name => $1, name => $2 });
-                        if ($sample_node) {
-                            $sample_source = 'public_name+sample';
-                        }
-                    }
-                    if (!$sample_node) {
-                        # sample
-                        $sample_node = $vrtrack->get('Sample', { name => $sample_i });
-                        if ($sample_node) {
-                            $sample_source = 'sample';
-                        }
-                    }
-                    if (!$sample_node) {
-                        # ... give up for now
-                        $self->throw("Couldn't find a Sample node for $sample_i in the graph database");
-                    }
+                    $sample_source = $vrtrack->sample_source($sample_i);
                 }
                 
                 my @props;
                 foreach my $identifer ($sample_i, $sample_j) {
-                    my $sample_props;
-                    if ($sample_source eq 'public_name+sample') {
-                        my ($public_name, $sample) = $identifer =~ /^(.+)_([^_]+)$/;
-                        $sample_props = { public_name => $public_name, name => $sample };
-                    }
-                    elsif ($sample_source eq 'sample') {
-                        $sample_props = { name => $identifer };
-                    }
+                    my $sample_props = $vrtrack->sample_props_from_string($identifer, $sample_source);
                     push(@props, $sample_props);
                 }
                 
