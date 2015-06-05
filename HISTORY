@@ -1,3 +1,4 @@
+0.206   Proper fix for v0.205.
 0.205   Fix for hipsci QC to handle _CTRL appended to sample names in files.
 0.204   CNV and Pluritest-related steps now store their results properly in the
         graph database against sample and donor nodes.
