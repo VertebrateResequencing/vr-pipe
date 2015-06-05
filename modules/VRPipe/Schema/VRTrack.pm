@@ -1049,12 +1049,13 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # given some sample identifier sting, which might be the sample name, or
     # public_name concatenated with name, find out which
     method sample_source (Str $sample) {
+        # remove possible appendage of _CTRL
+        $sample =~ s/_CTRL$//;
+        
         my ($sample_source, $sample_node);
         if ($sample =~ /^(.+)_([^_]+)$/) {
             # public_name+sample
-            my $name = $2;
-            $name =~ s/_CTRL$//;
-            $sample_node = $self->get('Sample', { public_name => $1, name => $name });
+            $sample_node = $self->get('Sample', { public_name => $1, name => $2 });
             if ($sample_node) {
                 $sample_source = 'public_name+sample';
             }
@@ -1076,10 +1077,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # given the same input sample identifer you supplied to sample_source(),
     # get back a properties hashref that could be used to find the sample
     method sample_props_from_string (Str $sample, Str $sample_source) {
+        # remove possible appendage of _CTRL
+        $sample =~ s/_CTRL$//;
+        
         my $sample_props;
         if ($sample_source eq 'public_name+sample') {
             my ($public_name, $name) = $sample =~ /^(.+)_([^_]+)$/;
-            $name =~ s/_CTRL$//;
             $sample_props = { public_name => $public_name, name => $name };
         }
         elsif ($sample_source eq 'sample') {
