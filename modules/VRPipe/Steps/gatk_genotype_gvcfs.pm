@@ -87,15 +87,15 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
                 )
             );
             
-            my $vcf_file = $self->output_file(output_key => 'genotype_gvcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
-            my $vcf_path = $vcf_file->path;
-            $self->output_file(output_key => 'vcf_index', basename => $basename . ".tbi", type => 'bin', metadata => $vcf_meta);
+            my $vcf_file  = $self->output_file(output_key => 'genotype_gvcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
+            my $vcf_path  = $vcf_file->path;
+            my $vcf_index = $self->output_file(output_key => 'vcf_index', basename => $basename . ".tbi", type => 'bin', metadata => $vcf_meta);
             
             my $req      = $self->new_requirements(memory => 6000, time => 1);
             my $jvm_args = $self->jvm_args($req->memory);
             my $cmd      = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T GenotypeGVCFs -R $reference_fasta $genotype_gvcfs_opts -o $vcf_path];
             my $this_cmd = "use VRPipe::Steps::gatk_genotype_gvcfs; VRPipe::Steps::gatk_genotype_gvcfs->genotype_and_check(q[$cmd]);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
+            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
         };
     }
     
@@ -119,14 +119,12 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
     }
     
     method genotype_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($input_path, $out_path) = $cmd_line =~ /--variant (\S+) .*? -o (\S+)/;
-        $input_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $out_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+        my ($out_path) = $cmd_line =~ /-o (\S+)$/;
+        $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
-        my $input_file = VRPipe::File->get(path => $input_path);
-        my $out_file   = VRPipe::File->get(path => $out_path);
+        my $out_file = VRPipe::File->get(path => $out_path);
         
-        $input_file->disconnect;
+        $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         return 1;

@@ -159,11 +159,11 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     switch (type) {
                         case 'admin':
                             donorAdmin(result);
-                            console.log('set donorAdmin to ' + JSON.stringify(result));
                             break;
                         case 'sample_status':
+                            result['new_qc_failed_reason'] = ko.observable(result['qc_failed_reason']);
+                            result['new_qc_status'] = ko.observable(result['qc_status']);
                             ssArr.push(result);
-                            console.log('pushed sample status ' + JSON.stringify(result));
                             break;
                         case 'gender':
                             genderArr.push(result);

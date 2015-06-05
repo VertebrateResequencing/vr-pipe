@@ -1,3 +1,9 @@
+0.204   CNV and Pluritest-related steps now store their results properly in the
+        graph database against sample and donor nodes.
+        vrpipe-setup now allows reactivate/deactivate of multiple setups.
+        New sample_gvcf_via_bcf_with_mpileup pipeline.
+        New sample_gvcf_with_gatk_haplotype_caller pipeline.
+        vrtrack qc website donor view now allows setting donor sample qc status.
 0.203   Fixed vrpipe-setup to handle new default options in the irods
         datasource correctly.
 0.202   npg_cram_stats_parser step now stores md5_of_ref_seq_md5s

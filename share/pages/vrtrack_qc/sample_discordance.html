@@ -10,8 +10,8 @@
         <!-- Bootstrap for presentation and styling -->
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
-        <link rel="stylesheet" href="/css/bootstrap-3.1.1.min.css">
-        <script src="/js/bootstrap-3.1.1.min.js"></script>
+        <link rel="stylesheet" href="/css/bootstrap-3.3.4.min.css">
+        <script src="/js/bootstrap-3.3.4.min.js"></script>
         <!--[if lt IE 9]>
           <script src="https://oss.maxcdn.com/libs/html5shiv/3.7.0/html5shiv.js"></script>
           <script src="https://oss.maxcdn.com/libs/respond.js/1.4.2/respond.min.js"></script>
@@ -142,9 +142,9 @@
                 
                 // when a sample in the discordance table is clicked on, open a
                 // new tab with that sample's donor qc
-                // self.openSampleDonor = function(node) {
-                //     window.open('/pages/vrtrack_qc/donor.html?id=' + node['donor_node_id'], '_blank', '', false);
-                // }
+                self.openSampleDonor = function(node) {
+                    window.open('/pages/vrtrack_qc/donor.html?id=' + node['donor_node_id'], '_blank', '', false);
+                }
             }
             
             var qcvm = new QCViewModel();

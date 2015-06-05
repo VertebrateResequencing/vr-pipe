@@ -15,7 +15,7 @@ John Maslen <jm23@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013,2014 Genome Research Limited.
+Copyright (c) 2013-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -59,7 +59,7 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
             my $self    = shift;
             my $options = $self->options;
             $self->handle_standard_options($options);
-            my $req              = $self->new_requirements(memory => 500, time => 1);
+            my $req              = $self->new_requirements(memory => 1000, time => 1);
             my $pluritest_script = $options->{pluritest_script};
             my $pluritest_data   = $options->{pluritest_data};
             
@@ -69,13 +69,29 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
             $self->output_file(temporary => 1, basename => 'pluritest_log.txt', type => 'txt', metadata => $meta);
             my $csv_path = $self->output_file(output_key => 'csv_file', basename => 'pluritest.csv', type => 'txt', metadata => $meta)->path->stringify;
             $self->relate_input_to_output($conv_path, 'pluritest_summary', $csv_path);
-            foreach my $basename (qw(pluritest_image01.png pluritest_image02a.png pluritest_image02.png pluritest_image03.png pluritest_image03c.png)) {
-                my $plot_path = $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $meta)->path->stringify;
-                $self->relate_input_to_output($conv_path, 'pluritest_plot', $plot_path);
+            
+            my $vrtrack = VRPipe::Schema->create("VRTrack");
+            my $donor_node = $vrtrack->get('Donor', { id => $meta->{sample_cohort} });
+            $self->throw("No donor node with id $meta->{sample_cohort}") unless $donor_node;
+            
+            # first remove any old pluritest plots that are attached to the donor
+            foreach my $plot ($donor_node->related(outgoing => { type => 'pluritest_plot' })) {
+                $donor_node->divorce_from($plot);
             }
             
-            my $cmd = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];
-            $self->dispatch([$cmd, $req]);
+            my %num_to_type = ('01' => 'intensity', '02a' => 'clustering', '02' => 'pluripotency', '03' => 'pluripotency_vs_novelty', '03c' => 'novelty');
+            foreach my $num (qw(01 02a 02 03 03c)) {
+                my $basename = "pluritest_image$num.png";
+                my $plot_path = $self->output_file(output_key => 'pluritest_plots', basename => $basename, type => 'bin', metadata => $meta)->path->stringify;
+                $self->relate_input_to_output($conv_path, 'pluritest_plot', $plot_path);
+                my $plot_node = $vrtrack->get_file($plot_path);
+                $plot_node->add_properties({ type => $num_to_type{$num} });
+                $donor_node->relate_to($plot_node, 'pluritest_plot');
+            }
+            
+            my $cmd    = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];
+            my $vr_cmd = "use VRPipe::Steps::pluritest_plot_gene_expression; VRPipe::Steps::pluritest_plot_gene_expression->plot(cmd_line => q[$cmd], csv_out_path => q[$csv_path]);";
+            $self->dispatch_vrpipecode($vr_cmd, $req);
         };
     }
     
@@ -105,6 +121,65 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
     
     method max_simultaneous {
         return 0;
+    }
+    
+    method plot (ClassName|Object $self: Str :$cmd_line, Str|File :$csv_out_path!) {
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        my $output_file = VRPipe::File->get(path => $csv_out_path);
+        $output_file->update_stats_from_disc;
+        my $vrtrack              = VRPipe::Schema->create('VRTrack');
+        my $output_file_in_graph = $vrtrack->get_file($csv_out_path);
+        
+        # parse to store per-sample results in nodes attached to each sample
+        my $md5 = $output_file_in_graph->md5;
+        unless ($md5) {
+            $md5 = $output_file->file_md5($output_file);
+            $output_file_in_graph->md5($md5);
+        }
+        
+        my $graph = $vrtrack->graph;
+        my $sample_source;
+        
+        my $fh     = $output_file->openr;
+        my $header = <$fh>;
+        chomp($header);
+        my @headings;
+        foreach my $col (split(/,/, $header)) {
+            $col =~ s/^"|"$//g;
+            push(@headings, $col);
+        }
+        
+        my $t = time();
+        while (<$fh>) {
+            chomp;
+            my @cols = split(/,/, $_);
+            my $sample = $cols[0];
+            $sample =~ s/^"|"$//g;
+            $sample_source ||= $vrtrack->sample_source($sample);
+            my $sample_props = $vrtrack->sample_props_from_string($sample, $sample_source);
+            
+            my $data = {};
+            foreach my $i (1 .. $#cols) {
+                $data->{ $headings[$i] } = $cols[$i];
+            }
+            
+            $vrtrack->add(
+                'Pluritest',
+                {
+                    md5_sample => $md5 . '_' . $sample_props->{name},
+                    date       => $t,
+                    data       => $graph->json_encode($data)
+                },
+                incoming => [
+                    { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => $sample_props }, type => 'pluritest' },
+                    { node => $output_file_in_graph, type => 'parsed' }
+                ],
+                enqueue => 1
+            );
+        }
+        $output_file->close();
+        $vrtrack->dispatch_queue;
     }
 }
 

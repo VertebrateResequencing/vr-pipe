@@ -5,12 +5,13 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 30;
+    use Test::Most tests => 40;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
         required_exe => [qw(iget iquest fcr-to-vcf sort bgzip bcftools)]
     );
     use TestPipelines;
+    use_ok('VRPipe::Schema');
 }
 
 my $output_dir = get_output_dir('genome_studio');
@@ -233,7 +234,7 @@ my $fofn_ds = VRPipe::DataSource->create(
 # we'll also take the opportunity to test hipsci cnv caller pipeline, since that
 # also uses files from the genome studio import
 SKIP: {
-    my $num_tests = 4;
+    my $num_tests = 10;
     skip "hipsci cnv calling tests disabled without plot-polysomy.py and cmp-cnvs.pl in your path", $num_tests unless can_execute('bcftools') && can_execute('cmp-cnvs.pl') && can_execute('plot-polysomy.py');
     
     $output_dir = get_output_dir('polysomy_cnv_caller');
@@ -255,26 +256,51 @@ SKIP: {
     );
     
     # figure out output files
-    my (@merged_vcfs, @summary_files);
+    my (@merged_vcfs, @bychr_plot_files, @summary_files, @plot_files, @combine_files);
     foreach my $element_id (29 .. 31) {
         my @output_subdirs = output_subdirs($element_id, $cnv_setup->id);
-        push(@merged_vcfs, file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
+        push(@merged_vcfs,      file(@output_subdirs, '1_vcf_merge_different_samples_control_aware', 'merged.vcf.gz'));
+        push(@bychr_plot_files, file(@output_subdirs, '3_plot_polysomy',                             'copy_numbers.png'));
+        push(@combine_files,    file(@output_subdirs, '5_combine_bcftools_cnvs',                     'combined_cnvs.txt'));
         if ($element_id == 30) {
             foreach my $sub_dir (qw(HPSI1013i-funy_2_QC1Hip-2197 HPSI1013i-funy_1_QC1Hip-2196 HPSI1013i-funy_3_QC1Hip-2198)) {
-                push(@summary_files, file(@output_subdirs, '4_bcftools_cnv', $sub_dir, 'summary.tab'));
+                my $this_dir = dir(@output_subdirs, '4_bcftools_cnv', $sub_dir);
+                push(@summary_files, file($this_dir, 'summary.tab'));
+                
+                foreach my $chr (1 .. 22, 'X') {
+                    next if "$chr" eq '6';
+                    push(@plot_files, file($this_dir, "plot.HPSI1013pf-funy_QC1Hip-2195.$sub_dir.chr$chr.png"));
+                }
             }
         }
     }
-    ok handle_pipeline(@merged_vcfs, @summary_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
+    ok handle_pipeline(@merged_vcfs, @bychr_plot_files, @summary_files, @plot_files, @combine_files), 'bcftools_cnv_caller pipeline ran ok and produced the expected output files';
     
     my $cnv_vrfile = VRPipe::File->get(path => $summary_files[0]);
     is $cnv_vrfile->meta_value('sample_control'), 'HPSI1013pf-funy_QC1Hip-2195', 'sample_control metadata exists on the file';
+    
+    my $vrtrack       = VRPipe::Schema->create("VRTrack");
+    my $combined_node = $vrtrack->get_file($combine_files[0]);
+    my @cnv_nodes     = $combined_node->related(outgoing => { namespace => 'VRTrack', label => 'CNVs' });
+    is scalar(@cnv_nodes), 4, 'the combined cnvs file was parsed in to 4 CNVs nodes';
+    my ($cnv_node) = grep { $_->md5_sample =~ /QC1Hip-2192/ } @cnv_nodes;
+    my $data = $vrtrack->graph->json_decode($cnv_node->properties->{data});
+    is_deeply $data, { ND => "0", LD => "0", SD => "0" }, 'one of the CNVs nodes had the expected data';
+    my ($sample_node) = $cnv_node->related(incoming => { type => 'cnv_calls' });
+    is $sample_node->name, 'QC1Hip-2192', 'the CNVs node was related to the correct sample';
+    
+    ok my $plot_node = $vrtrack->get_file($plot_files[0]), 'one of the cnv plots was in the graph db';
+    ($sample_node) = $plot_node->related(incoming => { type => 'cnv_plot', namespace => 'VRTrack', label => 'Sample' });
+    is $sample_node->name, 'QC1Hip-2197', 'the plot node was related to the correct sample';
+    
+    ($plot_node) = $sample_node->related(outgoing => { type => 'copy_number_by_chromosome_plot' });
+    ok $plot_node, 'a copy_number_by_chromosome_plot node was associated with a sample';
 }
 
 # we'll also take the opportunity to test the loh caller pipeline, since that
 # also uses files from the genome studio import
 SKIP: {
-    my $num_tests = 6;
+    my $num_tests = 9;
     skip "hipsci loh calling tests disabled without hipsci_loh_caller.pl in your path", $num_tests unless can_execute('hipsci_loh_caller.pl');
     
     $output_dir = get_output_dir('hipsci_loh_caller');
@@ -319,6 +345,16 @@ SKIP: {
     
     my $loh_vrfile = VRPipe::File->get(path => $loh_files_with_results[0]);
     is $loh_vrfile->meta_value('sample_control'), 'HPSI1013pf-garx_QC1Hip-2191', 'sample_control metadata exists on the file';
+    
+    my $vrtrack       = VRPipe::Schema->create("VRTrack");
+    my $loh_file_node = $vrtrack->get_file($loh_files_with_results[0]);
+    my @loh_nodes     = $loh_file_node->related(outgoing => { namespace => 'VRTrack', label => 'LOH' });
+    is scalar(@loh_nodes), 1, 'the loh merged calls file was parsed in to 1 LOH node';
+    my ($loh_node) = grep { $_->md5_sample =~ /QC1Hip-2192/ } @loh_nodes;
+    my $data = $vrtrack->graph->json_decode($loh_node->properties->{data});
+    is_deeply [$data->[0], $data->[-1], scalar(@$data)], [{ chr => 1, start => 10353112, end => 19765518, count => 15, type => 'SNPs' }, { chr => 22, start => 21928641, end => 37462926, count => 14, type => 'SNPs' }, 50], 'one of the LOH nodes had the expected data';
+    my ($sample_node) = $loh_node->related(incoming => { type => 'loh_calls' });
+    is $sample_node->name, 'QC1Hip-2192', 'the LOH node was related to the correct sample';
 }
 
 finish;

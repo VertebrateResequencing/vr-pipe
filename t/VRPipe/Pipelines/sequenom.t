@@ -4,11 +4,12 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 40;
+    use Test::Most tests => 45;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS)],
     );
     use TestPipelines;
+    use_ok('VRPipe::Schema');
 }
 
 ok my $pipeline = VRPipe::Pipeline->create(name => 'sequenom_import_from_irods_and_covert_to_vcf'), 'able to get the sequenom_import_from_irods_and_covert_to_vcf pipeline';
@@ -72,11 +73,12 @@ $ps = VRPipe::PipelineSetup->create(
     options     => {}
 );
 
-my (@merged_vcf_files, @gtypex_files, @expected_metadata);
+my (@merged_vcf_files, @gtypex_files, @expected_metadata, $gtypex_file);
 foreach my $element_id (21 .. 27) {
     my @output_subdirs = output_subdirs($element_id, 2);
     push(@merged_vcf_files, file(@output_subdirs, '1_vcf_merge_different_samples', 'merged.vcf.gz'));
-    push(@gtypex_files,     file(@output_subdirs, '2_vcf_genotype_comparison',     'merged.vcf.gz.gtypex'));
+    my $this_gtypex_file = file(@output_subdirs, '2_vcf_genotype_comparison', 'merged.vcf.gz.gtypex');
+    push(@gtypex_files, $this_gtypex_file);
     
     my $individual = VRPipe::DataElement->get(id => $element_id)->metadata->{group};
     my %expected = (sample_cohort => $individual);
@@ -99,28 +101,29 @@ foreach my $element_id (21 .. 27) {
         $expected{public_name}                = 'HPSI0813i-ffdc_5';
     }
     elsif ($individual eq '693c8457-7595-40bd-a533-22934b02c4b7') {
-        $expected{genotype_maximum_deviation} = "3424.528302:HPSI0813i-piun_QC1Hip-1992";
+        $expected{genotype_maximum_deviation} = "5500.000000:HPSI0813pf-piun_QC1Hip-1992";
         $expected{calculated_gender}          = 'F';
         $expected{sample}                     = [qw(QC1Hip-1993 QC1Hip-1995 QC1Hip-1992 QC1Hip-1994)];
-        $expected{public_name}                = [qw(HPSI0813i-piun_1 HPSI0813i-piun_3 HPSI0813i-piun HPSI0813i-piun_2)];
+        $expected{public_name}                = [qw(HPSI0813i-piun_1 HPSI0813i-piun_3 HPSI0813pf-piun HPSI0813i-piun_2)];
     }
     elsif ($individual eq '9284dc86-5454-473e-b557-dcc783590fa7') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0513i-cuau_1_QC1Hip-2001";
         $expected{calculated_gender}          = 'F';
         $expected{sample}                     = [qw(QC1Hip-2000 QC1Hip-2002 QC1Hip-2003 QC1Hip-2001)];
-        $expected{public_name}                = [qw(HPSI0513i-cuau HPSI0513i-cuau_2 HPSI0513i-cuau_3 HPSI0513i-cuau_1)];
+        $expected{public_name}                = [qw(HPSI0513pf-cuau HPSI0513i-cuau_2 HPSI0513i-cuau_3 HPSI0513i-cuau_1)];
+        $gtypex_file                          = $this_gtypex_file;
     }
     elsif ($individual eq 'e423ea7c-64b7-43e3-8909-bf290c3846c0') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0713i-kaks_2_QC1Hip-1990";
         $expected{calculated_gender}          = 'M';
         $expected{sample}                     = [qw(QC1Hip-1989 QC1Hip-1991 QC1Hip-1988 QC1Hip-1990)];
-        $expected{public_name}                = [qw(HPSI0713i-kaks_1 HPSI0713i-kaks_3 HPSI0713i-kaks HPSI0713i-kaks_2)];
+        $expected{public_name}                = [qw(HPSI0713i-kaks_1 HPSI0713i-kaks_3 HPSI0713pf-kaks HPSI0713i-kaks_2)];
     }
     elsif ($individual eq 'fde0774b-cecd-45d0-9d72-49bd257dd232') {
         $expected{genotype_maximum_deviation} = "0.000000:HPSI0513i-coio_2_QC1Hip-1998";
         $expected{calculated_gender}          = 'F';
         $expected{sample}                     = [qw(QC1Hip-1997 QC1Hip-1999 QC1Hip-1996 QC1Hip-1998)];
-        $expected{public_name}                = [qw(HPSI0513i-coio_1 HPSI0513i-coio_3 HPSI0513i-coio HPSI0513i-coio_2)];
+        $expected{public_name}                = [qw(HPSI0513i-coio_1 HPSI0513i-coio_3 HPSI0513pf-coio HPSI0513i-coio_2)];
     }
     push(@expected_metadata, \%expected);
 }
@@ -141,6 +144,35 @@ foreach my $vcf_path (@merged_vcf_files) {
         }
     }
 }
+
+my $schema = VRPipe::Schema->create("VRTrack");
+ok my $gtypex_graph_node = $schema->get_file($gtypex_file), 'one of the gtypex files was in the graph db';
+my @disc = $gtypex_graph_node->related(outgoing => { type => 'parsed', schema => 'VRTrack', label => 'Discordance' });
+is scalar(@disc), 4, 'it had 4 associated Discordance nodes';
+my $disc_to_sample = 0;
+foreach my $disc (@disc) {
+    my ($sample) = $disc->related(incoming => { type => 'discordance', schema => 'VRTrack', label => 'Sample' });
+    if ($sample) {
+        my $expected = $disc->md5_sample;
+        $expected =~ s/^[^_]+_//;
+        $disc_to_sample++ if $sample->name eq $expected;
+        
+        if ($expected eq 'QC1Hip-2000') {
+            my $cns_json = $disc->cns;
+            my $cns      = $schema->graph->json_decode($cns_json);
+            $cns->{type} = $disc->type;
+            is_deeply $cns,
+              {
+                type                                                         => 'fluidigm',
+                'HPSI0513i-cuau_2_QC1Hip-2002.HPSI0513pf-cuau_QC1Hip-2000.1' => ['0', '22', '1.00', 'QC1Hip-2002'],
+                'HPSI0513i-cuau_3_QC1Hip-2003.HPSI0513pf-cuau_QC1Hip-2000.1' => ['0', '22', '1.00', 'QC1Hip-2003'],
+                'HPSI0513i-cuau_1_QC1Hip-2001.HPSI0513pf-cuau_QC1Hip-2000.1' => ['0', '23', '1.00', 'QC1Hip-2001']
+              },
+              'a discordance node had the expected results stored inside';
+        }
+    }
+}
+is $disc_to_sample, 4, 'the 4 discordance nodes were each attached to the correct sample nodes';
 
 finish;
 exit;

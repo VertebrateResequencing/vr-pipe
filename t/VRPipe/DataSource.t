@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 148;
+    use Test::Most tests => 150;
     use VRPipeTest;
     use TestPipelines;
     
@@ -350,6 +350,26 @@ my $ds_si = $ds->_source_instance;
 is_deeply [$ds_si->method_options('group_all')], [['named', 'reference_index', 1, undef, 'Str|File'], ['named', 'chunk_override_file', 1, undef, 'Str|File'], ['named', 'chunk_size', 1, '1000000', 'Int'], ['named', 'chunk_overlap', 1, '0', 'Int'], ['named', 'chrom_list', 0, undef, 'Str'], ['named', 'ploidy', 0, undef, 'Str|File']], 'method_options call for fofn_with_genome_chunking datasource got correct result';
 
 is $ds_si->method_description('group_all'), q[All files in the file will be grouped into a single element. Each dataelement will be duplicated in chunks across the genome. The option 'reference_index' is the absolute path to the fasta index (.fai) file associated with the reference fasta file, 'chunk_override_file' is a file defining chunk specific options that may be overridden (required, but may point to an empty file), 'chunk_size' the size of the chunks in bp, 'chunk_overlap' defines how much overlap to have beteen chunks, 'chrom_list' (a space separated list) will restrict to specified the chromosomes (must match chromosome names in dict file), 'ploidy' is an optional file specifying the ploidy to be used for males and females in defined regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}.], 'method description for fofn_with_genome_chunking group_all method is correct';
+
+my $chroms = [{ chrom => 11, from => 1, to => 135006516, seq_no => 1, chunk_override_file => $override }, { chrom => 20, from => 1, to => 63025520, seq_no => 2, chunk_override_file => $override }];
+
+ok my $ds2 = VRPipe::DataSource->create(
+    type    => 'fofn_with_genome_chunking',
+    method  => 'group_all',
+    source  => file(qw(t data bams.fofn))->absolute->stringify,
+    options => { %$chunking_ds_options, chunk_size => 0 }
+  ),
+  'could create a fofn_with_genome_chunking datasource with group_all method and chunk_size 0';
+
+@results = ();
+foreach my $element (@{ get_elements($ds2) }) {
+    push(@results, result_with_inflated_paths($element));
+}
+@expected = ();
+foreach my $chrom (@$chroms) {
+    push(@expected, { paths => [file('t', 'data', 'NA19334.bam')->absolute, file('t', 'data', 'NA19381.bam')->absolute, file('t', 'data', 'NA20281.bam')->absolute], %$chrom });
+}
+is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunking group_all method with chunk_size 0';
 
 # vrpipe genome chunking with all the methods
 {

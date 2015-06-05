@@ -37,6 +37,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     method options_definition {
         return {
             plot_polysomy_exe => VRPipe::StepOption->create(
@@ -74,13 +76,26 @@ class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
             my $merged_meta = $self->combined_metadata($self->inputs->{dist_files});
             my $png_file_path = $self->output_file(output_key => 'png_file', basename => 'copy_numbers.png', type => 'png', metadata => $merged_meta)->path->stringify;
             
-            my @args;
+            my (@args, $sample_source);
+            my $vrtrack              = VRPipe::Schema->create('VRTrack');
+            my $output_file_in_graph = $vrtrack->add_file($png_file_path);
             foreach my $file (@{ $self->inputs->{dist_files} }) {
                 my $dist  = $file->metadata;
                 my $query = $dist->{sample};
                 push(@args, "$query\@" . $file->dir);
                 
                 $self->relate_input_to_output($file->path->stringify, 'copy_number_plot', $png_file_path);
+                
+                # also attach it to the sample, deleting any existing
+                # copy_number_by_chromosome_plot relationship first
+                $sample_source ||= $vrtrack->sample_source($query);
+                my $sample_props = $vrtrack->sample_props_from_string($query, $sample_source);
+                my $sample_node = $vrtrack->get('Sample', $sample_props);
+                my @existing_plots = $sample_node->related(outgoing => { type => 'copy_number_by_chromosome_plot' });
+                foreach my $plot (@existing_plots) {
+                    $sample_node->divorce_from($plot);
+                }
+                $sample_node->relate_to($output_file_in_graph, 'copy_number_by_chromosome_plot');
             }
             
             my $req = $self->new_requirements(memory => 1000, time => 1);

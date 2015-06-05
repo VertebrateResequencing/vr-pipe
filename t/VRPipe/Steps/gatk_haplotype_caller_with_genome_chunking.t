@@ -7,7 +7,7 @@ use POSIX qw(getgroups);
 BEGIN {
     use Test::Most tests => 3;
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES GATK2)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES GATK2 GATK_JAVA)],
         required_exe => [qw(samtools bcftools htsfile)]
     );
     use TestPipelines;
@@ -65,11 +65,13 @@ my $setup = VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
+        gatk_path                => $ENV{GATK2},
+        java_exe                 => $ENV{GATK_JAVA},
         reference_fasta          => $ref_fa,
         chrom_list               => '11 20',
         chunk_size               => 10000000,
         chunk_overlap            => 0,
-        haplotype_caller_options => '--genotyping_mode DISCOVERY -stand_call_conf 0.0 -stand_emit_conf 0.0',
+        haplotype_caller_options => '--genotyping_mode DISCOVERY -stand_call_conf 0.0 -stand_emit_conf 0.0 -U ALLOW_SEQ_DICT_INCOMPATIBILITY',
     }
 );
 

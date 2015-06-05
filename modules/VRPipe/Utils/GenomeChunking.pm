@@ -42,7 +42,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Utils::GenomeChunking {
-
 =head2 chunks
  
  Title   : chunks
@@ -108,22 +107,33 @@ class VRPipe::Utils::GenomeChunking {
             my $end_pos = $$region{to};
             my $female  = $$region{female};
             my $male    = $$region{male};
-            while ($pos < $end_pos) {
-                my $from = $pos;
-                my $to   = $from + $chunk_size - 1;
-                
-                if ($to > $end_pos) { $to = $end_pos; }
-                
+            if ($chunk_size) {
+                while ($pos < $end_pos) {
+                    my $from = $pos;
+                    my $to   = $from + $chunk_size - 1;
+                    
+                    if ($to > $end_pos) { $to = $end_pos; }
+                    
+                    if (keys %$ploidy) {
+                        push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
+                    }
+                    else {
+                        push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, seq_no => $seq_no };
+                    }
+                    ++$seq_no;
+                    
+                    $pos += $chunk_size - $chunk_overlap;
+                    if ($pos < 1) { $self->throw("The split size too small [$chunk_size]?\n"); }
+                }
+            }
+            else {
                 if (keys %$ploidy) {
-                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
+                    push @chunks, { chrom => $$region{chrom}, from => $$region{from}, to => $$region{to}, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
                 }
                 else {
-                    push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, seq_no => $seq_no };
+                    push @chunks, { chrom => $$region{chrom}, from => $$region{from}, to => $$region{to}, seq_no => $seq_no };
                 }
                 ++$seq_no;
-                
-                $pos += $chunk_size - $chunk_overlap;
-                if ($pos < 1) { $self->throw("The split size too small [$chunk_size]?\n"); }
             }
         }
         return \@chunks;

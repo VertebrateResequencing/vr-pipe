@@ -227,8 +227,8 @@ role VRPipe::SchemaLabelRole {
         return @nodes;
     }
     
-    method relate_to (HashRef|Object $node!, Str $type!, Bool :$selfish = 0, Bool :$replace = 0) {
-        $graph->relate($self, $node, type => $type, selfish => $selfish, replace => $replace);
+    method relate_to (HashRef|Object $node!, Str $type!, HashRef :$properties?, Bool :$selfish = 0, Bool :$replace = 0) {
+        $graph->relate($self, $node, type => $type, selfish => $selfish, replace => $replace, $properties ? (properties => $properties) : ());
     }
     
     method divorce_from (HashRef|Object $node!, Str $type?) {

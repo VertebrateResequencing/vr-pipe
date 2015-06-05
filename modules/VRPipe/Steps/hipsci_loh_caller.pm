@@ -37,6 +37,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     method options_definition {
         return {
             hipsci_loh_caller_exe => VRPipe::StepOption->create(
@@ -161,6 +163,58 @@ class VRPipe::Steps::hipsci_loh_caller with VRPipe::StepRole {
         
         if ($actual_recrods == $expected_records) {
             $self->relate_input_to_output($in_path, 'loh_calls', $out_path, { control_sample => $out_file->meta_value('sample_control') });
+            
+            my $vrtrack              = VRPipe::Schema->create('VRTrack');
+            my $graph                = $vrtrack->graph;
+            my $output_file_in_graph = $vrtrack->get_file($out_path);
+            
+            my $md5 = $output_file_in_graph->md5;
+            unless ($md5) {
+                $md5 = $out_file->file_md5($out_file);
+                $output_file_in_graph->md5($md5);
+            }
+            
+            my $fh = $out_file->openr;
+            my $sample_source;
+            my %calls;
+            while (<$fh>) {
+                chomp;
+                my ($chr, $start, $end, $sample, $count) = split(/\t/, $_);
+                my $type = '';
+                if ($count =~ /^(\d+)\s+(\S+)/) {
+                    $count = $1;
+                    $type  = $2;
+                    $type =~ s/^\(//;
+                    $type =~ s/\)$//;
+                }
+                
+                $sample_source ||= $vrtrack->sample_source($sample);
+                my $sample_props = $vrtrack->sample_props_from_string($sample, $sample_source);
+                
+                push(@{ $calls{ $sample_props->{name} } }, { chr => $chr, start => $start, end => $end, count => $count, type => $type });
+            }
+            $out_file->close();
+            
+            my $t = time();
+            while (my ($sample, $calls) = each %calls) {
+                $calls = [sort { $a->{chr} <=> $b->{chr} || $a->{start} <=> $b->{start} || $a->{end} <=> $b->{end} } @$calls];
+                
+                $vrtrack->add(
+                    'LOH',
+                    {
+                        md5_sample => $md5 . '_' . $sample,
+                        date       => $t,
+                        data       => $graph->json_encode($calls)
+                    },
+                    incoming => [
+                        { node_spec => { namespace => 'VRTrack', label => 'Sample', properties => { name => $sample } }, type => 'loh_calls' },
+                        { node => $output_file_in_graph, type => 'parsed' }
+                    ],
+                    enqueue => 1
+                );
+            }
+            $vrtrack->dispatch_queue;
+            
             return 1;
         }
         else {

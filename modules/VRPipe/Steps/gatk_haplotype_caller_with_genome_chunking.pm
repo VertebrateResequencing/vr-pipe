@@ -55,39 +55,10 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             my $reference_fasta = $options->{reference_fasta};
             my $haplotyper_opts = $options->{haplotype_caller_options};
             my $minimum_records = $options->{minimum_records};
+            my $tabix           = $options->{tabix_exe};
             
             if ($haplotyper_opts =~ /$reference_fasta|-I |--input_file|-o | --output|HaplotypeCaller/) {
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
-            }
-            
-            if ($self->inputs->{sites_file}) {
-                $self->throw("haplotype_caller_options cannot contain the -alleles or --genotyping_mode (-gt_mode) options if a sites_file is an input to this step") if ($haplotyper_opts =~ /-alleles/ || $haplotyper_opts =~ /-gt_mode/ || $haplotyper_opts =~ /--genotyping_mode/);
-                my $sites_file = $self->inputs->{sites_file}[0];
-                $haplotyper_opts .= " --genotyping_mode GENOTYPE_GIVEN_ALLELES --alleles " . $sites_file->path;
-                my $sites_meta = $sites_file->metadata;
-                if (defined $$sites_meta{chrom} && defined $$sites_meta{from} && defined $$sites_meta{to}) {
-                    if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
-                        unless ($$vcf_meta{chrom} eq $$sites_meta{chrom} && $$vcf_meta{from} == $$sites_meta{from} && $$vcf_meta{to} == $$sites_meta{to}) {
-                            $self->throw("chrom/from/to metadata for output VCF and input sites file does not match");
-                        }
-                    }
-                    else {
-                        $$vcf_meta{chrom} = $$sites_meta{chrom};
-                        $$vcf_meta{from}  = $$sites_meta{from};
-                        $$vcf_meta{to}    = $$sites_meta{to};
-                    }
-                }
-                if (defined $$sites_meta{seq_no}) {
-                    ## need to add this so we can vcf-concat will work
-                    if (defined $$vcf_meta{seq_no}) {
-                        unless ($$vcf_meta{seq_no} eq $$sites_meta{seq_no}) {
-                            $self->throw("seq_no metadata for output VCF and input sites file does not match");
-                        }
-                    }
-                    else {
-                        $$vcf_meta{seq_no} = $$sites_meta{seq_no};
-                    }
-                }
             }
             
             my $file_list_id;
@@ -107,6 +78,7 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             my $jvm_args = $self->jvm_args($req->memory);
             my $basename = 'gatk_haplotype.vcf.gz';
             
+            $self->chrom_list = [$$vcf_meta{chrom}] if (exists $$vcf_meta{chrom});
             my $chunks = $self->chunks();
             foreach my $chunk (@$chunks) {
                 my $chrom          = $chunk->{chrom};
@@ -124,19 +96,24 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
                     $bams_list_path = $self->inputs->{bam_files}->[0]->path;
                 }
                 
-                my $vcf_file = $self->output_file(output_key => 'gatk_hc_vcf_files', basename => $chunk_basename, type => 'vcf', metadata => $chunk_meta);
-                my $vcf_path = $vcf_file->path;
+                my $vcf_file       = $self->output_file(output_key => 'gatk_hc_vcf_files',       basename => $chunk_basename,       type => 'vcf', metadata => $chunk_meta);
+                my $vcf_index_file = $self->output_file(output_key => 'gatk_hc_vcf_index_files', basename => "$chunk_basename.tbi", type => 'bin', metadata => $chunk_meta);
+                my $vcf_path       = $vcf_file->path;
                 
+                $chunk_opts .= qq[ && $tabix -f -p vcf $vcf_path] if ($chunk_opts =~ m/--disable_auto_index_creation_and_locking_when_reading_rods/);
                 my $cmd = 'q[' . $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $chunk_opts] . ']';
                 $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;
                 my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check($cmd, minimum_records => $minimum_records);";
-                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file] });
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index_file] });
             }
         };
     }
     
     method outputs_definition {
-        return { gatk_hc_vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a single vcf file') };
+        return {
+            gatk_hc_vcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a single vcf file'),
+            gatk_hc_vcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'a single vcf file'),
+        };
     }
     
     method post_process_sub {

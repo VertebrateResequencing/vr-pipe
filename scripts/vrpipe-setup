@@ -44,7 +44,7 @@ my $frontend = VRPipe::FrontEnd->new(
         ['user|u=s', q[When listing setups, only list those created by this user. When creating a setup, create for this user (defaults to your current username, specify 'all' to see setups from all users)], { default => scalar(getpwuid($<)) }],
         [],
         [q[To alter an existing PipelineSetup:]],
-        ['setup=s',       'Change the given pipeline setup (by id or name)', { persistent_object => 'PipelineSetup' }],
+        ['setup=s@',      'Change the given pipeline setup (by id or name); you can repeat this option when using deactivate, reactivate, touch, reset, cleanup and delete', { persistent_object => 'PipelineSetup' }],
         ['extra_options', q[Be given the option to override step resource requirements (eg. memory needed), and to limit the number of jobs for a step that run simultaneously]],
         ['deactivate',    'Turn off the given --setup'],
         ['reactivate',    'Turn on the given --setup'],
@@ -56,7 +56,7 @@ my $frontend = VRPipe::FrontEnd->new(
 );
 
 my $user          = $frontend->opts('user');
-my $setup         = $frontend->get_pipelinesetups();
+my @setups        = $frontend->get_pipelinesetups();
 my $extra_options = $frontend->opts('extra_options');
 my $deactivate    = $frontend->opts('deactivate');
 my $reactivate    = $frontend->opts('reactivate');
@@ -67,14 +67,14 @@ my $delete        = $frontend->opts('delete');
 my $list          = $frontend->opts('list');
 my $based_on      = $frontend->opts('based_on');
 
-if ($setup && $list) {
+if (@setups && $list) {
     $frontend->error("--setup and --list don't make sense together; ignoring --list");
     $list = 0;
 }
 if ($user eq 'all' && !$list) {
     $frontend->die_with_error("--user all when not listing with --list don't make sense; when creating a new setup set a real user name with --user, or leave it to the default");
 }
-if (($deactivate || $reactivate) && !$setup) {
+if (($deactivate || $reactivate) && !@setups) {
     $frontend->error("--deactivate and --activate only make sense when given a --setup; ignoring them");
     undef $deactivate;
     undef $reactivate;
@@ -82,385 +82,390 @@ if (($deactivate || $reactivate) && !$setup) {
 if ($deactivate && $reactivate) {
     $frontend->die_with_error("--deactivate and --activate are mutually exclusive");
 }
+if (@setups > 1 && !($deactivate || $reactivate || $reset || $cleanup || $delete || $touch)) {
+    $frontend->die_with_error("cannot modify options for more than one setup at a time");
+}
 
-if ($setup) {
-    # are we de/reactivating it?
-    if ($deactivate || $reactivate) {
-        if ($deactivate) {
-            $setup->active(0);
-            $setup->log_event("vrpipe-setup --deactivated called");
-        }
-        elsif ($reactivate) {
-            $setup->active(1);
-            $setup->log_event("vrpipe-setup --reactivated called");
-        }
-        $setup->update;
-        
-        my $active = $setup->active;
-        
-        $frontend->output("The 'active' state of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") is now $active");
-    }
-    elsif ($reset || $cleanup || $delete) {
-        my $question = $cleanup ? "Are you really sure you want to wipe out all work done on withdrawn DataElements of this setup? All their output files will be deleted!" : "Are you really sure you want to wipe out all progress on this setup? All output files will be deleted!";
-        my $go_ahead = $frontend->ask_question(question => $question, possibles => [qw(y n)], required => 1);
-        if ($go_ahead eq 'n') {
-            $frontend->output("Abandoning this request, no harm done");
-            exit;
-        }
-        
-        my $setup_id = $setup->id;
-        $frontend->output($cleanup ? "Working on wiping out all trace of the withdrawn DataElements of setup $setup_id..." : "Working on wiping out all trace of setup $setup_id...");
-        my $mode_name = $cleanup ? "cleanup" : ($reset ? "reset" : "delete");
-        
-        # deactivate it first
-        unless ($cleanup) {
-            $setup->active(0);
+if (@setups) {
+    foreach my $setup (@setups) {
+        # are we de/reactivating it?
+        if ($deactivate || $reactivate) {
+            if ($deactivate) {
+                $setup->active(0);
+                $setup->log_event("vrpipe-setup --deactivated called");
+            }
+            elsif ($reactivate) {
+                $setup->active(1);
+                $setup->log_event("vrpipe-setup --reactivated called");
+            }
             $setup->update;
-            $setup->log_event("vrpipe-setup --$mode_name deactivated the PipelineSetup");
+            
+            my $active = $setup->active;
+            
+            $frontend->output("The 'active' state of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") is now $active");
         }
-        
-        # delete all related rows in the db
-        my @step_members = $setup->pipeline->step_members;
-        my $estates_pager = $setup->dataelementstates_pager($cleanup ? (only_withdrawn => 1) : (include_withdrawn => 1));
-        my @jobs_to_delete;
-        while (my $estates = $estates_pager->next) {
-            foreach my $element_state (@$estates) {
-                $frontend->progress_indicator;
-                
-                my $element = $element_state->dataelement;
-                foreach my $stepm (@step_members) {
-                    my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
-                    $step_state || next;
-                    
-                    # delete all the step_state's submissions, and their job if
-                    # not also used by some other setup
-                    unless ($step_state->same_submissions_as) {
-                        foreach my $sub ($step_state->submissions) {
-                            my $job = $sub->job;
-                            
-                            my @job_subs = VRPipe::Submission->search({ job => $job->id }, { prefetch => { stepstate => 'pipelinesetup' } });
-                            my $all_mine = 1;
-                            foreach my $other_sub (@job_subs) {
-                                if ($other_sub->stepstate->pipelinesetup->id != $setup_id) {
-                                    $all_mine = 0;
-                                    last;
-                                }
-                            }
-                            
-                            if ($all_mine) {
-                                $setup->log_event("vrpipe-setup --$mode_name will kill Job because it is unique to this Setup", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
-                                $job->kill_job unless $job->end_time;
-                            }
-                            
-                            # delete any stepstats for the submission
-                            foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
-                                $ss->delete;
-                            }
-                            
-                            $setup->log_event("vrpipe-setup --$mode_name will delete Submission", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
-                            $sub->delete;
-                            push(@jobs_to_delete, $job) if $all_mine;
-                        }
-                    }
-                    
-                    # delete output files not also created by some other setup
-                    $setup->log_event("vrpipe-setup --$mode_name will unlink all output files unique to this StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
-                    $step_state->unlink_output_files(only_unique_to_us => 1);
-                    
-                    # delete sofs
-                    foreach my $sof ($step_state->_output_files) {
-                        $sof->delete;
-                    }
-                    
-                    # undef any same_submissions_as that reference us
-                    VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
-                    
-                    $setup->log_event("vrpipe-setup --$mode_name will delete the StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
-                    $step_state->delete;
-                }
-                
-                my $dataelement = $element_state->dataelement;
-                $setup->log_event("vrpipe-setup --$mode_name will delete the DataElementState", dataelement => $dataelement->id);
-                $element_state->delete;
-                if ($cleanup) {
-                    eval {
-                        $setup->log_event("vrpipe-setup --$mode_name will delete the DataElement", dataelement => $dataelement->id);
-                        $dataelement->delete;
-                    };
-                }
-            }
-        }
-        $frontend->progress_indicator(1);
-        
-        foreach my $job (@jobs_to_delete) {
-            $setup->log_event("vrpipe-setup --$mode_name will delete Job because it is unique to this Setup", job => $job->id);
-            $job->delete;
-        }
-        
-        if ($cleanup) {
-            $frontend->output("Setup $setup_id has been cleaned up.");
-            $setup->log_event("vrpipe-setup --$mode_name has cleaned up the Setup");
-        }
-        else {
-            # also delete the pipelinesetup and links if in delete mode
-            if ($delete) {
-                VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
-                $setup->delete;
-                $setup->log_event("vrpipe-setup --$mode_name has deleted the Setup");
-                $frontend->output("Setup $setup_id has been reset and deleted.");
-            }
-            else {
-                $frontend->output("Setup $setup_id has been reset and is now deactivated.");
-                $setup->log_event("vrpipe-setup --$mode_name has reset the Setup");
-            }
-        }
-    }
-    elsif ($touch) {
-        my $datasource = $setup->datasource;
-        $datasource->_changed_marker('undef');
-        $datasource->update;
-        $setup->log_event("vrpipe-setup --touch called");
-        
-        # for file-based datasource, we have to literally touch the file as well
-        my $instance = $datasource->_source_instance;
-        if ($instance->can('source_file')) {
-            my $path = $instance->source_file->path->stringify;
-            if (-e $path) {
-                my $touched = utime(undef, undef, $path);
-                unless ($touched) {
-                    open(my $fh, '>>', $path);
-                    close($fh);
-                }
-            }
-        }
-        
-        # force unlock the redis lock
-        my $im = VRPipe::Persistent::InMemory->new();
-        $im->_redis->del("lock.datasource." . $datasource->id);
-        
-        $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
-    }
-    else {
-        # allow the user to change pipeline setup options
-        
-        # Get a list of all options possible, without duplication
-        my %option_names;
-        my $option_num = 0;
-        my @options;
-        my $pipeline = $setup->pipeline;
-        foreach my $stepm ($pipeline->step_members) {
-            my $step        = $stepm->step;
-            my $option_defs = $step->options_definition;
-            foreach my $key (sort keys %$option_defs) {
-                next if exists $option_names{$key};
-                $option_num++;
-                $option_names{$key} = $option_num;
-                
-                my $step_option = $option_defs->{$key};
-                $options[$option_num] = [$key, $step_option->description, $step_option->optional, $step_option->default_value, $step_option->allowed_values];
+        elsif ($reset || $cleanup || $delete) {
+            my $question = $cleanup ? "Are you really sure you want to wipe out all work done on withdrawn DataElements of this setup? All their output files will be deleted!" : "Are you really sure you want to wipe out all progress on this setup? All output files will be deleted!";
+            my $go_ahead = $frontend->ask_question(question => $question, possibles => [qw(y n)], required => 1);
+            if ($go_ahead eq 'n') {
+                $frontend->output("Abandoning this request, no harm done");
+                exit;
             }
             
-            if ($extra_options) {
-                # also give the generic memory/time etc. options user could set
-                # for this step
-                my $step_name = $step->name;
-                foreach my $ref (['memory', 'MB'], ['time', 'seconds']) { #  cpus tmp_space local_space custom
-                    my ($resource, $unit) = @$ref;
-                    my $key = $step_name . '_' . $resource;
+            my $setup_id = $setup->id;
+            $frontend->output($cleanup ? "Working on wiping out all trace of the withdrawn DataElements of setup $setup_id..." : "Working on wiping out all trace of setup $setup_id...");
+            my $mode_name = $cleanup ? "cleanup" : ($reset ? "reset" : "delete");
+            
+            # deactivate it first
+            unless ($cleanup) {
+                $setup->active(0);
+                $setup->update;
+                $setup->log_event("vrpipe-setup --$mode_name deactivated the PipelineSetup");
+            }
+            
+            # delete all related rows in the db
+            my @step_members = $setup->pipeline->step_members;
+            my $estates_pager = $setup->dataelementstates_pager($cleanup ? (only_withdrawn => 1) : (include_withdrawn => 1));
+            my @jobs_to_delete;
+            while (my $estates = $estates_pager->next) {
+                foreach my $element_state (@$estates) {
+                    $frontend->progress_indicator;
+                    
+                    my $element = $element_state->dataelement;
+                    foreach my $stepm (@step_members) {
+                        my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
+                        $step_state || next;
+                        
+                        # delete all the step_state's submissions, and their job if
+                        # not also used by some other setup
+                        unless ($step_state->same_submissions_as) {
+                            foreach my $sub ($step_state->submissions) {
+                                my $job = $sub->job;
+                                
+                                my @job_subs = VRPipe::Submission->search({ job => $job->id }, { prefetch => { stepstate => 'pipelinesetup' } });
+                                my $all_mine = 1;
+                                foreach my $other_sub (@job_subs) {
+                                    if ($other_sub->stepstate->pipelinesetup->id != $setup_id) {
+                                        $all_mine = 0;
+                                        last;
+                                    }
+                                }
+                                
+                                if ($all_mine) {
+                                    $setup->log_event("vrpipe-setup --$mode_name will kill Job because it is unique to this Setup", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
+                                    $job->kill_job unless $job->end_time;
+                                }
+                                
+                                # delete any stepstats for the submission
+                                foreach my $ss (VRPipe::StepStats->search({ submission => $sub->id })) {
+                                    $ss->delete;
+                                }
+                                
+                                $setup->log_event("vrpipe-setup --$mode_name will delete Submission", dataelement => $step_state->dataelement->id, stepstate => $step_state->id, submission => $sub->id, job => $job->id);
+                                $sub->delete;
+                                push(@jobs_to_delete, $job) if $all_mine;
+                            }
+                        }
+                        
+                        # delete output files not also created by some other setup
+                        $setup->log_event("vrpipe-setup --$mode_name will unlink all output files unique to this StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
+                        $step_state->unlink_output_files(only_unique_to_us => 1);
+                        
+                        # delete sofs
+                        foreach my $sof ($step_state->_output_files) {
+                            $sof->delete;
+                        }
+                        
+                        # undef any same_submissions_as that reference us
+                        VRPipe::StepState->search_rs({ same_submissions_as => $step_state->id })->update({ same_submissions_as => undef });
+                        
+                        $setup->log_event("vrpipe-setup --$mode_name will delete the StepState", dataelement => $step_state->dataelement->id, stepstate => $step_state->id);
+                        $step_state->delete;
+                    }
+                    
+                    my $dataelement = $element_state->dataelement;
+                    $setup->log_event("vrpipe-setup --$mode_name will delete the DataElementState", dataelement => $dataelement->id);
+                    $element_state->delete;
+                    if ($cleanup) {
+                        eval {
+                            $setup->log_event("vrpipe-setup --$mode_name will delete the DataElement", dataelement => $dataelement->id);
+                            $dataelement->delete;
+                        };
+                    }
+                }
+            }
+            $frontend->progress_indicator(1);
+            
+            foreach my $job (@jobs_to_delete) {
+                $setup->log_event("vrpipe-setup --$mode_name will delete Job because it is unique to this Setup", job => $job->id);
+                $job->delete;
+            }
+            
+            if ($cleanup) {
+                $frontend->output("Setup $setup_id has been cleaned up.");
+                $setup->log_event("vrpipe-setup --$mode_name has cleaned up the Setup");
+            }
+            else {
+                # also delete the pipelinesetup and links if in delete mode
+                if ($delete) {
+                    VRPipe::DataElementLink->search_rs({ pipelinesetup => $setup_id })->delete;
+                    $setup->delete;
+                    $setup->log_event("vrpipe-setup --$mode_name has deleted the Setup");
+                    $frontend->output("Setup $setup_id has been reset and deleted.");
+                }
+                else {
+                    $frontend->output("Setup $setup_id has been reset and is now deactivated.");
+                    $setup->log_event("vrpipe-setup --$mode_name has reset the Setup");
+                }
+            }
+        }
+        elsif ($touch) {
+            my $datasource = $setup->datasource;
+            $datasource->_changed_marker('undef');
+            $datasource->update;
+            $setup->log_event("vrpipe-setup --touch called");
+            
+            # for file-based datasource, we have to literally touch the file as well
+            my $instance = $datasource->_source_instance;
+            if ($instance->can('source_file')) {
+                my $path = $instance->source_file->path->stringify;
+                if (-e $path) {
+                    my $touched = utime(undef, undef, $path);
+                    unless ($touched) {
+                        open(my $fh, '>>', $path);
+                        close($fh);
+                    }
+                }
+            }
+            
+            # force unlock the redis lock
+            my $im = VRPipe::Persistent::InMemory->new();
+            $im->_redis->del("lock.datasource." . $datasource->id);
+            
+            $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
+        }
+        else {
+            # allow the user to change pipeline setup options
+            
+            # Get a list of all options possible, without duplication
+            my %option_names;
+            my $option_num = 0;
+            my @options;
+            my $pipeline = $setup->pipeline;
+            foreach my $stepm ($pipeline->step_members) {
+                my $step        = $stepm->step;
+                my $option_defs = $step->options_definition;
+                foreach my $key (sort keys %$option_defs) {
                     next if exists $option_names{$key};
                     $option_num++;
                     $option_names{$key} = $option_num;
-                    my $ssu        = VRPipe::StepStatsUtil->new(step => $step);
-                    my $rec_method = 'recommended_' . $resource;
-                    my $rec        = $ssu->$rec_method();
-                    my $current    = $rec ? ' (currently averaging ' . $rec . ')' : '';
-                    $options[$option_num] = [$key, "Override the $resource requirement (in $unit) for the step '$step_name'$current", 1, '', []];
+                    
+                    my $step_option = $option_defs->{$key};
+                    $options[$option_num] = [$key, $step_option->description, $step_option->optional, $step_option->default_value, $step_option->allowed_values];
                 }
                 
-                # and an option to limit the number of simultaneous jobs for this
-                # step
-                my $key = $step_name . '_max_simultaneous';
-                unless (exists $option_names{$key}) {
-                    $option_num++;
-                    $option_names{$key} = $option_num;
-                    $options[$option_num] = [$key, "Limit the number of simultaneous jobs for the step '$step_name'", 1, $step->max_simultaneous, []];
+                if ($extra_options) {
+                    # also give the generic memory/time etc. options user could set
+                    # for this step
+                    my $step_name = $step->name;
+                    foreach my $ref (['memory', 'MB'], ['time', 'seconds']) { #  cpus tmp_space local_space custom
+                        my ($resource, $unit) = @$ref;
+                        my $key = $step_name . '_' . $resource;
+                        next if exists $option_names{$key};
+                        $option_num++;
+                        $option_names{$key} = $option_num;
+                        my $ssu        = VRPipe::StepStatsUtil->new(step => $step);
+                        my $rec_method = 'recommended_' . $resource;
+                        my $rec        = $ssu->$rec_method();
+                        my $current    = $rec ? ' (currently averaging ' . $rec . ')' : '';
+                        $options[$option_num] = [$key, "Override the $resource requirement (in $unit) for the step '$step_name'$current", 1, '', []];
+                    }
+                    
+                    # and an option to limit the number of simultaneous jobs for this
+                    # step
+                    my $key = $step_name . '_max_simultaneous';
+                    unless (exists $option_names{$key}) {
+                        $option_num++;
+                        $option_names{$key} = $option_num;
+                        $options[$option_num] = [$key, "Limit the number of simultaneous jobs for the step '$step_name'", 1, $step->max_simultaneous, []];
+                    }
                 }
             }
-        }
-        
-        # also include behaviour options
-        my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
-        foreach my $regulator (keys %$reg) {
-            my (@methods, %steps);
-            my $methods = $reg->{$regulator}->{methods};
-            while (my ($method, $steps) = each %$methods) {
-                push(@methods, $method);
-                foreach my $step (keys %$steps) {
-                    $steps{$step} = 1;
+            
+            # also include behaviour options
+            my $reg = behaviours_to_regulators(get_pipeline_behaviours($pipeline));
+            foreach my $regulator (keys %$reg) {
+                my (@methods, %steps);
+                my $methods = $reg->{$regulator}->{methods};
+                while (my ($method, $steps) = each %$methods) {
+                    push(@methods, $method);
+                    foreach my $step (keys %$steps) {
+                        $steps{$step} = 1;
+                    }
                 }
+                my @steps = sort { $a <=> $b } keys %steps;
+                
+                my @defaults = keys %{ $reg->{$regulator}->{defaults} };
+                my $default = @defaults == 1 ? $defaults[0] : 'mixed';
+                
+                $option_num++;
+                $option_names{$regulator} = $option_num;
+                $options[$option_num] = [$regulator, "Turn the behaviours (" . join(', ', @methods) . ") of steps (" . join(', ', @steps) . ") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
             }
-            my @steps = sort { $a <=> $b } keys %steps;
             
-            my @defaults = keys %{ $reg->{$regulator}->{defaults} };
-            my $default = @defaults == 1 ? $defaults[0] : 'mixed';
-            
+            # allow changing of output root
             $option_num++;
-            $option_names{$regulator} = $option_num;
-            $options[$option_num] = [$regulator, "Turn the behaviours (" . join(', ', @methods) . ") of steps (" . join(', ', @steps) . ") on (1) of off (0)", 1, "$default" ne 'mixed' ? $default : '', [0, 1]];
-        }
-        
-        # allow changing of output root
-        $option_num++;
-        $option_names{output_root} = $option_num;
-        $options[$option_num] = ['output_root', "Absolute path of the root directory that output files should go to", 0, sub { $setup->output_root->stringify }, []];
-        my %specials;
-        $specials{output_root} = 1;
-        
-        # allow changing group
-        $option_num++;
-        $option_names{group} = $option_num;
-        $options[$option_num] = ['group', "Unix group that output files should belong to (no answer uses the default group of the user that runs vrpipe-server)", 1, sub { $setup->unix_group }, [map { scalar getgrgid($_) } getgroups]];
-        $specials{group} = 1;
-        
-        # offer to maybe change datasource
-        $option_num++;
-        $option_names{datasource} = $option_num;
-        $options[$option_num] = ['datasource', "Try to alter the DataSource", 0, sub { $setup->datasource->id }, []];
-        $specials{datasource} = 1;
-        
-        if ($option_num) {
-            $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") currently has these options:");
+            $option_names{output_root} = $option_num;
+            $options[$option_num] = ['output_root', "Absolute path of the root directory that output files should go to", 0, sub { $setup->output_root->stringify }, []];
+            my %specials;
+            $specials{output_root} = 1;
             
-            # Show the user the list, along with currently set options, allow them to
-            # change an option, then repeat until they choose to finish
-            while (1) {
-                my $current_opts = $setup->options;
-                foreach my $i (1 .. $option_num) {
-                    my ($key, $desc, $optional, $default, $allowed) = @{ $options[$i] };
-                    my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
-                    if (exists $specials{$key}) {
-                        my $d = &{$default} if defined $default;
-                        $current = $d if defined $d;
-                        undef $default;
-                    }
-                    my $comment = $optional ? 'optional' : 'REQUIRED';
-                    $frontend->output("$i. $key ($comment) => $current");
-                    $frontend->output("\tDescription: $desc");
-                    if ($default) {
-                        $frontend->output("\tDefault: $default");
-                    }
-                    if (@$allowed) {
-                        $frontend->output("\tAllowed values: ", join(' | ', @$allowed));
-                    }
-                }
+            # allow changing group
+            $option_num++;
+            $option_names{group} = $option_num;
+            $options[$option_num] = ['group', "Unix group that output files should belong to (no answer uses the default group of the user that runs vrpipe-server)", 1, sub { $setup->unix_group }, [map { scalar getgrgid($_) } getgroups]];
+            $specials{group} = 1;
+            
+            # offer to maybe change datasource
+            $option_num++;
+            $option_names{datasource} = $option_num;
+            $options[$option_num] = ['datasource', "Try to alter the DataSource", 0, sub { $setup->datasource->id }, []];
+            $specials{datasource} = 1;
+            
+            if ($option_num) {
+                $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") currently has these options:");
                 
-                my $choice = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
-                my $chosen_key = $options[$choice]->[0];
-                
-                if ($chosen_key eq 'datasource') {
-                    # allow changing the datasource, but only if a) no
-                    # stepstates have been created yet, in which case we create
-                    # a new ds, or b) no other setups use our datasource, in
-                    # which case we alter the current ds
-                    my $current_ds          = $setup->datasource;
-                    my $got_current_ds_lock = $current_ds->lock;
-                    if ($got_current_ds_lock) {
-                        $current_ds->maintain_lock;
-                        
-                        my $other_setups    = VRPipe::PipelineSetup->search({ datasource => $current_ds->id });
-                        my $set_new_ds      = 0;
-                        my $have_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id });
-                        if (!$have_stepstates) {
-                            $set_new_ds = 1;
+                # Show the user the list, along with currently set options, allow them to
+                # change an option, then repeat until they choose to finish
+                while (1) {
+                    my $current_opts = $setup->options;
+                    foreach my $i (1 .. $option_num) {
+                        my ($key, $desc, $optional, $default, $allowed) = @{ $options[$i] };
+                        my $current = defined $current_opts->{$key} ? $current_opts->{$key} : '[not set]';
+                        if (exists $specials{$key}) {
+                            my $d = &{$default} if defined $default;
+                            $current = $d if defined $d;
+                            undef $default;
                         }
-                        elsif ($other_setups > 1) {
-                            $frontend->output("Sorry, you can't alter the datasource because it is shared by other setups and this setup has already been triggered\n\n");
+                        my $comment = $optional ? 'optional' : 'REQUIRED';
+                        $frontend->output("$i. $key ($comment) => $current");
+                        $frontend->output("\tDescription: $desc");
+                        if ($default) {
+                            $frontend->output("\tDefault: $default");
                         }
-                        
-                        if ($other_setups == 1 || $set_new_ds) {
-                            # ask the user for the new ds settings
-                            my ($chosen_ds_type, $chosen_method, $ds_source, $chosen_method_args) = get_ds_details($setup);
-                            my %new_ds_args = (type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => $chosen_method_args);
+                        if (@$allowed) {
+                            $frontend->output("\tAllowed values: ", join(' | ', @$allowed));
+                        }
+                    }
+                    
+                    my $choice = $frontend->pick_number(question => "Choose an option to change", max => $option_num);
+                    my $chosen_key = $options[$choice]->[0];
+                    
+                    if ($chosen_key eq 'datasource') {
+                        # allow changing the datasource, but only if a) no
+                        # stepstates have been created yet, in which case we create
+                        # a new ds, or b) no other setups use our datasource, in
+                        # which case we alter the current ds
+                        my $current_ds          = $setup->datasource;
+                        my $got_current_ds_lock = $current_ds->lock;
+                        if ($got_current_ds_lock) {
+                            $current_ds->maintain_lock;
                             
-                            if ($set_new_ds) {
-                                # try and clean up any existing des first, which
-                                # are now invalid
-                                eval { VRPipe::DataElementState->search_rs({ pipelinesetup => $setup->id })->delete; };
-                                if ($@) {
-                                    $frontend->output("Sorry, the setup's current datasource has some dataelementstates that couldn't be deleted: $@\n\n");
-                                }
-                                else {
-                                    # create and set a new datasource
-                                    my $new_ds = VRPipe::DataSource->create(%new_ds_args);
-                                    $setup->datasource($new_ds);
-                                    $setup->update;
-                                    $frontend->output("The setup's datasource was replaced with a new one\n\n");
-                                }
+                            my $other_setups    = VRPipe::PipelineSetup->search({ datasource => $current_ds->id });
+                            my $set_new_ds      = 0;
+                            my $have_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id });
+                            if (!$have_stepstates) {
+                                $set_new_ds = 1;
                             }
-                            else {
-                                # see if a ds corresponding to the new
-                                # settings already exists
-                                my $already_exists = 0;
-                                my $transaction    = sub {
-                                    my ($new_ds) = VRPipe::DataSource->search(\%new_ds_args);
-                                    if ($new_ds && $new_ds->id != $current_ds->id) {
-                                        $already_exists = $new_ds->id;
-                                    }
-                                };
-                                $setup->do_transaction($transaction, "Could not search for DataSources");
+                            elsif ($other_setups > 1) {
+                                $frontend->output("Sorry, you can't alter the datasource because it is shared by other setups and this setup has already been triggered\n\n");
+                            }
+                            
+                            if ($other_setups == 1 || $set_new_ds) {
+                                # ask the user for the new ds settings
+                                my ($chosen_ds_type, $chosen_method, $ds_source, $chosen_method_args) = get_ds_details($setup);
+                                my %new_ds_args = (type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => $chosen_method_args);
                                 
-                                if ($already_exists) {
-                                    $frontend->output("Sorry, I can't update the setup's datasource with your new settings, since they match those of another datasource for a different setup.\n\n");
+                                if ($set_new_ds) {
+                                    # try and clean up any existing des first, which
+                                    # are now invalid
+                                    eval { VRPipe::DataElementState->search_rs({ pipelinesetup => $setup->id })->delete; };
+                                    if ($@) {
+                                        $frontend->output("Sorry, the setup's current datasource has some dataelementstates that couldn't be deleted: $@\n\n");
+                                    }
+                                    else {
+                                        # create and set a new datasource
+                                        my $new_ds = VRPipe::DataSource->create(%new_ds_args);
+                                        $setup->datasource($new_ds);
+                                        $setup->update;
+                                        $frontend->output("The setup's datasource was replaced with a new one\n\n");
+                                    }
                                 }
                                 else {
-                                    # alter our current datasource
-                                    $current_ds->type($chosen_ds_type);
-                                    $current_ds->method($chosen_method);
-                                    $current_ds->source($ds_source);
-                                    $current_ds->options($chosen_method_args);
-                                    $current_ds->_changed_marker('forced_update');
-                                    $current_ds->update;
-                                    $frontend->output("The setup's datasource was altered with the new settings\n\n");
+                                    # see if a ds corresponding to the new
+                                    # settings already exists
+                                    my $already_exists = 0;
+                                    my $transaction    = sub {
+                                        my ($new_ds) = VRPipe::DataSource->search(\%new_ds_args);
+                                        if ($new_ds && $new_ds->id != $current_ds->id) {
+                                            $already_exists = $new_ds->id;
+                                        }
+                                    };
+                                    $setup->do_transaction($transaction, "Could not search for DataSources");
+                                    
+                                    if ($already_exists) {
+                                        $frontend->output("Sorry, I can't update the setup's datasource with your new settings, since they match those of another datasource for a different setup.\n\n");
+                                    }
+                                    else {
+                                        # alter our current datasource
+                                        $current_ds->type($chosen_ds_type);
+                                        $current_ds->method($chosen_method);
+                                        $current_ds->source($ds_source);
+                                        $current_ds->options($chosen_method_args);
+                                        $current_ds->_changed_marker('forced_update');
+                                        $current_ds->update;
+                                        $frontend->output("The setup's datasource was altered with the new settings\n\n");
+                                    }
                                 }
                             }
+                            
+                            $current_ds->unlock;
                         }
-                        
-                        $current_ds->unlock;
+                        else {
+                            $frontend->output("Sorry, you can't alter the datasource right now because it is currently being updated or triggered\n\n");
+                        }
                     }
                     else {
-                        $frontend->output("Sorry, you can't alter the datasource right now because it is currently being updated or triggered\n\n");
+                        my $default = $options[$choice]->[3];
+                        $default = &{$default} if $default && ref $default;
+                        my $val = $frontend->ask_question(
+                            question => "Provide a new value for '$chosen_key'",
+                            required => $options[$choice]->[2] ? 0 : 1,
+                            defined $default ? (default => $default) : (),
+                            $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ()
+                        );
+                        if ($chosen_key eq 'output_root') {
+                            $setup->output_root($val);
+                        }
+                        elsif ($chosen_key eq 'group') {
+                            $setup->unix_group($val);
+                        }
+                        else {
+                            $current_opts->{$chosen_key} = $val;
+                            $setup->options($current_opts);
+                        }
+                        $setup->update;
+                        $frontend->output("Option updated!\n\n");
                     }
+                    
+                    my $answer = $frontend->ask_question(question => "Do you want to change another option?", possibles => [qw(y n)], default => 'n');
+                    last unless $answer eq 'y';
+                    $frontend->output("\n");
                 }
-                else {
-                    my $default = $options[$choice]->[3];
-                    $default = &{$default} if $default && ref $default;
-                    my $val = $frontend->ask_question(
-                        question => "Provide a new value for '$chosen_key'",
-                        required => $options[$choice]->[2] ? 0 : 1,
-                        defined $default ? (default => $default) : (),
-                        $options[$choice]->[4] ? (possibles => $options[$choice]->[4]) : ()
-                    );
-                    if ($chosen_key eq 'output_root') {
-                        $setup->output_root($val);
-                    }
-                    elsif ($chosen_key eq 'group') {
-                        $setup->unix_group($val);
-                    }
-                    else {
-                        $current_opts->{$chosen_key} = $val;
-                        $setup->options($current_opts);
-                    }
-                    $setup->update;
-                    $frontend->output("Option updated!\n\n");
-                }
-                
-                my $answer = $frontend->ask_question(question => "Do you want to change another option?", possibles => [qw(y n)], default => 'n');
-                last unless $answer eq 'y';
-                $frontend->output("\n");
             }
-        }
-        else {
-            $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") has no options that can be set (try rerunning with --extra_options ?).");
+            else {
+                $frontend->output("PipelineSetup '", $setup->name, "' (id ", $setup->id, ") has no options that can be set (try rerunning with --extra_options ?).");
+            }
         }
     }
 }

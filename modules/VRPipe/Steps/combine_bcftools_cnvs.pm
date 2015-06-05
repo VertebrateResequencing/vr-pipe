@@ -37,6 +37,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     method options_definition {
         return {
             compare_cnv_script => VRPipe::StepOption->create(
@@ -77,8 +79,9 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
                 )
             );
             
-            my $merged_meta = $self->combined_metadata($self->inputs->{summary_files});
-            my $cmp_file_path = $self->output_file(output_key => 'cmp_file', basename => 'combined_cnvs.txt', type => 'txt', metadata => $merged_meta)->path->stringify;
+            my $merged_meta   = $self->combined_metadata($self->inputs->{summary_files});
+            my $cmp_file      = $self->output_file(output_key => 'cmp_file', basename => 'combined_cnvs.txt', type => 'txt', metadata => $merged_meta);
+            my $cmp_file_path = $cmp_file->path->stringify;
             
             my @dirs;
             my @input_strings;
@@ -90,7 +93,7 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
             my $cmd_line = "$cmp_cnvs_exe $cmp_cnvs_opts @dirs > $cmp_file_path";
-            $self->dispatch([$cmd_line, $req]);
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::combine_bcftools_cnvs', 'combine_cnvs', [$cmd_line, $req, { output_files => [$cmp_file] }]);
         };
     }
     
@@ -116,6 +119,71 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
     
     method max_simultaneous {
         return 0;            # meaning unlimited
+    }
+    
+    method combine_cnvs (ClassName|Object $self: Str $cmd_line) {
+        my ($output_path) = $cmd_line =~ /\S > (\S+)$/;
+        
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        my $output_file = VRPipe::File->get(path => $output_path);
+        $output_file->update_stats_from_disc;
+        my $vrtrack              = VRPipe::Schema->create('VRTrack');
+        my $output_file_in_graph = $vrtrack->get_file($output_path);
+        
+        my $md5 = $output_file_in_graph->md5;
+        unless ($md5) {
+            $md5 = $output_file->file_md5($output_file);
+            $output_file_in_graph->md5($md5);
+        }
+        
+        my $graph = $vrtrack->graph;
+        
+        my $fh = $output_file->openr;
+        my (@samples, %results, %node_specs);
+        while (<$fh>) {
+            next if /^#/;
+            chomp;
+            my @cols = split;
+            if ($cols[0] eq 'SM') {
+                my $sample_source = $vrtrack->sample_source($cols[1]);
+                foreach my $sample_str (@cols[1 .. $#cols]) {
+                    my $sample_props = $vrtrack->sample_props_from_string($sample_str, $sample_source);
+                    push(@samples, $sample_props->{name});
+                    $node_specs{ $sample_props->{name} } = { namespace => 'VRTrack', label => 'Sample', properties => $sample_props };
+                }
+            }
+            elsif ($cols[0] eq 'RG') {
+                my $chr = $cols[1];
+                foreach my $i (7 .. $#cols) {
+                    $results{ $samples[$i - 6] }->{ $cols[0] } = { chr => $cols[1], start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], cn => $cols[$i] };
+                }
+            }
+            else {
+                foreach my $i (1 .. $#cols) {
+                    $results{ $samples[$i - 1] }->{ $cols[0] } = $cols[$i];
+                }
+            }
+        }
+        $output_file->close();
+        
+        my $t = time();
+        while (my ($sample, $results) = each %results) {
+            $vrtrack->add(
+                'CNVs',
+                {
+                    md5_sample => $md5 . '_' . $sample,
+                    date       => $t,
+                    data       => $graph->json_encode($results)
+                },
+                incoming => [
+                    { node_spec => $node_specs{$sample},  type => 'cnv_calls' },
+                    { node      => $output_file_in_graph, type => 'parsed' }
+                ],
+                enqueue => 1
+            );
+        }
+        $vrtrack->dispatch_queue;
     }
 }
 
