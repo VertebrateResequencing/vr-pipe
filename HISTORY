@@ -1,3 +1,4 @@
+0.205   Fix for hipsci QC to handle _CTRL appended to sample names in files.
 0.204   CNV and Pluritest-related steps now store their results properly in the
         graph database against sample and donor nodes.
         vrpipe-setup now allows reactivate/deactivate of multiple setups.
