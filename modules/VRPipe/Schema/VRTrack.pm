@@ -1052,7 +1052,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my ($sample_source, $sample_node);
         if ($sample =~ /^(.+)_([^_]+)$/) {
             # public_name+sample
-            $sample_node = $self->get('Sample', { public_name => $1, name => $2 });
+            my $name = $2;
+            $name =~ s/_CTRL$//;
+            $sample_node = $self->get('Sample', { public_name => $1, name => $name });
             if ($sample_node) {
                 $sample_source = 'public_name+sample';
             }
@@ -1077,6 +1079,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $sample_props;
         if ($sample_source eq 'public_name+sample') {
             my ($public_name, $name) = $sample =~ /^(.+)_([^_]+)$/;
+            $name =~ s/_CTRL$//;
             $sample_props = { public_name => $public_name, name => $name };
         }
         elsif ($sample_source eq 'sample') {
