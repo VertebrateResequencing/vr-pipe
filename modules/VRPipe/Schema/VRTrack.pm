@@ -191,6 +191,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 required => [qw(date)],
                 optional => [qw(data)]
             },
+            {
+                label    => 'Pluritest',
+                unique   => [qw(md5_sample)],
+                required => [qw(date)],
+                optional => [qw(data)]
+            },
             
             # gender (for expected or calculated from sequenom/fluidgm)
             {

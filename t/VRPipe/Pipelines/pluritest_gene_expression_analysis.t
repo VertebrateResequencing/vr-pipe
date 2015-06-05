@@ -5,12 +5,13 @@ use Path::Class;
 use File::Copy;
 
 BEGIN {
-    use Test::Most tests => 4;
+    use Test::Most tests => 13;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER VRPIPE_PLURITEST_RSCRIPT VRPIPE_PLURITEST_RDATA VRPIPE_PLURITEST_RBIN VRPIPE_PLURITEST_RLIBS)],
         required_exe => [qw(iget iquest)]
     );
     use TestPipelines;
+    use_ok('VRPipe::Schema');
 }
 
 my $output_dir = get_output_dir('import_expression_idat_files');
@@ -79,15 +80,33 @@ my $pluri_setup = VRPipe::PipelineSetup->create(
     output_root => $output_dir
 );
 
-my @final_files;
+my (@plot_files, @csv_files);
 foreach my $element (@{ get_elements($pluri_setup->datasource) }) {
     my @output_dirs = output_subdirs($element->id, $pluri_setup->id);
     foreach my $kind (qw(01 02a 02 03c 03)) {
-        push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest_image' . $kind . '.png'));
+        push(@plot_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest_image' . $kind . '.png'));
     }
-    push(@final_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest.csv'));
+    push(@csv_files, file(@output_dirs, '3_pluritest_plot_gene_expression', 'pluritest.csv'));
 }
-ok handle_pipeline(@final_files), 'pluritest_gene_expression_analysis pipeline ran ok and produced the expected image files';
+ok handle_pipeline(@plot_files, @csv_files), 'pluritest_gene_expression_analysis pipeline ran ok and produced the expected image files';
+
+my $vrtrack = VRPipe::Schema->create("VRTrack");
+ok my $plot_node = $vrtrack->get_file($plot_files[0]), 'one of the plots was in the graph db';
+is $plot_node->property('type'), 'intensity', 'the plot file had the correct type';
+my ($donor_node) = $plot_node->related(incoming => { namespace => 'VRTrack', label => 'Donor', type => 'pluritest_plot' });
+is $donor_node->id, 'fee2bf14-59cd-4c57-b70e-12941437b0d5', 'the plot was related to the correct Donor node';
+my (@plots) = $donor_node->related(outgoing => { type => 'pluritest_plot' });
+is scalar(@plots), 5, 'all 5 plots were attached to the donor node';
+
+ok my $csv_node = $vrtrack->get_file($csv_files[0]), 'the csv was in the graph db';
+my @plur_nodes = $csv_node->related(outgoing => { namespace => 'VRTrack', label => 'Pluritest', type => 'parsed' });
+is scalar(@plur_nodes), 7, 'the csv was attached to 7 Pluritest nodes';
+my ($plur_node) = grep { $_->md5_sample =~ /QC1Hip-86/ } @plur_nodes;
+my ($sample_node) = $plur_node->related(incoming => { namespace => 'VRTrack', label => 'Sample', type => 'pluritest' });
+is $sample_node->name, 'QC1Hip-86', 'a Pluritest node was attached to the correct sample';
+
+my $data = $vrtrack->graph->json_decode($plur_node->data);
+is_deeply $data, { 'pluri-raw' => '20.435', 'pluri logit-p' => 1, novelty => '1.647', 'novelty logit-p' => '0.103', RMSD => '0.757' }, 'a Pluritest node had the correct data';
 
 finish;
 exit;
