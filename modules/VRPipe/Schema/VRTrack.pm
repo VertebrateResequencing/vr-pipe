@@ -182,7 +182,13 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label    => 'CNVs',
                 unique   => [qw(md5_sample)],
-                required => [qw(date type)],
+                required => [qw(date)],
+                optional => [qw(data)]
+            },
+            {
+                label    => 'LOH',
+                unique   => [qw(md5_sample)],
+                required => [qw(date)],
                 optional => [qw(data)]
             },
             

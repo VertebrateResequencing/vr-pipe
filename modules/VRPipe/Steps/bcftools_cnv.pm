@@ -20,7 +20,7 @@ Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -41,6 +41,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     method options_definition {
         return {
             bcftools_exe => VRPipe::StepOption->create(
@@ -144,7 +146,8 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     
                     my $summary_path = $summary_file->path;
                     my $plot_path    = $plot_file->path;
-                    $self->relate_input_to_output($vcf_path, 'cnv_summary', $summary_path->stringify);
+                    $self->relate_input_to_output($vcf_path, 'cnv_summary',     $summary_path->stringify);
+                    $self->relate_input_to_output($vcf_path, 'cnv_plot_script', $plot_path->stringify);
                     
                     my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
@@ -211,11 +214,34 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         }
         
         if (@chrs) {
+            my $vrtrack            = VRPipe::Schema->create('VRTrack');
+            my $plot_file_in_graph = $vrtrack->get_file($plot);
+            my ($query_sample)     = $plot =~ /([^\.]+)\.py$/;
+            my $sample_source      = $vrtrack->sample_source($query_sample);
+            my $sample_props       = $vrtrack->sample_props_from_string($query_sample, $sample_source);
+            my $sample_node        = $vrtrack->get('Sample', $sample_props);
+            
+            # first drop any existing cnv_plot relationships attached to this
+            # sample, so that it will only have the new ones we're about to add
+            my @existing_plots = $sample_node->related(outgoing => { type => 'cnv_plot' });
+            foreach my $plot (@existing_plots) {
+                $sample_node->divorce_from($plot);
+            }
+            
             my %seen = ();
             my @unique_chrs = grep { !$seen{$_}++ } @chrs;
             foreach my $chr (@unique_chrs) {
-                my $cmd_line = "$python " . $plot_file->path . " -c $chr";
+                my $plot_file_path = $plot_file->path;
+                my $cmd_line       = "$python $plot_file_path -c $chr";
                 system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+                
+                my $png_path = $plot_file_path;
+                $png_path =~ s/\.py$/.chr$chr.png/;
+                
+                my $plot_node = $vrtrack->add_file($png_path);
+                $plot_node->add_properties({ chr => $chr });
+                $sample_node->relate_to($plot_node, 'cnv_plot');
+                $plot_file_in_graph->relate_to($plot_node, 'plotted');
             }
         }
         
