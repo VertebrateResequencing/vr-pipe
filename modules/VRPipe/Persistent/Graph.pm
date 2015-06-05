@@ -884,7 +884,7 @@ class VRPipe::Persistent::Graph {
         shift;
         my $str = shift;
         return unless $str;
-        return $json->decode(shift);
+        return $json->decode($str);
     }
     
     method date_to_epoch (Str $dstr) {
