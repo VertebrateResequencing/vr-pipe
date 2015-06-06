@@ -295,7 +295,7 @@ class VRPipe::FrontEnd {
         $self->die_with_error($self->usage);
     }
     
-    method get_pipelinesetups (Bool :$inactive?, Bool :$allow_no_setups?) {
+    method get_pipelinesetups (Bool :$inactive?, Bool :$allow_no_setups?, Bool :$requested_only?) {
         my $multi_setups = $self->_multiple_setups;
         my @requested_setups = $self->option_was_set('setup') ? ($multi_setups ? @{ $self->opts('setup') } : ($self->opts('setup'))) : ();
         
@@ -303,7 +303,7 @@ class VRPipe::FrontEnd {
         if (@requested_setups) {
             @setups = @requested_setups;
         }
-        elsif ($multi_setups) {
+        elsif ($multi_setups && !$requested_only) {
             my $user = $self->opts('user');
             unless (defined $inactive) {
                 $inactive = $self->opts('deactivated');
