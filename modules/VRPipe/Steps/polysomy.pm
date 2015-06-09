@@ -37,6 +37,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::polysomy with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
     method options_definition {
         return {
             bcftools_exe => VRPipe::StepOption->create(
@@ -186,13 +188,50 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         
         $self->throw("File $dist doesn't exist..") unless -e $dist;
         
-        #identify chrs with abnormal copy numbers, store them in metadata and plot their BAF distribution
-        my @chrs = `awk '{if(\$1==\"CN\" && \$3!=2.0)print \$2}' $dist`;
-        if (@chrs) {
-            chomp(@chrs);
-            my $chrs_str = $query . ":" . join(",", @chrs);
+        # get the sample node in graph db
+        my $vrtrack       = VRPipe::Schema->create('VRTrack');
+        my $sample_source = $vrtrack->sample_source($query);
+        my $sample_props  = $vrtrack->sample_props_from_string($query, $sample_source);
+        my $sample_node   = $vrtrack->get('Sample', $sample_props);
+        unless ($sample_node) {
+            $self->throw("No sample node with name $sample_props->{name} was found in the graph db (for vcf $vcf, query $query)");
+        }
+        
+        # figure out the gender so we know what copy number to expect on chr X
+        my %genders;
+        foreach my $gender ($sample_node->related(outgoing => { type => 'gender', namespace => 'VRTrack', label => 'Gender' })) {
+            $genders{ $gender->gender }++;
+        }
+        my @genders = keys %genders;
+        my $gender = @genders == 1 ? $genders[0] : undef;
+        
+        # identify chrs with abnormal copy numbers, store them in metadata and
+        # plot their BAF distribution
+        $dist_file->update_stats_from_disc;
+        my $fh = $dist_file->openr;
+        my @ab_chrs;
+        while (<$fh>) {
+            next unless /^CN\s+(\S+)\s+(\S+)/;
+            my $chr = $1;
+            my $cn  = $2;
+            
+            my $expected = 2;
+            if ($gender && $chr eq 'X') {
+                if ($gender eq 'M') {
+                    $expected = 1;
+                }
+            }
+            
+            if ($cn !~ /^$expected\.0+$/) {
+                push(@ab_chrs, $chr);
+            }
+        }
+        
+        if (@ab_chrs) {
+            my $chrs_str = $query . ":" . join(",", @ab_chrs);
             $vcf_file->merge_metadata({ polysomy_chrs => $chrs_str });
-            foreach my $chr (@chrs) {
+            $sample_node->aberrant_chrs(\@ab_chrs);
+            foreach my $chr (@ab_chrs) {
                 my $cmd_line = "$python $plot_path -d $chr";
                 system($cmd_line) && $self->throw("failed to run [$cmd_line]");
             }

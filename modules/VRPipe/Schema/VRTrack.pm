@@ -78,7 +78,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected)], # who failed/selected and for what reason is stored on a relationship between this node and a User node
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected aberrant_chrs)], # who failed/selected and for what reason is stored on a relationship between this node and a User node
                 keep_history => 1
             },
             
