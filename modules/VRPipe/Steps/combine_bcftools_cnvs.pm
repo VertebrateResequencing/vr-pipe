@@ -156,7 +156,7 @@ class VRPipe::Steps::combine_bcftools_cnvs with VRPipe::StepRole {
             elsif ($cols[0] eq 'RG') {
                 my $chr = $cols[1];
                 foreach my $i (7 .. $#cols) {
-                    $results{ $samples[$i - 6] }->{ $cols[0] } = { chr => $cols[1], start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], cn => $cols[$i] };
+                    push(@{ $results{ $samples[$i - 6] }->{ $cols[0] } }, { chr => $cols[1], start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], cn => $cols[$i] });
                 }
             }
             else {
