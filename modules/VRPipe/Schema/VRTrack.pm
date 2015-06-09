@@ -314,6 +314,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # which samples belong to which donors, then add the relevant
     # sample properties to the donor node. Input is the output of run_cypher().
     method add_sample_info_to_donors (HashRef $graph_data) {
+        my $graph = $self->graph;
+        
         my %rels;
         foreach my $rel (@{ $graph_data->{relationships} }) {
             push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
@@ -327,7 +329,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         foreach my $donor (values %{ $nodes{Donor} }) {
             my ($most_recent_date, @controls, $shortest);
             foreach my $sample_id (@{ $rels{ $donor->{id} } || next }) {
-                my $s_props = $nodes{Sample}->{$sample_id}->{properties};
+                my $s_props = $graph->node_properties($nodes{Sample}->{$sample_id});
                 
                 my $cd = $s_props->{created_date};
                 if ($cd && (!defined $most_recent_date || $cd > $most_recent_date)) {
@@ -342,13 +344,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 push(@controls, $name) if $s_props->{control};
             }
             
+            my $props = $graph->node_properties($donor);
             if (@controls || $shortest) {
-                $donor->{properties}->{example_sample} = @controls == 1 ? $controls[0] : $shortest;
+                $props->{example_sample} = @controls == 1 ? $controls[0] : $shortest;
             }
             if ($most_recent_date) {
                 # convert to yyyy-mm-dd
                 my $dt = DateTime->from_epoch(epoch => $most_recent_date);
-                $donor->{properties}->{last_sample_added_date} = $dt->ymd;
+                $props->{last_sample_added_date} = $dt->ymd;
             }
         }
         
@@ -459,27 +462,28 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             if ($node->{label} eq 'Sample') {
                 $sample_nodes{ $node->{id} } = $node;
                 bless($node, 'VRPipe::Schema::VRTrack::Sample');
-                $sample_nodes_by_name{ $node->{properties}->{name} } = $node;
+                $sample_nodes_by_name{ $graph->node_property($node, 'name') } = $node;
             }
             elsif ($node->{label} eq 'User') {
-                $user_nodes{ $node->{properties}->{username} } = $node;
+                $user_nodes{ $graph->node_property($node, 'username') } = $node;
             }
         }
         
         my (%failed, %selected, @fail_reasons, %fail_reasons, $is_admin);
         foreach my $rel (@{ $graph_data->{relationships} }) {
             my $end_node = $nodes{ $rel->{endNode} } || next;
+            my $end_node_props = $graph->node_properties($end_node);
             if ($rel->{type} eq 'failed_by') {
-                $failed{ $rel->{startNode} } = [$end_node->{properties}->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd, $rel->{properties}->{reason}];
+                $failed{ $rel->{startNode} } = [$end_node_props->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd, $rel->{properties}->{reason}];
             }
             elsif ($rel->{type} eq 'selected_by') {
-                $selected{ $rel->{startNode} } = [$end_node->{properties}->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
+                $selected{ $rel->{startNode} } = [$end_node_props->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
             }
             elsif ($rel->{type} eq 'administers') {
-                my $user_name = $nodes{ $rel->{startNode} }->{properties}->{username};
+                my $user_name = $graph->node_property($nodes{ $rel->{startNode} }, 'username');
                 if ($user eq $user_name) {
                     $is_admin = 1;
-                    foreach my $reason (@{ $end_node->{properties}->{qc_fail_reasons} || [] }) {
+                    foreach my $reason (@{ $end_node_props->{qc_fail_reasons} || [] }) {
                         next if exists $fail_reasons{$reason};
                         push(@fail_reasons, $reason);
                         $fail_reasons{$reason} = 1;
@@ -522,7 +526,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         push(@results, { type => 'admin', is_admin => $is_admin ? 1 : 0, allowed_fail_reasons => \@fail_reasons });
         
         foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
-            my $sample_props = $sample->{properties};
+            my $sample_props = $graph->node_properties($sample);
             my $failed       = $failed{ $sample->{id} } || [];
             my $selected     = $selected{ $sample->{id} } || [];
             push(
@@ -544,8 +548,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     # get the gender info for all samples from this donor
     method donor_gender_results (Int $donor) {
-        my $cypher = "MATCH (donor)-[:sample]->(sample)-[ser:gender]->(egender) WHERE id(donor) = {donor}.id MATCH (sample)-[sar1:processed]->()-[sar2:imported]->()-[sar3:converted]->(resultfile)-[sar4:gender]->(agender) return sample, ser, egender, sar1, sar2, sar3, resultfile, sar4, agender";
-        my $graph_data = $self->graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        my $cypher     = "MATCH (donor)-[:sample]->(sample)-[ser:gender]->(egender) WHERE id(donor) = {donor}.id MATCH (sample)-[sar1:processed]->()-[sar2:imported]->()-[sar3:converted]->(resultfile)-[sar4:gender]->(agender) return sample, ser, egender, sar1, sar2, sar3, resultfile, sar4, agender";
+        my $graph      = $self->graph;
+        my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
         my %rels = ();
         foreach my $rel (@{ $graph_data->{relationships} }) {
@@ -561,7 +566,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my @results;
         foreach my $sample (sort { $b->{properties}->{control} <=> $a->{properties}->{control} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} || $a->{properties}->{name} cmp $b->{properties}->{name} } values %sample_nodes) {
-            next if $sample->{properties}->{qc_failed};
+            next if $graph->node_property($sample, 'qc_failed');
             my $sid = $sample->{id};
             my ($eg, $ag, $result_file_path);
             foreach my $node_id (@{ $rels{$sid} }) {
@@ -573,14 +578,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     $node || last;
                     
                     if ($node->{label} eq 'FileSystemElement') {
-                        $result_file_path = $node->{properties}->{path};
+                        $result_file_path = $graph->node_property($node, 'path');
                     }
                     
                     $previous_id = $child_node_id;
                 }
                 $node || next;
                 
-                my $gender_props = $node->{properties};
+                my $gender_props = $graph->node_properties($node);
                 if ($gender_props->{source} eq 'sequencescape') {
                     $eg = $gender_props->{gender};
                 }
@@ -589,7 +594,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 }
             }
             
-            my $sample_props = $sample->{properties};
+            my $sample_props = $graph->node_properties($sample);
             push(@results, { type => 'gender', sample_name => $sample_props->{name}, sample_public_name => $sample_props->{public_name}, expected_gender => $eg, actual_gender => $ag, result_file => $result_file_path });
         }
         
@@ -634,7 +639,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my %group_ids;
         foreach my $node (@{ $graph_data->{nodes} }) {
             next unless $node->{label} eq 'Group';
-            next if $node->{properties}->{name} eq 'all_studies';
+            next if $graph->node_property($node, 'name') eq 'all_studies';
             $group_ids{ $node->{id} } = 1;
         }
         my $group_ids = join(', ', sort keys %group_ids);
@@ -659,6 +664,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $check_largest_study = $type eq 'discordance_fluidigm';
         my $require_sample      = $identifier eq 'sample';
         my $disc_type           = $type =~ /fluidigm/ ? 'fluidigm' : 'genotype';
+        my $graph               = $self->graph;
         
         my (%in_rels, %out_rels);
         foreach my $rel (@{ $graph_data->{relationships} }) {
@@ -680,12 +686,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my @study_ids;
             foreach my $study_node_id (@{ $in_rels{$sid} }) {
                 my $study_node = $nodes{Study}->{$study_node_id};
-                my $study_id   = $study_node->{properties}->{id};
+                my $study_id = $graph->node_property($study_node, 'id');
                 push(@study_ids, $study_id);
             }
             my $study_id = join(',', sort { $a <=> $b } @study_ids) || 0;
             $studies{$study_id}++;
-            my $props = $sample->{properties};
+            my $props = $graph->node_properties($sample);
             if ($require_sample) {
                 if ($sid != $node_id) {
                     next if $props->{qc_failed};
@@ -700,7 +706,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my @discs;
             foreach my $disc_node_id (@{ $out_rels{$sid} }) {
                 my $disc = $nodes{Discordance}->{$disc_node_id};
-                if ($disc->{properties}->{type} eq $disc_type) {
+                if ($graph->node_property($disc, 'type') eq $disc_type) {
                     push(@discs, $disc);
                 }
             }
@@ -716,10 +722,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         my %cns;
-        my $graph = $self->graph;
         foreach my $disc (values %discs) {
-            my $cns    = $graph->json_decode($disc->{properties}->{cns});
-            my $sample = $disc->{properties}->{sample};
+            my $disc_props = $graph->node_properties($disc);
+            my $cns        = $graph->json_decode($disc_props->{cns});
+            my $sample     = $disc_props->{sample};
             while (my ($key, $val) = each %$cns) {
                 if ($require_sample ? 1 : exists $allowed_samples{ $val->[3] }) {
                     $cns{$key} = [$val->[0], $val->[1], $val->[2], sort ($val->[3], $sample ? ($sample) : ())];
@@ -738,7 +744,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             
             if ($require_sample) {
                 my $sample_meta = $samples_meta[0];
-                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2], sample_node_id => $sample_meta->[4], donor_node_id => $sample_meta->[5] });
+                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2] || 0, sample_node_id => $sample_meta->[4], donor_node_id => $sample_meta->[5] });
             }
             else {
                 my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
@@ -764,167 +770,146 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     }
     
     method donor_cnv_results (Int $donor) {
-        # the combine_bcftools_cnvs step generates a text file but doesn't
-        # parse it and store the results on nodes attached to the sample,
-        # because we wanted the flexibility of the file format changing and
-        # being able to display anything in a table.
-        # Instead we just parse the file just-in-time here when someone wants
-        # the results.
-        # Also get the cnv plots and copy number plot, and loh text file
-        # results. We make sure to get only the latest results by getting those
-        # attached to the most recently created StepState
-        my $cypher = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf)-[:cnv_summary|polysomy_dist]->() WHERE id(donor) = {donor}.id WITH vcf MATCH (stepstate)-[sr:result]->(vcf) WITH stepstate, sr, vcf ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH vcf OPTIONAL MATCH (vcf)-[:cnv_summary]->()-[:combined]->(combined_cnvs) OPTIONAL MATCH (vcf)-[:cnv_plot]->(cnv_plots) OPTIONAL MATCH (vcf)-[:polysomy_dist]->()-[:copy_number_plot]->(copy_number_plot) RETURN DISTINCT combined_cnvs, cnv_plots, copy_number_plot ";
-        # loh text file is attached to a different merged vcf
-        my $cypher2 = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:instigated]->()-[:converted]->()-[:merged]->(vcf)-[:loh_calls]->() WHERE id(donor) = {donor}.id WITH vcf MATCH (stepstate)-[sr:result]->(vcf) WITH stepstate, sr, vcf ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH vcf OPTIONAL MATCH (vcf)-[:loh_calls]->(loh_calls) RETURN DISTINCT loh_calls";
-        
-        my $graph       = $self->graph;
-        my $graph_data  = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
-        my $graph_data2 = $graph->_run_cypher([[$cypher2, { donor => { id => $donor } }]]);
-        
-        my %cnv_plot_paths;
-        my $combined_cnvs_path;
-        my $copy_number_plot_path;
-        my ($loh_path, $loh_control_sample);
-        foreach my $node (@{ $graph_data->{nodes} }, @{ $graph_data2->{nodes} }) {
-            my $basename = $graph->node_property($node, 'basename');
-            my $path     = $graph->node_property($node, 'path');
-            next unless -s $path;
-            if ($basename eq 'combined_cnvs.txt') {
-                $combined_cnvs_path = $path;
-            }
-            elsif ($basename eq 'copy_numbers.png') {
-                $copy_number_plot_path = $path;
-            }
-            elsif ($basename eq 'merged.txt') {
-                $loh_path = $path;
-                $loh_control_sample = $graph->node_property($node, 'control_sample');
-            }
-            else {
-                my $chr    = $graph->node_property($node, 'chr');
-                my $sample = $graph->node_property($node, 'query_sample');
-                $cnv_plot_paths{$chr}->{$sample} = $path;
-            }
-        }
-        
-        # parse $combined_cnvs_path
-        if ($combined_cnvs_path && open(my $ifh, '<', $combined_cnvs_path)) {
-            my (@samples, %good_samples, %results, %done_chrs, @results);
-            while (<$ifh>) {
-                next if /^#/;
-                chomp;
-                my @cols = split;
-                if ($cols[0] eq 'SM') {
-                    @samples = @cols[1 .. $#cols];
-                    foreach my $sample (@samples) {
-                        my $node = $self->get('Sample', { name => $sample });
-                        unless ($node) {
-                            #*** this is a Sanger/Hipsci specific hack
-                            my ($true_name) = $sample =~ /([^_]+)$/;
-                            $node = $self->get('Sample', { name => $true_name });
-                        }
-                        if ($node && !$node->qc_failed) {
-                            $good_samples{$sample} = 1;
-                        }
-                    }
-                }
-                elsif ($cols[0] eq 'RG') {
-                    my $chr = $cols[1];
-                    foreach my $i (7 .. $#cols) {
-                        my $sample = $samples[$i - 6];
-                        next unless exists $good_samples{$sample};
-                        push(@results, { type => 'aberrant_regions', chr => $chr, start => $cols[2], end => $cols[3], length => $cols[4], quality => $cols[5], sample => $sample, cn => $cols[$i], graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample}) ? $cnv_plot_paths{$chr}->{$sample} : undef });
-                    }
-                    $done_chrs{$chr} = 1;
-                }
-                else {
-                    foreach my $i (1 .. $#cols) {
-                        $results{ $samples[$i - 1] }->{ $cols[0] } = $cols[$i];
-                    }
-                }
-            }
-            close($ifh);
-            
-            foreach my $chr (keys %done_chrs) {
-                delete $cnv_plot_paths{$chr};
-            }
-            foreach my $chr (nsort(keys %cnv_plot_paths)) {
-                my $s_hash = $cnv_plot_paths{$chr};
-                foreach my $sample (@samples) {
-                    next unless exists $good_samples{$sample};
-                    push(@results, { type => 'aberrant_polysomy', chr => $chr, graph => $s_hash->{$sample}, sample => $sample }) if $s_hash->{$sample};
-                }
-            }
-            
-            foreach my $sample (sort { $a cmp $b } keys %results) {
-                next unless exists $good_samples{$sample};
-                push(@results, { type => 'copy_number_summary', sample => $sample, %{ $results{$sample} } });
-            }
-            
-            push(@results, { type => 'copy_number_plot', plot => $copy_number_plot_path });
-            
-            if ($loh_path && open($ifh, '<', $loh_path)) {
-                my @calls;
-                while (<$ifh>) {
-                    chomp;
-                    my ($chr, $start, $end, $sample, $count) = split(/\t/, $_);
-                    next unless exists $good_samples{$sample};
-                    push(@calls, { type => 'loh_calls', chr => $chr, start => $start, end => $end, sample => $sample, control_sample => $loh_control_sample, count => $count });
-                }
-                push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || $a->{sample} cmp $b->{sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
-            }
-            
-            return \@results;
-        }
-    }
-    
-    method donor_pluritest_results (Int $donor) {
-        # the pluritest_plot_gene_expression step generates a text file but
-        # doesn't parse it and store the results on nodes attached to the
-        # sample, because we wanted the flexibility of the file format changing
-        # and being able to display anything in a table. Instead we just parse
-        # the file just-in-time here when someone wants the results. Also get
-        # the pluritest plots. We make sure to get only the latest results
-        # based on coming from the most recently created stepstate
-        my $cypher     = "MATCH (donor)-[:sample]->()-[:placed]->()-[:processed]->()-[:imported]->()-[:individual_profile_merge]->()-[:reformat_for_pluritest]->(reformat) WHERE id(donor) = {donor}.id WITH reformat MATCH (stepstate)-[sr:result]->(reformat) WITH stepstate, sr, reformat ORDER BY toInt(stepstate.sql_id) DESC LIMIT 1 WITH reformat OPTIONAL MATCH (reformat)-[rp:pluritest_plot]->(plots) OPTIONAL MATCH (reformat)-[rs:pluritest_summary]->(summary) RETURN distinct plots, summary";
+        # Get the CNV summary details. Also get the cnv plots and copy number
+        # plot, and loh results.
+        my $cypher     = "MATCH (donor)-[:sample]->(sample)-[ssr:cnv_calls]->(summary) WHERE id(donor) = {donor}.id WITH sample,ssr,summary OPTIONAL MATCH (sample)-[scr:cnv_plot]->(cnvplot) OPTIONAL MATCH (sample)-[scnr:copy_number_by_chromosome_plot]->(cnplot) OPTIONAL MATCH (sample)-[slr:loh_calls]->(loh) RETURN sample,ssr,summary,scr,cnvplot,scnr,cnplot,slr,loh";
         my $graph      = $self->graph;
         my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
-        my @results;
-        my $plu_path;
-        my %basename_to_order = ('pluritest_image02.png' => 1,     'pluritest_image03c.png' => 2,     'pluritest_image03.png' => 3,       'pluritest_image02a.png' => 4,       'pluritest_image01.png' => 5);
-        my %basename_to_size  = ('pluritest_image02.png' => 'big', 'pluritest_image03c.png' => 'big', 'pluritest_image03.png' => 'small', 'pluritest_image02a.png' => 'small', 'pluritest_image01.png' => 'small');
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+        }
+        
+        my %nodes;
         foreach my $node (@{ $graph_data->{nodes} }) {
-            my $basename = $graph->node_property($node, 'basename');
-            my $path     = $graph->node_property($node, 'path');
-            next unless -s $path;
-            if ($basename eq 'pluritest.csv') {
-                $plu_path = $path;
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        my ($copy_number_plot_path, $loh_control_sample, %cnv_plot_paths);
+        while (my ($sid, $plot) = each %{ $nodes{FileSystemElement} }) {
+            my $props = $graph->node_properties($plot);
+            my $path  = $props->{path};
+            
+            my $chr          = $props->{chr};
+            my $query_sample = $props->{query_sample};
+            if ($chr && $query_sample) {
+                # this is a sample-specific cnv plot
+                $cnv_plot_paths{$chr}->{$query_sample} = $path;
+                $loh_control_sample ||= $props->{control_sample}; # this isn't stored on the LOH node, so we just grab it from here instead
             }
             else {
-                push(@results, { type => 'pluritest_plot', path => $path, display_size => $basename_to_size{$basename}, order => $basename_to_order{$basename} });
+                # this is the copy numbers plot shared by all the samples
+                $copy_number_plot_path = $path;
             }
+        }
+        
+        my @results = ({ type => 'copy_number_plot', plot => $copy_number_plot_path });
+        
+        my (%done_chrs, @samples);
+        foreach my $sid (sort { $nodes{Sample}->{$b}->{properties}->{control} <=> $nodes{Sample}->{$a}->{properties}->{control} || $nodes{Sample}->{$a}->{properties}->{public_name} cmp $nodes{Sample}->{$b}->{properties}->{public_name} } keys %{ $nodes{Sample} }) {
+            my $sample = $nodes{Sample}->{$sid};
+            my $props  = $graph->node_properties($sample);
+            next if $props->{qc_failed};
+            my $sample_name = $props->{public_name} . '_' . $props->{name};
+            push(@samples, $sample_name);
+            
+            foreach my $label (qw(CNVs LOH)) {
+                my @nodes;
+                foreach my $node_id (@{ $rels{$sid} }) {
+                    push(@nodes, $nodes{$label}->{$node_id});
+                }
+                my ($node) = sort { $b->{properties}->{date} <=> $a->{properties}->{date} } @nodes;
+                next unless $node;
+                
+                my $data = $graph->json_decode($graph->node_property($node, 'data'));
+                
+                if ($label eq 'CNVs') {
+                    my $rg = delete $data->{RG};
+                    push(@results, { type => 'copy_number_summary', sample => $sample_name, %{$data} });
+                    
+                    if ($rg) {
+                        my $chr = $rg->{chr};
+                        push(@results, { type => 'aberrant_regions', sample => $sample_name, %{$rg}, graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample_name}) ? $cnv_plot_paths{$chr}->{$sample_name} : undef });
+                        $done_chrs{$chr} = 1;
+                    }
+                }
+                else {
+                    my @calls;
+                    foreach my $call (@$data) {
+                        delete $call->{type}; # always SNPs?
+                        push(@calls, { type => 'loh_calls', sample => $sample_name, control_sample => $loh_control_sample, %$call });
+                    }
+                    push(@results, sort { $a->{control_sample} cmp $b->{control_sample} || $a->{sample} cmp $b->{sample} || ncmp($a->{chr}, $b->{chr}) } @calls);
+                }
+            }
+        }
+        
+        foreach my $chr (keys %done_chrs) {
+            delete $cnv_plot_paths{$chr};
+        }
+        foreach my $chr (nsort(keys %cnv_plot_paths)) {
+            my $s_hash = $cnv_plot_paths{$chr};
+            foreach my $sample (@samples) {
+                push(@results, { type => 'aberrant_polysomy', chr => $chr, graph => $s_hash->{$sample}, sample => $sample }) if $s_hash->{$sample};
+            }
+        }
+        
+        return \@results if @results;
+    }
+    
+    method donor_pluritest_results (Int $donor) {
+        # Get the pluitest plots attached to the donor, and the per-sample
+        # pluritest details
+        my $cypher     = "MATCH (donor)-[:sample]->(sample)-[sdr:pluritest]->(details) WHERE id(donor) = {donor}.id WITH donor,sample,sdr,details MATCH (donor)-[:pluritest_plot]->(plots) RETURN plots,sample,sdr,details";
+        my $graph      = $self->graph;
+        my $graph_data = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
+        
+        my %rels;
+        foreach my $rel (@{ $graph_data->{relationships} }) {
+            push(@{ $rels{ $rel->{startNode} } }, $rel->{endNode});
+        }
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            $nodes{ $node->{label} }->{ $node->{id} } = $node;
+        }
+        
+        my @results;
+        my %type_to_order = (pluripotency => 1,     novelty => 2,     pluripotency_vs_novelty => 3,       clustering => 4,       intensity => 5);
+        my %type_to_size  = (pluripotency => 'big', novelty => 'big', pluripotency_vs_novelty => 'small', clustering => 'small', intensity => 'small');
+        while (my ($sid, $plot) = each %{ $nodes{FileSystemElement} }) {
+            my $props    = $graph->node_properties($plot);
+            my $basename = $props->{basename};
+            my $path     = $props->{path};
+            my $type     = $props->{type};
+            next unless -s $path;
+            push(@results, { type => 'pluritest_plot', path => $path, display_size => $type_to_size{$type}, order => $type_to_order{$type} });
         }
         @results = sort { $a->{order} <=> $b->{order} } @results;
         
-        # parse $plu_path
         my @summary_results;
-        if ($plu_path && open(my $ifh, '<', $plu_path)) {
-            <$ifh>; # header line
-            while (<$ifh>) {
-                chomp;
-                my ($sample, $raw, $logitp, $novelty, $nov_logitp, $rmsd) = split(/,/, $_);
-                $sample =~ s/^"|"$//g;
-                my $snode = $self->get('Sample', { name => $sample });
-                unless ($snode) {
-                    #*** this is a Sanger/Hipsci specific hack
-                    my ($true_name) = $sample =~ /([^_]+)$/;
-                    $snode = $self->get('Sample', { name => $true_name });
-                }
-                next unless $snode;
-                next if $snode->qc_failed;
-                push(@summary_results, { type => 'pluritest_summary', sample => $sample, pluri_raw => $raw, pluri_logit_p => $logitp, novelty => $novelty, novelty_logit_p => $nov_logitp, rmsd => $rmsd });
+        while (my ($sid, $sample) = each %{ $nodes{Sample} }) {
+            my $props = $graph->node_properties($sample);
+            next if $props->{qc_failed};
+            next if $props->{control};
+            
+            my @plurs;
+            foreach my $plur_node_id (@{ $rels{$sid} }) {
+                my $plur = $nodes{Pluritest}->{$plur_node_id};
+                push(@plurs, $plur);
             }
-            close($ifh);
+            my ($plur) = sort { $graph->node_properties($b)->{date} <=> $graph->node_properties($a)->{date} } @plurs;
+            next unless $plur;
+            
+            my %plur_data = %{ $graph->json_decode($graph->node_property($plur, 'data')) };
+            my %data;
+            while (my ($key, $val) = each %plur_data) {
+                $key =~ s/[- ]+/_/g;
+                $data{$key} = $val;
+            }
+            
+            push(@summary_results, { type => 'pluritest_summary', sample => $props->{public_name} . '_' . $props->{name}, %data });
         }
         push(@results, sort { $a->{sample} cmp $b->{sample} } @summary_results);
         
