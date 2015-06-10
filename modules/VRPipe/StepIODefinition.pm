@@ -113,6 +113,20 @@ class VRPipe::StepIODefinition extends VRPipe::Persistent {
         
         return @required;
     }
+    
+    # we override Persistent's create to do a plain get followed by a real
+    # create, because the real create does a 'FOR UPDATE' which seems to block
+    # up the database such that it takes 10s-100s seconds to return even though
+    # 99% of the time we're just getting an existing row
+    sub create {
+        my $self = shift;
+        my $return;
+        eval { $return = $self->_get(0, @_); };
+        if ($@) {
+            return $self->_get(1, @_);
+        }
+        return $return;
+    }
 }
 
 1;
