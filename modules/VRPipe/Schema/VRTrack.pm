@@ -825,13 +825,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 my $data = $graph->json_decode($graph->node_property($node, 'data'));
                 
                 if ($label eq 'CNVs') {
-                    my $rg = delete $data->{RG};
+                    my $rgs = delete $data->{RG};
                     push(@results, { type => 'copy_number_summary', sample => $sample_name, %{$data} });
                     
-                    if ($rg) {
-                        my $chr = $rg->{chr};
-                        push(@results, { type => 'aberrant_regions', sample => $sample_name, %{$rg}, graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample_name}) ? $cnv_plot_paths{$chr}->{$sample_name} : undef });
-                        $done_chrs{$chr} = 1;
+                    if ($rgs) {
+                        foreach my $rg (@$rgs) {
+                            my $chr = $rg->{chr};
+                            push(@results, { type => 'aberrant_regions', sample => $sample_name, %{$rg}, graph => ($cnv_plot_paths{$chr} && $cnv_plot_paths{$chr}->{$sample_name}) ? $cnv_plot_paths{$chr}->{$sample_name} : undef });
+                            $done_chrs{$chr} = 1;
+                        }
                     }
                 }
                 else {
