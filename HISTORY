@@ -1,3 +1,9 @@
+0.207   Critical speed fix for processing all pipelines (especially evident when
+        unstalling a stalled/started-from-scratch setup)
+        vrpipe-setup fixed to allow creating new setups again.
+        bwa_mem_to_bam fixed to solve conflict issues with samtools sort.
+        Various steps in the polysomy_cnv_caller pipeline have been fixed to
+        work as intended.
 0.206   Proper fix for v0.205.
 0.205   Fix for hipsci QC to handle _CTRL appended to sample names in files.
 0.204   CNV and Pluritest-related steps now store their results properly in the
