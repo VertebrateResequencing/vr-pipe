@@ -200,26 +200,32 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         my $cmd_line = "$bcftools cnv -c $control -s $query -o " . $summary_file->dir . " $bcftools_opts " . $vcf_file->path;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my @chrs = ();
-        foreach ($vcf_file->meta_value('polysomy_chrs')) {
-            my $chrs_str;
-            if ($_ =~ /$query:/) {
-                ($chrs_str) = $_ =~ m/$query:(.*)/;
+        # get the aberrant chrs from the sample node in graph db
+        my $vrtrack = VRPipe::Schema->create('VRTrack');
+        my ($sample_source, $sample_node, %ab_chrs);
+        foreach my $name ($query, $control) {
+            $sample_source ||= $vrtrack->sample_source($name);
+            my $sample_props = $vrtrack->sample_props_from_string($name, $sample_source);
+            my $node = $vrtrack->get('Sample', $sample_props);
+            $sample_node ||= $node;
+            unless ($node) {
+                $self->throw("No sample node with name $sample_props->{name} was found in the graph db (for vcf $vcf, sample $name)");
             }
-            elsif ($_ =~ /$control:/) {
-                ($chrs_str) = $_ =~ m/$control:(.*)/;
+            my $chrs = $node->aberrant_chrs;
+            
+            if ($chrs && ref($chrs) && ref($chrs) eq 'ARRAY') {
+                foreach my $chr (@$chrs) {
+                    $ab_chrs{$chr} = 1;
+                }
             }
-            my @cs = split(/,/, $chrs_str);
-            push(@chrs, @cs);
         }
+        my @chrs = keys %ab_chrs;
         
         if (@chrs) {
-            my $vrtrack            = VRPipe::Schema->create('VRTrack');
-            my $plot_file_in_graph = $vrtrack->get_file($plot);
-            my ($query_sample)     = $plot =~ /([^\.]+)\.py$/;
-            my $sample_source      = $vrtrack->sample_source($query_sample);
-            my $sample_props       = $vrtrack->sample_props_from_string($query_sample, $sample_source);
-            my $sample_node        = $vrtrack->get('Sample', $sample_props);
+            foreach my $chr (@chrs) {
+                my $cmd_line = "$python $plot -c $chr";
+                system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+            }
             
             # first drop any existing cnv_plot relationships attached to this
             # sample, so that it will only have the new ones we're about to add
@@ -228,17 +234,18 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 $sample_node->divorce_from($plot);
             }
             
-            my %seen = ();
-            my @unique_chrs = grep { !$seen{$_}++ } @chrs;
-            foreach my $chr (@unique_chrs) {
-                my $plot_file_path = $plot_file->path;
-                my $cmd_line       = "$python $plot_file_path -c $chr";
-                system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+            # now look in the plot dir and associate any pngs with the query
+            # sample node; the plots we made above are only the forced plots
+            # because we knew those chrs were aberrant; previous commands may
+            # have generated plots for other chrs as well
+            my $plot_dir           = $plot_file->dir;
+            my $plot_file_in_graph = $vrtrack->get_file($plot);
+            while (my $file = $plot_dir->next) {
+                next unless -f $file;
+                next unless $file =~ /\.chr(\S+?)\.png$/;
+                my $chr = $1;
                 
-                my $png_path = $plot_file_path;
-                $png_path =~ s/\.py$/.chr$chr.png/;
-                
-                my $plot_node = $vrtrack->add_file($png_path);
+                my $plot_node = $vrtrack->add_file($file);
                 $plot_node->add_properties({ chr => $chr });
                 $sample_node->relate_to($plot_node, 'cnv_plot');
                 $plot_file_in_graph->relate_to($plot_node, 'plotted');
