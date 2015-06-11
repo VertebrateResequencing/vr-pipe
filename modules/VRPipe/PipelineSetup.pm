@@ -199,7 +199,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Bool :$debug = 0) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -208,7 +208,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         # don't trigger while datasource is updating, wait until we get the
         # lock
         my $datasource = $self->datasource;
-        unless ($dataelement) {
+        unless ($dataelement || $debug) {
             $datasource->block_until_locked;
             $self->reselect_values_from_db;
             if ($self->datasource->id != $datasource->id) {
@@ -218,6 +218,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             }
             $datasource->maintain_lock;
         }
+        warn "in trigger, past ds lock\n" if $debug;
         
         my $output_root = $self->output_root;
         $self->make_path($output_root);
@@ -237,6 +238,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 $step_inputs{ $adaptor->to_step } = [sort { $a <=> $b } keys %from_steps];
             }
         }
+        warn "worked out step inputs\n" if $debug;
         
         # we either loop through all incomplete elementstates, or the
         # (single) elementstate for the supplied dataelement
@@ -253,7 +255,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             if ($@) {
                 return "DataSource error: $@";
             }
-            $self->debug("trigger on all for setup " . $self->id . ", got " . $pager->total_entries . " incomplete element states");
+            warn "got ", $pager->total_entries, " incomplete element states\n" if $debug;
         }
         return unless $pager; #*** is it ever an error to have no pager?
         
@@ -277,7 +279,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     $self->debug("estate $esid is being triggered by another process, will skip it");
                     next;
                 }
-                $self->debug("working on estate $esid having got the redis lock");
+                warn " working on estate $esid having got the redis lock, which has completed $completed_steps / $num_steps\n" if $debug;
                 $estate->maintain_lock;
                 
                 my $sm_error;
@@ -291,7 +293,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         pipelinesetup => $self
                     );
                     
-                    $self->debug("working on stepstate " . $state->id);
+                    warn "  working on stepstate ", $state->id, "\n" if $debug;
                     
                     my ($do_next, $do_last);
                     my %previous_step_outputs = ();
@@ -310,11 +312,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             }
                             $pso_calculated = 1;
                         }
+                        warn "   worked out previous_step_outputs\n" if $debug;
                         
-                        my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state);
+                        my $step = $member->step(previous_step_outputs => \%previous_step_outputs, step_state => $state, debug => $debug);
                         if ($state->complete || ($state->same_submissions_as && $state->same_submissions_as->complete)) {
+                            warn "   stepstate is complete\n" if $debug;
                             $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
-                            $self->debug("completed");
                             $do_next = 1;
                             return;
                         }
@@ -326,18 +329,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                         # currently waiting on submissions to complete?
                         my @submissions = $state->submissions;
                         if (($state->dispatched || ($state->same_submissions_as && $state->same_submissions_as->dispatched)) && @submissions) {
-                            $self->debug("had submissions");
+                            warn "   had submissions\n" if $debug;
                             my @unfinished = VRPipe::Submission->get_column_values('id', { '_done' => 0, stepstate => $state->submission_search_id });
                             unless (@unfinished) {
                                 # check we're not the victim of a race condition and
                                 # that we still have submissions
                                 my $done = VRPipe::Submission->search({ '_done' => 1, stepstate => $state->submission_search_id });
                                 my $total = VRPipe::Submission->search({ stepstate => $state->submission_search_id });
+                                warn "   no unfinished subs; done $done vs total $total\n" if $debug;
                                 
                                 if ($total && $done == $total) {
                                     # run post_process
                                     my ($pp_error, $possible_db_error);
-                                    $self->debug("will post_process");
+                                    warn "   will post process\n" if $debug;
                                     $self->log_event("PipelineSetup->trigger, will post_process because all Submissions are done", dataelement => $element->id, stepstate => $state->id);
                                     eval { # (try catch not used because stupid perltidy is stupid)
                                         $pp_error = $step->post_process();
@@ -351,8 +355,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         # we just completed all the submissions from a
                                         # previous parse
                                         $self->log_event("PipelineSetup->trigger found the post_process was successful", dataelement => $element->id, stepstate => $state->id);
+                                        warn "   completed on pre-existing subs\n" if $debug;
                                         $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
-                                        $self->debug("completed on pre-existing subs");
                                         $do_next = 1;
                                         return;
                                     }
@@ -361,26 +365,25 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         # have discovered its output files are missing
                                         # and restarted itself
                                         $sm_error = "When trying to post process $error_ident after the submissions completed we hit the following error:\n$pp_error";
-                                        $self->debug($sm_error);
+                                        warn "   $sm_error\n" if $debug;
                                         
                                         if ($possible_db_error) {
                                             # die to restart the transaction
+                                            warn "   - will die to restart transaction\n" if $debug;
                                             die $sm_error;
                                         }
                                         # else we'll redo due to possible restart
+                                        warn "   - will redo\n" if $debug;
                                     }
                                 }
                                 elsif (!$total) {
                                     $sm_error = "When dealing with what we thought were the completed submissions of $error_ident, the submissions vanished!";
-                                    $self->debug($sm_error);
+                                    warn "   $sm_error; will die to restart transaction\n" if $debug;
                                     die $sm_error;
                                 }
                                 else {
-                                    $self->debug("have subs but still running/failed");
+                                    warn "   have subs but they're still running/failed - a handler should deal with them\n" if $debug;
                                 }
-                                # else we have subs but they're either still running
-                                # or they've failed; either way a handler should
-                                # deal with them
                             }
                             # else we have $unfinished unfinished submissions from a
                             # previous parse and are still running... unless we have
@@ -388,10 +391,11 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # for a setup that is no longer active...
                             elsif (!$error_message && $state->same_submissions_as) {
                                 my $other_state = $state->same_submissions_as;
+                                warn "   no error, and our state has the same subs as ", $other_state->id, "\n" if $debug;
                                 my $other_setup = $other_state->pipelinesetup;
                                 unless ($other_setup->active) {
                                     $sm_error = "The submissions for $error_ident were first created by setup " . $other_setup->id . ", but that setup is no longer active, so $setup_id is stalled!";
-                                    $self->debug($sm_error);
+                                    warn "   - $sm_error\n" if $debug;
                                 }
                                 else {
                                     # we could also have same_submissions_as
@@ -401,17 +405,18 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         $state->same_submissions_as(undef);
                                         $state->update;
                                         $self->log_event("PipelineSetup->trigger found that this StepState had the same submissions as for a withdrawn DataElement, so same_submissions_as was cleared", dataelement => $element->id, stepstate => $state->id);
-                                        $self->debug("same submissions as for a withdrawn dataelement, unset same_submissions_as");
+                                        warn "   - same submissions as for a withdrawn dataelement, unset same_submissions_as\n" if $debug;
                                     }
                                     else {
                                         # else, is it safe to assume the submissions
                                         # of this other setup are really running?
                                         $self->debug("same submissions as");
+                                        warn "   - assuming setup ", $other_setup->id, " will take care of things\n" if $debug;
                                     }
                                 }
                             }
                             else {
-                                $self->debug("had submissions and I guess they're running normally");
+                                warn "   had submissions and I guess they're running normally\n" if $debug;
                                 $do_last = 1;
                                 return;
                             }
@@ -420,7 +425,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # this is the first time we're looking at this step for
                             # this data member for this pipelinesetup
                             my ($parse_return, $possible_db_error);
-                            $self->debug("will parse");
+                            warn "   no submissions, will parse\n" if $debug;
                             $self->log_event("PipelineSetup->trigger will parse", dataelement => $element->id, stepstate => $state->id);
                             try {
                                 $parse_return = $step->parse();
@@ -435,8 +440,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # might have changed, so we need to update all the other
                             # stepstates that have same subs as us
                             unless ($parse_return) {
+                                warn "   - no parse error, will check output files are up-to-date on same_submissions_as states\n" if $debug;
                                 my %sof_file_to_key = map { $_->file->id => $_->output_key } $state->_output_files;
                                 foreach my $same (VRPipe::StepState->search({ same_submissions_as => $state->id })) {
+                                    warn "    - fixing up state ", $same->id, "\n" if $debug;
                                     my %correct_sofs;
                                     foreach my $sof ($same->_output_files) {
                                         my $this_file = $sof->file->id;
@@ -476,26 +483,39 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                             # successfully, or is an error string
                             if ($parse_return) {
                                 $sm_error = "When trying to parse $error_ident we hit the following error:\n$parse_return";
-                                $self->debug($sm_error);
+                                warn "   $sm_error\n" if $debug;
                                 
-                                if ($possible_db_error) {
+                                #*** it would be better if the errors from
+                                # parse were classes so we could know exactly
+                                # the best thing to do here, but for now we'll
+                                # just parse the error message
+                                if ($parse_return =~ /does not fit the allowed range/) {
+                                    warn "   - this stepstate has permanent errors, will skip to the next elementstate\n" if $debug;
+                                    $do_last = 1;
+                                    return;
+                                }
+                                elsif ($possible_db_error) {
                                     # die to restart the transaction
+                                    warn "   - will die to restart the transaction\n" if $debug;
                                     die $sm_error;
                                 }
                                 # else we'll redo, which would be useful in the
                                 # case that the parse_return was about having
                                 # done a start_over
+                                warn "   - will redo in case we just did a start_over\n" if $debug;
                             }
                             elsif (!defined $parse_return) {
                                 $self->log_event("PipelineSetup->trigger called parse(), which dispatched nothing and completed instantly", dataelement => $element->id, stepstate => $state->id);
                                 $state->dispatched(1);
                                 $state->update;
+                                warn "   - instant complete after parse\n" if $debug;
                                 $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
-                                $self->debug("instant complete after parse");
                                 $do_next = 1;
                                 return;
                             }
                             else {
+                                warn "   parse worked normally\n" if $debug;
+                                
                                 # if this step was supposed to have output
                                 # files, did it specify them?
                                 my $ohash = $state->output_files;
@@ -505,12 +525,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     my $val = $odefs->{$key};
                                     next if $val->min_files == 0;
                                     $sm_error = "After parsing $error_ident we found that '$key' was defined as an output, yet no output file was made with that output_key";
-                                    $self->debug($sm_error);
+                                    warn "   - $sm_error; will die to restart transaction\n" if $debug;
                                     die $sm_error;
                                 }
                                 
                                 my $dispatched = $step->dispatched();
                                 if (@$dispatched) {
+                                    warn "   parse dispatched some jobs, will check if any other stepstates dispatched the same jobs\n" if $debug;
+                                    
                                     # is there another stepstate that we already
                                     # made equivalent submissions for?
                                     my %other_states;
@@ -521,6 +543,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         if (defined $cached_sameas{$cmd}) {
                                             my ($ssid, $count) = @{ $cached_sameas{$cmd} };
                                             $other_states{$ssid} += $count;
+                                            warn "   - stepstate $ssid did $count of our subs (cached)\n" if $debug;
                                             next;
                                         }
                                         
@@ -532,6 +555,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         foreach my $sub (@submissions) {
                                             $other_states{ $sub->stepstate->id }++;
                                             $this_cached_sameas{ $sub->stepstate->id }->{$cmd}++;
+                                            warn "   - stepstate ", $sub->stepstate->id, " did one of our subs (new)\n" if $debug;
                                         }
                                     }
                                     delete $other_states{ $state->id };
@@ -542,6 +566,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         my $count = $other_states{$other_id};
                                         next unless $needed_count == $count;
                                         $same_as_us = $other_id;
+                                        
+                                        warn "   - stepstate $other_id had $count jobs the same as us\n" if $debug;
                                         
                                         while (my ($cmd, $count) = each %{ $this_cached_sameas{$other_id} }) {
                                             $cached_sameas{$cmd} = [$other_id, $count];
@@ -556,12 +582,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         $state->same_submissions_as($same_as_us);
                                         $state->update;
                                         $self->log_event("PipelineSetup->trigger called parse(), which dispatched the same submissions as StepState $same_as_us", dataelement => $element->id, stepstate => $state->id);
-                                        $self->debug("same subs as $same_as_us");
                                         
+                                        warn "   - set same_submissions_as to $same_as_us, will redo and probably complete this step\n" if $debug;
                                         # (now we'll redo the loop; we probably
                                         # already completed this step)
                                     }
                                     else {
+                                        warn "   - this is a new set of jobs, so will create jobs & submissions\n" if $debug;
+                                        
                                         # create new submissions for the relevant
                                         # stepstate ($state may have had start_over
                                         # run on it, which would have deleted its
@@ -594,7 +622,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         }
                                         $state->dispatched(1);
                                         $state->update;
-                                        $self->debug("created new subs");
+                                        warn "   - created new subs, will go to next elementstate\n" if $debug;
                                         $do_last = 1;
                                         return;
                                     }
@@ -603,7 +631,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                     # it is possible for a parse to result in a
                                     # different step being started over because
                                     # input files were missing
-                                    $self->debug("$error_ident neither completed nor dispatched anything!");
+                                    warn "   - neither completed nor dispatched anything; it's possible a different step was started over due to missing input files?\n" if $debug;
                                 }
                             }
                         }
@@ -612,38 +640,49 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     eval { $self->do_transaction($transaction, "Failed to handle StepState " . $state->id . " during trigger()"); };
                     if ($@) {
                         $self->log_event($@, dataelement => $element->id, stepstate => $state->id);
+                        warn "  main transaction failed: $@\n" if $debug;
                         $sm_error = $@;
+                    }
+                    else {
+                        warn "  main transaction succeeded\n" if $debug;
                     }
                     
                     $do_next ||= 0;
                     $do_last ||= 0;
                     $redos   ||= 0;
                     
-                    next if $do_next;
-                    last if $do_last;
+                    if ($do_next) {
+                        warn "  - going to next step member\n" if $debug;
+                        next;
+                    }
+                    elsif ($do_last) {
+                        warn "  - last step member\n" if $debug;
+                        last;
+                    }
                     
                     # if we got here we might have encountered some problem that
                     # fixed itself, so we'll try redoing the loop
                     $redos++;
                     if ($redos <= $max_redos) {
-                        $self->debug("redo");
+                        warn "  - will redo this step member\n" if $debug;
                         redo ESTATE;
                     }
                     else {
                         $error_message ||= $sm_error;
-                        $self->debug("last");
+                        warn "  - giving up on this element state: $sm_error\n" if $debug;
                         last;
                     }
                 }
                 
+                warn " unlocking elementstate, will go on to next\n" if $debug;
                 $estate->unlock;
                 $redos = 0;
             }
         }
         
+        warn "unlocking datasource, trigger will return: $error_message\n" if $debug;
         $datasource->unlock unless $dataelement;
         
-        $self->debug("trigger returning");
         return $error_message;
     }
     

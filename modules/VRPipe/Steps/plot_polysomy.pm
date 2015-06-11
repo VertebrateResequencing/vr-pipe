@@ -91,6 +91,9 @@ class VRPipe::Steps::plot_polysomy with VRPipe::StepRole {
                 $sample_source ||= $vrtrack->sample_source($query);
                 my $sample_props = $vrtrack->sample_props_from_string($query, $sample_source);
                 my $sample_node = $vrtrack->get('Sample', $sample_props);
+                unless ($sample_node) {
+                    $self->throw("No sample node with name $sample_props->{name} was found in the graph db (for file " . $file->path . ", query $query)");
+                }
                 my @existing_plots = $sample_node->related(outgoing => { type => 'copy_number_by_chromosome_plot' });
                 foreach my $plot (@existing_plots) {
                     $sample_node->divorce_from($plot);

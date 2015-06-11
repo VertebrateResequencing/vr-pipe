@@ -39,9 +39,8 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
         return {
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
             bwa_mem_options => VRPipe::StepOption->create(
-                description   => 'options to bwa mem, excluding the input fastq, and reference',
-                optional      => 1,
-                default_value => '-M'
+                description => 'options to bwa mem, excluding the input fastq, and reference',
+                optional    => 1,
             ),
             bwa_exe => VRPipe::StepOption->create(
                 description   => 'path to your bwa executable',
@@ -49,8 +48,13 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                 default_value => 'bwa'
             ),
             bwa_mem_post_processing => VRPipe::StepOption->create(
-                description   => 'after bwa mem mapping, option to pipe output sam through other programs to fix mates information and calculate MD tags etc producing the output in bam format (use $reference_fasta to specify your reference fasta)', optional => 1,
-                default_value => 'samtools view -hbSu - | samtools fixmate /dev/stdin /dev/stdout -O bam | samtools sort -o - samtools_csort_tmp | samtools fillmd -b - $reference_fasta'
+                description   => 'after bwa mem mapping, option to pipe output sam through other programs to produce a bam file (use $reference_fasta and $samtools as placeholders for reference_fasta and samtools_exe)', optional => 1,
+                default_value => '$samtools view -hbSu - | $samtools fixmate /dev/stdin /dev/stdout -O bam | $samtools sort -o - samtools_csort_tmp | $samtools fillmd -b - $reference_fasta'
+            ),
+            samtools_exe => VRPipe::StepOption->create(
+                description   => 'path to samtools executable if using $samtools placeholder in command_line',
+                optional      => 1,
+                default_value => 'samtools'
             ),
         };
     }
@@ -89,9 +93,10 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self    = shift;
-            my $options = $self->options;
-            my $ref     = file($options->{reference_fasta});
+            my $self     = shift;
+            my $options  = $self->options;
+            my $ref      = file($options->{reference_fasta});
+            my $samtools = $options->{samtools_exe};
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $post_proc = $options->{bwa_mem_post_processing};
@@ -115,7 +120,8 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                 )
             );
             
-            $post_pipes =~ s/\$reference_fasta/$ref/;
+            $post_pipes =~ s/\$reference_fasta/$ref/g;
+            $post_pipes =~ s/\$samtools/$samtools/g;
             
             my ($cpus) = $bwa_opts =~ m/-t\s*(\d+)/;
             my $req = $self->new_requirements(memory => 4900, time => 2, $cpus ? (cpus => $cpus) : ());
@@ -134,6 +140,7 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                 $fqs_by_lane{$lane}->{$chunk}->{$paired} = $path;
             }
             
+            my $idx = 1;
             while (my ($lane, $chunks) = each %fqs_by_lane) {
                 while (my ($chunk, $ends) = each %$chunks) {
                     while (my ($paired, $path) = each %$ends) {
@@ -203,14 +210,17 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                         
                         my $ended = $paired ? 'pe' : 'se';
                         my $bam_file = $self->output_file(
+                            sub_dir    => "$idx",
                             output_key => 'bam_files',
                             basename   => $chunk ? "$lane.$ended.$chunk.bam" : "$lane.$ended.bam",
                             type       => 'bam',
                             metadata   => $sam_meta
                         );
+                        my $output_dir = $bam_file->dir;
                         
-                        my $this_cmd = "$cmd -R '$rg_line' $ref @fqs$post_pipes > " . $bam_file->path;
+                        my $this_cmd = "cd $output_dir; $cmd -R '$rg_line' $ref @fqs$post_pipes > " . $bam_file->path;
                         $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_mem_to_bam', 'mem_and_check', [$this_cmd, $req, { output_files => [$bam_file] }]);
+                        $idx++;
                     }
                 }
             }

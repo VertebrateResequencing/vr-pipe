@@ -359,6 +359,9 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
         my $fh   = $node->openr;
         my $str  = do { local $/; <$fh> };
         $node->close;
+        unless ($str) {
+            die "Could not read any content from ", $node->path, "\n";
+        }
         return $json->decode($str);
     }
 }

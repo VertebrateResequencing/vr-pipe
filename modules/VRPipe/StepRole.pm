@@ -134,6 +134,12 @@ role VRPipe::StepRole {
         builder => '_build_smaller_recommended_requirements_override'
     );
     
+    has 'debug' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     # to avoid memory leak we need to store our real self on our non-persistent version
     has '_persistent_step' => (
         is  => 'rw',
@@ -299,6 +305,7 @@ role VRPipe::StepRole {
         my $hash     = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
         my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
+        
         return {} unless $step_adaptor;
         
         my $im = VRPipe::Persistent::InMemory->new();
@@ -452,6 +459,9 @@ role VRPipe::StepRole {
     method _missing (PersistentFileHashRef $hash, PersistentHashRef $defs, Bool $inputs_mode = 0) {
         # (in inputs_mode we do not have to check file existence and type since
         # inputs() already did that)
+        my $debug = $self->debug;
+        warn "       in _missing()\n" if $debug;
+        my $t = time();
         
         my %file_type_objs;
         
@@ -535,14 +545,24 @@ role VRPipe::StepRole {
             }
         }
         
+        my $e = time() - $t;
+        warn "       _missing() returning after $e seconds\n" if $debug;
+        
         return (\@missing, \@messages, \%missing_metadata);
     }
     
     method missing_input_files {
-        return $self->_missing($self->inputs, $self->inputs_definition, 1);
+        my $debug = $self->debug;
+        warn "      missing_input_files() will get inputs() and definitions\n" if $debug;
+        my $hash = $self->inputs;
+        my $defs = $self->inputs_definition;
+        warn "      , will call _missing()\n" if $debug;
+        return $self->_missing($hash, $defs, 1);
     }
     
     method missing_output_files {
+        my $debug = $self->debug;
+        warn "      missing_output_files() will get outputs() and definitions\n" if $debug;
         my $hash = $self->outputs;
         my $defs = $self->outputs_definition;
         
@@ -566,6 +586,7 @@ role VRPipe::StepRole {
             return ([1], ["'$key' was defined as an output of step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "), yet no output file was made with that output_key (either the Step is not correctly written, or the database failed to update correctly when the Step was parsed)"]);
         }
         
+        warn "      , will call _missing()\n" if $debug;
         return $self->_missing($hash, $defs);
     }
     
@@ -627,6 +648,7 @@ role VRPipe::StepRole {
             $non_persistent->step_state($self->step_state);
             $non_persistent->previous_step_outputs($self->previous_step_outputs);
             $non_persistent->_persistent_step($self);
+            $non_persistent->debug($self->debug);
             
             my $ref = $non_persistent->$method_name();
             $return = &$ref($non_persistent);
@@ -650,6 +672,8 @@ role VRPipe::StepRole {
         # if we have missing input files, check to see if some other step
         # created them, and start those steps over in the hopes the files will
         # be recreated; otherwise throw
+        my $debug = $self->debug;
+        warn "    parse will check missing input files\n" if $debug;
         my ($missing, $messages, $missing_metadata) = $self->missing_input_files;
         if (@$missing) {
             my $with_recourse = 0;
@@ -690,9 +714,16 @@ role VRPipe::StepRole {
                 return "There is a problem with the input files for step " . $self->name . " (for data element " . $self->data_element->id . ", pipelinesetup " . $step_state->pipelinesetup->id . ", stepstate " . $step_state->id . "):\n" . join("\n", @$messages);
             }
         }
+        else {
+            warn "    - no missing files\n" if $debug;
+        }
         
         # actually run the body_sub
+        warn "    will run body_sub\n" if $debug;
+        my $t = time();
         $self->_run_coderef('body_sub');
+        my $e = time() - $t;
+        warn "    ran the body_sub in $e seconds\n" if $debug;
         
         # store output and temp files on the StepState
         my $output_files = $self->_output_files;
@@ -717,6 +748,10 @@ role VRPipe::StepRole {
                     $step_state->pipelinesetup->log_event("StepRole->parse() ran the body_sub and created new StepOutputFile $ofile", stepstate => $step_state->id, dataelement => $step_state->dataelement->id);
                 }
             }
+            warn "    - stored ", scalar(keys %$output_files), " output files on the stepstate\n" if $debug;
+        }
+        else {
+            warn "    - no output files\n" if $debug;
         }
         
         my $temp_files = $self->_temp_files;
@@ -724,6 +759,7 @@ role VRPipe::StepRole {
             my $step_state = $self->step_state;
             $step_state->temp_files($temp_files);
             $step_state->update;
+            warn "    - stored ", scalar(@$temp_files), " temp files on the stepstate\n" if $debug;
         }
         
         my $dispatched = $self->num_dispatched;
@@ -733,24 +769,32 @@ role VRPipe::StepRole {
         else {
             # nothing dispatched, run the post_process and return any errors
             # from that
+            warn "    will run post_process\n" if $debug;
             return $self->post_process;
         }
     }
     
     method post_process {
+        my $debug = $self->debug;
+        warn "     post_process() will run the post_process_sub\n" if $debug;
         my $ok        = $self->_run_coderef('post_process_sub');
         my $stepstate = $self->step_state;
         
         my $error;
         if ($ok) {
+            warn "     post_process_sub returned ok, will check missing_output_files\n" if $debug;
             my ($missing, $messages) = $self->missing_output_files;
+            warn "     - will unlink_temp_files\n" if $debug;
             $stepstate->unlink_temp_files;
             if (@$missing) {
                 $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
+                warn "     - $error\n" if $debug;
             }
             else {
+                warn "     no missing output files, will handle file ownership\n" if $debug;
+                
                 # change group ownership on files and enable world access to
                 # all parent dirs if user set group on the setup
                 my $ps    = $stepstate->pipelinesetup;
@@ -840,6 +884,7 @@ role VRPipe::StepRole {
             $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
             $stepstate->start_over;
             $error = "The post_process_sub did not return true, so the stepstate was started over.";
+            warn "     $error\n" if $debug;
         }
         
         return $error;
@@ -852,9 +897,16 @@ role VRPipe::StepRole {
         }
         
         # get the current mean+2sd memory and time of past runs of this step
-        my $ssu      = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
-        my $rec_mem  = $ssu->recommended_memory;
-        my $rec_time = $ssu->recommended_time;
+        my $ssu = VRPipe::StepStatsUtil->new(step => $self->isa('VRPipe::Step') ? $self : $self->_persistent_step);
+        my ($rec_mem, $rec_time);
+        my $ss = $self->step_state;
+        if ($ss) {
+            my $setup = $ss->pipelinesetup;
+            $rec_mem = $ssu->recommended_memory(pipelinesetup => $setup);
+            $rec_time = $ssu->recommended_time(pipelinesetup => $setup);
+        }
+        $rec_mem  ||= $ssu->recommended_memory;
+        $rec_time ||= $ssu->recommended_time;
         
         # if we have recommendations, override the settings passed in from the
         # step body_sub
@@ -907,7 +959,11 @@ role VRPipe::StepRole {
             $memory = 500;
         }
         
-        return VRPipe::Requirements->create(
+        # instead of doing a straight-up create(), because the real create does
+        # a 'FOR UPDATE' which seems to block up the database such that it takes
+        # 10s-100s seconds to return even though most of the time we're just
+        # getting an existing row
+        my %args = (
             memory => $memory,
             time   => $time,
             $cpus        ? (cpus        => $cpus)        : (),
@@ -915,6 +971,10 @@ role VRPipe::StepRole {
             $local_space ? (local_space => $local_space) : (),
             $custom      ? (custom      => $custom)      : ()
         );
+        my ($req) = VRPipe::Requirements->search(\%args);
+        $req ||= VRPipe::Requirements->create(%args);
+        
+        return $req;
     }
     
     method dispatch (ArrayRef $aref) {
