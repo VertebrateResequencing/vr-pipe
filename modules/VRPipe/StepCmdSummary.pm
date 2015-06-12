@@ -73,7 +73,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::StepCmdSummary extends VRPipe::Persistent {
+class VRPipe::StepCmdSummary extends VRPipe::PersistentLocklessCreate {
+    our %version_cache;
+    
     has 'exe' => (
         is     => 'rw',
         isa    => Varchar [255],
@@ -98,6 +100,10 @@ class VRPipe::StepCmdSummary extends VRPipe::Persistent {
     __PACKAGE__->make_persistent();
     
     method determine_version (ClassName|Object $self: Str $cmd, Str $regex) {
+        if (defined $version_cache{$cmd}) {
+            return $version_cache{$cmd};
+        }
+        
         open(my $fh, "$cmd 2>&1 |") || $self->throw("Could not start $cmd");
         my $version = 0;
         
@@ -108,6 +114,8 @@ class VRPipe::StepCmdSummary extends VRPipe::Persistent {
             }
         }
         close($fh);
+        
+        $version_cache{$cmd} = $version;
         
         return $version;
     }
