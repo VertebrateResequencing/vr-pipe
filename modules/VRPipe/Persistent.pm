@@ -1098,7 +1098,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 # split up the find and create calls. Actually, search() is
                 # faster than find(), and not sure we need any of the fancy
                 # munging that find() does for us.
-                ($return, my @extra) = $rs->search(\%search_args, { $create ? (for => 'update') : (), order_by => { -asc => 'id' } }) if keys %search_args;
+                ($return, my @extra) = $rs->search(\%search_args, { $create == 1 ? (for => 'update') : (), order_by => { -asc => 'id' } }) if keys %search_args;
                 
                 # there should not be any @extra, but some rare weirdness may give
                 # us duplicate rows in the db; take this opportunity to delete them
@@ -1129,7 +1129,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 }
                 $return->update;
             }
-            elsif ($create) {
+            elsif ($create == 1) {
                 # create the row using all db column keys
                 $return = $rs->create({ %find_args, %args });
             }
@@ -1144,7 +1144,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                 # reattach it or inflation will break
                 $return->result_source->schema($schema);
             }
-            else {
+            elsif ($create != -1) { # create can be -1 to do a get without dieing on failure
                 die "no matching object exists in the database";
             }
             
@@ -1158,6 +1158,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my $error_message_prefix = "Failed to $class\->_get(" . join(', ', @fa) . ')';
         
         my $row = $self->do_transaction($transaction, $error_message_prefix, $schema, 1);
+        return unless $row;
         
         $row->_from_non_persistent($from_non_persistent) if $from_non_persistent;
         return $row;
