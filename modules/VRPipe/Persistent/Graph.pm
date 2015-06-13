@@ -809,47 +809,109 @@ class VRPipe::Persistent::Graph {
         }
         
         my $start_id = $self->node_id($start_node);
-        if ($undirected) {
-            my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
-            my $return = $result_nodes_only ? 'u' : 'p';
-            my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
-            my $cypher = "MATCH p = (start)-[$type$depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
-            return $self->_run_cypher([[$cypher, { 'param' => $properties }]]);
-        }
-        else {
-            my (%all_properties, @return);
-            my $most = '';
-            my $left = '';
-            if ($incoming) {
-                my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
-                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
-                $left = "(l$result_node_spec)-[$type$depth]->";
-                push(@return, 'l');
-                $all_properties{left} = $properties if $properties;
-                if ($incoming->{leftmost} && $max_depth > 1) {
-                    $most = "AND NOT (l)<-[$type]-($result_node_spec) ";
-                }
-            }
-            my $right = '';
-            if ($outgoing) {
-                my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
-                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
-                $right = "-[$type$depth]->(r$result_node_spec)";
-                push(@return, 'r');
-                $all_properties{right} = $properties if $properties;
-                if ($outgoing->{rightmost} && $max_depth > 1) {
-                    $most = "AND NOT (r)-[$type]->($result_node_spec) ";
-                }
-            }
+        
+        # if we have a max_depth > 6 and a node spec and no type, we're going to
+        # repeat the query while incrementing max_depth by 1, starting from
+        # $min_depth, until we get any nodes. This could be orders of magnitude
+        # faster than doing 1..20. (We can't cope with both incoming and
+        # outgoing have a max_depth > 6, because we can't easily know which side
+        # any returned nodes were for)
+        my $limit_depth     = 0;
+        my $depth_increment = 0;
+        while (1) {
+            my ($cypher, $props, $low_depth, $high_depth);
             
-            my $return;
-            if ($result_nodes_only) {
-                $return = join(', ', @return);
+            if ($undirected) {
+                my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($undirected, 'param');
+                my $return = $result_nodes_only ? 'DISTINCT u' : 'p';
+                if ($max_depth > 6 && $result_node_spec && !$type) {
+                    $low_depth  = $min_depth;
+                    $high_depth = $max_depth;
+                }
+                if ($limit_depth) {
+                    $min_depth = $limit_depth;
+                    $max_depth = $limit_depth;
+                }
+                my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                $cypher = "MATCH p = (start)-[$type$depth]-(u$result_node_spec) WHERE id(start) = $start_id RETURN $return";
+                $props = { 'param' => $properties };
             }
             else {
-                $return = 'p';
+                my (%all_properties, @return);
+                my $most = '';
+                my $left = '';
+                if ($incoming) {
+                    my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($incoming, 'left');
+                    if ($max_depth > 6 && $result_node_spec && !$type) {
+                        $low_depth  = $min_depth;
+                        $high_depth = $max_depth;
+                    }
+                    if ($limit_depth) {
+                        $min_depth = $limit_depth;
+                        $max_depth = $limit_depth;
+                    }
+                    my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                    $left = "(l$result_node_spec)-[$type$depth]->";
+                    push(@return, 'l');
+                    $all_properties{left} = $properties if $properties;
+                    if ($incoming->{leftmost} && $max_depth > 1) {
+                        $most = "AND NOT (l)<-[$type]-($result_node_spec) ";
+                    }
+                }
+                my $right = '';
+                if ($outgoing) {
+                    my ($result_node_spec, $properties, $type, $min_depth, $max_depth) = $self->_related_nodes_hashref_parse($outgoing, 'right');
+                    if ($max_depth > 6 && $result_node_spec && !$type) {
+                        if ($high_depth) {
+                            # can't cope with both incoming and outgoing having
+                            # high max_depth, will behave as if neither did
+                            undef $high_depth;
+                        }
+                        else {
+                            $low_depth  = $min_depth;
+                            $high_depth = $max_depth;
+                        }
+                    }
+                    if ($limit_depth) {
+                        $min_depth = $limit_depth;
+                        $max_depth = $limit_depth;
+                    }
+                    my $depth = ($min_depth == 1 && $max_depth == 1) ? '' : "*$min_depth..$max_depth";
+                    $right = "-[$type$depth]->(r$result_node_spec)";
+                    push(@return, 'r');
+                    $all_properties{right} = $properties if $properties;
+                    if ($outgoing->{rightmost} && $max_depth > 1) {
+                        $most = "AND NOT (r)-[$type]->($result_node_spec) ";
+                    }
+                }
+                
+                my $return;
+                if ($result_nodes_only) {
+                    $return = 'DISTINCT ' . join(', ', @return);
+                }
+                else {
+                    $return = 'p';
+                }
+                
+                $cypher = "MATCH p = $left(start)$right where id(start) = $start_id ${most}RETURN $return";
+                $props = keys %all_properties ? \%all_properties : undef;
             }
-            return $self->_run_cypher([["MATCH p = $left(start)$right where id(start) = $start_id ${most}RETURN $return", keys %all_properties ? \%all_properties : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
+            
+            if ($high_depth) {
+                if ($limit_depth) {
+                    my $hash = $self->_run_cypher([[$cypher, $props ? ($props) : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
+                    if ($hash && defined $hash->{nodes} && @{ $hash->{nodes} }) {
+                        return $hash;
+                    }
+                }
+                
+                $limit_depth = $low_depth + $depth_increment++;
+                last if $limit_depth > $high_depth;
+                redo;
+            }
+            else {
+                return $self->_run_cypher([[$cypher, $props ? ($props) : ()]], $return_history_nodes ? ({ return_history_nodes => 1 }) : ());
+            }
         }
     }
     
