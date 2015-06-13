@@ -808,7 +808,17 @@ class VRPipe::File extends VRPipe::Persistent {
                 return 1 if $found;
             }
             else {
-                push(@sss, map { $_->stepstate } VRPipe::StepOutputFile->search({ file => $fid }, { prefetch => 'stepstate' }));
+                # try limiting to stepstates that have submissions, since this
+                # is much faster in the case 1 stepstate and sub created the
+                # file, but we have thousands of other stepstates that have
+                # no submissions and no same_submissions_as either (?!)
+                my @these_sss = map { $_->stepstate } VRPipe::StepOutputFile->search({ file => $fid, $single ? ('stepstate.same_submissions_as' => undef, 'submissions.id' => { '!=' => undef }) : () }, { join => { stepstate => 'submissions' }, prefetch => 'stepstate' });
+                if ($single && !@these_sss) {
+                    # however it's legitimate that we can have a sof with no
+                    # submissions
+                    @these_sss = map { $_->stepstate } VRPipe::StepOutputFile->search({ file => $fid, $single ? ('stepstate.same_submissions_as' => undef) : () }, { prefetch => 'stepstate' });
+                }
+                push(@sss, @these_sss);
             }
         }
         return 0 if $quick;
@@ -818,18 +828,6 @@ class VRPipe::File extends VRPipe::Persistent {
         @sss = sort { $a->id <=> $b->id } values %sss;
         
         return @sss unless $single;
-        
-        # if all but 1 of them point to the 1, return that one
-        my %stepstates;
-        foreach my $ss (@sss) {
-            my $ssa = $ss->same_submissions_as;
-            my $resolved = $ssa ? $ssa : $ss;
-            $stepstates{ $resolved->id } = $resolved;
-        }
-        @sss = sort { $a->id <=> $b->id } values %stepstates;
-        if (@sss == 1) {
-            return $sss[0];
-        }
         
         # if all of them share the same job, return the first one
         my %jobs;
@@ -842,6 +840,10 @@ class VRPipe::File extends VRPipe::Persistent {
             if ($count == @sss) {
                 return $sss[0];
             }
+        }
+        
+        if (keys %jobs == 0) {
+            return $sss[0];
         }
         
         return;
