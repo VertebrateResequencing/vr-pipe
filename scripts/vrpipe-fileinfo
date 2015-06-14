@@ -247,13 +247,13 @@ my %file_to_de;
 if ($output_types{dataelement} || $output_types{input_file}) {
     while (my ($fid, $file_a) = each %files) {
         my (undef, $file) = @$file_a;
-        my ($stepstate) = $file->output_by();
+        my $stepstate = $file->output_by(1);
         unless ($stepstate) {
             my $parent = $file->parent;
             if ($parent) {
                 $parent = $parent->resolve(not_symlinks => 1);
             }
-            ($stepstate) = $parent->output_by() if $parent;
+            $stepstate = $parent->output_by(1) if $parent;
         }
         if ($stepstate) {
             $file_to_de{$fid} = $stepstate->dataelement;
@@ -449,12 +449,12 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
     
     my $stepstate;
     if ($file_setup_needed) {
-        ($stepstate) = $file->output_by();
+        $stepstate = $file->output_by(1);
         unless ($stepstate) {
             my $parent = $file->parent;
             if ($parent) {
                 $parent = $parent->resolve(not_symlinks => 1);
-                ($stepstate) = $parent->output_by();
+                $stepstate = $parent->output_by(1);
             }
         }
     }

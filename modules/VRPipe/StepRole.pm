@@ -21,7 +21,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -554,9 +554,13 @@ role VRPipe::StepRole {
     method missing_input_files {
         my $debug = $self->debug;
         warn "      missing_input_files() will get inputs() and definitions\n" if $debug;
+        my $t    = time();
         my $hash = $self->inputs;
+        my $e1   = time() - $t;
+        $t = time();
         my $defs = $self->inputs_definition;
-        warn "      , will call _missing()\n" if $debug;
+        my $e2   = time() - $t;
+        warn "      inputs() took $e1 seconds and inputs_definition() took $e2 seconds; will call _missing()\n" if $debug;
         return $self->_missing($hash, $defs, 1);
     }
     
@@ -779,6 +783,7 @@ role VRPipe::StepRole {
         warn "     post_process() will run the post_process_sub\n" if $debug;
         my $ok        = $self->_run_coderef('post_process_sub');
         my $stepstate = $self->step_state;
+        my $our_ss_id = $stepstate->id;
         
         my $error;
         if ($ok) {
@@ -787,7 +792,7 @@ role VRPipe::StepRole {
             warn "     - will unlink_temp_files\n" if $debug;
             $stepstate->unlink_temp_files;
             if (@$missing) {
-                $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
+                $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $our_ss_id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
                 warn "     - $error\n" if $debug;
@@ -806,8 +811,9 @@ role VRPipe::StepRole {
                         foreach my $file (@$val) {
                             # but only do this if we were the first to create
                             # the files
-                            my @step_states = $file->output_by;
-                            return if @step_states > 1;
+                            my $oss = $file->output_by(1);
+                            $oss || next;
+                            next unless $oss->id == $our_ss_id;
                             
                             # later on we don't need to do anything to files
                             # that don't exist, and trying to stat a
@@ -822,8 +828,8 @@ role VRPipe::StepRole {
                                 if ($real ne $path) {
                                     my ($real_file) = VRPipe::File->search({ path => $real });
                                     if ($real_file) {
-                                        @step_states = $real_file->output_by;
-                                        return if @step_states;
+                                        $oss = $real_file->output_by(1);
+                                        next unless $oss->id == $our_ss_id;
                                     }
                                 }
                             }
@@ -834,6 +840,7 @@ role VRPipe::StepRole {
                     
                     my (undef, undef, $gid) = getgrnam($group);
                     if ($gid) {
+                        warn "     will change permissions for ", scalar(@paths), " files\n" if $debug;
                         # change the group on the files
                         chown $<, $gid, @paths;
                         
@@ -881,9 +888,9 @@ role VRPipe::StepRole {
         }
         else {
             $stepstate->unlink_temp_files;
-            $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $stepstate->id, dataelement => $stepstate->dataelement->id);
+            $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process did not return true", stepstate => $our_ss_id, dataelement => $stepstate->dataelement->id);
             $stepstate->start_over;
-            $error = "The post_process_sub did not return true, so the stepstate was started over.";
+            $error = "The post_process_sub did not return true, so did a start_over on the stepstate.";
             warn "     $error\n" if $debug;
         }
         
