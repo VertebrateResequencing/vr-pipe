@@ -87,7 +87,8 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
             my $merged_basename = 'merged.vcf.gz';
             
             unless ($control_sample) {
-                my $this_cmd = "use VRPipe::Steps::vcf_merge_different_samples_control_aware; VRPipe::Steps::vcf_merge_different_samples_control_aware->exit_without_control(input_files => [qw(@input_set)]);";
+                my @input_ids = map { $_->id } @input_set;
+                my $this_cmd = "use VRPipe::Steps::vcf_merge_different_samples_control_aware; VRPipe::Steps::vcf_merge_different_samples_control_aware->exit_without_control(input_file_ids => [qw(@input_ids)]);";
                 $self->output_file(output_key => 'merged_vcf', basename => $merged_basename,          type => 'vcf');
                 $self->output_file(output_key => 'vcf_index',  basename => $merged_basename . '.csi', type => 'bin');
                 $self->dispatch_vrpipecode($this_cmd, $self->new_requirements(memory => 100, time => 1));
@@ -104,8 +105,9 @@ class VRPipe::Steps::vcf_merge_different_samples_control_aware extends VRPipe::S
         return "Merges compressed VCFs using bcftools merge which contain different samples to produce a single VCF containing all the input samples, with the first sample being the one from the VCF tagged with the right control metadata, and identifying that sample as a control in metadata on the output file";
     }
     
-    method exit_without_control (ClassName|Object $self: ArrayRef[Str|File] :$input_files!) {
-        $self->throw("There was no control sample identified amongst the input vcf files (@$input_files)");
+    method exit_without_control (ClassName|Object $self: ArrayRef[Int] :$input_file_ids!) {
+        my $files = join(', ', map { VRPipe::File->get(id => $_)->path } @$input_file_ids);
+        die "There was no control sample identified amongst the input vcf files ($files)\n";
     }
 }
 
