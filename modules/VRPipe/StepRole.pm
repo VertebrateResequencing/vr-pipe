@@ -829,7 +829,7 @@ role VRPipe::StepRole {
                                     my ($real_file) = VRPipe::File->search({ path => $real });
                                     if ($real_file) {
                                         $oss = $real_file->output_by(1);
-                                        next unless $oss->id == $our_ss_id;
+                                        next unless ($oss && ($oss->id == $our_ss_id));
                                     }
                                 }
                             }
