@@ -1,3 +1,8 @@
+0.209   Minor fix for vcf_merge_different_samples_control_aware step when the
+        samples have no control.
+        Fix for the polysomy step when the vcf has duplicate samples.
+        Fixed step post processing when an output file needs permission changes
+        and wasn't output by anything.
 0.208   Critical speed fix for graph_filter queries in datasources (allowing
         those datasources to work now).
         Further critical speed fixes for processing all pipelines, allowing them
