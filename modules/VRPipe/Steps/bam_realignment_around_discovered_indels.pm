@@ -98,19 +98,33 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 my $bam_meta       = $bam->metadata;
                 my $realigned_base = $bam_base;
                 $realigned_base =~ s/bam$/realign.bam/;
+                my @outfiles;
                 my $realigned_bam_file = $self->output_file(
                     output_key => 'realigned_bam_files',
                     basename   => $realigned_base,
                     type       => 'bam',
                     metadata   => $bam_meta
                 );
+                push @outfiles, $realigned_bam_file;
+                
+                unless ($realign_opts =~ m/--disable_bam_indexing/) {
+                    my $index_base = $realigned_base;
+                    $index_base =~ s/bam$/bai/;
+                    push @outfiles,
+                      $self->output_file(
+                        output_key => 'realigned_bam_index_files',
+                        basename   => $index_base,
+                        type       => 'bin',
+                        metadata   => $bam_meta
+                      );
+                }
                 
                 my $temp_dir = $options->{tmp_dir} || $realigned_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $intervals_file_path = $intervals_file->path;
                 my $this_cmd            = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T IndelRealigner -R $ref -I ] . $bam->path . qq[ -o ] . $realigned_bam_file->path . qq[ -targetIntervals $intervals_file_path $realign_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, { output_files => [$realigned_bam_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
@@ -121,6 +135,12 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 type        => 'bam',
                 max_files   => -1,
                 description => 'a name-sorted bam file with improved alignments near indels'
+            ),
+            realigned_bam_index_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'index file for the indel realigned bam file'
             )
         };
     }
@@ -134,7 +154,7 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
 }
 
