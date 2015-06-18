@@ -16,7 +16,7 @@ Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -113,14 +113,27 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
                 
                 my $req = $self->new_requirements(memory => 1000, time => 1);
+                my $sample_count;
                 foreach my $query (@samples) {
+                    # if a sample name is duplicated, it will have a number
+                    # prefix in the vcf header
+                    $sample_count++;
+                    my $real_sample_name = $query;
+                    $real_sample_name =~ s/^$sample_count://;
+                    
                     my $sub_dir = $query;
                     
-                    my $dist_file = $self->output_file(sub_dir => $sub_dir, output_key => 'dist_file', basename => 'dist.dat', type => 'txt', metadata => $meta);
-                    $dist_file->add_metadata({ sample => $query });
+                    my $single_sample_meta = {};
+                    while (my ($key, $val) = each %$meta) {
+                        next unless defined $val;
+                        next if ref($val);
+                        next if $key =~ /^irods/;
+                        $single_sample_meta->{$key} = $val;
+                    }
+                    $single_sample_meta->{sample} = $real_sample_name;
                     
-                    my $plot_file = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => 'dist.py', type => 'txt', metadata => $meta);
-                    $plot_file->add_metadata({ sample => $query });
+                    my $dist_file = $self->output_file(sub_dir => $sub_dir, output_key => 'dist_file', basename => 'dist.dat', type => 'txt', metadata => $single_sample_meta);
+                    my $plot_file = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => 'dist.py',  type => 'txt', metadata => $single_sample_meta);
                     
                     my @outfiles  = ($plot_file, $dist_file);
                     my $vcf_path  = $vcf->path->stringify;
@@ -128,12 +141,12 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     
                     my @chroms = (1 .. 22, ("X", "Y", "MT"));
                     foreach my $chr (@chroms) {
-                        my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "dist.chr$chr.png", type => 'png', metadata => $meta);
+                        my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "dist.chr$chr.png", type => 'png', metadata => $single_sample_meta);
                         push(@outfiles, $png_file);
                         $self->relate_input_to_output($vcf_path, 'dist_plot', $png_file->path->stringify);
                     }
                     
-                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query], python => q[$python_exe]);";
+                    my $this_cmd = "use VRPipe::Steps::polysomy; VRPipe::Steps::polysomy->run_and_check(vcf => q[$vcf_path], dist => q[$dist_path], bcftools => q[$bcftools_exe], bcftools_opts => q[$bcftools_opts], query => q[$query], sample => q[$real_sample_name], python => q[$python_exe]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
             }
@@ -176,7 +189,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!, Str :$python!) {
+    method run_and_check (ClassName|Object $self: Str|File :$vcf!, Str|File :$dist!, Str :$bcftools!, Str :$bcftools_opts!, Str :$query!, Str :$sample!, Str :$python!) {
         my $vcf_file  = VRPipe::File->get(path => $vcf);
         my $dist_file = VRPipe::File->get(path => $dist);
         my $dist_path = $dist_file->path->stringify;
@@ -190,11 +203,11 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         
         # get the sample node in graph db
         my $vrtrack       = VRPipe::Schema->create('VRTrack');
-        my $sample_source = $vrtrack->sample_source($query);
-        my $sample_props  = $vrtrack->sample_props_from_string($query, $sample_source);
+        my $sample_source = $vrtrack->sample_source($sample);
+        my $sample_props  = $vrtrack->sample_props_from_string($sample, $sample_source);
         my $sample_node   = $vrtrack->get('Sample', $sample_props);
         unless ($sample_node) {
-            $self->throw("No sample node with name $sample_props->{name} was found in the graph db (for vcf $vcf, query $query)");
+            $self->throw("No sample node with name $sample_props->{name} was found in the graph db (for vcf $vcf, query $sample)");
         }
         
         # figure out the gender so we know what copy number to expect on chr X
@@ -228,7 +241,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
         }
         
         if (@ab_chrs) {
-            my $chrs_str = $query . ":" . join(",", @ab_chrs);
+            my $chrs_str = $sample . ":" . join(",", @ab_chrs);
             $vcf_file->merge_metadata({ polysomy_chrs => $chrs_str });
             $sample_node->aberrant_chrs(\@ab_chrs);
             foreach my $chr (@ab_chrs) {

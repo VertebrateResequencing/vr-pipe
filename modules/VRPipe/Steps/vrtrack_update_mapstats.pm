@@ -76,18 +76,22 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             my $targeted_mode = $opts->{exome_targets_file} ? 1 : 0;
             my $req           = $self->new_requirements(memory => 500, time => 1);
             
-            my (%bam_plots, $schema);
+            my (%bam_plots, $schema, %plot_to_source);
             foreach my $plot_file (@{ $self->inputs->{bamcheck_plots} }) {
                 my $source_bam = $plot_file->metadata->{source_bam};
+                
+                unless ($source_bam) {
+                    $source_bam = $plot_to_source{ $plot_file->path };
+                }
                 
                 unless ($source_bam) {
                     # modern steps don't store stuff in ->metadata(); check the
                     # graph db instead
                     $schema ||= VRPipe::Schema->create("VRPipe");
                     my $plot_graph_node = $schema->get('File', { path => $plot_file->path->stringify });
+                    
                     if ($plot_graph_node) {
-                        my ($stats_node) = $schema->graph->related_nodes(
-                            $plot_graph_node,
+                        my ($stats_node) = $plot_graph_node->related(
                             incoming => {
                                 namespace => 'VRPipe',
                                 label     => 'FileSystemElement',
@@ -95,9 +99,9 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                                 max_depth => 1
                             }
                         );
+                        
                         if ($stats_node) {
-                            my ($bam_node) = $schema->graph->related_nodes(
-                                $stats_node,
+                            my ($bam_node) = $stats_node->related(
                                 incoming => {
                                     namespace => 'VRPipe',
                                     label     => 'FileSystemElement',
@@ -105,9 +109,25 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
                                     max_depth => 1
                                 }
                             );
+                            
                             if ($bam_node) {
-                                bless $bam_node, "VRPipe::Schema::VRPipe::FileSystemElement";
                                 $source_bam = $bam_node->path;
+                                
+                                # since we expect all the other plot_files to
+                                # have the same source_bam, we can avoid more
+                                # slow $schema->get('File') calls by caching
+                                # all the plot paths related to the stats node
+                                my (@plot_nodes) = $stats_node->related(
+                                    outgoing => {
+                                        namespace => 'VRPipe',
+                                        label     => 'FileSystemElement',
+                                        type      => 'bamstats_plot',
+                                        max_depth => 1
+                                    }
+                                );
+                                foreach my $pn (@plot_nodes) {
+                                    $plot_to_source{ $pn->path } = $source_bam;
+                                }
                             }
                         }
                     }
