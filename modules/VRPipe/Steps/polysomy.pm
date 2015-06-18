@@ -16,7 +16,7 @@ Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -123,11 +123,17 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     
                     my $sub_dir = $query;
                     
-                    my $dist_file = $self->output_file(sub_dir => $sub_dir, output_key => 'dist_file', basename => 'dist.dat', type => 'txt', metadata => $meta);
-                    $dist_file->add_metadata({ sample => $query });
+                    my $single_sample_meta = {};
+                    while (my ($key, $val) = each %$meta) {
+                        next unless defined $val;
+                        next if ref($val);
+                        next if $key =~ /^irods/;
+                        $single_sample_meta->{$key} = $val;
+                    }
+                    $single_sample_meta->{sample} = $real_sample_name;
                     
-                    my $plot_file = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => 'dist.py', type => 'txt', metadata => $meta);
-                    $plot_file->add_metadata({ sample => $query });
+                    my $dist_file = $self->output_file(sub_dir => $sub_dir, output_key => 'dist_file', basename => 'dist.dat', type => 'txt', metadata => $single_sample_meta);
+                    my $plot_file = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => 'dist.py',  type => 'txt', metadata => $single_sample_meta);
                     
                     my @outfiles  = ($plot_file, $dist_file);
                     my $vcf_path  = $vcf->path->stringify;
@@ -135,7 +141,7 @@ class VRPipe::Steps::polysomy with VRPipe::StepRole {
                     
                     my @chroms = (1 .. 22, ("X", "Y", "MT"));
                     foreach my $chr (@chroms) {
-                        my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "dist.chr$chr.png", type => 'png', metadata => $meta);
+                        my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "dist.chr$chr.png", type => 'png', metadata => $single_sample_meta);
                         push(@outfiles, $png_file);
                         $self->relate_input_to_output($vcf_path, 'dist_plot', $png_file->path->stringify);
                     }

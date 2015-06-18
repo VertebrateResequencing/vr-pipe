@@ -63,6 +63,37 @@ class VRPipe::FileType::hts with VRPipe::FileTypeRole {
         my @header_lines = split(/\n/, $headers);
         return \@header_lines;
     }
+    
+    method check_records_vs_input (VRPipe::File $in_file, Str $cmd_line?) {
+        my $out_file = VRPipe::File->get(path => $self->file);
+        $out_file->update_stats_from_disc(retries => 3);
+        
+        my $reads         = $in_file->metadata->{reads};
+        my $expected_recs = $reads || $in_file->num_records;
+        my $actual_recs   = $out_file->num_records;
+        $out_file->add_metadata({ reads => $expected_recs }) if $out_file->meta_value('reads');
+        
+        if ($actual_recs == $expected_recs) {
+            return 1;
+        }
+        elsif ($reads && $reads > $actual_recs) {
+            # metadata might be wrong or based on raw reads, not 0x900 reads, so
+            # double-check
+            $expected_recs = $in_file->num_records;
+            if ($actual_recs == $expected_recs) {
+                $in_file->add_metadata({ reads => $expected_recs });
+                return 1;
+            }
+        }
+        # else
+        if ($cmd_line) {
+            $out_file->unlink;
+            $self->throw("cmd [$cmd_line] failed because $actual_recs records were generated in the output file, yet there were $expected_recs records in the input file");
+        }
+        else {
+            return 0;
+        }
+    }
 }
 
 1;

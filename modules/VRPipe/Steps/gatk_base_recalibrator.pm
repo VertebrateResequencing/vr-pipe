@@ -50,7 +50,10 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
     }
     
     method inputs_definition {
-        return { bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files') };
+        return {
+            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files'),
+            bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index files for the input bam files')
+        };
     }
     
     method body_sub {

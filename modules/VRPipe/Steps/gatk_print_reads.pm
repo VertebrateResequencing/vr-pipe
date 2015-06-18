@@ -80,20 +80,34 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
             
             my $req = $self->new_requirements(memory => 4500, time => 2);
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                my $bam_meta     = $bam->metadata;
                 my $printed_base = $bam->basename;
                 $printed_base =~ s/bam$/print.bam/;
+                my @outfiles;
                 my $printed_bam_file = $self->output_file(
                     output_key => 'printed_bam_files',
                     basename   => $printed_base,
                     type       => 'bam',
-                    metadata   => $bam->metadata
+                    metadata   => $bam_meta
                 );
+                push @outfiles, $printed_bam_file;
+                unless ($print_opts =~ m/--disable_bam_indexing/) {
+                    my $index_base = $printed_base;
+                    $index_base =~ s/bam$/bai/;
+                    push @outfiles,
+                      $self->output_file(
+                        output_key => 'printed_bam_index_files',
+                        basename   => $index_base,
+                        type       => 'bin',
+                        metadata   => $bam_meta
+                      );
+                }
                 
                 my $temp_dir = $options->{tmp_dir} || $printed_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T PrintReads -R $ref -I ] . $bam->path . qq[ -o ] . $printed_bam_file->path . qq[ $print_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads', 'print_and_check', [$this_cmd, $req, { output_files => [$printed_bam_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads', 'print_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
@@ -105,6 +119,13 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
                 max_files   => -1,
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
                 metadata    => { reads => 'Number of reads in the output BAM file' }
+            ),
+            printed_bam_index_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'index file for the indel recalibrated bam file',
+                metadata    => {}
             )
         };
     }
@@ -118,7 +139,7 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method print_and_check (ClassName|Object $self: Str $cmd_line) {
