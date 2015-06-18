@@ -233,23 +233,23 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
             foreach my $plot (@existing_plots) {
                 $sample_node->divorce_from($plot);
             }
+        }
+        
+        # now look in the plot dir and associate any pngs with the query
+        # sample node; the plots we made above are only the forced plots
+        # because we knew those chrs were aberrant; previous commands may
+        # have generated plots for other chrs as well
+        my $plot_dir           = $plot_file->dir;
+        my $plot_file_in_graph = $vrtrack->get_file($plot);
+        while (my $file = $plot_dir->next) {
+            next unless -f $file;
+            next unless $file =~ /\.chr(\S+?)\.png$/;
+            my $chr = $1;
             
-            # now look in the plot dir and associate any pngs with the query
-            # sample node; the plots we made above are only the forced plots
-            # because we knew those chrs were aberrant; previous commands may
-            # have generated plots for other chrs as well
-            my $plot_dir           = $plot_file->dir;
-            my $plot_file_in_graph = $vrtrack->get_file($plot);
-            while (my $file = $plot_dir->next) {
-                next unless -f $file;
-                next unless $file =~ /\.chr(\S+?)\.png$/;
-                my $chr = $1;
-                
-                my $plot_node = $vrtrack->add_file($file);
-                $plot_node->add_properties({ chr => $chr });
-                $sample_node->relate_to($plot_node, 'cnv_plot');
-                $plot_file_in_graph->relate_to($plot_node, 'plotted');
-            }
+            my $plot_node = $vrtrack->add_file($file);
+            $plot_node->add_properties({ chr => $chr });
+            $sample_node->relate_to($plot_node, 'cnv_plot');
+            $plot_file_in_graph->relate_to($plot_node, 'plotted');
         }
         
         return 1;
