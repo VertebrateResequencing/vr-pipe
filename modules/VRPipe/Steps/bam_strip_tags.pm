@@ -104,18 +104,7 @@ class VRPipe::Steps::bam_strip_tags with VRPipe::StepRole {
         }
         $bp->close;
         
-        $out_bam->update_stats_from_disc(retries => 3);
-        
-        my $expected_reads = $in_bam->metadata->{reads} || $num_records;
-        my $actual_reads = $out_bam->num_records;
-        
-        if ($actual_reads == $expected_reads) {
-            return 1;
-        }
-        else {
-            $out_bam->unlink;
-            $self->throw("tag strip of " . $in_bam->path . " to " . $out_bam->path . " failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
-        }
+        $out_bam->_filetype->check_records_vs_input($in_bam, "tag_strip(" . $in_bam->path . " => " . $out_bam->path . ", tags_to_strip => $tags_to_strip)");
     }
 }
 

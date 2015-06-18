@@ -196,17 +196,7 @@ class VRPipe::Steps::bam_add_readgroup extends VRPipe::Steps::picard {
         
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        $out_file->update_stats_from_disc(retries => 3);
-        my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
-        my $actual_reads = $out_file->num_records;
-        
-        if ($actual_reads == $expected_reads) {
-            return 1;
-        }
-        else {
-            $out_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
-        }
+        $out_file->_filetype->check_records_vs_input($in_file, $cmd_line);
     }
     
     method command_line_safe_string (Str $str) {

@@ -156,17 +156,7 @@ class VRPipe::Steps::bam_to_fixed_bam with VRPipe::StepRole {
         $output->disconnect;
         system('set -o pipefail; ' . $cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $expected_reads = $input->metadata->{reads};
-        $output->update_stats_from_disc(retries => 3);
-        my $actual_reads = $output->num_records;
-        
-        if ($actual_reads == $expected_reads) {
-            return 1;
-        }
-        else {
-            $output->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_reads lines were generated in the bam file, yet there were $expected_reads reads in the bam file");
-        }
+        $output->_filetype->check_records_vs_input($input, $cmd_line);
     }
 }
 
