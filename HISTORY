@@ -1,3 +1,10 @@
+0.210   Various bam-outputting steps are now more tolerant of input file
+        reads metadata being wrong.
+        bcftools_cnv step fixed to properly relate all plots to the sample node.
+        New sample_indel_realignment_and_bqsr pipeline.
+        Critical speed fix for vrtrack_update_mapstats step.
+        Fixed polysomy step so the output files have the correct sample name
+        metadata.
 0.209   Minor fix for vcf_merge_different_samples_control_aware step when the
         samples have no control.
         Fix for the polysomy step when the vcf has duplicate samples.
