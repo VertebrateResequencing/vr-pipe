@@ -246,7 +246,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $mode;
         if ($dataelement) {
             $mode = 'single de';
-            $self->debug("trigger on single de for setup " . $self->id);
             $pager = VRPipe::DataElementState->search_paged({ pipelinesetup => $setup_id, dataelement => $dataelement->id, completed_steps => $first_step_only ? 0 : { '<', $num_steps }, 'dataelement.withdrawn' => 0 }, { prefetch => 'dataelement' });
         }
         else {
@@ -255,8 +254,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             if ($@) {
                 return "DataSource error: $@";
             }
-            warn "got ", $pager->total_entries, " incomplete element states\n" if $debug;
         }
+        warn "got ", $pager->total_entries, " incomplete element states in mode '$mode'\n" if $debug;
         return unless $pager; #*** is it ever an error to have no pager?
         
         my $error_message;
@@ -275,8 +274,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 # want to skip and do nothing (even in the case of 'single de'
                 # mode) if another process is looking at this des, we don't have
                 # to do anything fancy
-                unless ($estate->lock) {
-                    $self->debug("estate $esid is being triggered by another process, will skip it");
+                unless ($debug || $estate->lock) {
+                    warn " estate $esid is being triggered by another process, will skip it\n";
                     next;
                 }
                 #$estate->maintain_lock; maintaining lock requires a fork and
@@ -285,7 +284,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 
                 my $sm_error;
                 SSTATE: foreach my $member (@step_members) {
-                    $estate->refresh_lock;
+                    $estate->refresh_lock unless $debug;
                     
                     my $step_number = $member->step_number;
                     next unless $step_number > $estate->completed_steps;
@@ -672,8 +671,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     last;
                 }
                 
-                warn " unlocking elementstate, will go on to next\n" if $debug;
-                $estate->unlock;
+                warn " finished with elementstate, will go on to next\n" if $debug;
+                $estate->unlock unless $debug;
             }
         }
         
