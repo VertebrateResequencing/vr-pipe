@@ -77,20 +77,35 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
             foreach my $recal_file (@{ $self->inputs->{bam_recalibration_files} }) {
                 my $bam_path   = $recal_file->metadata->{source_bam};
                 my $bam        = VRPipe::File->get(path => $bam_path);
+                my $bam_meta   = $bam->metadata;
                 my $recal_base = $bam->basename;
                 $recal_base =~ s/bam$/recal.bam/;
+                my @outfiles;
                 my $recal_bam_file = $self->output_file(
                     output_key => 'recalibrated_bam_files',
                     basename   => $recal_base,
                     type       => 'bam',
-                    metadata   => $bam->metadata
+                    metadata   => $bam_meta
                 );
+                push @outfiles, $recal_bam_file;
+                
+                unless ($recal_opts =~ m/--disable_bam_indexing/) {
+                    my $index_base = $recal_base;
+                    $index_base =~ s/bam$/bai/;
+                    push @outfiles,
+                      $self->output_file(
+                        output_key => 'recalibrated_bam_index_files',
+                        basename   => $index_base,
+                        type       => 'bin',
+                        metadata   => $bam_meta
+                      );
+                }
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
                 my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads_with_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads_with_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
@@ -102,6 +117,13 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 max_files   => -1,
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
                 metadata    => { reads => 'Number of reads in the recalibrated BAM file' }
+            ),
+            recalibrated_bam_index_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'index file for the indel recalibrated bam file',
+                metadata    => {}
             )
         };
     }
@@ -115,7 +137,7 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method apply_bqsr_and_check (ClassName|Object $self: Str $cmd_line) {
