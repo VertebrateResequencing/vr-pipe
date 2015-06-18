@@ -161,10 +161,15 @@ class VRPipe::Steps::bam_realignment_around_known_indels extends VRPipe::Steps::
         if ($actual_reads == $expected_reads) {
             return 1;
         }
-        else {
-            $out_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
+        elsif ($in_file->metadata->{reads} && $in_file->metadata->{reads} > $actual_reads) {
+            # metadata might be wrong or based on raw reads, not 0x900 reads, so
+            # double-check
+            $expected_reads = $in_file->num_records;
+            return 1 if $actual_reads == $expected_reads;
         }
+        # else
+        $out_file->unlink;
+        $self->throw("cmd [$cmd_line] failed because $actual_reads reads were generated in the output bam file, yet there were $expected_reads reads in the original bam file");
     }
 }
 
