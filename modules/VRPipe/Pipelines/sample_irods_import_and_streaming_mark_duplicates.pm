@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::irods_sample_import - a pipeline
+VRPipe::Pipelines::sample_irods_import_and_streaming_mark_duplicates - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,13 +33,13 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::irods_sample_import with VRPipe::PipelineRole {
+class VRPipe::Pipelines::sample_irods_import_and_streaming_mark_duplicates with VRPipe::PipelineRole {
     method name {
-        return 'irods_sample_import';
+        return 'sample_irods_import_and_streaming_mark_duplicates';
     }
     
     method description {
-        return 'Import CRAM files from iRODS, merges and markduplicates.';
+        return 'Import CRAM files from iRODS, merge and markduplicates with biobambam bamstreamingmarkduplicates.';
     }
     
     method step_names {
