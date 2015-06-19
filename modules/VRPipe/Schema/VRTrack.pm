@@ -894,7 +894,6 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         while (my ($sid, $sample) = each %{ $nodes{Sample} }) {
             my $props = $graph->node_properties($sample);
             next if $props->{qc_failed};
-            next if $props->{control};
             
             my @plurs;
             foreach my $plur_node_id (@{ $rels{$sid} }) {
@@ -911,9 +910,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 $data{$key} = $val;
             }
             
-            push(@summary_results, { type => 'pluritest_summary', sample => $props->{public_name} . '_' . $props->{name}, %data });
+            push(@summary_results, { type => 'pluritest_summary', sample => $props->{public_name} . '_' . $props->{name}, control => $props->{control} || 0, %data });
         }
-        push(@results, sort { $a->{sample} cmp $b->{sample} } @summary_results);
+        push(@results, sort { $b->{control} <=> $a->{control} || $a->{sample} cmp $b->{sample} } @summary_results);
         
         return \@results if @results;
     }
