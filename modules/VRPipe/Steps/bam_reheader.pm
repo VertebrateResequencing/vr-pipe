@@ -321,17 +321,25 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         $headed_bam_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        my $expected_lines = $existing_meta->{reads} + $header_lines;
+        my $reads = $existing_meta->{reads};
+        my $expected_lines = ($reads || $bam_file->num_records) + $header_lines;
         $headed_bam_file->update_stats_from_disc(retries => 3);
         my $actual_lines = $headed_bam_file->lines;
         
         if ($actual_lines == $expected_lines) {
             return 1;
         }
-        else {
-            $headed_bam_file->unlink;
-            $self->throw("cmd [$cmd_line] failed because $actual_lines lines were generated in the reheaded bam file, yet there were $expected_lines records in the input bam files and header");
+        elsif ($reads) {
+            # metadata might be wrong or based on raw reads, not 0x900 reads, so
+            # double-check
+            $expected_lines = $bam_file->num_records + $header_lines;
+            if ($actual_lines == $expected_lines) {
+                return 1;
+            }
         }
+        # else
+        $headed_bam_file->unlink;
+        $self->throw("cmd [$cmd_line] failed because $actual_lines lines were generated in the reheaded bam file, yet there were $expected_lines records in the input bam files and header");
     }
     
     method program_chain (ClassName|Object $self: VRPipe::PipelineSetup :$pipelinesetup!, VRPipe::DataElement :$dataelement!, VRPipe::StepMember :$stepmember!) {
