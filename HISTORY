@@ -1,3 +1,10 @@
+0.211   bam_improvement_gatk_v2 pipeline fixed to work again.
+        irods_sample_import pipeline renamed as
+        sample_irods_import_and_mark_duplicates.
+        bam_reheader step fixed to work when reads metadata on input file is
+        wrong.
+        bcftools_cnv step fixed to always remove invalid plot<-sample
+        relationships.
 0.210   Various bam-outputting steps are now more tolerant of input file
         reads metadata being wrong.
         bcftools_cnv step fixed to properly relate all plots to the sample node.

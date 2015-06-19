@@ -226,13 +226,13 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 my $cmd_line = "$python $plot -c $chr";
                 system($cmd_line) && $self->throw("failed to run [$cmd_line]");
             }
-            
-            # first drop any existing cnv_plot relationships attached to this
-            # sample, so that it will only have the new ones we're about to add
-            my @existing_plots = $sample_node->related(outgoing => { type => 'cnv_plot' });
-            foreach my $plot (@existing_plots) {
-                $sample_node->divorce_from($plot);
-            }
+        }
+        
+        # first drop any existing cnv_plot relationships attached to this
+        # sample, so that it will only have the new ones we're about to add
+        my @existing_plots = $sample_node->related(outgoing => { type => 'cnv_plot' });
+        foreach my $plot (@existing_plots) {
+            $sample_node->divorce_from($plot);
         }
         
         # now look in the plot dir and associate any pngs with the query

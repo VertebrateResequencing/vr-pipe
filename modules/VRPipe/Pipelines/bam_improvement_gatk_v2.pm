@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -66,7 +66,7 @@ class VRPipe::Pipelines::bam_improvement_gatk_v2 with VRPipe::PipelineRole {
             { from_step => 3, to_step => 5,  from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 5, to_step => 6,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 5, to_step => 7,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
-            { from_step => 6, to_step => 6,  from_key => 'bai_files', to_key => 'bai_files' },
+            { from_step => 6, to_step => 7,  from_key => 'bai_files', to_key => 'bai_files' },
             { from_step => 7, to_step => 8,  from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
             { from_step => 5, to_step => 8,  from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 6, to_step => 8,  from_key => 'bai_files', to_key => 'bai_files' },
