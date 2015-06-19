@@ -38,9 +38,9 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
     around options_definition {
         return {
             %{ $self->$orig },
-            samtools_merge_options          => VRPipe::StepOption->create(description => 'options for samtools merge',                                                                optional => 1, default_value => '-u'),
-            bamstreamingmarkduplicates_exe  => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
-            bamstreamingmarkduplicates_opts => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
+            samtools_merge_options             => VRPipe::StepOption->create(description => 'options for samtools merge',                                                                optional => 1, default_value => '-u'),
+            bamstreamingmarkduplicates_exe     => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
+            bamstreamingmarkduplicates_options => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
         };
     }
     
@@ -51,7 +51,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
             my $samtools                        = $options->{samtools_exe};
             my $samtools_merge_opts             = $options->{samtools_merge_options};
             my $bamstreamingmarkduplicates_exe  = $options->{bamstreamingmarkduplicates_exe};
-            my $bamstreamingmarkduplicates_opts = $options->{bamstreamingmarkduplicates_opts};
+            my $bamstreamingmarkduplicates_opts = $options->{bamstreamingmarkduplicates_options};
             my $check_read_sum                  = $samtools_merge_opts =~ m/-R/ ? 0 : 1;
             
             $self->set_cmd_summary(
@@ -65,7 +65,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bamstreamingmarkduplicates',
                     version => VRPipe::StepCmdSummary->determine_version($bamstreamingmarkduplicates_exe . ' --version', '^This is biobambam\d? version (.+)\.$'),
-                    summary => "bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts O=\$markdup_bam index=1 indexfilename=\$markdup_bam.bai M=\$metrics_file"
+                    summary => "bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts O=\$markdup_file index=1 indexfilename=\$markdup_index M=\$metrics_file"
                 )
             );
             
@@ -83,14 +83,14 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
                 $basename       = "${chrom}_${from}-${to}.$basename";
                 $check_read_sum = 0;
             }
-            my $markdup_bam_file = $self->output_file(
-                output_key => 'markdup_bam_files',
+            my $markdup_file = $self->output_file(
+                output_key => 'markdup_files',
                 basename   => $basename . '.bam',
                 type       => 'bam',
                 metadata   => $merged_metadata
             );
-            my $markdup_bai_file = $self->output_file(
-                output_key => 'markdup_bai_files',
+            my $markdup_index_file = $self->output_file(
+                output_key => 'markdup_index_files',
                 basename   => $basename . '.bam.bai',
                 type       => 'bai',
                 metadata   => $merged_metadata
@@ -101,18 +101,18 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
                 type       => 'txt',
                 metadata   => $merged_metadata
             );
-            my $markdup_path = $markdup_bam_file->path;
+            my $markdup_path = $markdup_file->path;
             my $merge_cmd    = qq[$samtools merge $samtools_merge_opts - @input_paths];
-            my $markdup_cmd  = "$bamstreamingmarkduplicates_exe $bamstreamingmarkduplicates_opts O=$markdup_path index=1 indexfilename=" . $markdup_bai_file->path . " M=" . $markdup_metrics_file->path;
+            my $markdup_cmd  = "$bamstreamingmarkduplicates_exe $bamstreamingmarkduplicates_opts O=$markdup_path index=1 indexfilename=" . $markdup_index_file->path . " M=" . $markdup_metrics_file->path;
             my $this_cmd     = "use VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates; VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates->merge_and_check(q[$merge_cmd | $markdup_cmd], input_file_list => $file_list, out_file => q[$markdup_path], check_read_sum => $check_read_sum);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$markdup_bam_file, $markdup_bai_file, $markdup_metrics_file] });
+            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$markdup_file, $markdup_index_file, $markdup_metrics_file] });
         };
     }
     
     method outputs_definition {
         return {
-            markdup_bam_files     => VRPipe::StepIODefinition->create(type => 'bam', max_files => 1, description => 'a BAM file with duplicates marked'),
-            markdup_bai_files     => VRPipe::StepIODefinition->create(type => 'bai', max_files => 1, description => 'BAI index file for merged, markdup-ed BAM file'),
+            markdup_files         => VRPipe::StepIODefinition->create(type => 'aln', max_files => 1, description => 'a merged BAM file with duplicates marked'),
+            markdup_index_files   => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => ' index file for merged, markdup-ed BAM file'),
             markdup_metrics_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'a text file with metrics from biobambam duplicate marking'),
         };
     }
