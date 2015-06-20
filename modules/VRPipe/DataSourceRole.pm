@@ -90,6 +90,7 @@ role VRPipe::DataSourceRole {
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for " . ref($self));
         $self->debug($debug);
+        warn "_generate_elements will call ", ref($self), "->$method()\n" if $debug;
         $self->$method(%{ $self->options }, handle => $handle);
     }
     
