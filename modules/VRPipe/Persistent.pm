@@ -983,7 +983,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('block_until_locked' => sub { 
             my $self     = shift;
             my $lock_key = $table_name . '.' . $self->id;
-            return if $self->lock();
             $self->_in_memory->block_until_locked($lock_key, @_);
             $self->reselect_values_from_db;
             return 1;
