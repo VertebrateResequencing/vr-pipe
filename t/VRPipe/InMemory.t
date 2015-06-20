@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 164;
+    use Test::Most tests => 165;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -116,6 +116,9 @@ for my $loop_num (1 .. $num_loops) {
 }
 $fm->wait_all_children;
 is $tested_positive, 1, 'lock() on the same key 16 times in parallel only gave one process the lock';
+
+my $got_lock = $im->lock('test_lock1', unlock_after => 3);
+ok $got_lock, 'lock succeeds when the lock was previously obtained in a process that is now dead';
 
 $tested_positive = 0;
 for my $loop_num (1 .. $num_loops) {
