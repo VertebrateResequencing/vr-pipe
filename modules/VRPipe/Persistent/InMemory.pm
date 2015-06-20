@@ -231,7 +231,7 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0) {
+    method lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0, Bool :$debug = 0) {
         my $redis     = $self->_redis;
         my $redis_key = $key_prefix . '.' . $key;
         if ($non_exclusive) {
@@ -241,11 +241,23 @@ class VRPipe::Persistent::InMemory {
             return if $val;
         }
         
+        my $redis_key_value = $non_exclusive ? 0 : hostname() . '!.!' . $$;
+        my $current_value = $redis->get($redis_key) if $debug;
         my $got_lock = $redis->set(
-            $redis_key => $non_exclusive ? 0 : hostname() . '!.!' . $$,
-            EX => $unlock_after,
+            $redis_key => $redis_key_value,
+            EX         => $unlock_after,
             $non_exclusive ? () : ('NX')
         );
+        
+        if ($debug) {
+            if ($got_lock) {
+                warn " lock for $redis_key => $redis_key_value worked\n";
+            }
+            else {
+                warn " lock for $redis_key => $redis_key_value failed because $redis_key is currently set to $current_value\n";
+            }
+        }
+        
         return $got_lock;
     }
     
@@ -339,12 +351,12 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Int :$unlock_after?) {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Bool :$debug = 0, Int :$unlock_after?) {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         my $sleep_time = 0.01;
         $unlock_after ||= $deployment eq 'testing' ? 30 : 900;
-        while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
+        while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix, debug => $debug)) {
             if ($sleep_time >= $check_every) {
                 $sleep_time = $check_every;
             }
@@ -352,6 +364,7 @@ class VRPipe::Persistent::InMemory {
                 $sleep_time *= 2;
             }
             
+            warn " - didn't get a lock on $redis_key, will try again in $sleep_time seconds\n" if $debug;
             sleep($sleep_time);
         }
     }
