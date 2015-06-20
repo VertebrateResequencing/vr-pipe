@@ -54,6 +54,7 @@ class VRPipe::Persistent::InMemory {
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
     use Bytes::Random::Secure;
+    use VRPipe::Interface::BackEnd;
     
     has '_maintenance_children' => (
         is      => 'ro',
@@ -73,7 +74,7 @@ class VRPipe::Persistent::InMemory {
     our $admin_email  = $vrp_config->admin_user() . '@' . $email_domain;
     our %redis_instances;
     
-    our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server);
+    our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server, $backend);
     
     sub BUILD {
         my $self = shift;
@@ -93,6 +94,8 @@ class VRPipe::Persistent::InMemory {
             $method_name = $deployment . '_redis_port';
             $redis_port  = $vrp_config->$method_name();
             $redis_port  = "$redis_port";
+            
+            $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
         }
     }
     
@@ -234,15 +237,17 @@ class VRPipe::Persistent::InMemory {
     method lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0, Bool :$debug = 0) {
         my $redis     = $self->_redis;
         my $redis_key = $key_prefix . '.' . $key;
+        
+        my $valid_lock = $self->_check_existing_lock($redis_key, $debug);
+        
         if ($non_exclusive) {
             # don't allow even a non_exclusive lock if we currently have an
             # exclusive one
-            my $val = $redis->get($redis_key);
-            return if $val;
+            return if $valid_lock;
         }
         
         my $redis_key_value = $non_exclusive ? 0 : hostname() . '!.!' . $$;
-        my $current_value = $redis->get($redis_key) if $debug;
+        
         my $got_lock = $redis->set(
             $redis_key => $redis_key_value,
             EX         => $unlock_after,
@@ -254,7 +259,7 @@ class VRPipe::Persistent::InMemory {
                 warn " lock for $redis_key => $redis_key_value worked\n";
             }
             else {
-                warn " lock for $redis_key => $redis_key_value failed because $redis_key is currently set to $current_value\n";
+                warn " lock for $redis_key => $redis_key_value failed because $redis_key is currently set to $valid_lock\n";
             }
         }
         
@@ -263,13 +268,9 @@ class VRPipe::Persistent::InMemory {
     
     method _own_lock (Str $key!, Int $my_pid = $$) {
         my $redis = $self->_redis;
-        my $val   = $redis->get($key);
-        if ($val) {
+        my $val   = $self->_check_existing_lock($key);
+        if (defined $val) {
             my ($hostname, $pid) = split('!.!', $val);
-            unless ($hostname && $pid) {
-                $self->debug("_own_lock failed for $key because it was set with an unexpected value of $val");
-                return 0;
-            }
             if ($hostname eq hostname() && $pid == $my_pid) {
                 return 1;
             }
@@ -277,8 +278,45 @@ class VRPipe::Persistent::InMemory {
                 $self->debug("_own_lock failed for $key because that is owned by $hostname|$pid, not " . hostname() . "|$my_pid");
             }
         }
-        
         return 0;
+    }
+    
+    method _check_existing_lock (Str $key!, Bool $debug = 0) {
+        my $redis = $self->_redis;
+        my $val   = $redis->get($key);
+        if ($val) {
+            my ($hostname, $pid) = split('!.!', $val);
+            unless ($hostname && $pid) {
+                warn " lock for $key had an invalid value of $val, so removing it\n" if $debug;
+                $redis->del($key);
+                return;
+            }
+            
+            # check the current lock is for a currently living pid
+            if ($hostname eq hostname()) {
+                unless (kill(0, $pid)) {
+                    warn " lock for $key was initiated on host $hostname but the pid $pid is dead, so removing it\n" if $debug;
+                    $redis->del($key);
+                    return;
+                }
+            }
+            else {
+                my $return;
+                eval {
+                    local $SIG{ALRM} = sub { die "alarm\n" };
+                    alarm 15;
+                    $return = $backend->ssh($hostname, "kill 0 $pid && echo pid_alive");
+                    alarm 0;
+                };
+                
+                if (!$return || $return !~ /pid_alive/) {
+                    warn " lock for $key was initiated on host $hostname but the pid $pid is dead, so removing it\n" if $debug;
+                    $redis->del($key);
+                    return;
+                }
+            }
+        }
+        return $val;
     }
     
     method note (Str $key!, Int :$forget_after = 900) {
@@ -412,6 +450,7 @@ class VRPipe::Persistent::InMemory {
                     $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
                     sleep $refresh_every;
                 }
+                
                 exit(0);
             }
             
