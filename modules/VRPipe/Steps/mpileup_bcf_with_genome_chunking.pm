@@ -83,6 +83,7 @@ class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpi
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $basename = 'mpileup.bcf';
             
+            $self->chrom_list = [$$bcf_meta{chrom}] if (exists $$bcf_meta{chrom});
             my $chunks = $self->chunks();
             foreach my $chunk (@$chunks) {
                 my $chrom          = $chunk->{chrom};
