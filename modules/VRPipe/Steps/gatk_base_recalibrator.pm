@@ -93,9 +93,8 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
                 );
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T BaseRecalibrator -R $ref -I ] . $bam->path . qq[ -o ] . $recal_file->path . qq[ $recal_options];
+                my $this_cmd = $self->java_prefix($req->memory, $temp_dir) . qq[ -T BaseRecalibrator -R $ref -I ] . $bam->path . qq[ -o ] . $recal_file->path . qq[ $recal_options];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_base_recalibrator', 'bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_file] }]);
             }
         };

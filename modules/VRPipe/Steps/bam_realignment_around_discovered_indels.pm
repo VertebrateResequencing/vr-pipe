@@ -120,10 +120,9 @@ class VRPipe::Steps::bam_realignment_around_discovered_indels extends VRPipe::St
                 }
                 
                 my $temp_dir = $options->{tmp_dir} || $realigned_bam_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
                 my $intervals_file_path = $intervals_file->path;
-                my $this_cmd            = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T IndelRealigner -R $ref -I ] . $bam->path . qq[ -o ] . $realigned_bam_file->path . qq[ -targetIntervals $intervals_file_path $realign_opts];
+                my $this_cmd = $self->java_prefix($req->memory, $temp_dir) . qq[ -T IndelRealigner -R $ref -I ] . $bam->path . qq[ -o ] . $realigned_bam_file->path . qq[ -targetIntervals $intervals_file_path $realign_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_realignment_around_known_indels', 'realign_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
