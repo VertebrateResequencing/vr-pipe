@@ -92,6 +92,12 @@ Possible problems you may encounter in installing your missing prerequisites:
   Proc::Killfam's dependencies. In that case, try manually installing an earlier
   version of it before retrying the Proc::Killfam install normally:  
   `cpan> install DURIST/Proc-ProcessTable-0.44.tar.gz`
+* If you find that once everything is up and running your logs are filled with
+  warnings like:
+  percent cpu truncated from 11, set LENGTH_PCTCPU to at least: 12)
+  Then you'll have to manually download the distribution tar.gz for
+  Proc::ProcessTable and edit os/Linux.h so that LENGTH_PCTCPU is set to 12
+  instead of 10. Then follow its README to compile and install.
 * Some installs of Perl 5.8.8 can have trouble with Class::Accessor::Grouped (a
   prerequisite of DBIx::Class), where some tests fail due to desired error
   messages not looking quite right. This should be harmless in reality, so just
