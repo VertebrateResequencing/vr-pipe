@@ -1,0 +1,4 @@
+path	sample	library
+t/data/remapping_bams/LIB01.bam	SAMPLE01	LIB01
+t/data/remapping_bams/LIB02.bam	SAMPLE01	LIB02
+t/data/remapping_bams/LIB03.bam	SAMPLE02	LIB03
