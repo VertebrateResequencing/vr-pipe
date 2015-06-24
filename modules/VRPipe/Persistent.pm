@@ -955,12 +955,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->_in_memory->lock($lock_key, @_);
         });
         
-        $meta->add_method('refresh_lock' => sub { 
-            my $self     = shift;
-            my $lock_key = $table_name . '.' . $self->id;
-            return $self->_in_memory->refresh_lock($lock_key, @_);
-        });
-        
         $meta->add_method('unlock' => sub { 
             my $self     = shift;
             my $lock_key = $table_name . '.' . $self->id;
@@ -986,12 +980,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             $self->_in_memory->block_until_locked($lock_key, @_);
             $self->reselect_values_from_db;
             return 1;
-        });
-        
-        $meta->add_method('maintain_lock' => sub { 
-            my $self     = shift;
-            my $lock_key = $table_name . '.' . $self->id;
-            return $self->_in_memory->maintain_lock($lock_key, @_);
         });
         
         $meta->add_method('note' => sub { 

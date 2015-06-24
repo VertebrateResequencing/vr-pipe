@@ -222,7 +222,6 @@ class VRPipe::Steps::sequenom_csv_to_vcf extends VRPipe::Steps::irods {
             $snp_manifest->reselect_values_from_db;
             $snp_manifest->update_stats_from_disc;
             unless ($snp_manifest->s) {
-                $im->maintain_lock($lock_key);
                 $self->get_file(source => $irods_path, dest => $snp_manifest->path, iget => $iget, ichksum => $ichksum);
             }
             $im->unlock($lock_key);

@@ -268,14 +268,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     warn " estate $esid is being triggered by another process, will skip it\n";
                     next;
                 }
-                #$estate->maintain_lock; maintaining lock requires a fork and
-                # sometimes we "Cannot allocate memory", so we just manually
-                # refresh in our loop below
                 
                 my $sm_error;
                 SSTATE: foreach my $member (@step_members) {
-                    $estate->refresh_lock unless $debug;
-                    
                     my $step_number = $member->step_number;
                     next unless $step_number > $estate->completed_steps;
                     

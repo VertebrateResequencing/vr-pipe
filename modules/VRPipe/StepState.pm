@@ -279,7 +279,6 @@ class VRPipe::StepState extends VRPipe::Persistent {
         $self->pipelinesetup->log_event("$log_self was called", stepstate => $self->id, dataelement => $self->dataelement->id, record_stack => 1);
         
         $self->block_until_locked;
-        $self->maintain_lock;
         
         # before doing anything, record which output files we'll need to delete,
         # but don't actually delete anything until we've done all the db

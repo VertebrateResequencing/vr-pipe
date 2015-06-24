@@ -148,7 +148,6 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         my $im       = VRPipe::Persistent::InMemory->new;
         my $lock_key = "vrtrack_populate.$meta->{study_id}";
         $im->block_until_locked($lock_key);
-        $im->maintain_lock($lock_key);
         
         my $worked = $vrtrack->transaction(
             sub {

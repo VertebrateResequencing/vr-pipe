@@ -201,7 +201,6 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                 $source->_changed_marker($current_marker);
             }
         }
-        $self->maintain_lock;
         warn "locked the datasource\n" if $debug;
         
         my @setup_ids = VRPipe::PipelineSetup->get_column_values('id', { datasource => $self->id });
