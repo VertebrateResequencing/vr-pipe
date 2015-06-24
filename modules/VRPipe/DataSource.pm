@@ -204,6 +204,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         warn "locked the datasource\n" if $debug;
         
         my @setup_ids = VRPipe::PipelineSetup->get_column_values('id', { datasource => $self->id });
+        $source->debug($debug);
         
         my $generated_elements = 0;
         if ($source->_has_changed) {
@@ -215,7 +216,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             my ($most_recent_element_id) = VRPipe::DataElement->get_column_values('id', { datasource => $self->id }, { order_by => { -desc => ['id'] }, rows => 1 });
             
             # now get the source to create new dataelements:
-            $source->_generate_elements($debug);
+            $source->_generate_elements;
             $generated_elements = 1;
             
             # now page through dataelements with a higher id than previous most
