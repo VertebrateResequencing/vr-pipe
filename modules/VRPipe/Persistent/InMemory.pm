@@ -238,9 +238,19 @@ class VRPipe::Persistent::InMemory {
         
         my $redis_key_value = $non_exclusive ? 0 : hostname() . '!.!' . $$;
         
+        if ($unlock_after == 0) {
+            # set it to a ~month, so that the redis db doesn't get full of locks
+            # (due to crashed processes that never managed to call unlock) and
+            # run out of memory.
+            #*** this will screw up any job that really runs for more than a
+            #    month, but hopefully that doesn't come up...
+            $unlock_after = 2500000;
+            $redis_key_value .= '!.!forever';
+        }
+        
         my $got_lock = $redis->set(
             $redis_key => $redis_key_value,
-            $unlock_after ? (EX => $unlock_after) : (),
+            EX         => $unlock_after,
             $non_exclusive ? () : ('NX')
         );
         
@@ -276,7 +286,7 @@ class VRPipe::Persistent::InMemory {
         my $val   = $redis->get($key);
         
         if ($val) {
-            my ($hostname, $pid) = split('!.!', $val);
+            my ($hostname, $pid, $forever) = split('!.!', $val);
             unless ($hostname && $pid) {
                 warn " lock for $key had an invalid value of $val, so removing it\n" if $debug;
                 $redis->del($key);
@@ -284,11 +294,11 @@ class VRPipe::Persistent::InMemory {
             }
             
             # check the current lock is for a currently living pid, or has a
-            # specified EX
-            my $ttl = $redis->ttl($key);
+            # specified EX when our special "forever" marker isn't set
+            my $ttl = $forever ? undef : $redis->ttl($key);
             unless ($ttl && $ttl > 0) {
                 if ($hostname eq hostname()) {
-                    unless (kill(0, $pid)) {
+                    unless ($pid == $$ || kill(0, $pid)) {
                         warn " lock for $key was initiated on host $hostname but the pid $pid is dead, so removing it\n" if $debug;
                         $redis->del($key);
                         return;
