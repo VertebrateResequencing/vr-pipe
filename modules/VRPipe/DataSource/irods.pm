@@ -90,6 +90,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     }
     
     method _irods_file_metadata_checksum {
+        my $debug = $self->debug;
+        
         # we need a quick way of looking at all the relevant metadata for all
         # our desired files, but imeta/iquest doesn't give us this; to avoid
         # abusing the irods server too much we only actually calculate the
@@ -126,12 +128,19 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $local_root_dir = $options->{local_root_dir} || '';
         
         if ($current_checksum && length($current_checksum) == 32) {
-            return $current_checksum unless $locked;
+            unless ($locked) {
+                warn "irods datasource will return without checking since it's been less than $update_interval seconds since the last one\n" if $debug;
+                return $current_checksum;
+            }
         }
         # else we always get the latest checksum if we have no valid checksum
+        warn "irods datasource will do a full check since it's been more than $update_interval seconds since the last one\n" if $debug;
         
         # get the current files and their metadata and stringify it all
+        my $t     = time();
         my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
+        my $e     = time() - $t;
+        warn "irods _get_irods_files_and_metadata call took $e seconds\n" if $debug;
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $path (sort keys %$files) {
@@ -159,6 +168,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Str $local_root_dir!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
+        
+        my $debug = $self->debug;
+        
         my @required_keys;
         if ($required_metadata) {
             @required_keys = split(',', $required_metadata);
@@ -230,7 +242,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $fh = $file->openr;
             while (<$fh>) {
                 chomp;
-                push(@queries, $_);
+                push(@queries, $_) if $_;
             }
             $file->close;
         }
@@ -238,12 +250,18 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             # it's a single directly-specified query
             @queries = ($raw_query);
         }
+        warn "have ", scalar(@queries), " queries to deal with\n" if $debug;
         
         my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache);
         my $order = 1;
         foreach my $query (@queries) {
+            my $t          = time();
             my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
+            my $e          = time() - $t;
+            warn " query [imeta -z $zone qu -d $query] took $e seconds to run, returning ", scalar(@cmd_output), " lines\n" if $debug;
             my $collection;
+            $t = time();
+            my $f_count = 0;
             QU: foreach (@cmd_output) {
                 #*** do we have to worry about spaces in file paths?...
                 if (/^collection:\s+(\S+)/) {
@@ -256,6 +274,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     my $basename = $1;
                     my $path     = "$collection/$basename";
                     # get all the metadata for this file
+                    $f_count++;
+                    print STDERR '. ' if $debug;
                     my $meta = VRPipe::Steps::irods->get_file_metadata($path);
                     $meta->{vrpipe_irods_order} = $order++;
                     
@@ -613,6 +633,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     $files{$path} = [$meta, $graph_file];
                 }
             }
+            $e = time() - $t;
+            warn "\n getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds\n" if $debug;
         }
         
         return \%files;
@@ -650,6 +672,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $irods_path = $result->{irods_path};
             push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $protocol ? (protocol => $protocol) : (), $irods_path ? (irods_path => $irods_path) : () } });
         }
+        warn "all_with_warehouse_metadata called _all_files and will now _create_elements for ", scalar(@element_args), " elements\n" if $self->debug;
         $self->_create_elements(\@element_args);
     }
     

@@ -369,8 +369,6 @@ if (@setups) {
                         my $current_ds          = $setup->datasource;
                         my $got_current_ds_lock = $current_ds->lock;
                         if ($got_current_ds_lock) {
-                            $current_ds->maintain_lock;
-                            
                             my $other_setups    = VRPipe::PipelineSetup->search({ datasource => $current_ds->id });
                             my $set_new_ds      = 0;
                             my $have_stepstates = VRPipe::StepState->search({ pipelinesetup => $setup->id });

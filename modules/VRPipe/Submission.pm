@@ -144,7 +144,6 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # maintain our lock so their timeouts are auto-refreshed until the
         # instances are destroyed (we'll return the job instance so the lock
         # generated when we run isn't lost)
-        $self->maintain_lock;
         my $job = $self->job;
         
         my $transaction = sub {
@@ -157,10 +156,12 @@ class VRPipe::Submission extends VRPipe::Persistent {
                     # the job ran under a different submission; we just need to
                     # update this submission
                     if ($job->ok) {
+                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job is done fine");
                         $self->_done(1);
                         $self->_failed(0);
                     }
                     else {
+                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job failed");
                         $self->_done(0);
                         $self->_failed(1);
                     }

@@ -71,7 +71,7 @@ class VRPipe::FileType::hts with VRPipe::FileTypeRole {
         my $reads         = $in_file->metadata->{reads};
         my $expected_recs = $reads || $in_file->num_records;
         my $actual_recs   = $out_file->num_records;
-        $out_file->add_metadata({ reads => $expected_recs }) if $out_file->meta_value('reads');
+        $out_file->add_metadata({ reads => $actual_recs }) if $out_file->meta_value('reads');
         
         if ($actual_recs == $expected_recs) {
             return 1;

@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2014 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -50,6 +50,7 @@ class VRPipe::Interface::BackEnd {
     use Cwd qw(chdir getcwd);
     use Module::Find;
     use VRPipe::Persistent::InMemory;
+    use File::HomeDir;
     
     my %extension_to_content_type = (
         gif  => 'image/gif',
@@ -255,6 +256,10 @@ class VRPipe::Interface::BackEnd {
         $self->_set_scheduler("$scheduler");
         
         my $login_shell_script = $vrp_config->login_shell_script();
+        if ($login_shell_script =~ /^~/) {
+            my $home = File::HomeDir->my_home;
+            $login_shell_script =~ s/^~/$home/;
+        }
         $self->_set_login_shell_script("$login_shell_script");
         
         VRPipe::Persistent::SchemaBase->database_deployment($deployment);

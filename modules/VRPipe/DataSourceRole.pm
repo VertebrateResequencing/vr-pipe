@@ -81,7 +81,7 @@ role VRPipe::DataSourceRole {
     requires 'source_description';
     requires 'method_description';
     
-    method _generate_elements (Bool $debug = 0) {
+    method _generate_elements {
         # get a fresh handle every time
         my $handle = $self->_open_source || return;
         $self->_handle($handle);
@@ -89,8 +89,7 @@ role VRPipe::DataSourceRole {
         # call the datasource method
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for " . ref($self));
-        $self->debug($debug);
-        warn "_generate_elements will call ", ref($self), "->$method()\n" if $debug;
+        warn "_generate_elements will call ", ref($self), "->$method()\n" if $self->debug;
         $self->$method(%{ $self->options }, handle => $handle);
     }
     

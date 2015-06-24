@@ -388,6 +388,7 @@ sub start_server {
                         foreach my $setup (@setups) {
                             my $ds    = $setup->datasource;
                             my $ds_id = $ds->id;
+                            next if exists $ds_wanted{$ds_id};
                             $ds_wanted{$ds_id} = 1;
                             if ($ds->noted('grabbed')) {
                                 $grabbed{$ds_id} = $ds;
