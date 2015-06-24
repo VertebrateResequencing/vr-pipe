@@ -92,7 +92,7 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
             my $vcf_index = $self->output_file(output_key => 'vcf_index', basename => $basename . ".tbi", type => 'bin', metadata => $vcf_meta);
             
             my $req      = $self->new_requirements(memory => 6000, time => 1);
-            my $cmd      = $self->java_prefix($req->memory) . qq[ -T GenotypeGVCFs -R $reference_fasta $genotype_gvcfs_opts -o $vcf_path];
+            my $cmd      = $self->gatk_prefix($req->memory) . qq[ -T GenotypeGVCFs -R $reference_fasta $genotype_gvcfs_opts -o $vcf_path];
             my $this_cmd = "use VRPipe::Steps::gatk_genotype_gvcfs; VRPipe::Steps::gatk_genotype_gvcfs->genotype_and_check(q[$cmd]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
         };

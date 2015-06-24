@@ -105,7 +105,7 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
                 
                 my $temp_dir = $options->{tmp_dir} || $printed_bam_file->dir;
                 
-                my $this_cmd = $self->java_prefix($req->memory, $temp_dir) . qq[ -T PrintReads -R $ref -I ] . $bam->path . qq[ -o ] . $printed_bam_file->path . qq[ $print_opts];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T PrintReads -R $ref -I ] . $bam->path . qq[ -o ] . $printed_bam_file->path . qq[ $print_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads', 'print_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };

@@ -96,7 +96,7 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
             my $rscript_file       = $self->output_file(output_key => 'rscript_file',            basename => "$mode.recal.r",            type => 'txt');
             my $recal_plot_file    = $self->output_file(output_key => 'recalibration_plot_file', basename => "$mode.recal.r.pdf",        type => 'any');
             
-            my $this_cmd = $self->java_prefix($req->memory) . qq[ -T VariantRecalibrator -R $ref ] . $vcf_list . qq[ -recalFile ] . $recal_file->path . qq[ -tranchesFile ] . $tranches_file->path . qq[ -rscriptFile ] . $rscript_file->path . qq[ -mode $mode $recal_opts];
+            my $this_cmd = $self->gatk_prefix($req->memory) . qq[ -T VariantRecalibrator -R $ref ] . $vcf_list . qq[ -recalFile ] . $recal_file->path . qq[ -tranchesFile ] . $tranches_file->path . qq[ -rscriptFile ] . $rscript_file->path . qq[ -mode $mode $recal_opts];
             $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_variant_recalibration', 'variant_recal_and_check', [$this_cmd, $req, { output_files => [$recal_file, $tranches_file, $tranches_plot_file, $rscript_file, $recal_plot_file] }]);
         };
     }

@@ -91,7 +91,7 @@ class VRPipe::Steps::gatk_variant_filter extends VRPipe::Steps::gatk {
                 my $vcf_filt_file = $self->output_file(output_key => 'filtered_vcf_files', basename => $basename, type => 'vcf', metadata => { %{ $vcf->metadata }, source_vcf => $vcf_path });
                 my $vcf_filt_path = $vcf_filt_file->path;
                 
-                my $cmd = $self->java_prefix($req->memory) . qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
+                my $cmd = $self->gatk_prefix($req->memory) . qq[ -T VariantFiltration -R $reference_fasta --variant $vcf_path -o $vcf_filt_path $var_filter_opts ];
                 $self->dispatch([$cmd, $req, { output_files => [$vcf_filt_file] }]);
             }
         };

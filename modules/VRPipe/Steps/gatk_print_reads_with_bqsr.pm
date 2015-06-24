@@ -103,7 +103,7 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
                 
-                my $this_cmd = $self->java_prefix($req->memory, $temp_dir) . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads_with_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };

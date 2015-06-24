@@ -71,7 +71,7 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         return $GATK_VERSIONS{$gatk_jar};
     }
     
-    method java_prefix (ClassName|Object $self: Int $memory, Str|Dir $dir?) {
+    method gatk_prefix (ClassName|Object $self: Int $memory, Str|Dir $dir?) {
         my $jvm_args = $self->jvm_args($memory, $dir ? $dir : ());
         my $gatk_key = $self->gatk_key;
         my $prefix   = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar;

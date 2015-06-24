@@ -87,7 +87,7 @@ class VRPipe::Steps::gatk_variant_annotator extends VRPipe::Steps::gatk {
                 my $anno_vcf_file = $self->output_file(output_key => 'annotated_vcf_files', basename => $basename, type => 'vcf', metadata => $vcf->metadata);
                 my $anno_vcf_path = $anno_vcf_file->path;
                 
-                my $cmd = $self->java_prefix($req->memory) . qq[ -T VariantAnnotator -R $reference_fasta $inputs -o $anno_vcf_path $annotation_opts];
+                my $cmd = $self->gatk_prefix($req->memory) . qq[ -T VariantAnnotator -R $reference_fasta $inputs -o $anno_vcf_path $annotation_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_variant_annotator', 'annotate_variants', [$cmd, $req, { output_files => [$anno_vcf_file] }]);
             }
         };

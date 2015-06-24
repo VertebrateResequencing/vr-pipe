@@ -72,7 +72,7 @@ class VRPipe::Steps::gatk_left_align_variants extends VRPipe::Steps::gatk {
                 my $vcf_out     = $self->output_file(output_key => 'left_aligned_vcf_files', basename => $basename, type => 'vcf');
                 my $input_path  = $vcf->path;
                 my $output_path = $vcf_out->path;
-                my $cmd         = $self->java_prefix($req->memory) . qq[ -T LeftAlignVariants -R $reference_fasta --variant $input_path -o $output_path $leftalign_options];
+                my $cmd         = $self->gatk_prefix($req->memory) . qq[ -T LeftAlignVariants -R $reference_fasta --variant $input_path -o $output_path $leftalign_options];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_left_align_variants', 'left_align_variants', [$cmd, $req, { output_files => [$vcf_out] }]);
                 ++$idx;
             }

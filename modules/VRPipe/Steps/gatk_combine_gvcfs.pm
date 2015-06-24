@@ -100,7 +100,7 @@ class VRPipe::Steps::gatk_combine_gvcfs extends VRPipe::Steps::gatk_v2 {
                 my $vcf_path  = $vcf_file->path;
                 my $vcf_index = $self->output_file(output_key => 'vcf_index', basename => "batch_$count." . $basename . ".tbi", type => 'bin', metadata => $vcf_meta);
                 
-                my $cmd      = $self->java_prefix($req->memory) . qq[ -T CombineGVCFs -R $reference_fasta @file_inputs -o $vcf_path $combine_gvcfs_opts];
+                my $cmd      = $self->gatk_prefix($req->memory) . qq[ -T CombineGVCFs -R $reference_fasta @file_inputs -o $vcf_path $combine_gvcfs_opts];
                 my $this_cmd = "use VRPipe::Steps::gatk_combine_gvcfs; VRPipe::Steps::gatk_combine_gvcfs->genotype_and_check(q[$cmd]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
                 $count++;
