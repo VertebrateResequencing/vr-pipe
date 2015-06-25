@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 147;
+    use Test::Most tests => 152;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -379,5 +379,34 @@ $bps->add_properties({ public_name => 'pn' });
 @history = $bps->property_history('public_name');
 @history_properties = map { $_->{properties} } @history;
 is_deeply [@history_properties], [{ public_name => 'pn' }, {}, { public_name => ['b', 'p', 's'] }], 'property_history() works correctly on a property that had at one point been removed';
+
+# test get_sequencing_hierarchy; first create more hierarchies, some of which
+# have samples belonging to more than 1 study
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane2', library => 'esh_library2', sample => 'esh_sample2', study => 'esh_study1', group => 'esh_group1', taxon => 'esh_taxon1');
+$hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane3', library => 'esh_library3', sample => 'esh_sample2', study => 'esh_study2', group => 'esh_group1', taxon => 'esh_taxon1');
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane4', library => 'esh_library4', sample => 'esh_sample2', study => 'esh_study3', group => 'esh_group1', taxon => 'esh_taxon1');
+($rel) = @{ $graph->related($hierarchy->{study}, undef, undef, {})->{relationships} };
+$graph->relationship_set_properties($rel, { preferred => 1 });
+my $lane3_file = $vrpipe->add('File', { path => '/seq/3/3.bam' });
+$hierarchy->{lane}->relate_to($lane3_file, 'aligned');
+ok $hierarchy = $schema->get_sequencing_hierarchy($lane3_file), 'get_sequencing_hierarchy() seemed to work';
+%hierarchy_props = map { $_ => $hierarchy->{$_}->properties } keys %{$hierarchy};
+is_deeply \%hierarchy_props, { lane => { unique => 'esh_lane3', lane => 'esh_lane3' }, library => { id => 'esh_library3' }, sample => { name => 'esh_sample2' }, study => { id => 'esh_study2' }, taxon => { id => 'esh_taxon1' } }, 'get_sequencing_hierarchy() returned the correct nodes for a bam file, including the preferred study';
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane5', library => 'esh_library5', sample => 'esh_sample5', study => 'esh_study5', group => 'esh_group2', taxon => 'esh_taxon1');
+$hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane6', library => 'esh_library6', sample => 'esh_sample5', study => 'esh_study6', group => 'esh_group2', taxon => 'esh_taxon1');
+$schema->ensure_sequencing_hierarchy(lane => 'esh_lane7', library => 'esh_library7', sample => 'esh_sample5', study => 'esh_study7', group => 'esh_group2', taxon => 'esh_taxon1');
+my $lane6_file = $vrpipe->add('File', { path => '/seq/6/6.bam' });
+$hierarchy->{lane}->relate_to($lane6_file, 'aligned');
+$hierarchy = $schema->get_sequencing_hierarchy($lane6_file);
+my $hstudy = delete $hierarchy->{study};
+%hierarchy_props = map { $_ => $hierarchy->{$_}->properties } keys %{$hierarchy};
+is_deeply \%hierarchy_props, { lane => { unique => 'esh_lane6', lane => 'esh_lane6' }, library => { id => 'esh_library6' }, sample => { name => 'esh_sample5' }, taxon => { id => 'esh_taxon1' } }, 'get_sequencing_hierarchy() returned the correct nodes for another bam file';
+like $hstudy->id, qr/esh_study[567]/, 'since no preferred study was specified, a random one was returned';
+$hierarchy = $schema->ensure_sequencing_hierarchy(lane => 'esh_lane8', library => 'esh_library8', sample => 'esh_sample8', study => 'esh_study8', group => 'esh_group3', taxon => 'esh_taxon1');
+my $lane8_file = $vrpipe->add('File', { path => '/seq/8/8.bam' });
+$hierarchy->{lane}->relate_to($lane8_file, 'aligned');
+$hierarchy = $schema->get_sequencing_hierarchy($lane8_file);
+%hierarchy_props = map { $_ => $hierarchy->{$_}->properties } keys %{$hierarchy};
+is_deeply \%hierarchy_props, { lane => { unique => 'esh_lane8', lane => 'esh_lane8' }, library => { id => 'esh_library8' }, sample => { name => 'esh_sample8' }, study => { id => 'esh_study8' }, taxon => { id => 'esh_taxon1' } }, 'get_sequencing_hierarchy() returned the correct nodes for another bam file, in the simple case of there being only 1 study for the sample';
 
 exit;

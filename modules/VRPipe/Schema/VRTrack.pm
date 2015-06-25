@@ -286,6 +286,46 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return \%return;
     }
     
+    # given a node, we find the closest lane node pointing to it, and return the
+    # lane node and the standard hierarchy of nodes above that (library, sample,
+    # study, taxon, gender, donor), as a hashref keyed on lowercased node label
+    method get_sequencing_hierarchy ($node) {
+        my ($lane) = $node->related(incoming => { max_depth => 20, namespace => 'VRTrack', label => 'Lane' });
+        return unless $lane;
+        
+        my $graph        = $self->graph;
+        my $taxon_labels = $self->cypher_labels('Taxon');
+        my $study_labels = $self->cypher_labels('Study');
+        
+        # we only want to return 1 study, and will first try the query with a
+        # 'preferred' study
+        my $cypher = "MATCH (lane)<-[:sequenced]-(library)<-[:prepared]-(sample) WHERE id(lane) = {param}.lane_id OPTIONAL MATCH (sample)-[:gender]->(gender) OPTIONAL MATCH (sample)<-[:member]-(taxon:$taxon_labels) OPTIONAL MATCH (sample)<-[:sample]-(donor) OPTIONAL MATCH (sample)<-[:member { preferred: 1 }]-(study:$study_labels) RETURN lane, library, sample, gender, taxon, study, donor";
+        my $graph_data = $graph->_run_cypher([[$cypher, { param => { lane_id => $lane->node_id } }]]);
+        
+        my %nodes;
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            # if there are multiple preferred study nodes, we essentially pick
+            # a random one
+            my $label = $node->{label};
+            bless $node, "VRPipe::Schema::VRTrack::$label";
+            $nodes{ lc($label) } = $node;
+        }
+        return unless defined $nodes{sample};
+        
+        unless (defined $nodes{study}) {
+            # no preferred study, we'll get and pick a random one
+            $cypher = "MATCH (sample)<-[:member]-(study:$study_labels) WHERE id(sample) = {param}.sample_id RETURN study LIMIT 1";
+            $graph_data = $graph->_run_cypher([[$cypher, { param => { sample_id => $nodes{sample}->node_id } }]]);
+            foreach my $node (@{ $graph_data->{nodes} }) {
+                my $label = $node->{label};
+                bless $node, "VRPipe::Schema::VRTrack::$label";
+                $nodes{ lc($label) } = $node;
+            }
+        }
+        
+        return \%nodes;
+    }
+    
     method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
