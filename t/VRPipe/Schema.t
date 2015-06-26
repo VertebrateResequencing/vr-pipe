@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 152;
+    use Test::Most tests => 154;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -247,6 +247,7 @@ is_deeply [$vrpipe->parent_filesystemelement($sym_path)->node_id, $vrpipe->paren
 my $lrpath     = '/a/path/that/could/be/local/or/remote.txt';
 my $local_file = $vrpipe->add('File', { path => $lrpath });
 my $irods_file = $vrpipe->add('File', { path => $lrpath, protocol => 'irods:' });
+ok $gotten_file = $vrpipe->get('File', { path => $irods_file->protocolless_path, protocol => $irods_file->protocol }), 'you can get() an irods file using its protocol and protocolless_path';
 isnt $local_file->uuid, $irods_file->uuid, 'local and remote files with the same absolute paths have different uuids';
 my $lf = $vrpipe->get('File', { path => $lrpath });
 is $lf->uuid, $local_file->uuid, 'you can get a local file that shares the same path with a remote file';
@@ -270,6 +271,7 @@ is $ff->uuid, $ftp_file_uuid, 'if your ftp password changed, you could just move
 is $ff->protocol, 'ftp://user:changedpass@host:port', 'protocol() works for an ftp file';
 is $ff->protocol(1), 'ftp', 'protocol(1) works for an ftp file';
 is $local_file->protocol, 'file:/', 'protocol() works for a local file';
+ok $gotten_file = $vrpipe->get('File', { path => $local_file->protocolless_path, protocol => $local_file->protocol }), 'you can get() a local file using its protocol and protocolless_path';
 is $local_file->protocol(1), 'file', 'protocol(1) works for a local file';
 my $real_local_path = file(qw(t data file.txt))->absolute->stringify;
 my $real_local_file = $vrpipe->add('File', { path => $real_local_path });

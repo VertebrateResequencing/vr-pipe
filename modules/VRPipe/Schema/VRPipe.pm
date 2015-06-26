@@ -247,7 +247,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # ftp://user:password@ftpserver:port/ for other protocols
             my $uuid          = $self->create_uuid();
             my $root_basename = '/';
-            if ($protocol) {
+            if ($protocol && $protocol ne 'file:/') {
                 # encrypt everything past the first colon in case it contains a
                 # password
                 my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
