@@ -230,6 +230,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             if (/^attribute:\s+(\S+)/) {
                 $attribute = $1;
                 undef $attribute if $attribute =~ /^dcterms:/;
+                undef $attribute if $attribute =~ /_history$/;
             }
             elsif ($attribute && /^value:\s+(.+)$/) {
                 if (exists $meta->{$attribute}) {
