@@ -823,6 +823,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 while (my ($key, $val) = each %$current_metadata) {
                     if ($add_metadata_from_warehouse) {
                         next if exists $ignore_keys{$key};
+                        next if $key =~ /_history$/;
                     }
                     
                     next unless defined $val;
