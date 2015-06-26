@@ -179,8 +179,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $desired_qc_file_suffixes = join('|', @desired_qc_file_suffixes) if @desired_qc_file_suffixes;
         my $desired_qc_file_regex = qr/\s+(\S+(?:$desired_qc_file_suffixes))/ if $desired_qc_file_suffixes;
         
-        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender);
-        my ($study_sth, $study_title);
+        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender, $internal_id);
+        my ($study_sth, $study_title, $study_ac, $study_id_sth, $warehouse_study_id);
         my $vrtrack;
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
             my $dbh = DBI->connect(
@@ -220,15 +220,21 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             # individual name = sample_supplier_name or sample
             # individual acc = sample_accession_number
             
-            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created, gender from current_samples where name = ?];
+            my $sql = q[select public_name, donor_id, supplier_name, control, taxon_id, created, gender, internal_id from current_samples where name = ?];
             $sample_sth = $dbh->prepare($sql);
             $sample_sth->execute;
-            $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender));
+            $sample_sth->bind_columns(\($public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender, $internal_id));
             
-            $sql       = q[select name from current_studies where internal_id = ?];
+            $sql       = q[select name, accession_number from current_studies where internal_id = ?];
             $study_sth = $dbh->prepare($sql);
             $study_sth->execute;
-            $study_sth->bind_col(1, \$study_title);
+            $study_sth->bind_columns(\($study_title, $study_ac));
+            
+            # we don't trust irods metadata for the study id, so will query it
+            $sql          = q[select study_internal_id from current_study_samples where sample_internal_id = ?];
+            $study_id_sth = $dbh->prepare($sql);
+            $study_id_sth->execute;
+            $study_id_sth->bind_col(1, \$warehouse_study_id);
             
             $vrtrack = VRPipe::Schema->create('VRTrack');
             $vrtrack_group ||= 'all_studies';
@@ -353,6 +359,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         undef $taxon_id;
                         undef $created;
                         undef $gender;
+                        undef $internal_id;
                         my $sanger_sample_id = $meta->{sample};
                         
                         if ($sanger_sample_id) {
@@ -381,41 +388,70 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             }
                         }
                         
-                        my $study_id = $meta->{study_id};
-                        if ($study_id) {
-                            my @study_ids = ref($study_id) ? @$study_id : ($study_id);
-                            
-                            if (@study_ids > 1 && $query =~ /study_id = (\d+)/) {
-                                # because we most likely want to populate VRTrack
-                                # based on this metadata, and VRTrack can't cope
-                                # with multiple study_ids per sample, check the
-                                # source to see if we wanted just a single study and
-                                # limit to that one
-                                my $desired = $1;
-                                foreach my $study_id (@study_ids) {
-                                    if ($study_id == $desired) {
-                                        @study_ids = ($desired);
-                                        $meta->{study_id} = $desired;
-                                        last;
-                                    }
-                                }
-                            }
-                            
-                            my @study_titles;
-                            foreach my $study_id (@study_ids) {
+                        # override irods study_id with warehouse study_id, and
+                        # set study_title
+                        if (defined $internal_id) {
+                            undef $warehouse_study_id;
+                            $study_id_sth->execute($internal_id);
+                            my (@study_ids, @study_titles, @study_acs);
+                            while ($study_id_sth->fetch) {
+                                push(@study_ids, "$warehouse_study_id");
+                                
                                 undef $study_title;
-                                $study_sth->execute($study_id);
+                                undef $study_ac;
+                                $study_sth->execute($warehouse_study_id);
                                 $study_sth->fetch;
                                 if ($study_title) {
                                     push(@study_titles, "$study_title");
                                 }
+                                if ($study_ac) {
+                                    push(@study_acs, "$study_ac");
+                                }
+                            }
+                            
+                            # because we most likely want to populate VRTrack
+                            # based on this metadata, and VRTrack can't cope
+                            # with multiple study_ids per sample, we'll check
+                            # the source to see if we wanted just a single study
+                            # and make note of that one
+                            my $preferred_i;
+                            if (@study_ids > 1) {
+                                $meta->{study_id} = \@study_ids;
+                                
+                                if ($query =~ /study_id\s+=\s+(\d+)/) {
+                                    my $desired = $1;
+                                    foreach my $i (0 .. $#study_ids) {
+                                        my $id = $study_ids[$i];
+                                        if ($id == $desired) {
+                                            $meta->{study_id_preferred} = $desired;
+                                            $preferred_i = $i;
+                                            last;
+                                        }
+                                    }
+                                }
+                            }
+                            else {
+                                $meta->{study_id} = $study_ids[0];
                             }
                             
                             if (@study_titles > 1) {
-                                $meta->{study_title} = \@study_titles;
+                                $meta->{study_title}            = \@study_titles;
+                                $meta->{study_accession_number} = \@study_acs;
+                                
+                                if ($query =~ /study\s+=\s+["']([^"']+)["']/) {
+                                    my $desired = $1;
+                                    foreach my $i (0 .. $#study_titles) {
+                                        my $title = $study_titles[$i];
+                                        if ($title == $desired) {
+                                            $meta->{study_id_preferred} = $study_ids[$i];
+                                            last;
+                                        }
+                                    }
+                                }
                             }
                             else {
-                                $meta->{study_title} = $study_titles[0];
+                                $meta->{study_title}            = $study_titles[0];
+                                $meta->{study_accession_number} = $study_acs[0];
                             }
                         }
                         
@@ -513,11 +549,25 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     if ($vrtrack) {
                         # general
                         my $group = $vrtrack->add('Group', { name => $vrtrack_group });
-                        my $study = $vrtrack->add('Study', { id => $meta->{study_id}, name => $meta->{study_title} || $meta->{study}, accession => $meta->{study_accession_number} }, incoming => { type => 'has', node => $group });
+                        my (@studies, $preferred_study, %study_relate_to_props);
+                        my @study_ids = ref $meta->{study_id} ? @{ $meta->{study_id} } : ($meta->{study_id});
+                        my @study_titles = ($meta->{study_title} && ref $meta->{study_title}) ? @{ $meta->{study_title} } : ($meta->{study_title} || $meta->{study});
+                        my @study_acs = ($meta->{study_accession_number} && ref $meta->{study_accession_number}) ? @{ $meta->{study_accession_number} } : ($meta->{study_accession_number});
+                        my $preferred_study_id = delete $meta->{study_id_preferred};
+                        foreach my $i (0 .. $#study_ids) {
+                            push(@studies, $vrtrack->add('Study', { id => $study_ids[$i], name => $study_titles[$i], accession => $study_acs[$i] }, incoming => { type => 'has', node => $group }));
+                            if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
+                                $preferred_study = $studies[-1];
+                                %study_relate_to_props = (properties => { preferred => 1 });
+                            }
+                        }
                         
                         my $donor;
                         if (defined $meta->{sample_cohort}) {
-                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} }, incoming => { type => 'member', node => $study });
+                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                            foreach my $study (@studies) {
+                                $study->relate_to($donor, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                            }
                         }
                         
                         my $sample_created_date;
@@ -525,7 +575,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             # convert '2013-05-10 06:45:32' to epoch seconds
                             $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
                         }
-                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} }, incoming => { type => 'member', node => $study });
+                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} });
+                        foreach my $study (@studies) {
+                            $study->relate_to($sample, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                        }
                         
                         my $sex = 'U'; # unknown
                         if (defined $meta->{sample_gender}) {
@@ -600,7 +653,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         
                         # infinium idats and gtc
                         if (defined $meta->{beadchip}) {
-                            my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} }, incoming => { type => 'has', node => $study });
+                            my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} });
+                            foreach my $study (@studies) {
+                                $study->relate_to($beadchip, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                            }
                             
                             if (defined $meta->{beadchip_section}) {
                                 my $section = $vrtrack->add('Section', { unique => $unique, section => $meta->{beadchip_section} }, incoming => { type => 'placed', node => $sample });
@@ -617,7 +673,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         }
                         
                         if (defined $meta->{infinium_plate}) {
-                            my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} }, incoming => { type => 'has', node => $study });
+                            my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} });
+                            foreach my $study (@studies) {
+                                $study->relate_to($plate, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                            }
                             
                             if (defined $meta->{infinium_well}) {
                                 my $well = $vrtrack->add('Well', { unique => $meta->{infinium_plate} . '.' . $meta->{infinium_well}, well => $meta->{infinium_well} }, incoming => { type => 'placed', node => $isample || $sample });
