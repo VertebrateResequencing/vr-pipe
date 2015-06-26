@@ -68,15 +68,21 @@ class VRPipe::Steps::vrtrack_populate_from_graph_db extends VRPipe::Steps::vrtra
         $self->throw($file->path . " was not in the graph db") unless $graph_file;
         
         # create/update lane hierarchy
-        my $props = $graph_file->properties(flatten_parents => 1);
+        $schema = VRPipe::Schema->create("VRTrack");
+        my $hierarchy = $schema->get_sequencing_hierarchy($graph_file) || $self->throw($graph_file->path . " had no associated lane");
+        my $props;
+        while (my ($label, $node) = each %{$hierarchy}) {
+            my $node_props = $node->properties;
+            while (my ($key, $val) = each %$node_props) {
+                $props->{"vrtrack_${label}_$key"} = $val;
+            }
+        }
         my $lane = $props->{vrtrack_lane_unique} || $self->throw($graph_file->path . " had no associated lane");
         
         my %conversion = (
             total_reads             => 'lane_total_reads',
             study_id                => 'study_id',
             is_paired_read          => 'lane_is_paired_read',
-            manual_qc               => 'manual_qc',
-            md5                     => 'md5',
             library                 => 'library_name',
             library_id              => 'library_id',
             infinium_sample         => 'infinium_sample_id',
@@ -95,7 +101,8 @@ class VRPipe::Steps::vrtrack_populate_from_graph_db extends VRPipe::Steps::vrtra
             public_name             => 'sample_public_name'
         );
         
-        my $meta = {};
+        my $md5 = $graph_file->property('md5');
+        my $meta = { $md5 ? (md5 => $md5) : () };
         while (my ($key, $graph_key) = each %conversion) {
             my $val = $props->{ 'vrtrack_' . $graph_key };
             next unless defined $val;
