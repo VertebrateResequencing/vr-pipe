@@ -123,8 +123,10 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 $schema = VRPipe::Schema->create("VRTrack");
                 my $hierarchy = $schema->get_sequencing_hierarchy($graph_file, just_preferred_study => 1);
                 if ($hierarchy && defined $hierarchy->{study}) {
-                    $meta->{study_id} = $hierarchy->{study}->id;
-                    $ok = 1;
+                    my $study = $hierarchy->{study};
+                    $meta->{study_id}    = $study->id;
+                    $meta->{study_title} = $study->name;
+                    $ok                  = 1;
                 }
             }
             
