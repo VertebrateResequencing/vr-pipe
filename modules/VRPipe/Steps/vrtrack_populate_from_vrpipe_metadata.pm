@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -36,6 +36,7 @@ use VRPipe::Base;
 class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps::vrtrack_update {
     use VRPipe::Persistent::InMemory;
     use Path::Class;
+    use VRPipe::Schema;
     
     around options_definition {
         return {
@@ -114,7 +115,20 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         # we can't represent the same sample being for 2 different projects in
         # VRTrack
         if (ref($meta->{study_id}) && @{ $meta->{study_id} } > 1) {
-            die "file $path belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n";
+            # see if there's a preferred study in the graph db
+            my $schema     = VRPipe::Schema->create("VRPipe");
+            my $graph_file = $schema->get('File', { path => $file->protocolless_path, protocol => $file->protocol });
+            my $ok         = 0;
+            if ($graph_file) {
+                $schema = VRPipe::Schema->create("VRTrack");
+                my $hierarchy = $schema->get_sequencing_hierarchy($graph_file, just_preferred_study => 1);
+                if ($hierarchy && defined $hierarchy->{study}) {
+                    $meta->{study_id} = $hierarchy->{study}->id;
+                    $ok = 1;
+                }
+            }
+            
+            die "file $path belongs to more than one study (@{$meta->{study_id}}), which VRTrack can't cope with\n" unless $ok;
         }
         
         my %type_to_vrtrack_type = (bam => 4, cram => 6, gtc => 7, idat => 8);
