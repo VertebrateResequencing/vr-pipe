@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gvcf_with_gatk_haplotype_caller - a pipeline
+VRPipe::Pipelines::bam_calling_with_gatk_haplotype_caller - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,13 +33,13 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gvcf_with_gatk_haplotype_caller with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_calling_with_gatk_haplotype_caller with VRPipe::PipelineRole {
     method name {
-        return 'gvcf_with_gatk_haplotype_caller';
+        return 'bam_calling_with_gatk_haplotype_caller';
     }
     
     method description {
-        return 'Run GATK Haplotype Caller for per-sample calling split over the genome; BAM and BAI files required as input';
+        return 'Run GATK Haplotype Caller split over the genome and concatenate results; BAM and BAI files required as input';
     }
     
     method step_names {

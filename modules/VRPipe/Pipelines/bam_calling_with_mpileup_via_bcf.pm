@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gvcf_via_bcf_with_mpileup - a pipeline
+VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,13 +33,13 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gvcf_via_bcf_with_mpileup with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf with VRPipe::PipelineRole {
     method name {
-        return 'gvcf_via_bcf_with_mpileup';
+        return 'bam_calling_with_mpileup_via_bcf';
     }
     
     method description {
-        return 'Run samtools mpileup for per-sample calling split over the genome; BAM/CRAM and BAI/CRAI files required as input';
+        return 'Run mpileup and bcftools call in two steps split over the genome and concatenates the results; BAM/CRAM and BAI/CRAI files required as input';
     }
     
     method step_names {
