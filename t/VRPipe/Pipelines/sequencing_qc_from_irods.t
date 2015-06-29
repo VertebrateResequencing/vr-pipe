@@ -130,7 +130,7 @@ foreach my $result (map { result_with_inflated_files($_) } @{ get_elements($ds) 
         'basename'                     => '16131_1.cram',
         'pipelinesetup_output_root'    => $output_root,
         'datasource_type'              => 'irods',
-        'pipelinesetup_user'           => 'vr-pipe'
+        'pipelinesetup_user'           => scalar(getpwuid($<))
       },
       'the graph database had the correct properties on nodes related to the first cram file';
 }

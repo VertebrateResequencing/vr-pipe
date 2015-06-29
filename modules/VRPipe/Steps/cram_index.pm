@@ -106,7 +106,7 @@ class VRPipe::Steps::cram_index with VRPipe::StepRole {
                 $crai_already_there = 1;
             }
             else {
-                $crai_file->remove;
+                $crai_file->remove || $self->throw("Could not delete the out-of-date cram index file");
             }
         }
         

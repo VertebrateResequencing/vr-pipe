@@ -61,10 +61,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
-    my $vrp_config = VRPipe::Config->new();
-    my $admin_user = $vrp_config->admin_user();
-    $admin_user = "$admin_user";
-    
     has 'name' => (
         is     => 'rw',
         isa    => Varchar [128],
@@ -125,7 +121,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
-        default => $admin_user
+        default => scalar(getpwuid($<))
     );
     
     has 'unix_group' => (

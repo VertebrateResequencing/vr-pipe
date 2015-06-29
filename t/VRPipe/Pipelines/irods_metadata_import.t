@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 23;
+    use Test::Most tests => 24;
     use VRPipeTest;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_AUTHOR_TESTS WAREHOUSE_DATABASE WAREHOUSE_HOST WAREHOUSE_PORT WAREHOUSE_USER)],
@@ -69,8 +69,10 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
       {
         'analysis_uuid'           => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
         'sample_cohort'           => '6d3d2acf-29a5-41a2-8992-1414706a527d',
-        'study_id'                => 2625,
-        'study_title'             => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
+        'sample_donor_id'         => '6d3d2acf-29a5-41a2-8992-1414706a527d',
+        'sample_accession_number' => 'SAMEA2399188',
+        'study_id'                => [2622, 2625],
+        'study_title'             => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
         'sample'                  => 'qc1hip5529781',
         'public_name'             => 'HPSI0813er-fpdr',
         'sample_created_date'     => '2013-05-10 06:45:32',
@@ -95,28 +97,30 @@ is $files, 7, 'idat datasource returned the correct number of files';
 my $sample_probe_profile_file = VRPipe::File->get(path => $expected_output_files[0]);
 is_deeply $sample_probe_profile_file->metadata,
   {
-    analysis_uuid        => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
-    beadchip             => 9252616016,
-    beadchip_section     => [qw(A B C E G I K)],
-    irods_path           => '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt',
-    md5                  => 'd3946d9dd42a86a4ad04b8538ea387a8',
-    normalisation_method => 'none',
-    public_name          => [qw(HPSI0813er-fpdk HPSI0813er-fpdr HPSI0813i-fpdk_1 HPSI0813i-fpdk_2 HPSI0813i-fpdk_3 HPSI0813i-fpdr_1 HPSI0813i-fpdr_2)],
-    sample               => [qw(qc1hip5529779 qc1hip5529780 qc1hip5529781 qc1hip5529782 qc1hip5529783 qc1hip5529784 qc1hip5529785)],
-    sample_cohort        => [qw(27af9a9b-01b2-4cb6-acef-ea52d83e3d26 6d3d2acf-29a5-41a2-8992-1414706a527d)],
-    sample_common_name   => 'Homo Sapien',
-    sample_consent       => 1,
-    sample_control       => [0, 1],
-    sample_created_date  => ['2013-05-10 06:45:31', '2013-05-10 06:45:32'],
-    sample_id            => [1625279, 1625280, 1625281, 1625282, 1625283, 1625284, 1625285],
-    sample_supplier_name => [qw(3d7a2438-d7bb-40e3-af7b-a0923a253069 4689a6b5-4dc3-4532-a546-565b41eaa8ba 4e9503f1-bd2b-4c59-b09c-3a4060f80901 59e7eb47-c910-4ca8-9cf0-d829539db05b 87e7ee6f-e16f-41f6-94c5-194933e2b192 99e5a955-db3c-4010-9b2b-5a68588d0381 face6d88-7e90-4215-aa80-fb2c3df5a4ed)],
-    source_file          => [file($output_root, 'archive/GAPI/exp/infinium/41/b6/f3/9252616016_E_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/45/fe/61/9252616016_K_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/ae/61/b6/9252616016_I_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/d1/d4/16/9252616016_C_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e2/f7/a2/9252616016_G_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e3/42/84/9252616016_A_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/f9/ee/6f/9252616016_B_Grn.idat')->stringify],
-    study_id             => 2625,
-    study_title          => 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS',
-    summary_group        => 'sample',
-    summary_type         => 'probe',
-    taxon_id             => 9606,
-    type                 => 'txt',
+    analysis_uuid           => 'cf7095aa-363e-43aa-8c85-09fdc6ffc9cb',
+    beadchip                => 9252616016,
+    beadchip_section        => [qw(A B C E G I K)],
+    irods_path              => '/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt',
+    md5                     => 'd3946d9dd42a86a4ad04b8538ea387a8',
+    normalisation_method    => 'none',
+    public_name             => [qw(HPSI0813er-fpdk HPSI0813er-fpdr HPSI0813i-fpdk_1 HPSI0813i-fpdk_2 HPSI0813i-fpdk_3 HPSI0813i-fpdr_1 HPSI0813i-fpdr_2)],
+    sample                  => [qw(qc1hip5529779 qc1hip5529780 qc1hip5529781 qc1hip5529782 qc1hip5529783 qc1hip5529784 qc1hip5529785)],
+    sample_cohort           => [qw(27af9a9b-01b2-4cb6-acef-ea52d83e3d26 6d3d2acf-29a5-41a2-8992-1414706a527d)],
+    sample_donor_id         => [qw(27af9a9b-01b2-4cb6-acef-ea52d83e3d26 6d3d2acf-29a5-41a2-8992-1414706a527d)],
+    sample_common_name      => 'Homo Sapien',
+    sample_consent          => 1,
+    sample_control          => [0, 1],
+    sample_created_date     => ['2013-05-10 06:45:31', '2013-05-10 06:45:32'],
+    sample_id               => [1625279, 1625280, 1625281, 1625282, 1625283, 1625284, 1625285],
+    sample_supplier_name    => [qw(3d7a2438-d7bb-40e3-af7b-a0923a253069 4689a6b5-4dc3-4532-a546-565b41eaa8ba 4e9503f1-bd2b-4c59-b09c-3a4060f80901 59e7eb47-c910-4ca8-9cf0-d829539db05b 87e7ee6f-e16f-41f6-94c5-194933e2b192 99e5a955-db3c-4010-9b2b-5a68588d0381 face6d88-7e90-4215-aa80-fb2c3df5a4ed)],
+    sample_accession_number => [qw(SAMEA2201445 SAMEA2201448 SAMEA2398017 SAMEA2398354 SAMEA2398887 SAMEA2398958 SAMEA2399188)],
+    source_file             => [file($output_root, 'archive/GAPI/exp/infinium/41/b6/f3/9252616016_E_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/45/fe/61/9252616016_K_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/ae/61/b6/9252616016_I_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/d1/d4/16/9252616016_C_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e2/f7/a2/9252616016_G_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/e3/42/84/9252616016_A_Grn.idat')->stringify, file($output_root, 'archive/GAPI/exp/infinium/f9/ee/6f/9252616016_B_Grn.idat')->stringify],
+    study_id      => [2622,                                                                         2625],
+    study_title   => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
+    summary_group => 'sample',
+    summary_type  => 'probe',
+    taxon_id      => 9606,
+    type          => 'txt',
   },
   'metadata on the sample_probe_profile file was correct';
 
@@ -124,8 +128,8 @@ my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TEST
 my @lanes = $vrtrack->get_lanes();
 is @lanes, 7, 'the correct number of idat lanes were populated';
 my $lane_info = lane_info(grep { $_->name eq '9252616016_E_Grn' } @lanes);
-
-my $expected = {
+my $iacc      = delete $lane_info->{individual_acc};
+my $expected  = {
     lane_name             => '9252616016_E_Grn',
     lane_hierarchy_name   => '9252616016_E_Grn',
     raw_reads             => undef,
@@ -149,11 +153,10 @@ my $expected = {
     species_name          => 'Homo Sapien',
     individual_name       => '6d3d2acf-29a5-41a2-8992-1414706a527d',
     individual_alias      => 'HPSI0813er-fpdr',
-    individual_acc        => undef,
     control               => 1
 };
-
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first idat lane';
+like $iacc, qr/(?:SAMEA2201445|SAMEA2201448|SAMEA2398017|SAMEA2398354|SAMEA2398887|SAMEA2398958|SAMEA2399188)/, 'VRTrack Individual acc is one of the sample accession numbers of samples in the cohort';
 
 # gtc genotyping files
 ok $ds = VRPipe::DataSource->create(
@@ -190,10 +193,11 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
     my $file = VRPipe::File->create(path => $path);
     is_deeply $file->metadata,
       {
-        'analysis_uuid'           => ['45a53a77-50bc-4062-b9cb-8dfe82e589f2', '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab', '3f5acca0-304c-480f-8a61-3e68c33c707d'],
-        'infinium_well'           => 'F01',
-        'study_id'                => '2624',
+        'analysis_uuid' => ['45a53a77-50bc-4062-b9cb-8dfe82e589f2', '12d6fd7e-bfb8-4383-aee6-aa62c8f8fdab', '3f5acca0-304c-480f-8a61-3e68c33c707d'],
+        'infinium_well' => 'F01',
+        'study_id'                => [2622,                                                                         2624],
         'sample_cohort'           => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
+        'sample_donor_id'         => '27af9a9b-01b2-4cb6-acef-ea52d83e3d26',
         'infinium_plate'          => 'WG0206884-DNA',
         'infinium_sample'         => '283163_F01_qc1hip5529688',
         'public_name'             => 'HPSI0813i-fpdk_3',
@@ -208,7 +212,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'taxon_id'                => '9606',
         'sample_control'          => '0',
         'sample_common_name'      => 'Homo Sapien',
-        'study_title'             => 'G0325 [coreex] Wellcome Trust Strategic Award application – HIPS',
+        'study_title'             => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [coreex] Wellcome Trust Strategic Award application – HIPS'],
         'beadchip'                => '9300870057',
         'sample_id'               => '1625188',
         'md5'                     => '17b7159554bca4ff4376384b385da51f',
@@ -252,7 +256,6 @@ $expected = {
     individual_alias      => 'HPSI0813er-fpdk',
     control               => 0
 };
-
 my $indiv_acc = delete $lane_info->{individual_acc};
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first gtc lane';
 like $indiv_acc, qr/SAMEA\d+/, 'individual_acc was set to some random value';
@@ -358,7 +361,6 @@ $expected = {
     individual_acc        => 'ERS215816',
     individual_alias      => ''
 };
-
 is_deeply $lane_info, $expected, 'VRTrack was correctly populated for the first bam lane';
 
 exit;

@@ -105,7 +105,7 @@ class VRPipe::Steps::bam_index with VRPipe::StepRole {
                 $bai_already_there = 1;
             }
             else {
-                $bai_file->remove;
+                $bai_file->remove || $self->throw("Could not delete the out-of-date bam index file");
             }
         }
         

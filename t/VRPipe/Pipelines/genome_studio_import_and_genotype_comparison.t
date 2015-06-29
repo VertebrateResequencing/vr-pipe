@@ -140,8 +140,8 @@ is_deeply $meta,
     sample_donor_id         => 'a34ff157-ce3c-46a1-b1e3-9349cfe8cd86',
     sample_id               => 1943009,
     sample_supplier_name    => 'b91c722d-ee69-46db-bd02-5a32867bb838',
-    study_id                => 2624,
-    study_title             => 'G0325 [coreex] Wellcome Trust Strategic Award application – HIPS',
+    study_id                => [2622, 2624, 2625],
+    study_title             => ['G0325 [collection qc1] Wellcome Trust Strategic Award application – HIPS', 'G0325 [coreex] Wellcome Trust Strategic Award application – HIPS', 'G0325 [gex] Wellcome Trust Strategic Award application – HIPS'],
     taxon_id                => 9606
   },
   'metadata correct for one of the genotype files';

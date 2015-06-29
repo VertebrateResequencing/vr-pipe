@@ -247,7 +247,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # ftp://user:password@ftpserver:port/ for other protocols
             my $uuid          = $self->create_uuid();
             my $root_basename = '/';
-            if ($protocol) {
+            if ($protocol && $protocol ne 'file:/') {
                 # encrypt everything past the first colon in case it contains a
                 # password
                 my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
@@ -432,11 +432,17 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # can't get around to work, so the else will copy/paste from SchemaRole :(
     method add (Str $label!, HashRef|ArrayRef[HashRef] $properties!, HashRef :$incoming?, HashRef :$outgoing?) {
         if ($label eq 'File') {
+            if ($incoming || $outgoing) {
+                $self->throw("incoming and outgoing not currently implemented when creating File nodes");
+                #*** non-trivial to implement...
+            }
+            
             my (@paths, $protocol);
             foreach my $prop (ref($properties) eq 'ARRAY' ? @$properties : ($properties)) {
                 push(@paths, $prop->{path});
                 $protocol = $prop->{protocol} if defined $prop->{protocol};
             }
+            
             return $self->get_or_store_filesystem_paths(\@paths, $protocol ? (protocol => $protocol) : ());
         }
         else {

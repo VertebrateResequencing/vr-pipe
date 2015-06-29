@@ -136,7 +136,7 @@ is_deeply $meta,
     'vrtrack_library_tag'         => 'AGTGGTCA',
     'pipelinesetup_output_root'   => $output_dir,
     'vrtrack_library_platform'    => 'ILLUMINA',
-    'pipelinesetup_user'          => 'vr-pipe'
+    'pipelinesetup_user'          => scalar(getpwuid($<))
   },
   'related metadata in graph correct for one of the bam files';
 
