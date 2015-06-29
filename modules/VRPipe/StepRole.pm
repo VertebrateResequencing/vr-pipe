@@ -305,7 +305,6 @@ role VRPipe::StepRole {
         my $hash     = $self->inputs_definition;
         my $step_num = $self->step_state->stepmember->step_number;
         my ($step_adaptor) = VRPipe::StepAdaptor->search({ pipeline => $self->step_state->stepmember->pipeline->id, to_step => $step_num });
-        
         return {} unless $step_adaptor;
         
         my $im = VRPipe::Persistent::InMemory->new();
@@ -347,12 +346,6 @@ role VRPipe::StepRole {
                     }
                 }
                 
-                # it is expensive to VRPipe::FileType->create, and expensive to
-                # check_type(), so we create the former once and cache the final
-                # result of the latter if all passed
-                my $wanted_type = $val->type;
-                my $type = VRPipe::FileType->create($wanted_type, { file => 'to_be_replaced' });
-                
                 # but only bother caching if we have more than 5 files
                 # *** this is mainly a hack so that if we delete a file and then
                 # need it again, start_over will result in the file being
@@ -362,12 +355,44 @@ role VRPipe::StepRole {
                 
                 my @vrfiles;
                 my @skip_reasons;
-                my $all_good = 'input_files_all_good.' . $wanted_type . '.' . join(',', map { $_->id } @$results);
-                if ($check_note && $im->noted($all_good)) {
-                    @vrfiles = @$results;
-                    $im->note($all_good); # to refresh the timeout
+                my $wanted_type = $val->type;
+                my $all_good    = 'input_files_all_good.' . $wanted_type . '.' . join(',', map { $_->id } @$results);
+                my $cached      = 0;
+                if ($check_note) {
+                    my $note_value = $im->noted($all_good);
+                    if ($note_value) {
+                        if ($note_value eq 'none') {
+                            next;
+                        }
+                        
+                        my %valid_ids = map { $_->id => $_ } @$results;
+                        my $ok = 1;
+                        my @files;
+                        foreach my $id (split(/,/, $note_value)) {
+                            if (exists $valid_ids{$id}) {
+                                push(@files, delete $valid_ids{$id});
+                            }
+                            else {
+                                $ok = 0;
+                                last;
+                            }
+                        }
+                        
+                        if ($ok) {
+                            @vrfiles = @files;
+                            $im->note($all_good, value => $note_value); # to refresh the timeout
+                            $cached = 1;
+                        }
+                    }
                 }
-                else {
+                
+                # it is expensive to VRPipe::FileType->create, and expensive to
+                # check_type(), so we create the former once and cache the final
+                # result of the latter if all passed
+                my $type = VRPipe::FileType->create($wanted_type, { file => 'to_be_replaced' });
+                
+                unless ($cached) {
+                    my $skipped_not_correct_type = 0;
                     foreach my $result (@$results) {
                         unless (ref($result) && ref($result) eq 'VRPipe::File') {
                             $result = VRPipe::File->get(path => file($result)->absolute);
@@ -386,6 +411,7 @@ role VRPipe::StepRole {
                                     $resolved->update_stats_from_disc;
                                     if ($resolved->s) {
                                         push(@skip_reasons, "file " . $result->path . " was not the correct type ($wanted_type)");
+                                        $skipped_not_correct_type++;
                                         next;
                                     }
                                     else {
@@ -424,8 +450,8 @@ role VRPipe::StepRole {
                         
                         push(@vrfiles, $result);
                     }
-                    if ($check_note && @vrfiles == @$results) {
-                        $im->note($all_good);
+                    if ($check_note && (@vrfiles || $val->min_files == 0) && ((@vrfiles == @$results) || (@vrfiles + $skipped_not_correct_type == @$results))) {
+                        $im->note($all_good, value => @vrfiles ? join(',', map { $_->id } @vrfiles) : 'none');
                     }
                 }
                 
