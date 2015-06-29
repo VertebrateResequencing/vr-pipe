@@ -150,6 +150,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             foreach my $key (sort keys %$meta) {
                 next if $key eq 'vrpipe_irods_order';
                 my $val = $meta->{$key};
+                next unless defined $val;
                 # limit to printable ascii so md5_hex subroutine will work
                 $val =~ tr/\x20-\x7f//cd;
                 $data .= "|$key:$val|";
@@ -403,8 +404,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 $study_sth->fetch;
                                 if ($study_title) {
                                     push(@study_titles, "$study_title");
-                                }
-                                if ($study_ac) {
+                                    $study_ac ||= ''; # ac isn't always set in warehouse
                                     push(@study_acs, "$study_ac");
                                 }
                             }
@@ -450,8 +450,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 }
                             }
                             else {
-                                $meta->{study_title}            = $study_titles[0];
-                                $meta->{study_accession_number} = $study_acs[0];
+                                $meta->{study_title} = $study_titles[0];
+                                $meta->{study_accession_number} = $study_acs[0] if $study_acs[0];
                             }
                         }
                         
@@ -559,6 +559,22 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
                                 $preferred_study = $studies[-1];
                                 %study_relate_to_props = (properties => { preferred => 1 });
+                                
+                                # in VRPipe::File metadata we'll just store the
+                                # preferred details; this is inline with old
+                                # behaviour, is probably what the user expects,
+                                # and avoids problems if you're grouping on
+                                # study_id and then your sample gets added to a
+                                # new study
+                                $meta->{study_id}    = $study_ids[$i];
+                                $meta->{study_title} = $study_titles[$i];
+                                $meta->{study}       = $study_titles[$i] if defined $meta->{study};
+                                if ($study_acs[$i] && defined $meta->{study_accession_number}) {
+                                    $meta->{study_accession_number} = $study_acs[$i];
+                                }
+                                else {
+                                    delete $meta->{study_accession_number};
+                                }
                             }
                         }
                         
@@ -750,7 +766,11 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my @group_keys;
             foreach my $key (@meta_keys) {
                 $self->throw("Metadata key $key not present for file " . $result->{paths}->[0]) unless (exists $result->{metadata}->{$key});
-                push @group_keys, $result->{metadata}->{$key};
+                my $val = $result->{metadata}->{$key};
+                if (ref $val) {
+                    $val = join(',', sort @$val);
+                }
+                push @group_keys, $val;
             }
             my $group_key = join '|', @group_keys;
             push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
