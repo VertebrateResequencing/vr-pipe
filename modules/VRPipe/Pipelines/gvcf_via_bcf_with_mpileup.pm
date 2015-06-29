@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup - a pipeline
+VRPipe::Pipelines::gvcf_via_bcf_with_mpileup - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,13 +33,13 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gvcf_via_bcf_with_mpileup with VRPipe::PipelineRole {
     method name {
-        return 'sample_gvcf_via_bcf_with_mpileup';
+        return 'gvcf_via_bcf_with_mpileup';
     }
     
     method description {
-        return 'Run samtools mpileup for per-sample calling split over the genome; bam/cram and bai/crai files required as input';
+        return 'Run samtools mpileup for per-sample calling split over the genome; BAM/CRAM and BAI/CRAI files required as input';
     }
     
     method step_names {
@@ -61,7 +61,7 @@ class VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup with VRPipe::PipelineR
     
     method behaviour_definitions {
         (
-            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_alns', default_regulation => 0 },
+            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
             { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 }
         );
     }

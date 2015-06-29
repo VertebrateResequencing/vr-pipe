@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::sample_gvcf_with_gatk_haplotype_caller - a pipeline
+VRPipe::Pipelines::gvcf_with_gatk_haplotype_caller - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::sample_gvcf_with_gatk_haplotype_caller with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gvcf_with_gatk_haplotype_caller with VRPipe::PipelineRole {
     method name {
-        return 'sample_gvcf_with_gatk_haplotype_caller';
+        return 'gvcf_with_gatk_haplotype_caller';
     }
     
     method description {
@@ -44,26 +44,24 @@ class VRPipe::Pipelines::sample_gvcf_with_gatk_haplotype_caller with VRPipe::Pip
     
     method step_names {
         (
-            'fasta_index',                                #1
-            'sequence_dictionary',                        #2
-            'gatk_haplotype_caller_with_genome_chunking', #3
-            'bcftools_concat',                            #4
+            'gatk_haplotype_caller_with_genome_chunking', #1
+            'bcftools_concat',                            #2
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 3, to_key   => 'bam_files' },
-            { from_step => 0, to_step => 3, to_key   => 'bai_files' },
-            { from_step => 0, to_step => 3, to_key   => 'sites_file' },
-            { from_step => 3, to_step => 4, from_key => 'gatk_hc_vcf_files', to_key => 'vcf_files' },
+            { from_step => 0, to_step => 1, to_key   => 'bam_files' },
+            { from_step => 0, to_step => 1, to_key   => 'bai_files' },
+            { from_step => 0, to_step => 1, to_key   => 'sites_file' },
+            { from_step => 1, to_step => 2, from_key => 'gatk_hc_vcf_files', to_key => 'vcf_files' },
         );
     }
     
     method behaviour_definitions {
         (
-            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'cleanup',           default_regulation => 1 }
+            { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 }
         );
     }
 }
