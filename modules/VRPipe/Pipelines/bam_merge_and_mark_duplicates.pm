@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup - a pipeline
+VRPipe::Pipelines::bam_merge_and_mark_duplicates - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,7 +9,7 @@ VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup - a pipeline
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,36 +33,33 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::sample_gvcf_via_bcf_with_mpileup with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_merge_and_mark_duplicates with VRPipe::PipelineRole {
     method name {
-        return 'sample_gvcf_via_bcf_with_mpileup';
+        return 'bam_merge_and_mark_duplicates';
     }
     
     method description {
-        return 'Run samtools mpileup for per-sample calling split over the genome; bam/cram and bai/crai files required as input';
+        return 'Merges and markduplicates using biobambam bammarkduplicates2. This is for older irods BAM/CRAM files which do not have the required tags for bamstreamingmarkduplicates';
     }
     
     method step_names {
         (
-            'mpileup_bcf_with_genome_chunking', #1
-            'bcf_to_vcf',                       #2
-            'bcftools_concat',                  #3
+            'samtools_merge',               #1
+            'biobambam_bammarkduplicates2', #2
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'aln_files' },
-            { from_step => 0, to_step => 1, to_key   => 'aln_index_files' },
-            { from_step => 1, to_step => 2, from_key => 'mpileup_bcf_files', to_key => 'bcf_files' },
-            { from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'merged_files', to_key => 'aln_files' },
         );
     }
     
     method behaviour_definitions {
         (
-            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_alns', default_regulation => 0 },
-            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 }
+            { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 },
         );
     }
 }
