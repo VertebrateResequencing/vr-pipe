@@ -75,7 +75,17 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         my $jvm_args = $self->jvm_args($memory, $dir ? $dir : ());
         my $gatk_key = $self->gatk_key;
         my $prefix   = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar;
-        $prefix .= qq[ --phone_home NO_ET --gatk_key $gatk_key] if $gatk_key;
+        
+        # we want to always run with --phone_home NO_ET, but can only do that
+        # in v2+ if we have a gatk_key
+        my $version = $self->gatk_version;
+        if ($version =~ /^1\./) {
+            $prefix .= ' --phone_home NO_ET';
+        }
+        elsif ($gatk_key) {
+            $prefix .= qq[ --phone_home NO_ET --gatk_key $gatk_key];
+        }
+        
         return $prefix;
     }
     
@@ -116,7 +126,7 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     }
     
     method max_simultaneous {
-        return 0;                 # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 
