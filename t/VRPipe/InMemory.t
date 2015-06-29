@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 129;
+    use Test::Most tests => 132;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -263,6 +263,11 @@ ok $im->note('test_note2', forget_after => 2), 'note() on the same key worked ag
 ok $im->noted('test_note2'),       'noted() works immediately after setting the note';
 ok $im->forget_note('test_note2'), 'forget_note() seemed to work';
 ok !$im->noted('test_note2'), 'noted() returns false after using forget_note()';
+
+ok $im->note('test_note3', forget_after => 2, value => 'foo'), 'note(value) worked';
+is $im->noted('test_note3'), 'foo', 'you can get the value back using noted()';
+sleep(3);
+ok !$im->noted('test_note3'), 'noted() returns false after the note expires, even when a value was supplied';
 
 # briefly confirm that locking and notes work for Persistent class objects
 my $file1 = VRPipe::File->create(path => '/foo');

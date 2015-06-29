@@ -224,11 +224,15 @@ class VRPipe::Persistent::InMemory {
     # default of unlock_after => 0 means the lock is held "forever", but any
     # other process trying to get a lock will see if this process is still
     # alive, and if not, the initial lock will be lost
-    method lock (Str $key!, Int :$unlock_after = 0, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0, Bool :$debug = 0, Bool :$check_via_ssh = 1) {
+    method lock (Str $key!, Int :$unlock_after = 0, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0, Bool :$debug = 0, Bool :$check_via_ssh = 1, Str :$lock_value?) {
         my $redis     = $self->_redis;
         my $redis_key = $key_prefix . '.' . $key;
         
-        my $valid_lock = $self->_check_existing_lock($redis_key, debug => $debug, check_via_ssh => $check_via_ssh);
+        if ($lock_value && (!$non_exclusive || !$unlock_after)) {
+            $self->throw("You can't supply a lock_value and not set unlock_after and non_exclusive");
+        }
+        
+        my $valid_lock = $self->_check_existing_lock($redis_key, debug => $debug, check_via_ssh => $check_via_ssh) unless $lock_value;
         
         if ($non_exclusive) {
             # don't allow even a non_exclusive lock if we currently have an
@@ -236,7 +240,7 @@ class VRPipe::Persistent::InMemory {
             return if $valid_lock;
         }
         
-        my $redis_key_value = $non_exclusive ? 0 : hostname() . '!.!' . $$;
+        my $redis_key_value = $lock_value || ($non_exclusive ? 0 : hostname() . '!.!' . $$);
         
         if ($unlock_after == 0) {
             # set it to a ~month, so that the redis db doesn't get full of locks
@@ -327,8 +331,8 @@ class VRPipe::Persistent::InMemory {
         return $val;
     }
     
-    method note (Str $key!, Int :$forget_after = 900) {
-        return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1);
+    method note (Str $key!, Int :$forget_after = 900, Str :$value?) {
+        return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1, $value ? (lock_value => $value) : ());
     }
     
     method unlock (Str $key!, Str :$key_prefix = 'lock') {
@@ -353,7 +357,15 @@ class VRPipe::Persistent::InMemory {
     }
     
     method noted (Str $key!) {
-        return $self->locked($key, key_prefix => 'note');
+        my $val = $self->_redis->get('note.' . $key);
+        if (defined $val) {
+            if ("$val" eq "0") {
+                # no value supplied when we created the note
+                return 1;
+            }
+            return $val;
+        }
+        return 0;
     }
     
     method block_until_unlocked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
