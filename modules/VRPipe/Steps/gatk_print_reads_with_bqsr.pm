@@ -115,14 +115,12 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 type        => 'bam',
                 max_files   => -1,
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
-                metadata    => { reads => 'Number of reads in the recalibrated BAM file' }
             ),
             recalibrated_bam_index_files => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 min_files   => 0,
                 max_files   => -1,
                 description => 'index file for the indel recalibrated bam file',
-                metadata    => {}
             )
         };
     }

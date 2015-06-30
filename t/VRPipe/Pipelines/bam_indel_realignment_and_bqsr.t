@@ -13,8 +13,8 @@ BEGIN {
     use TestPipelines;
 }
 
-my $output_dir = get_output_dir('sample_indel_realignment_and_bqsr');
-ok my $pipeline = VRPipe::Pipeline->create(name => 'sample_indel_realignment_and_bqsr'), 'able to get the sample_indel_realignment_and_bqsr pipeline';
+my $output_dir = get_output_dir('bam_indel_realignment_and_bqsr');
+ok my $pipeline = VRPipe::Pipeline->create(name => 'bam_indel_realignment_and_bqsr'), 'able to get the bam_indel_realignment_and_bqsr pipeline';
 
 my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
@@ -68,6 +68,6 @@ my $bqsr_pipelinesetup = VRPipe::PipelineSetup->create(
     }
 );
 
-ok handle_pipeline(), 'sample_indel_realignment_and_bqsr pipeline ran okay';
+ok handle_pipeline(), 'bam_indel_realignment_and_bqsr pipeline ran okay';
 
 finish;

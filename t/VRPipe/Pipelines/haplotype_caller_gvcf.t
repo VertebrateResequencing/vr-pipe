@@ -13,7 +13,7 @@ BEGIN {
     use TestPipelines;
 }
 
-ok my $calling_pipeline       = VRPipe::Pipeline->create(name => 'sample_gvcf_with_gatk_haplotype_caller'), 'able to get the gvcf_gatk_haplotype_caller pipeline';
+ok my $calling_pipeline       = VRPipe::Pipeline->create(name => 'bam_calling_with_gatk_haplotype_caller'), 'able to get the bam_calling_with_gatk_haplotype_caller pipeline';
 ok my $gvcf_genotype_pipeline = VRPipe::Pipeline->create(name => 'gatk_genotype_gvcfs'),                    'able to get the gatk_genotype_gvcfs pipeline';
 ok my $concat_pipeline        = VRPipe::Pipeline->create(name => 'vcf_concat'),                             'able to get the vcf_concat pipeline';
 
@@ -29,6 +29,9 @@ while (<$oh>) {
 }
 close($oh);
 close($nh);
+
+copy(file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.fai))->absolute->stringify,  file($calling_dir, 'human_g1k_v37.chr11.chr20.fa.fai')->absolute->stringify);
+copy(file(qw(t data human_g1k_v37.chr11.chr20.fa.gz.dict))->absolute->stringify, file($calling_dir, 'human_g1k_v37.chr11.chr20.dict')->absolute->stringify);
 
 my $override_file = file(qw(t data wgs_calling_override_options))->absolute->stringify;
 
@@ -66,8 +69,6 @@ VRPipe::PipelineSetup->create(
     options     => {
         gatk_path                => $ENV{GATK2},
         java_exe                 => $ENV{GATK_JAVA},
-        reference_assembly_name  => 'NCBI37',
-        reference_species        => 'Human',
         reference_fasta          => $ref_fa,
         haplotype_caller_options => '--minPruning 3 --maxNumHaplotypesInPopulation 200 -ERC GVCF --max_alternate_alleles 3 -U ALLOW_SEQ_DICT_INCOMPATIBILITY -variant_index_type LINEAR -variant_index_parameter 128000',
         chrom_list               => '11 20',
@@ -84,7 +85,7 @@ my $merge_setup = VRPipe::PipelineSetup->create(
     datasource => VRPipe::DataSource->create(
         type    => 'vrpipe_with_genome_chunking',
         method  => 'group_all',
-        source  => '1[4]',
+        source  => '1[2]',
         options => {
             reference_index     => $ref_fa . '.fai',
             chunk_size          => 10000000,

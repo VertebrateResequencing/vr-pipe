@@ -51,7 +51,8 @@ class VRPipe::Steps::gatk_combine_gvcfs extends VRPipe::Steps::gatk_v2 {
     
     method inputs_definition {
         return {
-            gvcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more gvcf files'),
+            gvcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more gvcf files'),
+            gvcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index files for the input gvcf files'),
         };
     }
     
