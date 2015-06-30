@@ -264,7 +264,6 @@ ok handle_pipeline(@improved_bams), 'chained improvement pipeline ran ok';
 
 $meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
 my $opc = delete $meta->{original_pg_chain};
-print Dumper($meta), "\n";
 is_deeply $meta,
   {
     'withdrawn'                       => '0',
