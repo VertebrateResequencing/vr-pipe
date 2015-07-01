@@ -55,9 +55,6 @@ class VRPipe::Pipelines::bam_import_from_irods_and_index with VRPipe::PipelineRo
             { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'aln_files' },
         );
     }
-    
-    method behaviour_definitions {
-    }
 }
 
 1;
