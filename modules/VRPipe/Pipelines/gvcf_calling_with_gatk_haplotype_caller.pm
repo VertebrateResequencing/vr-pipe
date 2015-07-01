@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gatk_genotype_gvcfs - a pipeline
+VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,27 +33,27 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gatk_genotype_gvcfs with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::PipelineRole {
     method name {
-        return 'gatk_genotype_gvcfs';
+        return 'gvcf_calling_with_gatk_haplotype_caller';
     }
     
     method description {
-        return 'Run GATK to combine and genotype gVCF files.';
+        return 'Run GATK to genotype gVCF files.';
     }
     
     method step_names {
         (
-            'gatk_combine_gvcfs',  #1
-            'gatk_genotype_gvcfs', #2
+            'gatk_genotype_gvcfs_with_genome_chunking', #1
+            'bcftools_concat',                          #2
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
-            { from_step => 1, to_step => 2, from_key => 'combine_gvcf_files', to_key => 'gvcf_files' },
-            { from_step => 1, to_step => 2, from_key => 'combine_gvcf_index_files', to_key => 'gvcf_index_files' },
+            { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
+            { from_step => 1, to_step => 2, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
         );
     }
     

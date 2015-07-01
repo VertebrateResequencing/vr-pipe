@@ -77,9 +77,9 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             my $req = $self->new_requirements(memory => 6000, time => 1);
             my $basename = 'gatk_haplotype.vcf.gz';
             
-            $self->chrom_list = [$$vcf_meta{chrom}] if (exists $$vcf_meta{chrom});
             my $chunks = $self->chunks();
             foreach my $chunk (@$chunks) {
+                next if (exists $$vcf_meta{chrom} && $$vcf_meta{chrom} ne $chunk->{chrom});
                 my $chrom          = $chunk->{chrom};
                 my $from           = $chunk->{from};
                 my $to             = $chunk->{to};
