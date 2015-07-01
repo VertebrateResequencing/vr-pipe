@@ -1,7 +1,8 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gatk_genotype_gvcfs - a pipeline
+VRPipe::Pipelines::gvcf_calling_two_combine_with_gatk_haplotype_caller - a
+pipeline
 
 =head1 DESCRIPTION
 
@@ -9,7 +10,7 @@ VRPipe::Pipelines::gatk_genotype_gvcfs - a pipeline
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,9 +34,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gatk_genotype_gvcfs with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gvcf_calling_two_combine_with_gatk_haplotype_caller with VRPipe::PipelineRole {
     method name {
-        return 'gatk_genotype_gvcfs';
+        return 'gvcf_calling_two_combine_with_gatk_haplotype_caller';
     }
     
     method description {
@@ -44,16 +45,22 @@ class VRPipe::Pipelines::gatk_genotype_gvcfs with VRPipe::PipelineRole {
     
     method step_names {
         (
-            'gatk_combine_gvcfs',  #1
-            'gatk_genotype_gvcfs', #2
+            'gatk_combine_gvcfs_with_genome_chunking', #1
+            'gatk_combine_gvcfs',                      #2
+            'gatk_genotype_gvcfs',                     #3
+            'bcftools_concat',                         #4
         );
     }
     
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
+            { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
             { from_step => 1, to_step => 2, from_key => 'combine_gvcf_files', to_key => 'gvcf_files' },
             { from_step => 1, to_step => 2, from_key => 'combine_gvcf_index_files', to_key => 'gvcf_index_files' },
+            { from_step => 2, to_step => 3, from_key => 'combine_gvcf_files', to_key => 'gvcf_files' },
+            { from_step => 2, to_step => 3, from_key => 'combine_gvcf_index_files', to_key => 'gvcf_index_files' },
+            { from_step => 3, to_step => 4, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
         );
     }
     
@@ -61,6 +68,8 @@ class VRPipe::Pipelines::gatk_genotype_gvcfs with VRPipe::PipelineRole {
         (
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
             { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'cleanup',            default_regulation => 1 },
         );
     }
 
