@@ -1,3 +1,32 @@
+0.212   Critical speed fix for steps that take datasource input with multiple
+        types and many files.
+        cram_index and bam_index steps now die if they can't delete an out-of-
+        date index file.
+        Overhauled internal locking mechanism should result in a slightly faster
+        system with fewer, shorter-lived stalls.
+        (Sanger specific:) irods warehouse datasource and npg_cram_stats_parser
+        step now default to getting F0xB00 stats files instead of F0x900. Also,
+        the correct studies according to warehouse are related to the input
+        file, ignoring study information stored in irods metadata. irods
+        datasource no longer falls over if given a query file with blank lines.
+        GATK steps can now use a gatk_key to turn off phoning home, enabled by
+        default if environment variable GATK_KEY is set.
+        New gatk_genotype_gvcfs pipeline which can do the calling to chrom vcf
+        in one setup (using both datasource and step chunking).
+        New pipelines: bam_calling_with_gatk_haplotype_caller,
+        bam_calling_with_mpileup_via_bcf, bam_import_from_irods_and_index,
+        bam_indel_realignment_and_bqsr, bam_merge_and_mark_duplicates,
+        bam_merge_and_streaming_mark_duplicates,
+        gvcf_calling_one_combine_with_gatk_haplotype_caller,
+        gvcf_calling_two_combine_with_gatk_haplotype_caller,
+        gvcf_calling_with_gatk_haplotype_caller,
+        sample_bam_remapping_with_bwa_mem
+        Deleted pipelines (some of them renamed to new ones above):
+        sample_gvcf_via_bcf_with_mpileup,
+        sample_gvcf_with_gatk_haplotype_caller,
+        sample_indel_realignment_and_bqsr,
+        sample_irods_import_and_mark_duplicates,
+        sample_irods_import_and_streaming_mark_duplicates
 0.211   bam_improvement_gatk_v2 pipeline fixed to work again.
         irods_sample_import pipeline renamed as
         sample_irods_import_and_mark_duplicates.
