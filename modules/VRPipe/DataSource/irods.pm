@@ -65,7 +65,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option (none supplied means the dataelements will have paths like irod:/abs/path/to/file.txt, and the step(s) in your pipeline will have to be able to handle such paths). To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
-            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. If any qc files have been stored with the file, these are associated with a qc_file relationship; the require_qc_files option will skip files that do not have all the qc files specified in desired_qc_files, which is a comma-separated list of main-file-basename(excluding extension) suffixes, defaulting to _F0x900.stats,.genotype.json,.verify_bam_id.json. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
+            return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. If any qc files have been stored with the file, these are associated with a qc_file relationship; the require_qc_files option will skip files that do not have all the qc files specified in desired_qc_files, which is a comma-separated list of main-file-basename(excluding extension) suffixes, defaulting to _F0xB00.stats,.genotype.json,.verify_bam_id.json. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
         }
         if ($method eq 'group_by_metadata_with_warehouse_metadata') {
             return "Extension to the all_with_warehouse_metadata methods that will group files from the source according to their metadata keys. Requires the metadata_keys option which is a '|' separated list of metadata keys by which dataelements will be grouped. e.g. metadata_keys => 'sample|platform|library' will groups all files with the same sample, platform and library into one dataelement. If you use a graph_filter and the filter_after_grouping option is set (the default), grouping based on metadata will be performed first and then the filter applied with it only being necessary for one file in the group to pass the filter. If the filter_after_grouping option is not set, only files which pass the filter will be included and grouped based on their metadata.";
@@ -123,7 +123,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $required_metadata = $options->{required_metadata} || '';
         my $vrtrack_group     = $options->{vrtrack_group}     || '';
         my $require_qc_files  = $options->{require_qc_files}  || 0;
-        my $desired_qc_files = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0x900.stats,.genotype.json,.verify_bam_id.json';
+        my $desired_qc_files = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0xB00.stats,.genotype.json,.verify_bam_id.json';
         my $add_metadata_from_warehouse = $self->method =~ /with_warehouse_metadata$/ ? 1 : 0;
         my $local_root_dir = $options->{local_root_dir} || '';
         
@@ -731,7 +731,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_create_elements(\@element_args);
     }
     
-    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
+    method all_with_warehouse_metadata (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0xB00.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
         $args{handle}           = $handle;
         $args{file_query}       = $file_query;
@@ -751,7 +751,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_create_elements(\@element_args);
     }
     
-    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
+    method group_by_metadata_with_warehouse_metadata (Defined :$handle!, Str :$metadata_keys!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0xB00.stats,.genotype.json,.verify_bam_id.json') {
         my %args;
         $args{handle}           = $handle;
         $args{file_query}       = $file_query;
@@ -792,7 +792,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_create_elements(\@element_args);
     }
     
-    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0x900.stats,.genotype.json,.verify_bam_id.json') {
+    method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0xB00.stats,.genotype.json,.verify_bam_id.json') {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
         # the result, and we clear the cache after getting that data

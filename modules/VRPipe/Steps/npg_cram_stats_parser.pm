@@ -45,7 +45,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
     
     method options_definition {
         return {
-            qc_file_suffixes => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.',                                                     default_value => '_F0x900.stats,.genotype.json,.verify_bam_id.json'),
+            qc_file_suffixes => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.',                                                     default_value => '_F0xB00.stats,.genotype.json,.verify_bam_id.json'),
             sample_id_type   => VRPipe::StepOption->create(description => 'The type of sample identifier to check in the cram file header; allowed values are id, public_name, supplier_name or accession', default_value => 'accession')
         };
     }
