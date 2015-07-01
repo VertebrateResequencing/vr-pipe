@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -40,8 +40,13 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         coerce => 1
     );
     
+    has 'gatk_key' => (
+        is  => 'rw',
+        isa => 'Str',
+    );
+    
     around _build_standard_options {
-        return [@{ $self->$orig }, 'gatk_path'];
+        return [@{ $self->$orig }, 'gatk_path', 'gatk_key'];
     }
     
     our %GATK_VERSIONS;
@@ -66,11 +71,30 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         return $GATK_VERSIONS{$gatk_jar};
     }
     
+    method gatk_prefix (ClassName|Object $self: Int $memory, Str|Dir $dir?) {
+        my $jvm_args = $self->jvm_args($memory, $dir ? $dir : ());
+        my $gatk_key = $self->gatk_key;
+        my $prefix   = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar;
+        
+        # we want to always run with --phone_home NO_ET, but can only do that
+        # in v2+ if we have a gatk_key
+        my $version = $self->gatk_version;
+        if ($version =~ /^1\./) {
+            $prefix .= ' --phone_home NO_ET';
+        }
+        elsif ($gatk_key) {
+            $prefix .= qq[ --phone_home NO_ET --gatk_key $gatk_key];
+        }
+        
+        return $prefix;
+    }
+    
     around options_definition {
         return {
             %{ $self->$orig },
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping'),
-            gatk_path       => VRPipe::StepOption->create(description => 'Path to directory containing GATK jar files', $ENV{GATK} ? (default_value => $ENV{GATK}) : ()),
+            gatk_path       => VRPipe::StepOption->create(description => 'path to directory containing GATK jar files', $ENV{GATK} ? (default_value => $ENV{GATK}) : ()),
+            gatk_key        => VRPipe::StepOption->create(description => 'path to key file to avoid GATK phoning home', optional => 1, $ENV{GATK_KEY} ? (default_value => $ENV{GATK_KEY}) : ()),
         };
     }
     
@@ -102,7 +126,7 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
     }
     
     method max_simultaneous {
-        return 0;                 # meaning unlimited
+        return 0;            # meaning unlimited
     }
 }
 

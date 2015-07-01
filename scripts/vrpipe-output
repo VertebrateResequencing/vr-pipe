@@ -443,7 +443,7 @@ while (my $estates = $estates_pager->next) {
                             $do_symlink = 0;                                          # symlink is already there, and correct
                         }
                         elsif ($force_overwrite) {
-                            VRPipe::File->create(path => $dest_path)->remove;         # remove symlink so new one can build
+                            VRPipe::File->create(path => $dest_path)->remove || $self->throw("Could not delete existing symlink $dest_path"); # remove symlink so new one can build
                         }
                         else {
                             $frontend->error("Can't create symlink $source => $dest_path since the destination already exists and isn't a symlink pointing to the source; skipping. Use --force_overwrite to overwrite this symlink.");

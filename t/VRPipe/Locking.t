@@ -51,7 +51,6 @@ for (1 .. 1) {
         #sleep($i);
         
         $ss->block_until_locked;
-        $ss->maintain_lock;
         
         my ($dc, $ac, $cc);
         #warn "$$ loop start, ss->complete is ", $ss->complete, "\n";

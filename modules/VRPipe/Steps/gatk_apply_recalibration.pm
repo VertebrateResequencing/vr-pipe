@@ -74,7 +74,6 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
             my $mode = $options->{apply_recalibration_mode};
             
             my $req = $self->new_requirements(memory => 1200, time => 1);
-            my $jvm_args = $self->jvm_args($req->memory);
             
             my $recal_file    = $self->inputs->{recalibration_file}[0];
             my $tranches_file = $self->inputs->{tranches_file}[0];
@@ -101,7 +100,7 @@ class VRPipe::Steps::gatk_apply_recalibration extends VRPipe::Steps::gatk {
                 my $vcf_recal_file = $self->output_file(output_key => 'recalibrated_vcfs', basename => $basename, type => 'vcf', metadata => $vcf_meta);
                 my $vcf_recal_path = $vcf_recal_file->path;
                 
-                my $cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T ApplyRecalibration -R $ref --input $vcf_path -recalFile $recal_file_path -tranchesFile $tranches_file_path -o $vcf_recal_path -mode $mode $this_apply_recal_opts];
+                my $cmd = $self->gatk_prefix($req->memory) . qq[ -T ApplyRecalibration -R $ref --input $vcf_path -recalFile $recal_file_path -tranchesFile $tranches_file_path -o $vcf_recal_path -mode $mode $this_apply_recal_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_apply_recalibration', 'apply_recalibration_and_check', [$cmd, $req, { output_files => [$vcf_recal_file] }]);
                 $idx++;
             }

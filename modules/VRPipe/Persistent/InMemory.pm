@@ -22,7 +22,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -54,26 +54,14 @@ class VRPipe::Persistent::InMemory {
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
     use Bytes::Random::Secure;
-    
-    has '_maintenance_children' => (
-        is      => 'ro',
-        isa     => 'HashRef[ArrayRef[Int]]',
-        traits  => ['Hash'],
-        default => sub { {} },
-        handles => {
-            '_add_maintenance_child'    => 'set',
-            '_have_maintenance_child'   => 'exists',
-            '_delete_maintenance_child' => 'delete',
-            '_all_maintenance_children' => 'values'
-        },
-    );
+    use VRPipe::Interface::BackEnd;
     
     our $vrp_config   = VRPipe::Config->new();
     our $email_domain = $vrp_config->email_domain();
     our $admin_email  = $vrp_config->admin_user() . '@' . $email_domain;
     our %redis_instances;
     
-    our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server);
+    our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server, $backend);
     
     sub BUILD {
         my $self = shift;
@@ -93,6 +81,8 @@ class VRPipe::Persistent::InMemory {
             $method_name = $deployment . '_redis_port';
             $redis_port  = $vrp_config->$method_name();
             $redis_port  = "$redis_port";
+            
+            $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
         }
     }
     
@@ -231,33 +221,60 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0) {
+    # default of unlock_after => 0 means the lock is held "forever", but any
+    # other process trying to get a lock will see if this process is still
+    # alive, and if not, the initial lock will be lost
+    method lock (Str $key!, Int :$unlock_after = 0, Str :$key_prefix = 'lock', Bool :$non_exclusive = 0, Bool :$debug = 0, Bool :$check_via_ssh = 1, Str :$lock_value?) {
         my $redis     = $self->_redis;
         my $redis_key = $key_prefix . '.' . $key;
+        
+        if ($lock_value && (!$non_exclusive || !$unlock_after)) {
+            $self->throw("You can't supply a lock_value and not set unlock_after and non_exclusive");
+        }
+        
+        my $valid_lock = $self->_check_existing_lock($redis_key, debug => $debug, check_via_ssh => $check_via_ssh) unless $lock_value;
+        
         if ($non_exclusive) {
             # don't allow even a non_exclusive lock if we currently have an
             # exclusive one
-            my $val = $redis->get($redis_key);
-            return if $val;
+            return if $valid_lock;
+        }
+        
+        my $redis_key_value = $lock_value || ($non_exclusive ? 0 : hostname() . '!.!' . $$);
+        
+        if ($unlock_after == 0) {
+            # set it to a ~month, so that the redis db doesn't get full of locks
+            # (due to crashed processes that never managed to call unlock) and
+            # run out of memory.
+            #*** this will screw up any job that really runs for more than a
+            #    month, but hopefully that doesn't come up...
+            $unlock_after = 2500000;
+            $redis_key_value .= '!.!forever';
         }
         
         my $got_lock = $redis->set(
-            $redis_key => $non_exclusive ? 0 : hostname() . '!.!' . $$,
-            EX => $unlock_after,
+            $redis_key => $redis_key_value,
+            EX         => $unlock_after,
             $non_exclusive ? () : ('NX')
         );
+        
+        if ($debug) {
+            if ($got_lock) {
+                warn " lock for $redis_key => $redis_key_value worked\n";
+            }
+            else {
+                warn " lock for $redis_key => $redis_key_value failed because $redis_key is currently set to $valid_lock\n";
+            }
+        }
+        
         return $got_lock;
     }
     
     method _own_lock (Str $key!, Int $my_pid = $$) {
         my $redis = $self->_redis;
-        my $val   = $redis->get($key);
-        if ($val) {
+        my $val   = $self->_check_existing_lock($key);
+        if (defined $val) {
             my ($hostname, $pid) = split('!.!', $val);
-            unless ($hostname && $pid) {
-                $self->debug("_own_lock failed for $key because it was set with an unexpected value of $val");
-                return 0;
-            }
             if ($hostname eq hostname() && $pid == $my_pid) {
                 return 1;
             }
@@ -265,55 +282,63 @@ class VRPipe::Persistent::InMemory {
                 $self->debug("_own_lock failed for $key because that is owned by $hostname|$pid, not " . hostname() . "|$my_pid");
             }
         }
-        
         return 0;
     }
     
-    method note (Str $key!, Int :$forget_after = 900) {
-        return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1);
-    }
-    
-    method refresh_lock (Str $key!, Int :$unlock_after = 900, Str :$key_prefix = 'lock', :$lock_owners_pid?) {
-        my $redis_key = $key_prefix . '.' . $key;
-        return unless $self->_own_lock($redis_key, $lock_owners_pid || $$);
-        
+    method _check_existing_lock (Str $key!, Bool :$debug = 0, Bool :$check_via_ssh = 1) {
         my $redis = $self->_redis;
-        my $refreshed = $redis->expire($redis_key, $unlock_after);
-        unless ($refreshed) {
-            warn "pid $$ unable to refresh redis lock for $redis_key";
+        my $val   = $redis->get($key);
+        
+        if ($val) {
+            my ($hostname, $pid, $forever) = split('!.!', $val);
+            unless ($hostname && $pid) {
+                warn " lock for $key had an invalid value of $val, so removing it\n" if $debug;
+                $redis->del($key);
+                return;
+            }
             
-            # presumably the redis server went down and we lost the lock;
-            # if the server came back let's try and create the lock again
-            $refreshed = $redis->set($redis_key => 1, EX => $unlock_after, 'NX');
+            # check the current lock is for a currently living pid, or has a
+            # specified EX when our special "forever" marker isn't set
+            my $ttl = $forever ? undef : $redis->ttl($key);
+            unless ($ttl && $ttl > 0) {
+                if ($hostname eq hostname()) {
+                    unless ($pid == $$ || kill(0, $pid)) {
+                        warn " lock for $key was initiated on host $hostname but the pid $pid is dead, so removing it\n" if $debug;
+                        $redis->del($key);
+                        return;
+                    }
+                }
+                elsif ($check_via_ssh) {
+                    my $return;
+                    eval {
+                        local $SIG{ALRM} = sub { die "alarm\n" };
+                        alarm 15;
+                        # we use perl for testing the pid because don't know
+                        # what shell the user has and what syntax to use
+                        $return = $backend->ssh($hostname, "perl -e 'print qq[pid_alive] if kill(0, $pid)'");
+                        alarm 0;
+                    };
+                    
+                    if (!$return || $return !~ /pid_alive/) {
+                        warn " lock for $key was initiated on host $hostname but the pid $pid is dead, so removing it\n" if $debug;
+                        $redis->del($key);
+                        return;
+                    }
+                }
+            }
         }
         
-        return $refreshed;
+        return $val;
+    }
+    
+    method note (Str $key!, Int :$forget_after = 900, Str :$value?) {
+        return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1, $value ? (lock_value => $value) : ());
     }
     
     method unlock (Str $key!, Str :$key_prefix = 'lock') {
         my $redis_key = $key_prefix . '.' . $key;
         return unless $self->_own_lock($redis_key);
-        
-        if ($self->_have_maintenance_child($redis_key)) {
-            my ($owner_pid, $child_pid) = @{ $self->_delete_maintenance_child($redis_key) };
-            if ($owner_pid == $$) {
-                kill(9, $child_pid);
-                waitpid $child_pid, 0;
-            }
-        }
-        
         return $self->_redis->del($redis_key);
-    }
-    
-    sub DEMOLISH {
-        my $self = shift;
-        foreach my $ref ($self->_all_maintenance_children) {
-            my ($owner_pid, $child_pid) = @$ref;
-            if ($owner_pid == $$) {
-                kill(9, $child_pid);
-                waitpid $child_pid, 0;
-            }
-        }
     }
     
     method forget_note (Str $key!) {
@@ -326,11 +351,21 @@ class VRPipe::Persistent::InMemory {
         if ($by_me) {
             return $self->_own_lock($redis_key);
         }
-        return $self->_redis->exists($redis_key);
+        #else
+        my $val = $self->_check_existing_lock($redis_key);
+        return defined $val ? 1 : 0;
     }
     
     method noted (Str $key!) {
-        return $self->locked($key, key_prefix => 'note');
+        my $val = $self->_redis->get('note.' . $key);
+        if (defined $val) {
+            if ("$val" eq "0") {
+                # no value supplied when we created the note
+                return 1;
+            }
+            return $val;
+        }
+        return 0;
     }
     
     method block_until_unlocked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock') {
@@ -339,12 +374,12 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
-    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Int :$unlock_after?) {
+    method block_until_locked (Str $key!, Int :$check_every = 2, Str :$key_prefix = 'lock', Bool :$debug = 0, Int :$unlock_after = 0) {
         my $redis_key = $key_prefix . '.' . $key;
         return if $self->_own_lock($redis_key);
         my $sleep_time = 0.01;
-        $unlock_after ||= $deployment eq 'testing' ? 30 : 900;
-        while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix)) {
+        my $t          = time();
+        while (!$self->lock($key, unlock_after => $unlock_after, key_prefix => $key_prefix, debug => $debug, check_via_ssh => time() == $t)) {
             if ($sleep_time >= $check_every) {
                 $sleep_time = $check_every;
             }
@@ -352,60 +387,14 @@ class VRPipe::Persistent::InMemory {
                 $sleep_time *= 2;
             }
             
+            warn " - didn't get a lock on $redis_key, will try again in $sleep_time seconds\n" if $debug;
             sleep($sleep_time);
+            
+            # we'll check_via_ssh only ~once per minute
+            if (time() > $t + 60) {
+                $t = time();
+            }
         }
-    }
-    
-    method maintain_lock (Str $key!, Int :$refresh_every?, Int :$leeway_multiplier?, Str :$key_prefix = 'lock') {
-        my $redis_key = $key_prefix . '.' . $key;
-        $self->throw("maintain_lock() cannot be used unless we own the lock") unless $self->_own_lock($redis_key);
-        
-        unless ($self->_have_maintenance_child($redis_key)) {
-            unless ($refresh_every) {
-                $refresh_every = $deployment eq 'testing' ? 3 : 60;
-            }
-            
-            unless ($leeway_multiplier) {
-                if ($refresh_every <= 60) {
-                    $leeway_multiplier = 15;
-                }
-                elsif ($refresh_every <= 300) {
-                    $leeway_multiplier = 3;
-                }
-                else {
-                    $leeway_multiplier = 2;
-                }
-            }
-            my $survival_time = $refresh_every * $leeway_multiplier;
-            
-            # we used to just have an AnyEvent->timer that called refresh_lock
-            # periodically, but that timer doesn't fire while normal code is
-            # busy running. I also couldn't get a 'cede' type method working
-            # due to recursion in AnyEvent watchers. Instead we fork to
-            # periodically calls refresh_lock
-            # *** should we use Proc::FastSpawn or AnyEvent::Fork for greater
-            # speed and lower memory?
-            my $my_pid   = $$;
-            my $lock_pid = fork();
-            if (!defined $lock_pid) {
-                $self->throw("attempt to fork for lock failed: $!");
-            }
-            elsif ($lock_pid == 0) {
-                # child, initiate a lock that will end when the parent stops
-                # running
-                while (1) {
-                    kill(0, $my_pid) || last;
-                    last unless $self->_own_lock($redis_key, $my_pid);
-                    $self->refresh_lock($key, key_prefix => $key_prefix, unlock_after => $survival_time, lock_owners_pid => $my_pid);
-                    sleep $refresh_every;
-                }
-                exit(0);
-            }
-            
-            $self->_add_maintenance_child($redis_key, [$$, $lock_pid]);
-        }
-        
-        return 1;
     }
     
     method enqueue (Str $key!, Str $value!) {

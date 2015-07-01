@@ -930,7 +930,9 @@ class VRPipe::Persistent::Graph {
     
     method related_nodes (HashRef|Object $start_node!, Bool :$return_history_nodes = 0, HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         my $start_id = $start_node->{id};
-        return grep { $_->{id} != $start_id } @{ $self->related($start_node, $undirected, $incoming, $outgoing, 1, $return_history_nodes)->{nodes} };
+        my $hash = $self->related($start_node, $undirected, $incoming, $outgoing, 1, $return_history_nodes);
+        return unless ($hash && defined $hash->{nodes});
+        return grep { $_->{id} != $start_id } @{ $hash->{nodes} };
     }
     
     method root_nodes {

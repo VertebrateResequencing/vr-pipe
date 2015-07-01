@@ -1,3 +1,25 @@
+# version 0.212
+(you must first upgrade to 0.203 if you haven't done so already, see notes
+below)
+
+A known issue with this version is that the testing (and production?) server
+no longer responds to the stop command, so you'll have to kill the associated
+process(es) manually before starting the server again (before running another
+test).
+
+This version renames/deletes a number of pipelines (see HISTORY). Check that
+the deleted ones are no longer installed as .pm files in your installation
+location, and if they are, manually delete them. Then also remove them from
+your production database (if they hadn't yet been used by a setup), eg. for
+each pipeline name:
+mysql> select ps.id from pipelinesetup ps join pipeline p on p.id = ps.pipeline
+       where p.name = "pipeline_name";
+(if anything returned for the above, do not proceed with below)
+mysql> delete sa, sb from stepadaptor sa join stepbehaviour sb on sa.pipeline =
+       sb.pipeline where sa.pipeline in (select id from pipeline where name =
+       "pipeline_name");
+mysql> delete from pipeline where name = "pipeline_name";
+
 # version 0.203
 (you must first upgrade to 0.199 if you haven't done so already, see notes
 below)

@@ -143,9 +143,8 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             my $vcf_path       = $vcf_file->path;
             
             my $req = $self->new_requirements(memory => 6000, time => 1);
-            my $jvm_args = $self->jvm_args($req->memory);
             $haplotyper_opts .= qq[ && $tabix -f -p vcf $vcf_path] if ($haplotyper_opts =~ m/--disable_auto_index_creation_and_locking_when_reading_rods/);
-            my $cmd = 'q[' . $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
+            my $cmd = 'q[' . $self->gatk_prefix($req->memory) . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
             $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;
             my $this_cmd = "use VRPipe::Steps::gatk_haplotype_caller; VRPipe::Steps::gatk_haplotype_caller->genotype_and_check($cmd, minimum_records => $minimum_records);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index_file] });

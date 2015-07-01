@@ -84,7 +84,6 @@ class VRPipe::Manager extends VRPipe::Persistent {
         my $transaction = sub {
             my $fs = VRPipe::FarmServer->create(farm => $farm, hostname => hostname_long, only_ours => $only_ours);
             if ($fs->lock) {
-                $fs->maintain_lock;
                 return $fs;
             }
             return;

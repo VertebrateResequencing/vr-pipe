@@ -994,7 +994,7 @@ SKIP: {
     is_deeply $file->metadata, $expected_file_meta, 'correct file metadata was present on one of the irods files';
     ok my $graph_file = $schema->get_file($file->protocolless_path->stringify, $file->protocol), 'there was a node in the graph db for one of the cram files';
     my @qc_files = $graph_file->related(outgoing => { type => 'qc_file' }) if $graph_file;
-    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['irods:/seq/15744/15744_8_F0x900.stats', 'irods:/seq/15744/qc/15744_8.genotype.json', 'irods:/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
+    is_deeply [map { $_->path } sort { $a->path cmp $b->path } @qc_files], ['irods:/seq/15744/15744_8_F0xB00.stats', 'irods:/seq/15744/qc/15744_8.genotype.json', 'irods:/seq/15744/qc/15744_8.verify_bam_id.json'], 'irods qc files were associated with the cram file';
     
     # more complete test with our own freshly-added files and metadata
     system("irm -fr $irods_root > /dev/null 2> /dev/null");

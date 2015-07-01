@@ -104,9 +104,8 @@ class VRPipe::Steps::bam_count_covariates extends VRPipe::Steps::gatk {
                 );
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T CountCovariates -R $ref -I ] . $bam->path . qq[ -recalFile ] . $recal_file->path . qq[ $known_sites $covariates_options];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T CountCovariates -R $ref -I ] . $bam->path . qq[ -recalFile ] . $recal_file->path . qq[ $known_sites $covariates_options];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_count_covariates', 'count_covariates_and_check', [$this_cmd, $req, { output_files => [$recal_file] }]);
             }
         };

@@ -87,9 +87,8 @@ class VRPipe::Steps::gatk_reduce_reads extends VRPipe::Steps::gatk_v2 {
                 );
                 
                 my $temp_dir = $options->{tmp_dir} || $reduced_bam_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T ReduceReads -R $ref -I ] . $bam->path . qq[ -o ] . $reduced_bam_file->path . qq[ $reduce_opts];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T ReduceReads -R $ref -I ] . $bam->path . qq[ -o ] . $reduced_bam_file->path . qq[ $reduce_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_reduce_reads', 'reduce_and_check', [$this_cmd, $req, { output_files => [$reduced_bam_file] }]);
             }
         };

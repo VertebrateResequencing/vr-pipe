@@ -32,7 +32,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2014 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -60,10 +60,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use VRPipe::Config;
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
-    
-    my $vrp_config = VRPipe::Config->new();
-    my $admin_user = $vrp_config->admin_user();
-    $admin_user = "$admin_user";
     
     has 'name' => (
         is     => 'rw',
@@ -125,7 +121,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         is      => 'rw',
         isa     => Varchar [64],
         traits  => ['VRPipe::Persistent::Attributes'],
-        default => $admin_user
+        default => scalar(getpwuid($<))
     );
     
     has 'unix_group' => (
@@ -204,21 +200,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
         my $num_steps    = scalar(@step_members);
+        my $datasource   = $self->datasource;
         
-        # don't trigger while datasource is updating, wait until we get the
-        # lock
-        my $datasource = $self->datasource;
-        unless ($dataelement || $debug) {
-            $datasource->block_until_locked;
-            $self->reselect_values_from_db;
-            if ($self->datasource->id != $datasource->id) {
-                # (user might have changed the datasource while we were waiting)
-                $datasource->unlock;
-                return;
-            }
-            $datasource->maintain_lock;
-        }
-        warn "in trigger, past ds lock\n" if $debug;
+        warn "in trigger\n" if $debug;
         
         my $output_root = $self->output_root;
         $self->make_path($output_root);
@@ -250,7 +234,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         }
         else {
             $mode = 'all des';
-            eval { $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only); };
+            # incomplete_element_states will block_until_locked to do datasource
+            # updates
+            eval { $pager = $datasource->incomplete_element_states($self, prepare => $prepare_elements, only_not_started => $first_step_only, debug => $debug); };
             if ($@) {
                 return "DataSource error: $@";
             }
@@ -278,14 +264,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                     warn " estate $esid is being triggered by another process, will skip it\n";
                     next;
                 }
-                #$estate->maintain_lock; maintaining lock requires a fork and
-                # sometimes we "Cannot allocate memory", so we just manually
-                # refresh in our loop below
                 
                 my $sm_error;
                 SSTATE: foreach my $member (@step_members) {
-                    $estate->refresh_lock unless $debug;
-                    
                     my $step_number = $member->step_number;
                     next unless $step_number > $estate->completed_steps;
                     
@@ -677,8 +658,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         }
         
         my $warn_error = $error_message || '[no error message]';
-        warn "unlocking datasource, trigger will return: $warn_error\n" if $debug;
-        $datasource->unlock unless $dataelement;
+        warn "trigger will return: $warn_error\n" if $debug;
         
         return $error_message;
     }

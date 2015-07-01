@@ -106,7 +106,6 @@ if ($desired_ele) {
         my $ds = $es->pipelinesetup->datasource;
         $frontend->output("Will wait until the datasource for setup ", $es->pipelinesetup->id, " is not being updated or triggered...");
         $ds->block_until_locked;
-        $ds->maintain_lock;
         push(@datasources, $ds);
     }
 }
@@ -116,7 +115,6 @@ else {
             my $ds = $setup->datasource;
             $frontend->output("Will wait until the datasource for setup ", $setup->id, " is not being updated or triggered...");
             $ds->block_until_locked;
-            $ds->maintain_lock;
             push(@datasources, $ds);
         }
         

@@ -50,7 +50,8 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
     
     method inputs_definition {
         return {
-            gvcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more gvcf files'),
+            gvcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more gvcf files'),
+            gvcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index files for the input gvcf files'),
         };
     }
     
@@ -68,16 +69,34 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
                 $self->throw("genotype_gvcfs_options should not include the reference, input or output options or GenotypeGVCFs task command");
             }
             
+            # if all input files have chrom,from,to metadata, then this is from
+            # a genome_chunking step and we should group files with the same
+            # values together
+            my @input_files = @{ $self->inputs->{gvcf_files} };
+            my %region_gvcfs;
+            foreach my $input_file (@input_files) {
+                my $meta = $input_file->metadata;
+                if (defined $$meta{chrom} && defined $$meta{from} && defined $$meta{to}) {
+                    my ($chrom, $from, $to) = ($$meta{chrom}, $$meta{from}, $$meta{to});
+                    push @{ $region_gvcfs{"$chrom:$from-$to"} }, $input_file;
+                }
+                else {
+                    if (exists $region_gvcfs{all} && defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
+                        my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
+                        %region_gvcfs = ("$chrom:$from-$to" => [@input_files]);
+                    }
+                    else {
+                        %region_gvcfs = (all => [@input_files]);
+                    }
+                    last;
+                }
+            }
+            
             my $summary_opts = $genotype_gvcfs_opts;
             my $basename     = 'gatk_mergeGvcf.vcf.gz';
-            if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
-                my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
-                $summary_opts        .= ' -L $region';
-                $genotype_gvcfs_opts .= " -L $chrom:$from-$to";
-                $basename = "${chrom}_${from}-${to}.$basename";
+            unless (exists $region_gvcfs{all}) {
+                $summary_opts .= ' -L $region';
             }
-            my @file_inputs = map { "--variant " . $_->path } @{ $self->inputs->{gvcf_files} };
-            $genotype_gvcfs_opts .= " @file_inputs";
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
@@ -87,22 +106,35 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
                 )
             );
             
-            my $vcf_file  = $self->output_file(output_key => 'genotype_gvcf_file', basename => $basename, type => 'vcf', metadata => $vcf_meta);
-            my $vcf_path  = $vcf_file->path;
-            my $vcf_index = $self->output_file(output_key => 'vcf_index', basename => $basename . ".tbi", type => 'bin', metadata => $vcf_meta);
-            
-            my $req      = $self->new_requirements(memory => 6000, time => 1);
-            my $jvm_args = $self->jvm_args($req->memory);
-            my $cmd      = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T GenotypeGVCFs -R $reference_fasta $genotype_gvcfs_opts -o $vcf_path];
-            my $this_cmd = "use VRPipe::Steps::gatk_genotype_gvcfs; VRPipe::Steps::gatk_genotype_gvcfs->genotype_and_check(q[$cmd]);";
-            $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
+            my $req = $self->new_requirements(memory => 6000, time => 1);
+            while (my ($region, $region_input_files) = each %region_gvcfs) {
+                my $this_genotype_gvcfs_opts = $genotype_gvcfs_opts;
+                my $this_basename            = $basename;
+                unless ($region eq 'all') {
+                    $this_genotype_gvcfs_opts .= " -L $region";
+                    my ($chrom, $from, $to) = $region =~ m/^(.+):(\d+)-(\d+)$/;
+                    $vcf_meta = { %$vcf_meta, chrom => $chrom, from => $from, to => $to };
+                    $this_basename = "$region.$basename";
+                    $this_basename =~ s/:/_/;
+                }
+                my @file_inputs = map { "--variant " . $_->path } @$region_input_files;
+                $this_genotype_gvcfs_opts .= " @file_inputs";
+                
+                my $vcf_file  = $self->output_file(output_key => 'genotype_gvcf_file', basename => $this_basename, type => 'vcf', metadata => $vcf_meta);
+                my $vcf_path  = $vcf_file->path;
+                my $vcf_index = $self->output_file(output_key => 'genotype_gvcf_index_files', basename => $this_basename . ".tbi", type => 'bin', metadata => $vcf_meta);
+                
+                my $cmd      = $self->gatk_prefix($req->memory) . qq[ -T GenotypeGVCFs -R $reference_fasta $this_genotype_gvcfs_opts -o $vcf_path];
+                my $this_cmd = "use VRPipe::Steps::gatk_genotype_gvcfs; VRPipe::Steps::gatk_genotype_gvcfs->genotype_and_check(q[$cmd]);";
+                $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
+            }
         };
     }
     
     method outputs_definition {
         return {
-            genotype_gvcf_file => VRPipe::StepIODefinition->create(type => 'vcf', max_files => 1, description => 'genotype gvcf file'),
-            vcf_index          => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => 'index of genotype gvcf file'),
+            genotype_gvcf_file        => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'genotype gvcf file'),
+            genotype_gvcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index of genotype gvcf file'),
         };
     }
     
@@ -111,7 +143,7 @@ class VRPipe::Steps::gatk_genotype_gvcfs extends VRPipe::Steps::gatk_v2 {
     }
     
     method description {
-        return "Run GATK GenotypeGVCFs on one or more gVCF files produced by the Haplotype Caller, generating one single joint VCF file";
+        return "Run GATK GenotypeGVCFs on one or more gVCF files produced by the Haplotype Caller, generating one single joint VCF file. Will group input files per-region if chrom/from/to metadata is present";
     }
     
     method max_simultaneous {

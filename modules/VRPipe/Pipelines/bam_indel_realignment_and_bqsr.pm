@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::sample_indel_realignment_and_bqsr - a pipeline
+VRPipe::Pipelines::bam_indel_realignment_and_bqsr - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::sample_indel_realignment_and_bqsr with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_indel_realignment_and_bqsr with VRPipe::PipelineRole {
     method name {
-        return 'sample_indel_realignment_and_bqsr';
+        return 'bam_indel_realignment_and_bqsr';
     }
     
     method description {
@@ -48,7 +48,6 @@ class VRPipe::Pipelines::sample_indel_realignment_and_bqsr with VRPipe::Pipeline
             'bam_realignment_around_discovered_indels', #2
             'gatk_base_recalibrator',                   #3
             'gatk_print_reads_with_bqsr',               #4
-            # 'bam_processing',                           #5 calmd,cram,striptags,index...
         );
     }
     
@@ -64,7 +63,6 @@ class VRPipe::Pipelines::sample_indel_realignment_and_bqsr with VRPipe::Pipeline
             { from_step => 2, to_step => 4, from_key => 'realigned_bam_files', to_key => 'bam_files' },
             { from_step => 2, to_step => 4, from_key => 'realigned_bam_index_files', to_key => 'bai_files' },
             { from_step => 3, to_step => 4, from_key => 'bam_recalibration_files', to_key => 'bam_recalibration_files' },
-            # { from_step => 4, to_step => 5, from_key => 'recalibrated_bam_files', to_key => 'bam_files' },
         );
     }
     
@@ -73,7 +71,6 @@ class VRPipe::Pipelines::sample_indel_realignment_and_bqsr with VRPipe::Pipeline
             { after_step => 2, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
             { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 },
             { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2, 3], regulated_by => 'cleanup', default_regulation => 1 },
-            # { after_step => 5, behaviour => 'delete_outputs', act_on_steps => [4],   regulated_by => 'cleanup',           default_regulation => 1 },
         );
     }
 }

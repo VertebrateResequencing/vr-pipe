@@ -356,9 +356,6 @@ class VRPipe::Job extends VRPipe::Persistent {
             return 0;
         }
         
-        # maintain the lock so that another process can check if we're running
-        $self->maintain_lock;
-        
         # check we're allowed to run, in a transaction to avoid race condition
         my $start_time  = DateTime->now();
         my $transaction = sub {

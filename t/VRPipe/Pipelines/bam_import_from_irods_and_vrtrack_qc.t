@@ -8,7 +8,7 @@ BEGIN {
     use Test::Most tests => 21;
     # this test is Sanger-specific, only the author needs to run it
     use VRPipeTest (
-        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB)],
+        required_env => [qw(VRPIPE_TEST_PIPELINES VRPIPE_VRTRACK_TESTDB VRPIPE_IRODS_TEST_ROOT VRPIPE_IRODS_TEST_RESOURCE)],
         required_exe => [qw(iget iquest)]
     );
     use TestPipelines;
@@ -32,6 +32,62 @@ foreach my $sql (@sql) {
 }
 close($mysqlfh);
 
+# copy truncated versions of the 2 active lanes to irods test area, and add
+# their metadata
+my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
+my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+my (undef, $irods_zone) = split('/', $irods_root);
+system("irm -fr $irods_root > /dev/null 2> /dev/null");
+system("imkdir -p $irods_root");
+system("iput -R $irods_resource t/data/7369_5#30.bam $irods_root");
+system("iput -R $irods_resource t/data/7369_5#31.bam $irods_root");
+
+my $common_metadata = {
+    id_run                 => 7369,
+    study_title            => 'Identification of mutational spectra in fission yeast DNA repair and chromatin mutants',
+    study_accession_number => 'ERP001017',
+    type                   => 'bam',
+    is_paired_read         => 1,
+    manual_qc              => 1,
+    sample_common_name     => 'Pombe',
+    lane                   => 5,
+    total_reads            => 6000,
+    target                 => 0,
+    study_id               => 2038,
+    study                  => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
+    reference              => '/lustre/scratch110/srpipe/references/Schizosaccharomyces_pombe/972h-_ASM294v2.19/all/bwa/Schizosaccharomyces_pombe.ASM294v2.19.dna.toplevel.fa',
+    alignment              => 1,
+    ebi_sub_acc            => 'ERA121039'
+};
+my %lane_metadata = (
+    '7369_5#30.bam' => {
+        md5                     => 'ab9d80d3a94dbba7b7b3a0b3766c0438',
+        library_id              => 4103648,
+        sample_accession_number => 'ERS074390',
+        ebi_run_acc             => 'ERR114963',
+        sample_id               => 1306196,
+        library                 => 4103648,
+        sample                  => 'SC_MFY5249247'
+    },
+    '7369_5#31.bam' => {
+        md5                     => 'cd292cd43026ff4b41b2004f2fde3ecc',
+        library_id              => 4103636,
+        sample_accession_number => 'ERS074391',
+        ebi_run_acc             => 'ERR114964',
+        sample_id               => 1306197,
+        library                 => 4103636,
+        sample                  => 'SC_MFY5249248'
+    }
+);
+
+foreach my $file ('7369_5#30.bam', '7369_5#31.bam') {
+    foreach my $hash ($common_metadata, $lane_metadata{$file}) {
+        while (my ($key, $val) = each %$hash) {
+            system("imeta -z $irods_zone add -d $irods_root/$file $key '$val'");
+        }
+    }
+}
+
 # setup pipeline
 my $output_dir = get_output_dir('bam_import_from_irods_and_vrtrack_qc');
 my $irods_dir = dir($output_dir, 'irods_import')->stringify;
@@ -47,7 +103,7 @@ my $results = 0;
 foreach my $element (@{ get_elements($ds) }) {
     $results++;
 }
-is $results, 5, 'got correct number of bams from the vrtrack db';
+is $results, 2, 'got correct number of bams from the vrtrack db';
 
 ok my $import_qc_pipeline = VRPipe::Pipeline->create(name => 'bam_import_from_irods_and_vrtrack_qc'), 'able to get the bam_import_from_irods_and_vrtrack_qc pipeline';
 my @s_names;
@@ -68,6 +124,7 @@ VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $import_qc_pipeline,
     options     => {
+        irods_get_zone          => $irods_zone,
         reference_fasta         => $ref_fa,
         reference_assembly_name => 'SPombe1',
         reference_public_url    => 'ftp://s.pombe.com/ref.fa',
@@ -81,8 +138,8 @@ VRPipe::PipelineSetup->create(
 
 my @irods_files;
 my @qc_files;
-my $element_id = 5;
-my @lane_nums  = qw(27 28 29 30 31);
+my $element_id = 2;
+my @lane_nums  = qw(30 31);
 foreach my $num (@lane_nums) {
     my @output_subdirs = output_subdirs($element_id--);
     my $basename       = '7369_5#' . $num;
@@ -99,57 +156,57 @@ ok handle_pipeline(@irods_files, @qc_files), 'irods import and qc graphs pipelin
 my $meta = VRPipe::File->get(path => $irods_files[0])->metadata;
 is_deeply $meta,
   {
-    bases                           => 1155792800,
-    center_name                     => 'SC',
-    expected_md5                    => '18dc7d5820b901dfba36be1e41603a1b',
-    individual                      => 'SC_MFY5249244',
-    insert_size                     => 320,
-    lane                            => '7369_5#27',
-    lane_id                         => 13,
-    library                         => 4103684,
-    paired                          => 1,
-    platform                        => 'SLX',
-    population                      => 'Population',
-    project                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
-    reads                           => 11557928,
-    sample                          => 'SC_MFY5249244',
-    species                         => 'Pombe',
-    study                           => 'ERP001017',
-    targeted_avg_read_length        => 100,
-    targeted_bases                  => 785559800,
-    targeted_bases_mapped           => 783669700,
-    targeted_bases_mapped_c         => 782746015,
-    targeted_bases_of_100X_coverage => 236968,
-    targeted_bases_of_10X_coverage  => 11374070,
-    targeted_bases_of_1X_coverage   => 11418355,
-    targeted_bases_of_20X_coverage  => 11207157,
-    targeted_bases_of_2X_coverage   => 11417323,
-    targeted_bases_of_50X_coverage  => 9395673,
-    targeted_bases_of_5X_coverage   => 11409861,
-    targeted_bases_trimmed          => 1738372,
-    targeted_error_rate             => '3.641800e-03',
-    targeted_filtered_reads         => 7855598,
-    targeted_forward_reads          => 3927828,
-    targeted_mean_coverage          => 66.13,
-    targeted_mean_insert_size       => 317.3,
-    targeted_paired                 => 1,
-    targeted_reads                  => 7855598,
-    targeted_reads_mapped           => 7836697,
-    targeted_reads_paired           => 7817796,
-    targeted_reverse_reads          => 3927770,
-    targeted_rmdup_bases            => 777710400,
-    targeted_rmdup_bases_mapped     => 774905867,
-    targeted_rmdup_reads            => 7777104,
-    targeted_rmdup_reads_mapped     => 7758203,
-    targeted_sd_insert_size         => 80.9,
-    withdrawn                       => 0
+    'population'                      => 'Population',
+    'withdrawn'                       => '0',
+    'bases'                           => '600000',
+    'targeted_bases_of_20X_coverage'  => '3010',
+    'targeted_paired'                 => '1',
+    'targeted_reads_paired'           => '2878',
+    'targeted_bases_trimmed'          => '644',
+    'individual'                      => 'SC_MFY5249247',
+    'targeted_reverse_reads'          => '1513',
+    'targeted_bases_of_50X_coverage'  => '2533',
+    'sample'                          => 'SC_MFY5249247',
+    'study'                           => 'ERP001017',
+    'lane'                            => '7369_5#30',
+    'targeted_reads'                  => '3000',
+    'targeted_sd_insert_size'         => '87.1',
+    'targeted_rmdup_bases_mapped'     => '260513',
+    'targeted_error_rate'             => '3.115265e-03',
+    'insert_size'                     => '314',
+    'targeted_filtered_reads'         => '3000',
+    'targeted_rmdup_reads'            => '2938',
+    'targeted_bases_of_2X_coverage'   => '3365',
+    'paired'                          => '1',
+    'reads'                           => '6000',
+    'project'                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
+    'targeted_mean_insert_size'       => '280.0',
+    'library'                         => '4103648',
+    'targeted_bases_of_10X_coverage'  => '3262',
+    'lane_id'                         => '4',
+    'targeted_bases_mapped'           => '294800',
+    'targeted_bases_mapped_c'         => '266109',
+    'targeted_bases_of_5X_coverage'   => '3353',
+    'targeted_reads_mapped'           => '2948',
+    'targeted_bases'                  => '300000',
+    'platform'                        => 'SLX',
+    'center_name'                     => 'SC',
+    'expected_md5'                    => 'ab9d80d3a94dbba7b7b3a0b3766c0438',
+    'targeted_mean_coverage'          => '87.58',
+    'targeted_avg_read_length'        => '100',
+    'targeted_bases_of_1X_coverage'   => '3366',
+    'species'                         => 'Pombe',
+    'targeted_rmdup_reads_mapped'     => '2886',
+    'targeted_rmdup_bases'            => '293800',
+    'targeted_bases_of_100X_coverage' => '1025',
+    'targeted_forward_reads'          => '1487'
   },
   'metadata correct for one of the bam files';
 
 my $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
-my $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#27');
+my $lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#31');
 my $mapstats = $lane->latest_mapping;
-is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $mapstats->raw_reads], [1, 1, 1, 7855598], 'VRTrack database was updated correctly';
+is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $mapstats->raw_reads], [1, 1, 1, 3000], 'VRTrack database was updated correctly';
 
 # we'll also test the whole chain of pipelines we typically run in
 # VertebrateResequencing at the Sanger: improvement followed by genotype check
@@ -198,94 +255,93 @@ VRPipe::PipelineSetup->create(
 handle_pipeline();
 
 my @improved_bams;
-$element_id = 10;
-foreach my $num (qw(27 28 29 30 31)) {
+$element_id = 4;
+foreach my $num (qw(30 31)) {
     my @output_subdirs = output_subdirs($element_id--, 2);
     push(@improved_bams, file(@output_subdirs, '10_bam_reheader', '7369_5#' . $num . '.realign.recal.calmd.bam'));
 }
 ok handle_pipeline(@improved_bams), 'chained improvement pipeline ran ok';
 
 $meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
-warn "checking metadata of $improved_bams[0]\n";
 my $opc = delete $meta->{original_pg_chain};
 is_deeply $meta,
   {
-    avg_read_length                 => 100,
-    bases                           => 1155792800,
-    bases_mapped                    => 1146563200,
-    bases_mapped_c                  => 1145243236,
-    bases_of_100X_coverage          => 332396,
-    bases_of_10X_coverage           => 12577952,
-    bases_of_1X_coverage            => 12626444,
-    bases_of_20X_coverage           => 12394676,
-    bases_of_2X_coverage            => 12625336,
-    bases_of_50X_coverage           => 10410466,
-    bases_of_5X_coverage            => 12616903,
-    bases_trimmed                   => 0,
-    center_name                     => 'SC',
-    error_rate                      => '3.762939e-03',
-    expected_md5                    => '18dc7d5820b901dfba36be1e41603a1b',
-    filtered_reads                  => 11557928,
-    forward_reads                   => 5778964,
-    individual                      => 'SC_MFY5249244',
-    insert_size                     => 320,
-    lane                            => '7369_5#27',
-    lane_id                         => 13,
-    library                         => 4103684,
-    mean_coverage                   => 66.88,
-    mean_insert_size                => 314.4,
-    paired                          => 1,
-    platform                        => 'SLX',
-    population                      => 'Population',
-    project                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
-    reads                           => 11557928,
-    reads_mapped                    => 11465632,
-    reads_paired                    => 11434358,
-    reverse_reads                   => 5778964,
-    rmdup_bases                     => 1108486300,
-    rmdup_bases_mapped              => 1097991197,
-    rmdup_reads                     => 11084863,
-    rmdup_reads_mapped              => 10992567,
-    sample                          => 'SC_MFY5249244',
-    sd_insert_size                  => 81.2,
-    species                         => 'Pombe',
-    study                           => 'ERP001017',
-    targeted_avg_read_length        => 100,
-    targeted_bases                  => 785559800,
-    targeted_bases_mapped           => 783669700,
-    targeted_bases_mapped_c         => 782746015,
-    targeted_bases_of_100X_coverage => 236968,
-    targeted_bases_of_10X_coverage  => 11374070,
-    targeted_bases_of_1X_coverage   => 11418355,
-    targeted_bases_of_20X_coverage  => 11207157,
-    targeted_bases_of_2X_coverage   => 11417323,
-    targeted_bases_of_50X_coverage  => 9395673,
-    targeted_bases_of_5X_coverage   => 11409861,
-    targeted_bases_trimmed          => 1738372,
-    targeted_error_rate             => '3.641800e-03',
-    targeted_filtered_reads         => 7855598,
-    targeted_forward_reads          => 3927828,
-    targeted_mean_coverage          => 66.13,
-    targeted_mean_insert_size       => 316.3,
-    targeted_paired                 => 1,
-    targeted_reads                  => 7855598,
-    targeted_reads_mapped           => 7836697,
-    targeted_reads_paired           => 7817796,
-    targeted_reverse_reads          => 3927770,
-    targeted_rmdup_bases            => 777710400,
-    targeted_rmdup_bases_mapped     => 774905867,
-    targeted_rmdup_reads            => 7777104,
-    targeted_rmdup_reads_mapped     => 7758203,
-    targeted_sd_insert_size         => 80.9,
-    withdrawn                       => 0
+    'withdrawn'                       => '0',
+    'bases'                           => '600000',
+    'targeted_bases_of_20X_coverage'  => '3010',
+    'targeted_paired'                 => '1',
+    'individual'                      => 'SC_MFY5249247',
+    'study'                           => 'ERP001017',
+    'lane'                            => '7369_5#30',
+    'targeted_reads'                  => '3000',
+    'targeted_sd_insert_size'         => '87.1',
+    'targeted_rmdup_bases_mapped'     => '260513',
+    'bases_trimmed'                   => '0',
+    'targeted_error_rate'             => '3.115265e-03',
+    'reads_mapped'                    => '5945',
+    'insert_size'                     => '314',
+    'bases_of_50X_coverage'           => '5169',
+    'targeted_rmdup_reads'            => '2938',
+    'targeted_bases_of_2X_coverage'   => '3365',
+    'paired'                          => '1',
+    'bases_mapped_c'                  => '594205',
+    'reads'                           => '6000',
+    'reverse_reads'                   => '3034',
+    'targeted_bases_of_10X_coverage'  => '3262',
+    'targeted_bases_mapped'           => '294800',
+    'rmdup_bases'                     => '583900',
+    'targeted_bases_mapped_c'         => '266109',
+    'targeted_bases_of_5X_coverage'   => '3353',
+    'targeted_reads_mapped'           => '2948',
+    'center_name'                     => 'SC',
+    'platform'                        => 'SLX',
+    'expected_md5'                    => 'ab9d80d3a94dbba7b7b3a0b3766c0438',
+    'species'                         => 'Pombe',
+    'targeted_rmdup_bases'            => '293800',
+    'targeted_bases_of_100X_coverage' => '1025',
+    'targeted_forward_reads'          => '1487',
+    'population'                      => 'Population',
+    'targeted_reads_paired'           => '2878',
+    'sd_insert_size'                  => '85.8',
+    'targeted_bases_trimmed'          => '644',
+    'mean_insert_size'                => '292.9',
+    'mean_coverage'                   => '85.65',
+    'bases_of_5X_coverage'            => '6889',
+    'targeted_reverse_reads'          => '1513',
+    'bases_of_100X_coverage'          => '1215',
+    'reads_paired'                    => '5871',
+    'targeted_bases_of_50X_coverage'  => '2533',
+    'sample'                          => 'SC_MFY5249247',
+    'rmdup_reads'                     => '5839',
+    'bases_of_2X_coverage'            => '6932',
+    'rmdup_bases_mapped'              => '578113',
+    'bases_of_10X_coverage'           => '6770',
+    'targeted_filtered_reads'         => '3000',
+    'bases_of_20X_coverage'           => '6449',
+    'bases_of_1X_coverage'            => '6941',
+    'project'                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
+    'targeted_mean_insert_size'       => '280.0',
+    'library'                         => '4103648',
+    'lane_id'                         => '4',
+    'avg_read_length'                 => '100',
+    'targeted_bases'                  => '300000',
+    'bases_mapped'                    => '594500',
+    'rmdup_reads_mapped'              => '5784',
+    'error_rate'                      => '3.534134e-03',
+    'targeted_mean_coverage'          => '87.58',
+    'targeted_avg_read_length'        => '100',
+    'targeted_bases_of_1X_coverage'   => '3366',
+    'targeted_rmdup_reads_mapped'     => '2886',
+    'forward_reads'                   => '2966',
+    'filtered_reads'                  => '6000'
   },
   'metadata correct for one of the improved bam files';
 $meta->{original_pg_chain} = $opc;
 
 $vrtrack = VRTrack::Factory->instantiate(database => $ENV{VRPIPE_VRTRACK_TESTDB}, mode => 'r');
-$lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#27');
+$lane = VRTrack::Lane->new_by_name($vrtrack, '7369_5#31');
 $mapstats = $lane->latest_mapping;
-is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 11557928, 7855598], 'VRTrack database was updated correctly after improvement';
+is_deeply [$lane->is_processed('import'), $lane->is_processed('mapped'), $lane->is_processed('qc'), $lane->is_processed('improved'), $lane->raw_reads, $mapstats->raw_reads], [1, 1, 1, 1, 6000, 3000], 'VRTrack database was updated correctly after improvement';
 
 # genotype check
 # (the pombe_snps.bin was made by:
@@ -326,9 +382,9 @@ foreach my $bam (@improved_bams) {
         $gtype_analysis_correct++;
     }
 }
-#*** samtools v1+ result in 4 of these failing, need to investigate why and if
+#*** samtools v1+ result in these failing, need to investigate why and if
 # gtypex_genotype_analysis step needs adjusting
-is $gtype_analysis_correct, 5, 'all the bams had the expected gtype_analysis metadata added to them by the bam_genotype_checking pipeline';
+is $gtype_analysis_correct, 2, 'all the bams had the expected gtype_analysis metadata added to them by the bam_genotype_checking pipeline';
 
 # autoqc that writes results to vrtrack
 $output_dir = get_output_dir('auto_qc');
@@ -367,7 +423,7 @@ foreach my $num (@lane_nums) {
     my $lib = VRTrack::Library->new($vrtrack, $lane->library_id);
     $failed_auto_qc_libs++ if $lib->auto_qc_status eq 'failed';
 }
-is_deeply [$passed_auto_qc_lanes, $failed_auto_qc_libs], [5, 5], 'auto qc pipeline set all the lanes in VRTrack to passed, and their libraries to failed';
+is_deeply [$passed_auto_qc_lanes, $failed_auto_qc_libs], [2, 2], 'auto qc pipeline set all the lanes in VRTrack to passed, and their libraries to failed';
 
 my $lane_gtype_correct = 0;
 $passed_auto_qc_lanes = 0;
@@ -382,7 +438,7 @@ foreach my $bam (@improved_bams) {
         $lane_gtype_correct++;
     }
 }
-is_deeply [$lane_gtype_correct, $passed_auto_qc_lanes], [5, 5], 'auto qc also set bam metadata auto_qc_status to passed and updated VRTrack gt_status and mapstats gt_* for all lanes';
+is_deeply [$lane_gtype_correct, $passed_auto_qc_lanes], [2, 2], 'auto qc also set bam metadata auto_qc_status to passed and updated VRTrack gt_status and mapstats gt_* for all lanes';
 
 # test that we can re-run QC
 $output_dir = get_output_dir('re_qc');
@@ -415,76 +471,76 @@ $meta = VRPipe::File->get(path => $improved_bams[0])->metadata;
 delete $meta->{original_pg_chain};
 is_deeply $meta,
   {
-    auto_qc_status                  => 'passed',
-    avg_read_length                 => 100,
-    bases                           => 1155792800,
-    bases_mapped                    => 1146563200,
-    bases_mapped_c                  => 1145243236,
-    bases_of_100X_coverage          => 332396,
-    bases_of_10X_coverage           => 12577952,
-    bases_of_1X_coverage            => 12626444,
-    bases_of_20X_coverage           => 12394676,
-    bases_of_2X_coverage            => 12625336,
-    bases_of_50X_coverage           => 10410466,
-    bases_of_5X_coverage            => 12616903,
-    bases_trimmed                   => 0,
-    center_name                     => 'SC',
-    error_rate                      => '3.762939e-03',
-    expected_md5                    => '18dc7d5820b901dfba36be1e41603a1b',
-    filtered_reads                  => 11557928,
-    forward_reads                   => 5778964,
-    gtype_analysis                  => 'status=confirmed expected=SC_MFY5249244 found=SC_MFY5249244 ratio=1.530',
-    individual                      => 'SC_MFY5249244',
-    insert_size                     => 320,
-    lane                            => '7369_5#27',
-    lane_id                         => 13,
-    library                         => 4103684,
-    mean_coverage                   => 66.88,
-    mean_insert_size                => 314.4,
-    paired                          => 1,
-    platform                        => 'SLX',
-    population                      => 'Population',
-    project                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
-    reads                           => 11557928,
-    reads_mapped                    => 11465632,
-    reads_paired                    => 11434358,
-    reverse_reads                   => 5778964,
-    rmdup_bases                     => 1108486300,
-    rmdup_bases_mapped              => 1097991197,
-    rmdup_reads                     => 11084863,
-    rmdup_reads_mapped              => 10992567,
-    sample                          => 'SC_MFY5249244',
-    sd_insert_size                  => 81.2,
-    species                         => 'Pombe',
-    study                           => 'ERP001017',
-    targeted_avg_read_length        => 100,
-    targeted_bases                  => 785559800,
-    targeted_bases_mapped           => 783669700,
-    targeted_bases_mapped_c         => 782746015,
-    targeted_bases_of_100X_coverage => 236968,
-    targeted_bases_of_10X_coverage  => 11374070,
-    targeted_bases_of_1X_coverage   => 11418355,
-    targeted_bases_of_20X_coverage  => 11207157,
-    targeted_bases_of_2X_coverage   => 11417323,
-    targeted_bases_of_50X_coverage  => 9395673,
-    targeted_bases_of_5X_coverage   => 11409861,
-    targeted_bases_trimmed          => 30414593,
-    targeted_error_rate             => '3.641800e-03',
-    targeted_filtered_reads         => 7855598,
-    targeted_forward_reads          => 3927828,
-    targeted_mean_coverage          => 66.13,
-    targeted_mean_insert_size       => 316.3,
-    targeted_paired                 => 1,
-    targeted_reads                  => 7855598,
-    targeted_reads_mapped           => 7836697,
-    targeted_reads_paired           => 7817796,
-    targeted_reverse_reads          => 3927770,
-    targeted_rmdup_bases            => 777710400,
-    targeted_rmdup_bases_mapped     => 774905867,
-    targeted_rmdup_reads            => 7777104,
-    targeted_rmdup_reads_mapped     => 7758203,
-    targeted_sd_insert_size         => 80.9,
-    withdrawn                       => 0
+    'targeted_paired'                 => '1',
+    'targeted_bases_of_20X_coverage'  => '3010',
+    'bases'                           => '600000',
+    'withdrawn'                       => '0',
+    'individual'                      => 'SC_MFY5249247',
+    'study'                           => 'ERP001017',
+    'lane'                            => '7369_5#30',
+    'targeted_reads'                  => '3000',
+    'auto_qc_status'                  => 'passed',
+    'targeted_sd_insert_size'         => '87.2',
+    'targeted_rmdup_bases_mapped'     => '260513',
+    'bases_trimmed'                   => '0',
+    'targeted_error_rate'             => '3.115265e-03',
+    'reads_mapped'                    => '5945',
+    'insert_size'                     => '314',
+    'bases_of_50X_coverage'           => '5169',
+    'targeted_rmdup_reads'            => '2938',
+    'targeted_bases_of_2X_coverage'   => '3365',
+    'paired'                          => '1',
+    'bases_mapped_c'                  => '594205',
+    'reads'                           => '6000',
+    'reverse_reads'                   => '3034',
+    'targeted_bases_of_10X_coverage'  => '3262',
+    'targeted_bases_mapped'           => '294800',
+    'rmdup_bases'                     => '583900',
+    'targeted_bases_mapped_c'         => '266109',
+    'gtype_analysis'                  => 'status=unconfirmed expected=SC_MFY5249247 found=SC_MFY5249244 ratio=1.000',
+    'targeted_bases_of_5X_coverage'   => '3353',
+    'targeted_reads_mapped'           => '2948',
+    'center_name'                     => 'SC',
+    'platform'                        => 'SLX',
+    'expected_md5'                    => 'ab9d80d3a94dbba7b7b3a0b3766c0438',
+    'species'                         => 'Pombe',
+    'targeted_bases_of_100X_coverage' => '1025',
+    'targeted_rmdup_bases'            => '293800',
+    'targeted_forward_reads'          => '1487',
+    'population'                      => 'Population',
+    'targeted_reads_paired'           => '2878',
+    'sd_insert_size'                  => '85.8',
+    'targeted_bases_trimmed'          => '192065',
+    'mean_insert_size'                => '292.9',
+    'mean_coverage'                   => '85.65',
+    'bases_of_5X_coverage'            => '6889',
+    'targeted_reverse_reads'          => '1513',
+    'bases_of_100X_coverage'          => '1215',
+    'reads_paired'                    => '5871',
+    'targeted_bases_of_50X_coverage'  => '2533',
+    'sample'                          => 'SC_MFY5249247',
+    'rmdup_reads'                     => '5839',
+    'bases_of_2X_coverage'            => '6932',
+    'rmdup_bases_mapped'              => '578113',
+    'bases_of_10X_coverage'           => '6770',
+    'targeted_filtered_reads'         => '3000',
+    'bases_of_20X_coverage'           => '6449',
+    'bases_of_1X_coverage'            => '6941',
+    'project'                         => 'SEQCAP_WGS_Identification_of_mutational_spectra_in_fission_yeast_DNA_repair_and_chromatin_mutants',
+    'targeted_mean_insert_size'       => '279.3',
+    'library'                         => '4103648',
+    'lane_id'                         => '4',
+    'avg_read_length'                 => '100',
+    'targeted_bases'                  => '300000',
+    'bases_mapped'                    => '594500',
+    'rmdup_reads_mapped'              => '5784',
+    'error_rate'                      => '3.534134e-03',
+    'targeted_mean_coverage'          => '87.58',
+    'targeted_avg_read_length'        => '100',
+    'targeted_bases_of_1X_coverage'   => '3366',
+    'forward_reads'                   => '2966',
+    'targeted_rmdup_reads_mapped'     => '2886',
+    'filtered_reads'                  => '6000'
   },
   'metadata got updated for one of the improved bam files after redoing QC';
 
@@ -493,7 +549,7 @@ foreach my $bam (@improved_bams) {
     my $meta = VRPipe::File->get(path => $bam)->metadata;
     $passed_auto_qc_lanes++ if $meta->{auto_qc_status} eq 'passed';
 }
-is $passed_auto_qc_lanes, 5, 'after redoing QC, still have 5 lanes passed';
+is $passed_auto_qc_lanes, 2, 'after redoing QC, still have 2 lanes passed';
 
 # mergeup
 $output_dir = get_output_dir('lane_merge');
@@ -557,9 +613,7 @@ handle_pipeline();
 my @merged_bams;
 foreach my $element (@{ get_elements($mergeacross_ps->datasource) }) {
     my @output_subdirs = output_subdirs($element->id, $mergeacross_ps->id);
-    for my $chunk (1 .. 3) {
-        push(@merged_bams, file(@output_subdirs, '1_bam_merge', "pe.$chunk.bam"));
-    }
+    push(@merged_bams, file(@output_subdirs, '1_bam_merge', "pe.1.bam"));
 }
 ok handle_pipeline(@merged_bams), 'chained mergeup -> mergeacross pipelines ran ok';
 
@@ -569,6 +623,7 @@ foreach my $mbam (@merged_bams) {
     my $split = $meta->{split_sequence} || next;
     $seen_splits{$split}++;
 }
-is_deeply \%seen_splits, { chromMT => 3, chromIII => 3, chromII => 3, chromI => 3, chromAB325691 => 3, chromMTR => 3 }, 'there were 3 mergeacross bams for each chromosome, and the metadata was correct';
+is_deeply \%seen_splits, { chromMT => 3, chromIII => 3, chromII => 3, chromI => 3, chromAB325691 => 3, chromMTR => 3 }, 'there was a mergeacross bam for each chromosome, and the metadata was correct';
 
+system("irm -fr $irods_root > /dev/null 2> /dev/null");
 finish;

@@ -102,9 +102,8 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 }
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T PrintReads -R $ref --BQSR ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_print_reads_with_bqsr', 'apply_bqsr_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
@@ -116,14 +115,12 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 type        => 'bam',
                 max_files   => -1,
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
-                metadata    => { reads => 'Number of reads in the recalibrated BAM file' }
             ),
             recalibrated_bam_index_files => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 min_files   => 0,
                 max_files   => -1,
                 description => 'index file for the indel recalibrated bam file',
-                metadata    => {}
             )
         };
     }

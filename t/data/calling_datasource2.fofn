@@ -1,0 +1,5 @@
+path	sample	platform
+t/data/NA19334.bam	NA19334	ILLUMINA
+t/data/NA19381.bam	NA19381	ILLUMINA
+t/data/NA20281.bam	NA20281	ILLUMINA
+t/data/NA20340.bam	NA20340	ILLUMINA

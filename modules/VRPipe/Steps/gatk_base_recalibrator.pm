@@ -45,7 +45,7 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
     around options_definition {
         return {
             %{ $self->$orig },
-            base_recalibrator_options => VRPipe::StepOption->create(description => 'command line options for GATK BaseRecalibrator -- must include -cov options; excludes the -knownSites option(s) which are set by another StepOption', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
+            base_recalibrator_options => VRPipe::StepOption->create(description => 'command line options for GATK BaseRecalibrator -- must include -cov and -knownSites options', optional => 1, default_value => '-l INFO -L 1 -L 2 -L 3 -L 4 -L 5 -L 6 -L 7 -L 8 -L 9 -L 10 -L 11 -L 12 -L 13 -L 14 -L 15 -L 16 -L 17 -L 18 -L 19 -L 20 -L 21 -L 22 -L X -L Y -L MT -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov DinucCovariate'),
         };
     }
     
@@ -67,6 +67,9 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
             my $recal_options = $options->{base_recalibrator_options};
             if ($recal_options =~ /$ref|-I |--input_file|-o | --output|BaseRecalibrator/) {
                 $self->throw("base_recalibrator_options should not include the reference, input files, output files option or BaseRecalibrator task command");
+            }
+            unless ($recal_options =~ /-cov/ && $recal_options =~ /-knownSites/) {
+                $self->throw("base_recalibrator_options must include -cov and -knownSites options");
             }
             
             $self->set_cmd_summary(
@@ -90,9 +93,8 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
                 );
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T BaseRecalibrator -R $ref -I ] . $bam->path . qq[ -o ] . $recal_file->path . qq[ $recal_options];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T BaseRecalibrator -R $ref -I ] . $bam->path . qq[ -o ] . $recal_file->path . qq[ $recal_options];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_base_recalibrator', 'bqsr_and_check', [$this_cmd, $req, { output_files => [$recal_file] }]);
             }
         };

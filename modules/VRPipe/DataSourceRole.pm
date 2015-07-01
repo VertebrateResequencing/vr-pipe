@@ -53,6 +53,12 @@ role VRPipe::DataSourceRole {
         isa => 'HashRef'
     );
     
+    has 'debug' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     has '_handle' => (
         is  => 'rw',
         isa => 'Defined',
@@ -83,6 +89,7 @@ role VRPipe::DataSourceRole {
         # call the datasource method
         my $method = $self->method;
         $self->can($method) || $self->throw("Invalid method '$method' for " . ref($self));
+        warn "_generate_elements will call ", ref($self), "->$method()\n" if $self->debug;
         $self->$method(%{ $self->options }, handle => $handle);
     }
     

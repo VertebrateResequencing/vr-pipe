@@ -70,7 +70,6 @@ class VRPipe::Steps::gatk_target_interval_creator_discovery extends VRPipe::Step
             );
             
             my $req = $self->new_requirements(memory => 4500, time => 1);
-            my $jvm_args = $self->jvm_args($req->memory);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $bam_base       = $bam->basename;
@@ -81,7 +80,7 @@ class VRPipe::Steps::gatk_target_interval_creator_discovery extends VRPipe::Step
                     metadata   => { source_bam => $bam->path->stringify }
                 );
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T RealignerTargetCreator -R $ref -o ] . $intervals_file->path . ' -I ' . $bam->path . ' ' . $intervals_opts;
+                my $this_cmd = $self->gatk_prefix($req->memory) . qq[ -T RealignerTargetCreator -R $ref -o ] . $intervals_file->path . ' -I ' . $bam->path . ' ' . $intervals_opts;
                 $self->dispatch([$this_cmd, $req]);
             }
         };

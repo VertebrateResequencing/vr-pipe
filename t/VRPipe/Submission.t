@@ -5,7 +5,7 @@ use Path::Class qw(file dir);
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 9;
+    use Test::Most tests => 7;
     use VRPipeTest;
 }
 
@@ -42,8 +42,6 @@ for (1 .. 4) {
     $fm->start and next;
     
     my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    $submissions[0]->job->refresh_lock(unlock_after => 4);
-    $submissions[0]->refresh_lock(unlock_after => 4);
     
     $fm->finish($claimed_and_ran);
 }
@@ -54,22 +52,9 @@ $submissions[0]->reselect_values_from_db;
 my $run_job = $submissions[0]->job;
 is_deeply [$submissions[0]->_claim, defined $run_job->start_time], [1, 1], "claim_and_run resulted in the submission's _claim being true and the job's start_time being set";
 
-$num_claimed = 0;
-for (1 .. 4) {
-    $fm->start and next;
-    
-    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    
-    $fm->finish($claimed_and_ran);
-}
-$fm->wait_all_children;
-
-is $num_claimed, 0, 'when we attempt to claim_and_run the same submission again, none succeed';
-
 # make sure that if a process dies in such a way that a submission is left with
 # _claim true and the job dead, we can re-claim the submission and try to run
 # the job again
-sleep(5);
 
 $num_claimed = 0;
 for (1 .. 4) {
@@ -81,31 +66,12 @@ for (1 .. 4) {
         ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
     }
     #$submissions[0]->set_verbose_global(0);
-    $submissions[0]->job->refresh_lock(unlock_after => 4);
-    $submissions[0]->refresh_lock(unlock_after => 4);
     
     $fm->finish($claimed_and_ran);
 }
 $fm->wait_all_children;
 
 is $num_claimed, 1, 'we were able to reclaim a submission when the _claim got stuck on and the job died';
-
-sleep(2);
-
-$num_claimed = 0;
-for (1 .. 4) {
-    $fm->start and next;
-    
-    my ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    if ($claimed_and_ran == 0) {
-        ($claimed_and_ran) = $submissions[0]->claim_and_run(allowed_time => 5);
-    }
-    
-    $fm->finish($claimed_and_ran);
-}
-$fm->wait_all_children;
-
-is $num_claimed, 0, 'but we do not reclaim a submission when it is running ok';
 
 # if a sub managed to get claimed but didn't start running and didn't get
 # released, make sure we're not stuck forever in a claimed, non-running state
@@ -116,7 +82,5 @@ my ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
 is $claimed_and_ran, 0, 'not able to immediately claim_and_run a previously claimed but unrun submission';
 ($claimed_and_ran) = $submissions[1]->claim_and_run(allowed_time => 5);
 is $claimed_and_ran, 1, 'able to claim_and_run a previously claimed but unrun submission on the next try';
-$submissions[1]->job->refresh_lock(unlock_after => 1);
-$submissions[1]->refresh_lock(unlock_after => 1);
 
 exit;

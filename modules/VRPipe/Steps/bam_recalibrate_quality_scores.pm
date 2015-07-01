@@ -96,9 +96,8 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 );
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
-                my $jvm_args = $self->jvm_args($req->memory, $temp_dir);
                 
-                my $this_cmd = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar . qq[ -T TableRecalibration -R $ref -recalFile ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
+                my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T TableRecalibration -R $ref -recalFile ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_recalibrate_quality_scores', 'recal_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
             }
         };
