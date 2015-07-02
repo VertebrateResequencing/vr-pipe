@@ -57,7 +57,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 default_value => 0
             ),
             post_calling_vcftools => VRPipe::StepOption->create(
-                description => 'After calling with bcftools call, option to pipe output vcf through a vcftools command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
+                description => 'After calling with bcftools call, option to pipe output vcf through a bcftools or other vcf streaming command, e.g. "$bcftools norm -f hs37d5.fa", where $bcftools will be replaced by the bcftools_exe option',
                 optional    => 1
             ),
             vcf_sample_from_metadata => VRPipe::StepOption->create(
@@ -88,8 +88,9 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             my $samples_option  = $self->_bcftools_samples_option;
             my $assumed_sex     = $options->{assumed_sex};
             my $minimum_records = $options->{minimum_records};
-            my $post_filter     = $options->{post_calling_vcftools};
             my $sfm             = $options->{vcf_sample_from_metadata};
+            my $post_filter     = $options->{post_calling_vcftools};
+            $post_filter =~ s/\$bcftools/$bcftools/g;
             
             my $sample_sex_file;
             if ($options->{sample_sex_file}) {
