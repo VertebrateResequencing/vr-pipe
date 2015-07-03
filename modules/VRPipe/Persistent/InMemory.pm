@@ -137,7 +137,8 @@ class VRPipe::Persistent::InMemory {
                 eval {
                     $redis = Redis->new(server => $server, reconnect => $reconnect_time, encoding => undef);
                     my $pong = $redis->ping;
-                    die "ping returned unexpected $pong\n" unless $pong eq 'PONG';
+                    $pong ||= 'undef';
+                    die "ping returned unexpected value: $pong\n" unless $pong eq 'PONG';
                 };
                 if ($@) {
                     $self->log("Could not connect to Redis server \@ $server; assuming it is dead ($@)");
@@ -250,7 +251,7 @@ class VRPipe::Persistent::InMemory {
             $pong  = $redis->ping;
         };
         return 0 if $@;
-        return $pong eq 'PONG';
+        return ($pong && $pong eq 'PONG');
     }
     
     method terminate_datastore {
