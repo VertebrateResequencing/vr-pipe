@@ -1,3 +1,12 @@
+0.213   Critical locking overhaul resolves vrpipe-server not functioning
+        correctly.
+        Fixed vrpipe-output so that it works again.
+        Fixed all vrpipe-* scripts and processes to not spawn extraneous redis
+        servers; now only vrpipe-server will spawn 1 as needed.
+        bcftools_cnv step fixed to get true sample name from vcf.
+        bcf_to_vcf step improved so that $bcftools can be replaced by
+        bcftools_exe in post_calling_vcftools option.
+        bam_import_from_irods_and_index step fixed so that it can be installed.
 0.212   Critical speed fix for steps that take datasource input with multiple
         types and many files.
         cram_index and bam_index steps now die if they can't delete an out-of-
