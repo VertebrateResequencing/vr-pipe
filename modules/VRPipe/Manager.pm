@@ -80,10 +80,10 @@ class VRPipe::Manager extends VRPipe::Persistent {
     
     method register_farm_server (Str $farm, Bool :$only_ours = 0) {
         my ($fs) = VRPipe::FarmServer->search({ farm => $farm });
-        return if ($fs && $fs->locked);
+        return if ($fs && $fs->is_alive);
         my $transaction = sub {
             my $fs = VRPipe::FarmServer->create(farm => $farm, hostname => hostname_long, only_ours => $only_ours);
-            if ($fs->lock) {
+            if ($fs->assert_life) {
                 return $fs;
             }
             return;

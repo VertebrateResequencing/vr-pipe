@@ -212,7 +212,7 @@ foreach my $estate (@element_states) {
                     $num_done++;
                 }
                 else {
-                    if ($sub->job->locked) {
+                    if ($sub->job->is_alive) {
                         $num_running++;
                     }
                     else {

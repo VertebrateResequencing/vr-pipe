@@ -448,6 +448,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             
             # start our watcher that keeps track of peak memory usage
             $self->start_monitoring;
+            $self->assert_life;
             
             # setup signal watchers for the various ways a scheduler might try
             # to ask us to die; in response we will try and guess why and update

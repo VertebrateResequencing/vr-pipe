@@ -56,6 +56,23 @@ class VRPipe::Persistent::InMemory {
     use Bytes::Random::Secure;
     use VRPipe::Interface::BackEnd;
     
+    has 'spawn_redis_server' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
+    has '_maintenance_children' => (
+        is      => 'ro',
+        isa     => 'ArrayRef[ArrayRef]',
+        traits  => ['Array'],
+        default => sub { [] },
+        handles => {
+            '_add_maintenance_child'    => 'push',
+            '_all_maintenance_children' => 'elements'
+        },
+    );
+    
     our $vrp_config   = VRPipe::Config->new();
     our $email_domain = $vrp_config->email_domain();
     our $admin_email  = $vrp_config->admin_user() . '@' . $email_domain;
@@ -83,6 +100,10 @@ class VRPipe::Persistent::InMemory {
             $redis_port  = "$redis_port";
             
             $backend = VRPipe::Interface::BackEnd->new(deployment => $deployment);
+            
+            if ($self->spawn_redis_server) {
+                $self->_redis_server;
+            }
         }
     }
     
@@ -93,6 +114,16 @@ class VRPipe::Persistent::InMemory {
             # get the hostname from our redis host file; if there isn't one
             # start the redis server first
             my $host_file = file($log_dir, 'redis.host');
+            
+            unless (-s $host_file || $self->spawn_redis_server) {
+                # there's no host file, and we're not allowed to spawn a new
+                # server. Before throwing, let's wait a while and see if one
+                # gets created soon; this is especially relevant during testing
+                for (1 .. 10) {
+                    sleep(1);
+                    last if -s $host_file;
+                }
+            }
             
             my $hostname;
             if (-s $host_file) {
@@ -115,6 +146,8 @@ class VRPipe::Persistent::InMemory {
             }
             
             unless ($hostname) {
+                $self->throw("No redis server available") unless $self->spawn_redis_server;
+                
                 # start the server
                 my $redis_pid_file = file($log_dir, 'redis.pid');
                 
@@ -168,14 +201,17 @@ class VRPipe::Persistent::InMemory {
         return $redis_server;
     }
     
-    method _redis {
+    method _redis (Str $mode = 'standard') {
         my $redis;
+        my $cache_key = $mode . '.' . $$;
         
         # we have a class variable to store a redis instance so we can reuse
         # the connection once made, but we make sure to get a new instance for
         # each pid in case we fork - we can't use the same instance in
-        # multiple processes at once
-        unless (defined $redis_instances{$$}) {
+        # multiple processes at once. We also need different instances for
+        # normal operation vs any use of pub/sub (those callers will have to
+        # set $mode to pub or sub)
+        unless (defined $redis_instances{$cache_key}) {
             # try 3 times to get a working redis instance
             for my $try (1 .. 3) {
                 eval { $redis = Redis->new(server => $self->_redis_server, reconnect => $reconnect_time, encoding => undef); };
@@ -192,10 +228,10 @@ class VRPipe::Persistent::InMemory {
                 }
             }
             
-            $redis_instances{$$} = $redis;
+            $redis_instances{$cache_key} = $redis;
         }
         else {
-            $redis = $redis_instances{$$};
+            $redis = $redis_instances{$cache_key};
             # *** check it works with a ->ping? Or is that too expensive?
         }
         
@@ -203,9 +239,13 @@ class VRPipe::Persistent::InMemory {
     }
     
     method datastore_ok {
-        my $redis = $self->_redis;
-        my $pong  = $redis->ping;
-        return $redis->ping eq 'PONG';
+        my ($redis, $pong);
+        eval {
+            $redis = $self->_redis;
+            $pong  = $redis->ping;
+        };
+        return 0 if $@;
+        return $pong eq 'PONG';
     }
     
     method terminate_datastore {
@@ -326,6 +366,9 @@ class VRPipe::Persistent::InMemory {
                     }
                 }
             }
+        }
+        elsif ($debug) {
+            warn " lock for $key was not set in redis server $redis->{server}\n";
         }
         
         return $val;
@@ -516,6 +559,66 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
+    method assert_life (Str $key!) {
+        my $channel = 'life.' . $key;
+        
+        # we can't assert life if this key is already alive (though we return
+        # true if it's alive in ourselves)
+        foreach my $ref ($self->_all_maintenance_children) {
+            my ($owner_pid, $child_pid, $this_key) = @$ref;
+            if ($this_key eq $key && $owner_pid == $$ && kill(0, $child_pid)) {
+                return 1;
+            }
+        }
+        return if $self->is_alive($key);
+        
+        # we'll fork a child and subscribe to the channel, listening ~forever
+        my $child_pid = fork;
+        if (defined $child_pid && $child_pid == 0) {
+            my $lr = $self->_redis('sub');
+            $lr->subscribe($channel, sub { return });
+            $lr->wait_for_messages(2500000); # 0 is supposed to be forever but doesn't seem to work?
+            exit(0);
+        }
+        
+        # we need some time for the child to start up and subscribe
+        my $ok = 0;
+        for (1 .. 5) {
+            $ok = $self->is_alive($key);
+            last if $ok;
+            sleep(1);
+        }
+        
+        if ($ok) {
+            $self->_add_maintenance_child([$$, $child_pid, $key]);
+            return 1;
+        }
+        # else, hmmm, what the?
+        kill(9, $child_pid);
+        waitpid $child_pid, 0;
+        return;
+    }
+    
+    sub DEMOLISH {
+        my $self = shift;
+        foreach my $ref ($self->_all_maintenance_children) {
+            my ($owner_pid, $child_pid) = @$ref;
+            if ($owner_pid == $$) {
+                kill(9, $child_pid);
+                waitpid $child_pid, 0;
+            }
+        }
+    }
+    
+    method is_alive (Str $key!) {
+        my $redis   = $self->_redis('pub');
+        my $channel = 'life.' . $key;
+        
+        # publish to the channel; if something listened we know the key holder
+        # is alive
+        return $redis->publish($channel, "you alive bro?");
+    }
+    
     method log_stderr {
         my $ok;
         eval {
@@ -535,7 +638,7 @@ class VRPipe::Persistent::InMemory {
     
     sub TIEHANDLE {
         my ($pkg, $server, $reconnect, $log_file) = @_;
-        return bless { server => $server, reconnect => $reconnect, log_file => $log_file }, $pkg;
+        return bless { server => $server, reconnect => $reconnect, log_file => $log_file, '_maintenance_children' => [] }, $pkg;
     }
     
     sub PRINT {

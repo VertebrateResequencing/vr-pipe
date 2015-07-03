@@ -1003,6 +1003,18 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
             return $self->_in_memory->noted($lock_key . '.' . $note, @_);
         });
         
+        $meta->add_method('assert_life' => sub { 
+            my $self = shift;
+            my $key  = $table_name . '.' . $self->id;
+            return $self->_in_memory->assert_life($key, @_);
+        });
+        
+        $meta->add_method('is_alive' => sub { 
+            my $self = shift;
+            my $key  = $table_name . '.' . $self->id;
+            return $self->_in_memory->is_alive($key, @_);
+        });
+        
         # if we'll use a Persistent instance in a repeatedly called fork we want
         # to get the connection details of redis just once, so we provide an
         # initialise method

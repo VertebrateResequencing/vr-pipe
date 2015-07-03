@@ -6,7 +6,7 @@ use EV;
 use AnyEvent;
 
 BEGIN {
-    use Test::Most tests => 132;
+    use Test::Most tests => 143;
     use VRPipeTest;
     $ENV{EMAIL_SENDER_TRANSPORT} = 'Test';
     use_ok('VRPipe::Persistent::InMemory');
@@ -20,6 +20,30 @@ ok my $redis = $im->_redis, 'able to call _redis()';
 isa_ok($redis, 'Redis');
 ok $redis->ping,      'Redis->ping worked';
 ok $im->datastore_ok, 'datastore_ok() worked';
+
+# test assert_life and is_alive
+my $assert_pid = fork;
+if (defined $assert_pid && $assert_pid == 0) {
+    $im->assert_life('foo');
+    sleep(2);
+    exit(0);
+}
+sleep(1);
+is $im->is_alive('foo'), 1, 'is_alive works while the pid that asserted life is alive';
+waitpid($assert_pid, 0);
+is $im->is_alive('foo'), 0, 'is_alive returns false once the pid that asserted life is dead';
+
+ok $im->assert_life('bar'), 'assert_life() worked in parent pid';
+is $im->is_alive('bar'),    1, 'is_alive() worked in the same process';
+ok $im->assert_life('zar'), 'assert_life() worked in parent pid again, for a different key';
+ok $im->assert_life('zar'), 'assert_life() succeeds with the same key on the same instance';
+my $im2 = VRPipe::Persistent::InMemory->new;
+ok !$im2->assert_life('zar'), 'assert_life() fails with the same key on a new instance';
+ok $im2->assert_life('char'), 'assert_life() worked in a new instance, for a different key';
+is $im2->is_alive('char'), 1, 'is_alive() worked on the new instance';
+undef $im2;
+is $im->is_alive('bar'),  1, 'after undefing the new instance, the orig instance assertions are still alive';
+is $im->is_alive('char'), 0, 'but the new instance assertions are dead';
 
 # test the log() method and its ability to email
 warning_like { $im->log('log_test', email_admin => 1, force_when_testing => 1) } qr/^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \| pid \d+ \| log_test$/, 'log() generates a warning';

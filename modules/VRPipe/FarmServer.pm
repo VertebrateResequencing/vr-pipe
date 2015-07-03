@@ -77,7 +77,7 @@ class VRPipe::FarmServer extends VRPipe::Persistent {
         
         # delete any farms no longer alive
         foreach my $fs ($self->search({})) {
-            next if $fs->locked;
+            next if $fs->is_alive;
             $fs->delete;
         }
         
