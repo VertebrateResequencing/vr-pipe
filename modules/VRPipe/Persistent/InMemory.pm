@@ -114,8 +114,9 @@ class VRPipe::Persistent::InMemory {
             # get the hostname from our redis host file; if there isn't one
             # start the redis server first
             my $host_file = file($log_dir, 'redis.host');
+            my $spawn = $self->spawn_redis_server;
             
-            unless (-s $host_file || $self->spawn_redis_server) {
+            unless (-s $host_file || $spawn) {
                 # there's no host file, and we're not allowed to spawn a new
                 # server. Before throwing, let's wait a while and see if one
                 # gets created soon; this is especially relevant during testing
@@ -133,10 +134,14 @@ class VRPipe::Persistent::InMemory {
                 
                 # check that the redis server is still alive on that host
                 my $redis;
-                eval { $redis = Redis->new(server => $server, reconnect => $reconnect_time, encoding => undef); };
+                eval {
+                    $redis = Redis->new(server => $server, reconnect => $reconnect_time, encoding => undef);
+                    my $pong = $redis->ping;
+                    die "ping returned unexpected $pong\n" unless $pong eq 'PONG';
+                };
                 if ($@) {
                     $self->log("Could not connect to Redis server \@ $server; assuming it is dead ($@)");
-                    unlink($host_file);
+                    unlink($host_file) if $spawn;
                 }
                 else {
                     $hostname = $redis_host;
@@ -146,7 +151,7 @@ class VRPipe::Persistent::InMemory {
             }
             
             unless ($hostname) {
-                $self->throw("No redis server available") unless $self->spawn_redis_server;
+                $self->throw("No redis server available") unless $spawn;
                 
                 # start the server
                 my $redis_pid_file = file($log_dir, 'redis.pid');
