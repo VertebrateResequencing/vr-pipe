@@ -67,7 +67,7 @@ my $max_subs              = $cmdline->opts('max_submissions');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $scheduler;
-my $im        = VRPipe::Persistent::InMemory->new();
+my $im        = VRPipe::Persistent::InMemory->new(spawn_redis_server => 1);
 my $dist_dir  = dir(dist_dir('VRPipe'))->absolute;
 my $pages_dir = dir($dist_dir, 'pages');
 my @pages;
@@ -223,11 +223,12 @@ sub start_server {
         my $checksum = $dmd5->hexdigest;
         
         # do not log if we can't get a lock
-        unless ($im->lock($checksum, unlock_after => $inter_message_time)) {
-            return;
+        if ($im->datastore_ok) {
+            unless ($im->lock($checksum, unlock_after => $inter_message_time)) {
+                return;
+            }
+            $im->log($err, email_admin => $email_admin);
         }
-        
-        $im->log($err, email_admin => $email_admin);
     };
     
     # set up a timer that will write out stderr (which includes logs) to the log
@@ -278,26 +279,19 @@ sub start_server {
                 }
                 elsif ($farm_server) {
                     # our database must be ready now, so load all Pipeline and
-                    # Step .pm modules into db if we haven't already. we do this
-                    # async since if it takes too long the farm_server will
-                    # think it died and we'll immediately lose it!
+                    # Step .pm modules into db if we haven't already
                     unless ($deployment eq 'testing') {
-                        fork_call {
-                            $backend->install_pipelines_and_steps;
-                            
-                            # also add or update all graph database schemas
-                            foreach my $module (findallmod(VRPipe::Schema)) {
-                                eval "require $module;";
-                                unless ($@) {
-                                    my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
-                                    $type || next;
-                                    VRPipe::Schema->create($type, update_schemas_in_db => 1);
-                                }
+                        $backend->install_pipelines_and_steps;
+                        
+                        # also add or update all graph database schemas
+                        foreach my $module (findallmod(VRPipe::Schema)) {
+                            eval "require $module;";
+                            unless ($@) {
+                                my ($type) = $module =~ /VRPipe::Schema::(\w+)/;
+                                $type || next;
+                                VRPipe::Schema->create($type, update_schemas_in_db => 1);
                             }
-                            
-                            return;
                         }
-                        $watcher_error_sub;
                     }
                     
                     $im->log("Submission management started for farm $farm");
@@ -333,7 +327,6 @@ sub start_server {
                     my $ok = $im->datastore_ok;
                     unless ($ok) {
                         $im->log("Can't continue submission management because I can't connect to the in-memory datastore");
-                        $farm_server->unlock;
                         $farm_server->delete;
                         undef $farm_server;
                     }
@@ -345,8 +338,6 @@ sub start_server {
                 $still_working = 0;
             }
             else {
-                my $still_locked = $farm_server->locked(by_me => 1);
-                
                 fork_call {
                     # this fork_call should not take that long, but it is
                     # critical that it not get stuck, or the server will seem to
@@ -356,7 +347,6 @@ sub start_server {
                     alarm $fork_alarm_time;
                     
                     # check we're still valid
-                    die "farmserver ", $farm_server->id, " is no longer locked\n" unless $still_locked;
                     my $in_db = $farm_server->search({ id => $farm_server->id });
                     die "farmserver ", $farm_server->id, " is no longer in the database\n" unless $in_db;
                     
@@ -513,8 +503,8 @@ sub start_server {
                                 
                                 next if exists $already_taken{$req_id}->{$sub_id};
                                 next if $sub->noted('grabbed');
-                                next if $sub->locked;
-                                next if $sub->job->locked;
+                                next if $sub->is_alive;
+                                next if $sub->job->is_alive;
                                 
                                 #*** note the race condition between testing
                                 # if a handler grabbed it above, and adding it
@@ -637,7 +627,7 @@ sub start_server {
                                             # beat, which runs until the trigger
                                             # is over
                                             my $job = $sub->job;
-                                            next if $job->locked;
+                                            next if $job->is_alive;
                                             my $job_end = $job->end_time;
                                             if (!$job_end || time() > ($job_end->epoch + ($leeway * 3))) {
                                                 $im->log("$dstr is currently running, but its claimed submission finished ages ago");
@@ -652,7 +642,7 @@ sub start_server {
                                         unless ($kill) {
                                             # if the job has started and is running, all
                                             # is well
-                                            next if $sub->job->locked;
+                                            next if $sub->job->is_alive;
                                             #$im->debug("$dstr the job is dead or hasn't started yet");
                                             
                                             next if $sidtosub->time_since_assignment <= $leeway;
@@ -726,7 +716,6 @@ sub start_server {
                         if ($err =~ /^farmserver/) {
                             chomp($err);
                             $im->log("Could not continue submission management for farm $farm because $err.", email_admin => 1);
-                            $farm_server->unlock;
                             undef $farm_server;
                         }
                         &{$watcher_error_sub};
@@ -815,15 +804,12 @@ sub start_server {
     # should keep running if the server goes down)
     eval {
         if ($farm_server) {
-            $farm_server->unlock;
             $farm_server->delete;
         }
     };
     if ($deployment eq 'testing') {
         # make sure all our handlers have exited ***... I don't know of a good
-        # way to ensure this; let's just wait 6 seconds and hope they commit
-        # suicide now that the farmserver is gone
-        sleep(6);
+        # way to ensure this...
         
         # some schedulers may need to do something when the test server exits
         my $sch_on_exit_method = $scheduler ? $scheduler->on_exit_method : undef;
@@ -887,7 +873,7 @@ sub _get_steplimit {
             my $count = 0;
             while (my $subs = $pager->next) {
                 foreach my $sub (@$subs) {
-                    $count++ if $sub->job->locked;
+                    $count++ if $sub->job->is_alive;
                 }
             }
             $step_counts->{$step_id} = $count;
@@ -1155,7 +1141,7 @@ sub status {
                                                 $sub_state = $sub->failed ? 'failed' : 'scheduled';
                                                 if ($sub_state eq 'scheduled') {
                                                     my $job = $sub->job;
-                                                    $sub_state = $job->end_time ? 'processing' : ($job->locked ? 'running' : 'pending');
+                                                    $sub_state = $job->end_time ? 'processing' : ($job->is_alive ? 'running' : 'pending');
                                                 }
                                             }
                                             my $ss_id = $sub->stepstate->id;
@@ -1191,7 +1177,7 @@ sub status {
                                 if (!$farm_server) {
                                     push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm exists.");
                                 }
-                                elsif (!$farm_server->locked) {
+                                elsif (!$farm_server->is_alive) {
                                     #*** this is broken, because dead detection
                                     # is based on checking ->locked(), which is
                                     # only asking the local redis server, while

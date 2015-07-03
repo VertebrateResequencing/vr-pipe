@@ -118,14 +118,20 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
                 
                 my $req = $self->new_requirements(memory => 1000, time => 5);
-                
+                my $sample_count;
                 foreach my $query (@samples) {
+                    # if a sample name is duplicated, it will have a number
+                    # prefix in the vcf header
+                    $sample_count++;
+                    my $real_sample_name = $query;
+                    $real_sample_name =~ s/^$sample_count://;
+                    
                     next if ($query eq $control);
                     
                     my $sub_dir = $query;
                     
                     my $summary_file = $self->output_file(sub_dir => $sub_dir, output_key => 'summary_file', basename => "summary.tab", type => 'txt', metadata => $meta);
-                    $summary_file->add_metadata({ sample => $query });
+                    $summary_file->add_metadata({ sample => $real_sample_name });
                     
                     my $plot_file = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => "plot.$control.$query.py", type => 'txt', metadata => $meta);
                     
@@ -135,7 +141,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     foreach my $chr (@chroms) {
                         my $png_file = $self->output_file(sub_dir => $sub_dir, output_key => 'png_files', basename => "plot.$control.$query.chr$chr.png", type => 'png', metadata => $meta);
                         push(@outfiles, $png_file);
-                        $self->relate_input_to_output($vcf_path, 'cnv_plot', $png_file->path->stringify, { chr => $chr, control_sample => $control, query_sample => $query });
+                        $self->relate_input_to_output($vcf_path, 'cnv_plot', $png_file->path->stringify, { chr => $chr, control_sample => $control, query_sample => $real_sample_name });
                     }
                     
                     foreach my $sample (($control, $query)) {
@@ -149,7 +155,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     $self->relate_input_to_output($vcf_path, 'cnv_summary',     $summary_path->stringify);
                     $self->relate_input_to_output($vcf_path, 'cnv_plot_script', $plot_path->stringify);
                     
-                    my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query]);";
+                    my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query], sample => q[$real_sample_name]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
             }
@@ -192,7 +198,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method call_and_plot (ClassName|Object $self: Str|File :$vcf!, Str|File :$summary!, Str|File :$plot!, Str :$bcftools!, Str :$python!, Str :$bcftools_opts!, Str :$control!, Str :$query!) {
+    method call_and_plot (ClassName|Object $self: Str|File :$vcf!, Str|File :$summary!, Str|File :$plot!, Str :$bcftools!, Str :$python!, Str :$bcftools_opts!, Str :$control!, Str :$query!, Str :$sample!) {
         my $vcf_file     = VRPipe::File->get(path => $vcf);
         my $summary_file = VRPipe::File->get(path => $summary);
         my $plot_file    = VRPipe::File->get(path => $plot);
@@ -203,7 +209,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
         # get the aberrant chrs from the sample node in graph db
         my $vrtrack = VRPipe::Schema->create('VRTrack');
         my ($sample_source, $sample_node, %ab_chrs);
-        foreach my $name ($query, $control) {
+        foreach my $name ($sample, $control) {
             $sample_source ||= $vrtrack->sample_source($name);
             my $sample_props = $vrtrack->sample_props_from_string($name, $sample_source);
             my $node = $vrtrack->get('Sample', $sample_props);

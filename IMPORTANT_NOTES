@@ -1,3 +1,18 @@
+# version 0.213
+(you must first upgrade to 0.203 if you haven't done so already, see notes
+below)
+
+See notes for 0.212 if you didn't upgrade to that version, though the known
+issue has been resolved in this version.
+
+New to this version is that redis-server processes won't be accidentally
+spawned on farm nodes in some edge cases. Prior to running this version, now
+might be a good time to clean up. Eg. for LSF, you could do something like:
+$ bhosts > bhosts
+$ cat bhosts | perl -ne '($host) = split; system(qq[ssh -o StrictHostKeyChecking=no $host "pkill -9 redis-server"]);'
+(all users who have used your install should do this, or it should be run as
+root)
+
 # version 0.212
 (you must first upgrade to 0.203 if you haven't done so already, see notes
 below)

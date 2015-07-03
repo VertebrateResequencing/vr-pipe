@@ -953,10 +953,10 @@ role VRPipe::StepRole {
         
         # user can override by providing pipelinesetup options
         my $options = $self->options;
-        if (defined $options->{memory_override} && $options->{memory_override} > $memory) {
+        if ($options->{memory_override} && $options->{memory_override} > $memory) {
             $memory = $options->{memory_override};
         }
-        if (defined $options->{time_override}) {
+        if ($options->{time_override}) {
             my $override_time = $options->{time_override};
             if ($override_time < 60) {
                 $override_time *= 60 * 60;

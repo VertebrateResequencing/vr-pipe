@@ -139,11 +139,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $response;
         
         # lock the Sub before trying to claim
-        $self->lock || return 3;
-        
-        # maintain our lock so their timeouts are auto-refreshed until the
-        # instances are destroyed (we'll return the job instance so the lock
-        # generated when we run isn't lost)
+        $self->lock        || return 3;
+        $self->assert_life || return 3;
         my $job = $self->job;
         
         my $transaction = sub {
@@ -176,7 +173,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
                 return;
             }
             elsif ($job->start_time) {
-                if ($job->locked) {
+                if ($job->is_alive) {
                     $response = 3;
                     $ps->log_event("claim_and_run() found that the Job had already started and is currently alive", %log_event_args);
                     return;
