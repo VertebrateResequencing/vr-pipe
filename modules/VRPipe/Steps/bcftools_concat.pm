@@ -46,7 +46,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
             bcftools_concat_opts => VRPipe::StepOption->create(
                 description   => 'options to bcftools concat (excluding -f, -o and -O)',
                 optional      => 1,
-                default_value => '--ligate'
+                default_value => ''
             ),
             concat_sites_only => VRPipe::StepOption->create(
                 description   => 'do not output genotype information to the concatenated vcf file',
