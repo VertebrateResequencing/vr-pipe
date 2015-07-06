@@ -555,7 +555,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         my @study_acs = ($meta->{study_accession_number} && ref $meta->{study_accession_number}) ? @{ $meta->{study_accession_number} } : ($meta->{study_accession_number});
                         my $preferred_study_id = delete $meta->{study_id_preferred};
                         foreach my $i (0 .. $#study_ids) {
-                            push(@studies, $vrtrack->add('Study', { id => $study_ids[$i], name => $study_titles[$i], accession => $study_acs[$i] }, incoming => { type => 'has', node => $group }));
+                            push(@studies, $vrtrack->add('Study', { id => $study_ids[$i], name => $study_titles[$i], $study_acs[$i] ? (accession => $study_acs[$i]) : () }, incoming => { type => 'has', node => $group }));
                             if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
                                 $preferred_study = $studies[-1];
                                 %study_relate_to_props = (properties => { preferred => 1 });
@@ -800,7 +800,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '', $require_qc_files, $desired_qc_files);
         $self->_clear_cache;
         
-        my %ignore_keys = map { $_ => 1 } qw(study_id study_title sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
+        my %ignore_keys = map { $_ => 1 } qw(study_id study_title study_accession_number sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
         
         my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
         
