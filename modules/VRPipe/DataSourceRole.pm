@@ -213,6 +213,27 @@ role VRPipe::DataSourceRole {
     }
     
     method _vals_different ($orig, $new) {
+        # treat empty refs, and refs filled with empty strings, as an empty
+        # string
+        if (ref $orig) {
+            my $empty = 0;
+            foreach my $val (@$orig) {
+                if (!defined $val || "$val" eq "") {
+                    $empty++;
+                }
+            }
+            $orig = "" if $empty == @$orig;
+        }
+        if (ref $new) {
+            my $empty = 0;
+            foreach my $val (@$new) {
+                if (!defined $val || "$val" eq "") {
+                    $empty++;
+                }
+            }
+            $new = "" if $empty == @$new;
+        }
+        
         if (!ref($orig) && !ref($new)) {
             if ($orig ne $new) {
                 return "$orig => $new";
