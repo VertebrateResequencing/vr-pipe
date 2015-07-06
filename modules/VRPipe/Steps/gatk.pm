@@ -77,9 +77,10 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         my $prefix   = $self->java_exe . qq[ $jvm_args -jar ] . $self->jar;
         
         # we want to always run with --phone_home NO_ET, but can only do that
-        # in v2+ if we have a gatk_key
+        # in v1.5+ if we have a gatk_key
         my $version = $self->gatk_version;
-        if ($version =~ /^1\./) {
+        $version =~ s/^(\d+\.\d+).+/$1/;
+        if ($version < 1.5) {
             $prefix .= ' --phone_home NO_ET';
         }
         elsif ($gatk_key) {
