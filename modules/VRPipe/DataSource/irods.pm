@@ -90,8 +90,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     }
     
     method _irods_file_metadata_checksum {
-        my $debug = $self->debug;
-        
         # we need a quick way of looking at all the relevant metadata for all
         # our desired files, but imeta/iquest doesn't give us this; to avoid
         # abusing the irods server too much we only actually calculate the
@@ -129,18 +127,18 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         if ($current_checksum && length($current_checksum) == 32) {
             unless ($locked) {
-                warn "irods datasource will return without checking since it's been less than $update_interval seconds since the last one\n" if $debug;
+                warn "irods datasource will return without checking since it's been less than $update_interval seconds since the last check\n" if $self->debug;
                 return $current_checksum;
             }
         }
         # else we always get the latest checksum if we have no valid checksum
-        warn "irods datasource will do a full check since it's been more than $update_interval seconds since the last one\n" if $debug;
+        $self->debug_log("irods datasource will do a full check since it's been more than $update_interval seconds since the last check\n");
         
         # get the current files and their metadata and stringify it all
         my $t     = time();
         my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
         my $e     = time() - $t;
-        warn "irods _get_irods_files_and_metadata call took $e seconds\n" if $debug;
+        $self->debug_log("irods _get_irods_files_and_metadata call took $e seconds\n");
         $self->_irods_files_and_metadata_cache($files);
         my $data = '';
         foreach my $path (sort keys %$files) {
@@ -257,7 +255,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             # it's a single directly-specified query
             @queries = ($raw_query);
         }
-        warn "have ", scalar(@queries), " queries to deal with\n" if $debug;
+        $self->debug_log("have " . scalar(@queries) . " queries to deal with\n");
         
         my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache);
         my $order = 1;
@@ -265,7 +263,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $t          = time();
             my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
             my $e          = time() - $t;
-            warn " query [imeta -z $zone qu -d $query] took $e seconds to run, returning ", scalar(@cmd_output), " lines\n" if $debug;
+            $self->debug_log(" query [imeta -z $zone qu -d $query] took $e seconds to run, returning " . scalar(@cmd_output) . " lines\n");
             my $collection;
             $t = time();
             my $f_count = 0;
@@ -709,7 +707,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 }
             }
             $e = time() - $t;
-            warn "\n getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds\n" if $debug;
+            warn "\n" if $debug;
+            $self->debug_log(" getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds\n");
         }
         
         return \%files;
@@ -878,6 +877,16 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_clear_file_filter_cache();
         
         return @results;
+    }
+    
+    method debug_log (Str $msg) {
+        if ($self->debug) {
+            warn $msg;
+        }
+        chomp($msg);
+        foreach my $setup (VRPipe::PipelineSetup->search({ datasource => $self->_datasource_id, active => 1 })) {
+            $setup->log_event($msg);
+        }
     }
 }
 
