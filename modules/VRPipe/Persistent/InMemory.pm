@@ -384,9 +384,9 @@ class VRPipe::Persistent::InMemory {
         return $self->lock($key, unlock_after => $forget_after, key_prefix => 'note', non_exclusive => 1, $value ? (lock_value => $value) : ());
     }
     
-    method unlock (Str $key!, Str :$key_prefix = 'lock') {
+    method unlock (Str $key!, Str :$key_prefix = 'lock', Int :$owner_pid?) {
         my $redis_key = $key_prefix . '.' . $key;
-        return unless $self->_own_lock($redis_key);
+        return unless $self->_own_lock($redis_key, $owner_pid || $$);
         return $self->_redis->del($redis_key);
     }
     
@@ -566,8 +566,6 @@ class VRPipe::Persistent::InMemory {
     }
     
     method assert_life (Str $key!) {
-        my $channel = 'life.' . $key;
-        
         # we can't assert life if this key is already alive (though we return
         # true if it's alive in ourselves)
         foreach my $ref ($self->_all_maintenance_children) {
@@ -578,16 +576,54 @@ class VRPipe::Persistent::InMemory {
         }
         return if $self->is_alive($key);
         
-        # we'll fork a child and subscribe to the channel, listening ~forever
-        my $child_pid = fork;
+        # we'll fork a child that keeps refreshing a lock (this is better than
+        # subscribing to listen for a message because we don't need to hold
+        # a connection open)
+        # We don't just have an indefinite lock because sshing to the node to
+        # check if the initiator is really alive seems to be unreliable
+        my $refresh_every = $deployment eq 'testing' ? 3  : 60;
+        my $unlock_after  = $deployment eq 'testing' ? 60 : 120;
+        my $parent_pid    = $$;
+        my $child_pid     = fork;
         if (defined $child_pid && $child_pid == 0) {
-            my $lr = $self->_redis('sub');
-            $lr->subscribe($channel, sub { return });
-            $lr->wait_for_messages(2500000); # 0 is supposed to be forever but doesn't seem to work?
+            my $r = $self->_redis;
+            $self->lock($key, key_prefix => 'life', unlock_after => $unlock_after) || exit;
+            
+            my $sig_handler = sub {
+                eval {
+                    $r->connect;
+                    $self->unlock($key, key_prefix => 'life');
+                    $r->quit;
+                };
+                exit(0);
+            };
+            $SIG{INT}  = $sig_handler;
+            $SIG{QUIT} = $sig_handler;
+            $SIG{TERM} = $sig_handler;
+            
+            while (1) {
+                $r->connect;
+                
+                if (!kill(0, $parent_pid)) {
+                    $self->unlock($key, key_prefix => 'life');
+                    last;
+                }
+                
+                if (!$self->locked($key, key_prefix => 'life', by_me => 1)) {
+                    last;
+                }
+                
+                $r->expire("life.$key", $unlock_after);
+                
+                $r->quit;
+                sleep($refresh_every);
+            }
+            
+            $r->quit;
             exit(0);
         }
         
-        # we need some time for the child to start up and subscribe
+        # we need some time for the child to start up and gain the lock
         my $ok = 0;
         for (1 .. 5) {
             $ok = $self->is_alive($key);
@@ -599,8 +635,8 @@ class VRPipe::Persistent::InMemory {
             $self->_add_maintenance_child([$$, $child_pid, $key]);
             return 1;
         }
-        # else, hmmm, what the?
-        kill(9, $child_pid);
+        # else, hmmm, were we kit by a race condition??
+        kill(2, $child_pid);
         waitpid $child_pid, 0;
         return;
     }
@@ -608,21 +644,16 @@ class VRPipe::Persistent::InMemory {
     sub DEMOLISH {
         my $self = shift;
         foreach my $ref ($self->_all_maintenance_children) {
-            my ($owner_pid, $child_pid) = @$ref;
-            if ($owner_pid == $$) {
-                kill(9, $child_pid);
+            my ($parent_pid, $child_pid, $key) = @$ref;
+            if ($parent_pid == $$) {
+                kill(2, $child_pid);
                 waitpid $child_pid, 0;
             }
         }
     }
     
     method is_alive (Str $key!) {
-        my $redis   = $self->_redis('pub');
-        my $channel = 'life.' . $key;
-        
-        # publish to the channel; if something listened we know the key holder
-        # is alive
-        return $redis->publish($channel, "you alive bro?");
+        return $self->locked($key, key_prefix => 'life');
     }
     
     method log_stderr {
