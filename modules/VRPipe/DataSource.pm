@@ -221,17 +221,30 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             
             # now page through dataelements with a higher id than previous most
             # recent:
-            my @des_args;
+            my (@des_args, @enqueue_args);
             my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $self->id, $most_recent_element_id ? (id => { '>' => $most_recent_element_id }) : () });
             while (my $eids = $pager->next) {
                 foreach my $eid (@$eids) {
                     foreach my $setup_id (@setup_ids) {
                         push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
+                        
+                        # bulk_create_or_update call below alters @des_args, so
+                        # we push to another array for queueing purposes
+                        push(@enqueue_args, [$setup_id, $eid]);
                     }
                 }
             }
             warn "generated ", scalar(@des_args), " new dataelements, will now create the states for them\n" if $debug;
             VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
+            
+            # queue up these new de to be triggered (vrpipe-server will do
+            # something with these); we don't queue des ids because we don't
+            # know them, and that's because it's much faster for the above call
+            # to be in void context
+            my $im = $self->_in_memory;
+            foreach my $args (@enqueue_args) {
+                $im->enqueue('trigger', "$args->[0]:$args->[1]");
+            }
             
             # we're done, so update changed marker
             my $cm = $source->_changed_marker;

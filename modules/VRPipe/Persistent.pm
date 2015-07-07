@@ -243,6 +243,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
     our $json    = JSON::XS->new->utf8->canonical->convert_blessed;
+    our $im;
     
     sub Path::Class::File::TO_JSON {
         return shift->stringify;
@@ -312,7 +313,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     }
     
     method _build_in_memory_obj {
-        return VRPipe::Persistent::InMemory->new();
+        $im ||= VRPipe::Persistent::InMemory->new();
+        return $im;
     }
     
     method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {

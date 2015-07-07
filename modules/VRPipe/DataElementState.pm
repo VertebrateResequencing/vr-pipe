@@ -21,7 +21,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -147,6 +147,10 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             # loop, so that we won't do it again in that same loop
             $anti_repeat_store->{ $self->id } = 1;
         }
+        
+        # queue ourselves to be triggered again (vrpipe-server will look after
+        # this)
+        $self->_in_memory->enqueue('trigger', $self->pipelinesetup . ':' . $self->dataelement);
         
         $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);
     }

@@ -192,8 +192,9 @@ sub start_server {
     $backend->daemonize unless $foreground;
     
     $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
-    my $timer_interval = $deployment eq 'production' ? 30 : 5;
-    my $inter_message_time = 3600;
+    my $timer_interval             = $deployment eq 'production' ? 30  : 5;
+    my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 60;
+    my $inter_message_time         = 3600;
     
     my $watcher_error_sub = sub {
         my $err = $@ || return;
@@ -256,7 +257,7 @@ sub start_server {
     # which can be terrible for us. periodic (usually) does not)
     
     # set up the submission management system if we're supposed to
-    my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher);
+    my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher, %setup_watchers, %currently_unstalling);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
@@ -338,6 +339,138 @@ sub start_server {
                 $still_working = 0;
             }
             else {
+                # claim our setups
+                my @setups;
+                eval {
+                    @setups = grep { $deployment eq 'testing' ? !$_->currently_complete : 1 } $farm_server->claim_setups;
+                };
+                
+                # create a setup watcher for any new setups; this will check
+                # for new stalls in the setup every 15mins, but having found
+                # a stall will only check again every hour
+                my %current_setups;
+                foreach my $setup (@setups) {
+                    my $sid = $setup->id;
+                    $current_setups{$sid} = 1;
+                    next if exists $setup_watchers{$sid};
+                    
+                    $setup->initialize_inmemory;
+                    $im->debug("will create stall watcher for setup $sid");
+                    
+                    $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
+                        return if $currently_unstalling{$sid};
+                        $currently_unstalling{$sid} = 1;
+                        
+                        my $lock_key = "setup_stall_watcher.$sid";
+                        return if $im->locked($lock_key);
+                        
+                        $setup->disconnect;
+                        fork_call {
+                            # we will email the user once when overall state
+                            # changes
+                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                            $setup->reselect_values_from_db;
+                            my $num_states = $setup->dataelementstates;
+                            
+                            if ($setup->currently_complete) {
+                                unless ($mt->already_sent("complete with $num_states elements")) {
+                                    unless ($num_states == 0) {
+                                        $setup->log_event("vrpipe-handler for setups completed the setup with $num_states DataElements");
+                                        my $name = $setup->name;
+                                        my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
+                                        $im->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
+                                    }
+                                }
+                                
+                                return;
+                            }
+                            
+                            # tell user about repeatedly failed subs
+                            my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
+                            my $had_problems = 0;
+                            if ($perma_fails) {
+                                $had_problems = 1;
+                                unless ($mt->already_sent("has some perma fails")) {
+                                    $setup->log_event("vrpipe-handler for setups found repeated failures for the setup that need user intervention");
+                                    my $name = $setup->name;
+                                    my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --failed --start_over --no_report\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
+                                    $im->log("Setup $sid ($name) has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
+                                }
+                            }
+                            
+                            # force a trigger for any apparently stalled
+                            # datalementstates
+                            $im->debug("looking for stalls");
+                            my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
+                            if ($ie_pager) {
+                                $im->debug("got incomplete_element_states");
+                                while (my $dess = $ie_pager->next) {
+                                    foreach my $des (@$dess) {
+                                        my $de_id = $des->dataelement->id;
+                                        my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de_id, 'stepstate.pipelinesetup' => $sid }, { join => 'stepstate' });
+                                        $im->debug("de $de_id has $have_subs subs");
+                                        
+                                        if ($have_subs) {
+                                            # we have subs so must have parsed
+                                            # something so there's no need to
+                                            # trigger... except in the case that
+                                            # all the subs are complete, in
+                                            # which case either we have an
+                                            # incomplete stepstate that the
+                                            # parse failed on, or we managed to
+                                            # complete one stepstate without
+                                            # creating a stepstate for the next
+                                            # step
+                                            my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de_id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
+                                            next unless $complete_subs == $have_subs;
+                                        }
+                                        
+                                        $im->log("forcing the trigger of dataelement $de_id (setup $sid) because it seems to be stalled");
+                                        $im->enqueue('trigger', "$sid:$de_id");
+                                        $had_problems = 1;
+                                    }
+                                }
+                            }
+                            $im->debug("after looking for stalls");
+                            
+                            # make sure that any same_submissions_as stepstates
+                            # haven't gotten stuck, which seems to be an issue
+                            # (*** bug elsewhere?)
+                            my $step_state_pager = VRPipe::StepState->search_paged({ pipelinesetup => $sid, same_submissions_as => { '!=' => undef }, complete => 0 });
+                            if ($step_state_pager) {
+                                while (my $step_states = $step_state_pager->next) {
+                                    foreach my $step_state (@$step_states) {
+                                        my $same = $step_state->same_submissions_as;
+                                        next unless $same->complete;
+                                        my $de_id = $step_state->dataelement->id;
+                                        $im->log("forcing the trigger of dataelement $de_id (setup $sid) because its stepstate has the same submissions as one that completed");
+                                        $im->enqueue('trigger', "$sid:$de_id");
+                                        $had_problems = 1;
+                                    }
+                                }
+                            }
+                            
+                            $im->lock($lock_key, unlock_after => $setup_state_timer_interval * 4) if $had_problems;
+                            
+                            return;
+                        }
+                        sub {
+                            delete $currently_unstalling{$sid};
+                            my $err = $@ || return;
+                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
+                            unless ($mt->already_sent("unknown problem")) {
+                                $setup->log_event("vrpipe-server encountered an unknown problem trying to unstall setup $sid: $err");
+                                $im->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
+                            }
+                        };
+                    };
+                }
+                
+                # remove any uneeded setup watchers
+                foreach my $sid (keys %setup_watchers) {
+                    delete $setup_watchers{$sid} unless exists $current_setups{$sid};
+                }
+                
                 fork_call {
                     # this fork_call should not take that long, but it is
                     # critical that it not get stuck, or the server will seem to
@@ -350,32 +483,32 @@ sub start_server {
                     my $in_db = $farm_server->search({ id => $farm_server->id });
                     die "farmserver ", $farm_server->id, " is no longer in the database\n" unless $in_db;
                     
-                    # claim our setups
-                    my @setups = grep { $deployment eq 'testing' ? !$_->currently_complete : 1 } $farm_server->claim_setups;
-                    
                     if (@setups) {
                         # make sure the redis server is alive
                         my $ok = $im->datastore_ok;
                         unless ($ok) {
                             $im->log("Can't continue submission management because I can't connect to the in-memory datastore");
                             undef $farm_server;
+                            %setup_watchers = ();
                             return;
                         }
                         
-                        # make sure we have setups handlers running for our
-                        # farm. each one will grab a certain number of setups
-                        # based on datasources that we will queue.
-                        # since our setups handler will run on a node
-                        # and needs access to the t directory when testing, we
-                        # will cd to the git root first for scheduler that need
-                        # to
+                        # make sure we have datasource handlers running for our
+                        # farm. each one will grab a certain number of
+                        # datasource based on what that we will queue. since our
+                        # datasource handler will run on a node and needs access
+                        # to the t directory when testing, we will cd to the git
+                        # root first for scheduler that need to
                         my $ds_handler_queue = 'ds_for_handlers.' . $farm;
                         $im->drop_queue($ds_handler_queue);
-                        my $shcmd = "$handler_path --mode setups --farm $farm";
+                        my $shcmd = "$handler_path --mode datasources --farm $farm";
                         my %ds_queued;
                         my %grabbed;
                         my %ds_wanted;
+                        my %setup_ids;
+                        
                         foreach my $setup (@setups) {
+                            $setup_ids{ $setup->id } = 1;
                             my $ds    = $setup->datasource;
                             my $ds_id = $ds->id;
                             next if exists $ds_wanted{$ds_id};
@@ -394,22 +527,22 @@ sub start_server {
                         # the number that have already been grabbed, pick
                         # an appropriate number of handlers that should be
                         # running
-                        my $num_setup_handlers_needed = 0;
-                        my $max_setup_handlers        = $max_subs ? int($max_subs / 2) : 500;
-                        my $ds_wanted                 = keys %ds_wanted;
+                        my $num_handlers_needed = 0;
+                        my $max_handlers        = $max_subs ? int($max_subs / 2) : 500;
+                        my $ds_wanted           = keys %ds_wanted;
                         if ($ds_wanted) {
                             if ($grabbed) {
-                                my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_setup_handlers);
+                                my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
                                 if ($already_running) {
                                     my $grabbed_per_handler = floor($grabbed / $already_running);
                                     $grabbed_per_handler ||= 1;
-                                    $num_setup_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
+                                    $num_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
                                     
-                                    if ($num_setup_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
-                                        $num_setup_handlers_needed = $already_running + 1;
+                                    if ($num_handlers_needed <= $already_running && $ds_wanted > $grabbed) {
+                                        $num_handlers_needed = $already_running + 1;
                                     }
-                                    if ($num_setup_handlers_needed > $max_setup_handlers) {
-                                        $num_setup_handlers_needed = $max_setup_handlers;
+                                    if ($num_handlers_needed > $max_handlers) {
+                                        $num_handlers_needed = $max_handlers;
                                     }
                                 }
                                 else {
@@ -420,23 +553,60 @@ sub start_server {
                                     foreach my $ds (values %grabbed) {
                                         $ds->forget_note('grabbed');
                                     }
-                                    $num_setup_handlers_needed = 1;
+                                    $num_handlers_needed = 1;
                                 }
                             }
                             else {
                                 # nothing being grabbed yet suggests we have
                                 # no handlers running at all, so we'll start
                                 # with 1 to see how many that grabs
-                                $num_setup_handlers_needed = 1;
+                                $num_handlers_needed = 1;
                             }
                         }
                         
-                        if ($num_setup_handlers_needed) {
+                        if ($num_handlers_needed) {
                             $scheduler->ensure_running(
                                 cmd   => $shcmd,
-                                count => $num_setup_handlers_needed,
+                                count => $num_handlers_needed,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
                                 requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
+                            );
+                        }
+                        
+                        # make sure we have sufficient dataelementstate
+                        # handlers, ramping up by 1 each loop until we have no
+                        # more to trigger
+                        my @triggers_queued = $im->queue('trigger');
+                        my $triggers_queued = 0;
+                        foreach my $to_trigger (@triggers_queued) {
+                            my ($setup) = split(/:/, $to_trigger);
+                            if (exists $setup_ids{$setup}) {
+                                $triggers_queued++;
+                            }
+                        }
+                        
+                        $num_handlers_needed = 0;
+                        $max_handlers        = 25;
+                        $shcmd               = "$handler_path --mode dataelementstates --farm $farm";
+                        if ($triggers_queued) {
+                            my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
+                            if ($already_running) {
+                                $num_handlers_needed = $already_running + 1;
+                                if ($num_handlers_needed >= $max_handlers) {
+                                    $num_handlers_needed = 0;
+                                }
+                            }
+                            else {
+                                $num_handlers_needed = 1;
+                            }
+                        }
+                        
+                        if ($num_handlers_needed) {
+                            $scheduler->ensure_running(
+                                cmd   => $shcmd,
+                                count => $num_handlers_needed,
+                                $deployment eq 'testing' ? (cwd => $cwd) : (),
+                                requirements => VRPipe::Requirements->create(memory => 500, time => 1)
                             );
                         }
                         
@@ -445,20 +615,7 @@ sub start_server {
                         
                         # get the count of requirements. Sadly we can't do a
                         # quick cursor->all because we need to take into account
-                        # step limits. Also, to avoid handlers running a slow,
-                        # complex query and possibly hitting transaction lock/
-                        # database update inconsistency issues, instead of them
-                        # selecting a Submission with normal db query they will
-                        # get one from the redis queue we will make
-                        my %already_taken;
-                        my $req_to_subs = VRPipe::SidToSub->get_column_values(['req_id', 'sub_id'], { farm => $farm, sub_id => { '!=' => undef } });
-                        foreach my $ref (@$req_to_subs) {
-                            my ($req_id, $sub_id) = @$ref;
-                            $already_taken{$req_id}->{$sub_id} = 1;
-                        }
-                        # (we have this in case the redis server goes down and
-                        #  we lose that knowledge of what was grabbed)
-                        
+                        # step limits
                         my $sched_id = $scheduler->id;
                         my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
                         
@@ -484,7 +641,7 @@ sub start_server {
                                 # submission created for this $job.
                                 my $job = $sub->job;
                                 if ($job->block_and_skip_if_ok) {
-                                    my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0 }, { rows => 1, order_by => { -asc => 'id' } });
+                                    my ($first_sub) = VRPipe::Submission->search({ 'job' => $job->id, '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $sched_id, 'pipelinesetup.controlling_farm' => $farm, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0 }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, rows => 1, order_by => { -asc => 'id' } });
                                     next unless ($first_sub && $first_sub->id == $sub_id);
                                 }
                                 
@@ -501,7 +658,6 @@ sub start_server {
                                 $req_counts{$req_id}++;
                                 $step_counts{$step_id}++;
                                 
-                                next if exists $already_taken{$req_id}->{$sub_id};
                                 next if $sub->noted('grabbed');
                                 next if $sub->is_alive;
                                 next if $sub->job->is_alive;
