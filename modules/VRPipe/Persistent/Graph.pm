@@ -121,6 +121,7 @@ class VRPipe::Persistent::Graph {
             # we use Mojo::UserAgent instead of LWP::UserAgent because LWP has
             # some kind of truncation bug when we try to get very large
             # responses from Neo4J
+            $ENV{MOJO_MAX_MESSAGE_SIZE} = 0; # avoid Maximum message size exceeded errors when we get lots of data from a query
             $ua = Mojo::UserAgent->new();
             $ua->connect_timeout(60)->inactivity_timeout(0)->request_timeout(0);
             
