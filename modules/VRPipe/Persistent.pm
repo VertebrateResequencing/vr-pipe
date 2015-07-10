@@ -209,7 +209,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -278,10 +278,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     );
     
     has '_in_memory' => (
-        is      => 'ro',
-        isa     => 'Object',
-        lazy    => 1,
-        builder => '_build_in_memory_obj'
+        is        => 'ro',
+        isa       => 'Object',
+        lazy      => 1,
+        builder   => '_build_in_memory_obj',
+        predicate => '_in_memory_created'
     );
     
     # for when this instance was not retrieved via get()
@@ -1008,6 +1009,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('assert_life' => sub { 
             my $self = shift;
             my $key  = $table_name . '.' . $self->id;
+            $self->disconnect;
             return $self->_in_memory->assert_life($key, @_);
         });
         
@@ -1029,6 +1031,29 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
         $meta->add_attribute('idxd_cols' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
+    }
+    
+    sub DEMOLISH {
+        my $self = shift;
+        warn "in P DEMOLISH for $self\n";
+        return unless $self->_in_memory_created;
+        return unless $self->id;
+        my $table_name = ref($self);
+        $table_name =~ s/.*:://;
+        $table_name = lc($table_name);
+        my $key = $table_name . '.' . $self->id;
+        warn "key is $key\n";
+        
+        foreach my $ref ($self->_in_memory->_all_maintenance_children) {
+            my ($parent_pid, $child_pid, $this_key) = @$ref;
+            warn "had child ($parent_pid, $child_pid, $this_key)\n";
+            if ($parent_pid == $$ && $key eq $this_key) {
+                warn "will kill $child_pid\n";
+                kill(2, $child_pid);
+                waitpid $child_pid, 0;
+                warn "killed\n";
+            }
+        }
     }
     
     # get method expects all the psuedo keys and will get or create the

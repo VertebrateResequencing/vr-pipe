@@ -366,41 +366,12 @@ sub start_server {
                         
                         $setup->disconnect;
                         fork_call {
-                            # we will email the user once when overall state
-                            # changes
-                            my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
                             $setup->reselect_values_from_db;
-                            my $num_states = $setup->dataelementstates;
-                            
-                            if ($setup->currently_complete) {
-                                unless ($mt->already_sent("complete with $num_states elements")) {
-                                    unless ($num_states == 0) {
-                                        $setup->log_event("vrpipe-handler for setups completed the setup with $num_states DataElements");
-                                        my $name = $setup->name;
-                                        my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
-                                        $im->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
-                                    }
-                                }
-                                
-                                return;
-                            }
-                            
-                            # tell user about repeatedly failed subs
-                            my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
-                            my $had_problems = 0;
-                            if ($perma_fails) {
-                                $had_problems = 1;
-                                unless ($mt->already_sent("has some perma fails")) {
-                                    $setup->log_event("vrpipe-handler for setups found repeated failures for the setup that need user intervention");
-                                    my $name = $setup->name;
-                                    my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --failed --start_over --no_report\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
-                                    $im->log("Setup $sid ($name) has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
-                                }
-                            }
                             
                             # force a trigger for any apparently stalled
                             # datalementstates
                             $im->debug("looking for stalls");
+                            my $had_problems = 0;
                             my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
                             if ($ie_pager) {
                                 $im->debug("got incomplete_element_states");
@@ -445,7 +416,6 @@ sub start_server {
                                         my $de_id = $step_state->dataelement->id;
                                         $im->log("forcing the trigger of dataelement $de_id (setup $sid) because its stepstate has the same submissions as one that completed");
                                         $im->enqueue('trigger', "$sid:$de_id");
-                                        $had_problems = 1;
                                     }
                                 }
                             }
@@ -466,9 +436,11 @@ sub start_server {
                     };
                 }
                 
-                # remove any uneeded setup watchers
+                # remove any unneeded setup watchers
                 foreach my $sid (keys %setup_watchers) {
-                    delete $setup_watchers{$sid} unless exists $current_setups{$sid};
+                    next if exists $current_setups{$sid};
+                    $im->debug("will delete stall watcher for setup $sid");
+                    delete $setup_watchers{$sid};
                 }
                 
                 fork_call {
@@ -659,7 +631,6 @@ sub start_server {
                                 $step_counts{$step_id}++;
                                 
                                 next if $sub->noted('grabbed');
-                                next if $sub->is_alive;
                                 next if $sub->job->is_alive;
                                 
                                 #*** note the race condition between testing
@@ -713,146 +684,17 @@ sub start_server {
                         }
                         
                         # submit the submission handlers to the scheduler
-                        my %running_in_scheduler;
                         while (my ($req_id, $count) = each %req_counts) {
                             my $cmd = "$handler_path --mode submissions --farm $farm -r $req_id -s $sched_id";
                             
                             #$im->log("will ensure that $count sub handlers are running for [$cmd]");
-                            my @running_sids = $scheduler->ensure_running(
+                            $scheduler->ensure_running(
                                 cmd   => $cmd,
                                 count => $count,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
                                 requirements => VRPipe::Requirements->get(id => $req_id),
                             );
-                            
-                            foreach my $sid_aid (@running_sids) {
-                                $running_in_scheduler{$sid_aid} = 1;
-                            }
                         }
-                        
-                        # delete any old defunct or stuck SidToSubs, and kill
-                        # them from the scheduler as well
-                        my $leeway = $deployment eq 'production' ? 300 : 60;
-                        my @sids_to_kill;
-                        foreach my $sidtosub (VRPipe::SidToSub->search({ farm => $farm })) {
-                            my $sid     = $sidtosub->sid;
-                            my $aid     = $sidtosub->aid;
-                            my $sid_aid = "$sid\[$aid]";
-                            my $dstr    = "[sidtosub " . $sidtosub->id . " sid $sid_aid]";
-                            #$im->debug("$dstr checking if defunct");
-                            
-                            unless (exists $running_in_scheduler{$sid_aid}) {
-                                #$im->debug("$dstr don't know that the scheduler is running this sid");
-                                # we might not know it's running because
-                                # %running_in_scheduler is only populated for
-                                # req_ids we still needed to run, so check with
-                                # the scheduler
-                                my $status = $scheduler->sid_status($sid, $aid);
-                                #$im->debug("$dstr sid_status said $status");
-                                if ($status eq 'RUN') {
-                                    $running_in_scheduler{$sid_aid} = 1;
-                                }
-                            }
-                            
-                            if (exists $running_in_scheduler{$sid_aid}) {
-                                # check that it has not been longer than 5mins
-                                # between sid_id being assigned and the sub's
-                                # job starting
-                                #$im->debug("$dstr it is currently running");
-                                my $sub_id = $sidtosub->sub_id;
-                                
-                                if ($sub_id) {
-                                    #$im->debug("$dstr it has been assigned a sub_id sub $sub_id");
-                                    my ($sub) = VRPipe::Submission->search({ 'me.id' => $sub_id }, { prefetch => 'job' });
-                                    if ($sub) {
-                                        # if sub done/failed, the handler will soon
-                                        # unset sub_id and we want it to hang around
-                                        # until we assign it a new one
-                                        my $kill = 0;
-                                        if ($sub->done || $sub->failed) {
-                                            # however, the handler could get
-                                            # stuck in between the submission
-                                            # getting set done and the sub_id
-                                            # getting unset, so check for that
-                                            # now. Yet we also want to avoid
-                                            # killing it while its in the middle
-                                            # of triggering, and that can take
-                                            # over 5mins when the db is heavily
-                                            # loaded, so we rely on the redis
-                                            # lock version of the job's heart
-                                            # beat, which runs until the trigger
-                                            # is over
-                                            my $job = $sub->job;
-                                            next if $job->is_alive;
-                                            my $job_end = $job->end_time;
-                                            if (!$job_end || time() > ($job_end->epoch + ($leeway * 3))) {
-                                                $im->log("$dstr is currently running, but its claimed submission finished ages ago");
-                                                $kill = 1;
-                                            }
-                                            else {
-                                                next;
-                                            }
-                                        }
-                                        #$im->debug("$dstr that sub isn't done yet");
-                                        
-                                        unless ($kill) {
-                                            # if the job has started and is running, all
-                                            # is well
-                                            next if $sub->job->is_alive;
-                                            #$im->debug("$dstr the job is dead or hasn't started yet");
-                                            
-                                            next if $sidtosub->time_since_assignment <= $leeway;
-                                            $im->log("$dstr it's been over 5mins since assignment and the job (" . $sub->job->id . ") is dead or hasn't started yet");
-                                        }
-                                    }
-                                }
-                                else {
-                                    # it hasn't grabbed a sub_id yet, but is
-                                    # that because we don't need a handler for
-                                    # this req_id anymore?
-                                    my $req_id = $sidtosub->req_id;
-                                    unless ($req_counts{$req_id}) {
-                                        #$im->debug("$dstr it has not grabbed a sub_id because we no longer need a handler for req $req_id");
-                                    }
-                                    else {
-                                        # ok, we still need it, perhaps it got
-                                        # stuck? When the submission handler
-                                        # undefs a submission it also updates
-                                        # assignment time, so we can see how
-                                        # long it has been sitting undefined
-                                        next if $sidtosub->time_since_assignment <= $leeway;
-                                        #$im->debug("$dstr it's been over 5mins since the handler tried to get a new submission");
-                                    }
-                                }
-                                
-                                #$im->debug("$dstr we'll ask the scheduler to kill this");
-                                push(@sids_to_kill, [$sid, $aid]);
-                            }
-                            
-                            # if we got this far it means either we're running
-                            # with an assigned sub but aren't doing anything
-                            # with it (we are stuck), or we're not running so
-                            # must have exited
-                            #$im->debug("$dstr we'll delete the sidtosub");
-                            $sidtosub->delete;
-                        }
-                        
-                        # kill anything running in the scheduler for which there
-                        # has not been a sidtosub created for over 5 mins
-                        foreach my $sid_aid (keys %running_in_scheduler) {
-                            my ($sid, $aid) = $sid_aid =~ /(\d+)\[(\d+)/;
-                            my $created = VRPipe::SidToSub->search({ farm => $farm, sid => $sid, aid => $aid });
-                            unless ($created) {
-                                my $run_time = $scheduler->run_time($sid, $aid);
-                                if ($run_time > $leeway) {
-                                    $im->log("we'll kill sid $sid\[$aid] because it never created a sidtosub");
-                                    push(@sids_to_kill, [$sid, $aid]);
-                                }
-                            }
-                        }
-                        
-                        # batch kill sids now
-                        $scheduler->kill_sids(\@sids_to_kill);
                     }
                     
                     alarm 0;

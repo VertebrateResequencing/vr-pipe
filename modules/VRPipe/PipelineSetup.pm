@@ -58,6 +58,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use DateTime::Format::Natural;
     use DateTime::TimeZone;
     use VRPipe::Config;
+    use VRPipe::MessageTracker;
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
     
@@ -195,7 +196,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Bool :$debug = 0) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Bool :$debug = 1) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
@@ -342,6 +343,22 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                             warn "   completed on pre-existing subs\n" if $debug;
                                             $self->_complete_state($step, $state, $step_number, $pipeline, $estate);
                                             $do_next = 1;
+                                            
+                                            # check to see if we've just completed the
+                                            # whole setup
+                                            if ($step_number == $num_steps) {
+                                                if ($self->currently_complete) {
+                                                    my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $setup_id");
+                                                    my $num_states = $self->dataelementstates;
+                                                    unless ($mt->already_sent("complete with $num_states elements")) {
+                                                        $self->log_event("Completed setup with $num_states DataElements");
+                                                        my $name = $self->name;
+                                                        my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $setup_id\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $setup_id --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $setup_id --deactivate\n";
+                                                        $self->_in_memory->log("Setup $setup_id ($name) has completed for $num_states DataElements", email_to => [$self->user], subject => "Setup $setup_id has completed", long_msg => $long);
+                                                    }
+                                                }
+                                            }
+                                            
                                             return;
                                         }
                                         else {
@@ -418,6 +435,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 catch ($err) {
                                     $parse_return = $err;
                                 }
+                                $self->log_event("PipelineSetup->trigger parsed and got return $parse_return", dataelement => $element->id, stepstate => $state->id);
                                 
                                 # if we're the primary for a block_and_skip job and have
                                 # just been started over to get here, our stepoutputfile
@@ -596,6 +614,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                                 $reqs->note('generating_subs', forget_after => 5);
                                                 
                                                 my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
+                                                
+                                                # because of globabl step limit
+                                                # handling, we'll always need
+                                                # vrpipe-server to look for all
+                                                # subs and queue them to be
+                                                # run, so there's not much value
+                                                # in queuing $sub right now
+                                                
                                                 $self->log_event("PipelineSetup->trigger called parse(), and the dispatch created a new Submission", dataelement => $element->id, stepstate => $state->id, submission => $sub->id, job => $sub->job->id);
                                             }
                                             $state->dispatched(1);
