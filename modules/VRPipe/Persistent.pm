@@ -1037,9 +1037,8 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         my $self   = shift;
         my $global = shift;
         if ($global) {
-            # Moose causes a segfault if I just return here, so I have to die
-            # (the error is lost to the either)
-            die "avoiding moose DEMOLISH segfault\n";
+            # Moose causes a segfault if I just return here, so I have to exit
+            exit(0);
         }
         return unless $self->_in_memory_created;
         return unless $self->id;
