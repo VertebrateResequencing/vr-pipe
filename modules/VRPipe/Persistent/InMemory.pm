@@ -64,12 +64,14 @@ class VRPipe::Persistent::InMemory {
     
     has '_maintenance_children' => (
         is      => 'ro',
-        isa     => 'ArrayRef[ArrayRef]',
-        traits  => ['Array'],
-        default => sub { [] },
+        isa     => 'HashRef[ArrayRef]',
+        traits  => ['Hash'],
+        default => sub { {} },
         handles => {
-            '_add_maintenance_child'    => 'push',
-            '_all_maintenance_children' => 'elements'
+            '_add_maintenance_child'    => 'set',
+            '_get_maintenance_child'    => 'get',
+            '_remove_maintenance_child' => 'delete',
+            '_all_maintenance_children' => 'values'
         },
     );
     
@@ -568,9 +570,9 @@ class VRPipe::Persistent::InMemory {
     method assert_life (Str $key!) {
         # we can't assert life if this key is already alive (though we return
         # true if it's alive in ourselves)
-        foreach my $ref ($self->_all_maintenance_children) {
-            my ($owner_pid, $child_pid, $this_key) = @$ref;
-            if ($this_key eq $key && $owner_pid == $$ && kill(0, $child_pid)) {
+        if (my $ref = $self->_get_maintenance_child($key)) {
+            my ($owner_pid, $child_pid) = @$ref;
+            if ($owner_pid == $$ && kill(0, $child_pid)) {
                 return 1;
             }
         }
@@ -632,7 +634,7 @@ class VRPipe::Persistent::InMemory {
         }
         
         if ($ok) {
-            $self->_add_maintenance_child([$$, $child_pid, $key]);
+            $self->_add_maintenance_child($key => [$$, $child_pid]);
             return 1;
         }
         # else, hmmm, were we kit by a race condition??
@@ -644,8 +646,9 @@ class VRPipe::Persistent::InMemory {
     sub DEMOLISH {
         my $self = shift;
         foreach my $ref ($self->_all_maintenance_children) {
-            my ($parent_pid, $child_pid, $key) = @$ref;
+            my ($parent_pid, $child_pid) = @$ref;
             if ($parent_pid == $$) {
+                kill(0, $child_pid) || next;
                 kill(2, $child_pid);
                 waitpid $child_pid, 0;
             }
@@ -675,7 +678,7 @@ class VRPipe::Persistent::InMemory {
     
     sub TIEHANDLE {
         my ($pkg, $server, $reconnect, $log_file) = @_;
-        return bless { server => $server, reconnect => $reconnect, log_file => $log_file, '_maintenance_children' => [] }, $pkg;
+        return bless { server => $server, reconnect => $reconnect, log_file => $log_file, '_maintenance_children' => {} }, $pkg;
     }
     
     sub PRINT {

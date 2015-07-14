@@ -1034,24 +1034,28 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     }
     
     sub DEMOLISH {
-        my $self = shift;
-        warn "in P DEMOLISH for $self\n";
+        my $self   = shift;
+        my $global = shift;
+        if ($global) {
+            # Moose causes a segfault if I just return here, so I have to die
+            # (the error is lost to the either)
+            die "avoiding moose DEMOLISH segfault\n";
+        }
         return unless $self->_in_memory_created;
         return unless $self->id;
         my $table_name = ref($self);
         $table_name =~ s/.*:://;
         $table_name = lc($table_name);
         my $key = $table_name . '.' . $self->id;
-        warn "key is $key\n";
         
-        foreach my $ref ($self->_in_memory->_all_maintenance_children) {
-            my ($parent_pid, $child_pid, $this_key) = @$ref;
-            warn "had child ($parent_pid, $child_pid, $this_key)\n";
-            if ($parent_pid == $$ && $key eq $this_key) {
-                warn "will kill $child_pid\n";
+        my $im = $self->_in_memory;
+        if (my $ref = $im->_get_maintenance_child($key)) {
+            my ($owner_pid, $child_pid) = @$ref;
+            if ($owner_pid == $$) {
+                $im->_remove_maintenance_child($key);
+                kill(0, $child_pid) || next;
                 kill(2, $child_pid);
                 waitpid $child_pid, 0;
-                warn "killed\n";
             }
         }
     }
