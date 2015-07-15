@@ -258,7 +258,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             # last changed
             my $expected_count = VRPipe::DataElement->search({ datasource => $self->id });
             
-            my @des_args;
+            my (@des_args, @enqueue_args);
             foreach my $setup_id (@setup_ids) {
                 my $count = VRPipe::DataElementState->search({ pipelinesetup => $setup_id });
                 
@@ -267,6 +267,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                     while (my $dataelement_ids = $pager->next) {
                         foreach my $eid (@$dataelement_ids) {
                             push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
+                            push(@enqueue_args, [$setup_id, $eid]);
                         }
                     }
                 }
@@ -275,6 +276,11 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             if (@des_args) {
                 warn "new setups were found, will create ", scalar(@des_args), " dataelementstates for them\n" if $debug;
                 VRPipe::DataElementState->bulk_create_or_update(@des_args);
+                
+                my $im = $self->_in_memory;
+                foreach my $args (@enqueue_args) {
+                    $im->enqueue('trigger', "$args->[0]:$args->[1]");
+                }
             }
         }
         $self->unlock;
