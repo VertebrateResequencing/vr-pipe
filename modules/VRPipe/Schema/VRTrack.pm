@@ -741,10 +741,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             foreach my $study_node_id (@{ $in_rels{$sid} }) {
                 my $study_node = $nodes{Study}->{$study_node_id};
                 my $study_id = $graph->node_property($study_node, 'id');
+                $studies{$study_id}++;
                 push(@study_ids, $study_id);
             }
             my $study_id = join(',', sort { $a <=> $b } @study_ids) || 0;
-            $studies{$study_id}++;
             my $props = $graph->node_properties($sample);
             if ($require_sample) {
                 if ($sid != $node_id) {
@@ -808,8 +808,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     # all other samples in the largest study, and comparisons
                     # between samples in different studies when one of them is from
                     # the largest study and the other has the same public_name
-                    if ($sample1_meta->[3] ne $largest_study || $sample2_meta->[3] ne $largest_study) {
-                        if ($sample1_meta->[3] ne $largest_study && $sample2_meta->[3] ne $largest_study) {
+                    my %sample1_studies = map { $_ => 1 } split(/,/, $sample1_meta->[3]);
+                    my %sample2_studes  = map { $_ => 1 } split(/,/, $sample2_meta->[3]);
+                    if (!exists $sample1_studies{$largest_study} || !exists $sample2_studes{$largest_study}) {
+                        if (!exists $sample1_studies{$largest_study} && !exists $sample2_studes{$largest_study}) {
                             next;
                         }
                         unless ($sample1_meta->[1] eq $sample2_meta->[1]) {
