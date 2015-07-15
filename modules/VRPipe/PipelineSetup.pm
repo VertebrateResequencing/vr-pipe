@@ -196,7 +196,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return $elements_incomplete ? 0 : 1;
     }
     
-    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Bool :$debug = 1) {
+    method trigger (Bool :$first_step_only = 0, Bool :$prepare_elements = 1, VRPipe::DataElement :$dataelement?, Bool :$debug = 0) {
         my $setup_id     = $self->id;
         my $pipeline     = $self->pipeline;
         my @step_members = $pipeline->step_members;
