@@ -992,11 +992,7 @@ role VRPipe::StepRole {
             $memory = 500;
         }
         
-        # instead of doing a straight-up create(), because the real create does
-        # a 'FOR UPDATE' which seems to block up the database such that it takes
-        # 10s-100s seconds to return even though most of the time we're just
-        # getting an existing row
-        my %args = (
+        my $req = VRPipe::Requirements->create(
             memory => $memory,
             time   => $time,
             $cpus        ? (cpus        => $cpus)        : (),
@@ -1004,8 +1000,6 @@ role VRPipe::StepRole {
             $local_space ? (local_space => $local_space) : (),
             $custom      ? (custom      => $custom)      : ()
         );
-        my ($req) = VRPipe::Requirements->search(\%args);
-        $req ||= VRPipe::Requirements->create(%args);
         
         return $req;
     }
