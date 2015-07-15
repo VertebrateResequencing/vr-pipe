@@ -359,10 +359,9 @@ sub start_server {
                     
                     $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
                         return if $currently_unstalling{$sid};
-                        $currently_unstalling{$sid} = 1;
-                        
                         my $lock_key = "setup_stall_watcher.$sid";
                         return if $im->locked($lock_key);
+                        $currently_unstalling{$sid} = 1;
                         
                         $setup->disconnect;
                         fork_call {
