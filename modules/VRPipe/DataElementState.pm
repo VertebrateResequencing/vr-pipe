@@ -129,7 +129,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         
         # each start_over() call will have set completed_steps(<something>) on
         # us, but we need it at the highest step we didn't start_over
-        $self->completed_steps($steps_to_scratch[0] - 1);
+        $self->completed_steps($steps_to_scratch[0] ? ($steps_to_scratch[0] - 1) : 0);
         $self->update;
         
         # If this data element was used as the source of another dataelement, we want to also restart those dataelements
