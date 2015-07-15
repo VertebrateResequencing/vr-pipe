@@ -40,7 +40,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
             %{ $self->$orig },
             samtools_merge_options             => VRPipe::StepOption->create(description => 'options for samtools merge',                                                                optional => 1, default_value => '-u'),
             bamstreamingmarkduplicates_exe     => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
-            bamstreamingmarkduplicates_options => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
+            bamstreamingmarkduplicates_options => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1 outputthreads=4'),
         };
     }
     
@@ -69,7 +69,14 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
                 )
             );
             
-            my $req = $self->new_requirements(memory => 3000, time => 1);
+            my ($merge_threads)  = $samtools_merge_opts =~ m/-@\s*(\d+)/;
+            my ($input_threads)  = $bamstreamingmarkduplicates_opts =~ m/inputthreads=(\d+)/;
+            my ($output_threads) = $bamstreamingmarkduplicates_opts =~ m/outputthreads=(\d+)/;
+            my $cpus             = 1;
+            $cpus = $merge_threads  if ($merge_threads  && $merge_threads > $cpus);
+            $cpus = $input_threads  if ($input_threads  && $input_threads > $cpus);
+            $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
+            my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
             my $inputs          = $self->inputs->{aln_files};
             my $merged_metadata = $self->common_metadata($inputs);
@@ -112,7 +119,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
     method outputs_definition {
         return {
             markdup_files         => VRPipe::StepIODefinition->create(type => 'aln', max_files => 1, description => 'a merged BAM file with duplicates marked'),
-            markdup_index_files   => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => ' index file for merged, markdup-ed BAM file'),
+            markdup_index_files   => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => 'index file for merged, markdup-ed BAM file'),
             markdup_metrics_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'a text file with metrics from biobambam duplicate marking'),
         };
     }

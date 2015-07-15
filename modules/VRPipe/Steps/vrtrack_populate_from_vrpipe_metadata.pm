@@ -267,6 +267,26 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 $vrlane->library_id($vrlibrary->id);
                 $vrlane->update;
                 
+                # get/create a seq_tech
+                my $platform = $meta->{platform} || 'SLX';
+                my $seq_tech = $vrlibrary->seq_tech($platform);
+                unless ($seq_tech) {
+                    $seq_tech = $vrlibrary->add_seq_tech($platform);
+                    $seq_tech->update;
+                    $vrlibrary->seq_tech_id($seq_tech->id);
+                }
+                $vrlibrary->update;
+                
+                # get/create a seq_centre
+                my $center_name = $meta->{center_name} || 'SC';
+                my $seq_centre = $vrlibrary->seq_centre($center_name);
+                unless ($seq_centre) {
+                    $seq_centre = $vrlibrary->add_seq_centre($center_name);
+                    $seq_centre->update;
+                    $vrlibrary->seq_centre_id($seq_centre->id);
+                }
+                $vrlibrary->update;
+                
                 # get/create the project
                 my $vrproject = VRTrack::Project->new_by_ssid($vrtrack, $meta->{study_id});
                 my $study_title = $meta->{study_title};
@@ -348,6 +368,16 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 
                 $vrsample->individual_id($vrindividual->id);
                 $vrsample->update;
+                
+                # get/create a population
+                my $population = $meta->{population} || 'Population';
+                my $vrpopulation = $vrindividual->population($population);
+                unless ($vrpopulation) {
+                    $vrpopulation = $vrindividual->add_population($population);
+                    $vrpopulation->update;
+                    $vrindividual->population_id($vrpopulation->id);
+                }
+                $vrindividual->update;
             }
         );
         

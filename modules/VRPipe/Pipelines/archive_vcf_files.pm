@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::chipseq_qc_and_peak_calling - a pipeline
+VRPipe::Pipelines::archive_vcf_files - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,7 +9,7 @@ VRPipe::Pipelines::chipseq_qc_and_peak_calling - a pipeline
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,35 +33,29 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::chipseq_qc_and_peak_calling with VRPipe::PipelineRole {
+class VRPipe::Pipelines::archive_vcf_files with VRPipe::PipelineRole {
     method name {
-        return 'chipseq_qc_and_peak_calling';
+        return 'archive_vcf_files';
     }
     
     method description {
-        return 'Quality check ChIP-seq bams using phantompeakqualtools and macs2.';
+        return 'Safely move VCF/BCF and TBI/CSI index files from one disc to a pool of one or more other discs, eg. for archival purposes. (the output_root option for this pipeline is meaningless)';
     }
     
     method step_names {
         (
-            'bam_processing',       #1
-            'bam_metadata',         #2
-            'phantompeakqualtools', #3
-            'macs_callpeak',        #4
-            'bedgraph2bigwig',      #5
+            'archive_vcf_files',       #1
+            'archive_vcf_index_files', #2
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key   => 'bam_files' },
-            { from_step => 1, to_step => 2, from_key => 'processed_bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 3, from_key => 'processed_bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 4, from_key => 'processed_bam_files', to_key => 'bam_files' },
-            { from_step => 4, to_step => 5, from_key => 'bdg_files', to_key => 'bdg_files' },
+            { from_step => 0, to_step => 1, to_key => 'vcf_file' },
+            { from_step => 0, to_step => 2, to_key => 'vcf_file' },
+            { from_step => 0, to_step => 2, to_key => 'vcf_index_file' },
         );
     }
-
 }
 
 1;
