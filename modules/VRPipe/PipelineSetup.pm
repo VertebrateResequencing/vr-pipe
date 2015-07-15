@@ -435,7 +435,6 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 catch ($err) {
                                     $parse_return = $err;
                                 }
-                                $self->log_event("PipelineSetup->trigger parsed and got return $parse_return", dataelement => $element->id, stepstate => $state->id);
                                 
                                 # if we're the primary for a block_and_skip job and have
                                 # just been started over to get here, our stepoutputfile
