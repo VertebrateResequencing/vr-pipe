@@ -243,7 +243,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     our $GLOBAL_CONNECTED_SCHEMA;
     our $deparse = B::Deparse->new("-d");
     our $json    = JSON::XS->new->utf8->canonical->convert_blessed;
-    our $im;
     
     sub Path::Class::File::TO_JSON {
         return shift->stringify;
@@ -314,8 +313,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     }
     
     method _build_in_memory_obj {
-        $im ||= VRPipe::Persistent::InMemory->new();
-        return $im;
+        return VRPipe::Persistent::InMemory->new();
     }
     
     method make_persistent ($class: Str :$table_name?, ArrayRef :$has_many?, ArrayRef :$many_to_many?) {
@@ -1031,32 +1029,6 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->get_attribute('cols_to_idx')->set_value($meta, \%for_indexing);
         $meta->add_attribute('idxd_cols' => (is => 'rw', isa => 'HashRef'));
         $meta->get_attribute('idxd_cols')->set_value($meta, \%indexed);
-    }
-    
-    sub DEMOLISH {
-        my $self   = shift;
-        my $global = shift;
-        if ($global) {
-            # Moose causes a segfault if I just return here, so I have to exit
-            exit(0);
-        }
-        return unless $self->_in_memory_created;
-        return unless $self->id;
-        my $table_name = ref($self);
-        $table_name =~ s/.*:://;
-        $table_name = lc($table_name);
-        my $key = $table_name . '.' . $self->id;
-        
-        my $im = $self->_in_memory;
-        if (my $ref = $im->_get_maintenance_child($key)) {
-            my ($owner_pid, $child_pid) = @$ref;
-            if ($owner_pid == $$) {
-                $im->_remove_maintenance_child($key);
-                kill(0, $child_pid) || next;
-                kill(2, $child_pid);
-                waitpid $child_pid, 0;
-            }
-        }
     }
     
     # get method expects all the psuedo keys and will get or create the
