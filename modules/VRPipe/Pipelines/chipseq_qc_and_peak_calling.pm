@@ -55,9 +55,9 @@ class VRPipe::Pipelines::chipseq_qc_and_peak_calling with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
-            { from_step => 1, to_step => 2, from_key => 'bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 3, from_key => 'bam_files', to_key => 'bam_files' },
-            { from_step => 1, to_step => 4, from_key => 'bam_files', to_key => 'bam_files' },
+            { from_step => 1, to_step => 2, from_key => 'processed_bam_files', to_key => 'bam_files' },
+            { from_step => 1, to_step => 3, from_key => 'processed_bam_files', to_key => 'bam_files' },
+            { from_step => 1, to_step => 4, from_key => 'processed_bam_files', to_key => 'bam_files' },
             { from_step => 4, to_step => 5, from_key => 'bdg_files', to_key => 'bdg_files' },
         );
     }

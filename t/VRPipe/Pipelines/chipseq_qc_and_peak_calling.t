@@ -39,7 +39,8 @@ my $chipseq_setup = VRPipe::PipelineSetup->create(
         phantompeak_script     => $ENV{VRPIPE_PHANTOMPEAK_RSCRIPT},
         input_metadata_to_keep => 'individual,sample',
         sample_metadata_key    => 'sample',
-        command_line           => q[samtools-exp-rc view -h -u -f 3 -F 12 -q 10 $input_bam | samtools-exp-rc sort -n -Osam -T samtools_nsort_tmp - | awk '/^@/; /\tX0:i:1\t/ { if ($1==qn){print l"\n"$0}; l=$0; qn=$1;}' | samtools-exp-rc sort -Obam -T samtools_csort_tmp - > $output_bam],
+        # samtools_exe           => 'samtools-exp-rc',
+        command_line           => q[$samtools view -h -u -f 3 -F 12 -q 10 $input_bam | $samtools sort -n -Osam -T samtools_nsort_tmp - | awk '/^@/; /\tX0:i:1\t/ { if (\$1==qn){print l; print \$0}; l=\$0; qn=\$1; }' | $samtools sort -Obam -T samtools_csort_tmp - > $output_bam],
         reference_index        => file(qw(t data hs37d5.fa.fai))->absolute,
         macs2_callpeak_options => "K27AC:-Bg hs --fix-bimodal,K4ME3:-Bg hs --fix-bimodal,K27ME3:-Bg hs --broad --fix-bimodal,INPUT:-Bg hs --broad --fix-bimodal"
     },
