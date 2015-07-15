@@ -39,7 +39,7 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             bammerge_exe                       => VRPipe::StepOption->create(description => 'path to bammerge executable',                                                               optional => 1, default_value => 'bammerge'),
             bammerge_options                   => VRPipe::StepOption->create(description => 'options for bammerge',                                                                      optional => 1, default_value => 'level=0'),
             bamstreamingmarkduplicates_exe     => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
-            bamstreamingmarkduplicates_options => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
+            bamstreamingmarkduplicates_options => VRPipe::StepOption->create(description => 'bamstreamingmarkduplicates options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1 outputthreads=4'),
         };
     }
     
@@ -83,7 +83,16 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
                 )
             );
             
-            my $req = $self->new_requirements(memory => 3000, time => 1);
+            my $cpus             = 1;
+            my ($input_threads)  = $bammerge_opts =~ m/inputthreads=(\d+)/;
+            my ($output_threads) = $bammerge_opts =~ m/outputthreads=(\d+)/;
+            $cpus = $input_threads  if ($input_threads  && $input_threads > $cpus);
+            $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
+            ($input_threads)  = $bamstreamingmarkduplicates_opts =~ m/inputthreads=(\d+)/;
+            ($output_threads) = $bamstreamingmarkduplicates_opts =~ m/outputthreads=(\d+)/;
+            $cpus = $input_threads  if ($input_threads  && $input_threads > $cpus);
+            $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
+            my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
             my $inputs          = $self->inputs->{aln_files};
             my $merged_metadata = $self->common_metadata($inputs);

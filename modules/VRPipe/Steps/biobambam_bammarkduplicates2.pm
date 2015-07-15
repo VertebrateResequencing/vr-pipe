@@ -37,7 +37,7 @@ class VRPipe::Steps::biobambam_bammarkduplicates2 with VRPipe::StepRole {
     method options_definition {
         return {
             bammarkduplicates2_exe     => VRPipe::StepOption->create(description => 'path to bammarkduplicates2 executable',                                             optional => 1, default_value => 'bammarkduplicates2'),
-            bammarkduplicates2_options => VRPipe::StepOption->create(description => 'bammarkduplicates2 options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1'),
+            bammarkduplicates2_options => VRPipe::StepOption->create(description => 'bammarkduplicates2 options (excluding arguments that set input/output file names)', optional => 1, default_value => 'resetdupflag=1 outputthreads=4'),
         };
     }
     
@@ -72,7 +72,12 @@ class VRPipe::Steps::biobambam_bammarkduplicates2 with VRPipe::StepRole {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 3000, time => 1);
+            my ($input_threads)  = $bammarkduplicates2_opts =~ m/inputthreads=(\d+)/;
+            my ($output_threads) = $bammarkduplicates2_opts =~ m/outputthreads=(\d+)/;
+            my $cpus             = 1;
+            $cpus = $input_threads  if ($input_threads  && $input_threads > $cpus);
+            $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
+            my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
             foreach my $aln (@{ $self->inputs->{aln_files} }) {
                 my $basename = $aln->basename;
