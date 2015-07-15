@@ -308,10 +308,10 @@ class VRPipe::DataSource::vrtrack with VRPipe::DataSourceRole {
                 }
                 
                 my $new_metadata = {
-                    expected_md5 => $file->md5,
-                    center_name  => $lane_info{centre},
-                    project      => $lane_info{project},
-                    study        => $lane_info{study},
+                    $file->md5 ? (expected_md5 => $file->md5) : (),
+                    center_name => $lane_info{centre},
+                    project     => $lane_info{project},
+                    study       => $lane_info{study},
                     $lane_info{species} ? (species => $lane_info{species}) : (),
                     population  => $lane_info{population},
                     individual  => $individual,
