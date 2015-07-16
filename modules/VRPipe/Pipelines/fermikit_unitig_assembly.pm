@@ -65,11 +65,11 @@ class VRPipe::Pipelines::fermikit_unitig_assembly with VRPipe::PipelineRole {
     
     method behaviour_definitions {
         (
-            { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_files', default_regulation => 0 },
-            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
-            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',            default_regulation => 1 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'cleanup',            default_regulation => 1 },
-            { after_step => 5, behaviour => 'delete_outputs', act_on_steps => [4], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 },
+            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'cleanup',           default_regulation => 1 },
+            { after_step => 5, behaviour => 'delete_outputs', act_on_steps => [4], regulated_by => 'cleanup',           default_regulation => 1 },
         );
     }
 }
