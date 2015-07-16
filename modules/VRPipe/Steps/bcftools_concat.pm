@@ -62,11 +62,6 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 description => 'after bcftools concat, option to pipe output vcf through another command, e.g. "vcf-annotate --fill-ICF" to fill AC, AN, and ICF annotations',
                 optional    => 1
             ),
-            tabix_exe => VRPipe::StepOption->create(
-                description   => 'path to your tabix exe',
-                optional      => 1,
-                default_value => 'tabix'
-            ),
         };
     }
     
@@ -90,7 +85,6 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
         return sub {
             my $self          = shift;
             my $options       = $self->options;
-            my $tabix_exe     = $options->{tabix_exe};
             my $bcftools_exe  = $options->{bcftools_exe};
             my $bcftools_opts = $options->{bcftools_concat_opts};
             my $sites_only    = $options->{concat_sites_only};
@@ -125,7 +119,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                     my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.chr$chr.vcf.gz.tbi", type => 'bin');
                     my $merge_list_path = $merge_list->path;
                     my $concat_vcf_path = $concat_vcf->path;
-                    my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $tabix_exe -f -p vcf $concat_vcf_path];
+                    my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index -ft $concat_vcf_path];
                     $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list, $vcf_index] }]);
                 }
             }
@@ -143,7 +137,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.tbi", type => 'bin');
                 my $merge_list_path = $merge_list->path;
                 my $concat_vcf_path = $concat_vcf->path;
-                my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $tabix_exe -f -p vcf $concat_vcf_path];
+                my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index -ft $concat_vcf_path];
                 $self->dispatch([$cmd, $req, { output_files => [$concat_vcf, $merge_list, $vcf_index] }]);
             }
         
