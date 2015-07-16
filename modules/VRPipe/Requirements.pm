@@ -49,7 +49,7 @@ use VRPipe::Base;
 class VRPipe::Requirements extends VRPipe::PersistentLocklessCreate {
     has 'memory' => (
         is     => 'rw',
-        isa    => IntSQL [5],
+        isa    => IntSQL [6],
         traits => ['VRPipe::Persistent::Attributes'],
         is_key => 1
     );
