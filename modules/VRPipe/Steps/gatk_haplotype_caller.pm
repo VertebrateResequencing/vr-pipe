@@ -142,7 +142,11 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             my $vcf_index_file = $self->output_file(output_key => 'gatk_vcf_index_file', basename => "$basename.tbi", type => 'bin', metadata => $vcf_meta);
             my $vcf_path       = $vcf_file->path;
             
-            my $req = $self->new_requirements(memory => 6000, time => 1);
+            my ($cpus) = $haplotyper_opts =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $haplotyper_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 6000, time => 1, $cpus ? (cpus => $cpus) : ());
             $haplotyper_opts .= qq[ && $tabix -f -p vcf $vcf_path] if ($haplotyper_opts =~ m/--disable_auto_index_creation_and_locking_when_reading_rods/);
             my $cmd = 'q[' . $self->gatk_prefix($req->memory) . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
             $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;

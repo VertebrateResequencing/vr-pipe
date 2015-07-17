@@ -74,7 +74,11 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
                 )
             );
             
-            my $req = $self->new_requirements(memory => 6000, time => 1);
+            my ($cpus) = $haplotyper_opts =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $haplotyper_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 6000, time => 1, $cpus ? (cpus => $cpus) : ());
             my $basename = 'gatk_haplotype.vcf.gz';
             
             my $chunks = $self->chunks();
