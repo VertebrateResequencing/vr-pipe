@@ -637,10 +637,12 @@ class VRPipe::Persistent::InMemory {
             $self->_add_maintenance_child($key => [$$, $child_pid]);
             return 1;
         }
-        # else, hmmm, were we kit by a race condition??
-        kill(2, $child_pid);
-        waitpid $child_pid, 0;
-        return;
+        elsif ($child_pid) {
+            # hmmm, were we kit by a race condition??
+            kill(2, $child_pid);
+            waitpid $child_pid, 0;
+            return;
+        }
     }
     
     sub DEMOLISH {
