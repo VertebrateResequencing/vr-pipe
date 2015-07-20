@@ -86,6 +86,7 @@ class VRPipe::Manager extends VRPipe::Persistent {
             if ($fs->assert_life) {
                 return $fs;
             }
+            $fs->delete;
             return;
         };
         
