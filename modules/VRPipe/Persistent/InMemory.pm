@@ -50,6 +50,7 @@ class VRPipe::Persistent::InMemory {
     use Time::Format;
     use Email::Sender::Simple;
     use Email::Simple::Creator;
+    use EV;
     use AnyEvent;
     use Scalar::Util qw(weaken isweak);
     use Time::HiRes qw(sleep);
@@ -62,16 +63,16 @@ class VRPipe::Persistent::InMemory {
         default => 0
     );
     
-    has '_maintenance_children' => (
+    has '_life_watchers' => (
         is      => 'ro',
         isa     => 'HashRef[ArrayRef]',
         traits  => ['Hash'],
         default => sub { {} },
         handles => {
-            '_add_maintenance_child'    => 'set',
-            '_get_maintenance_child'    => 'get',
-            '_remove_maintenance_child' => 'delete',
-            '_all_maintenance_children' => 'values'
+            '_store_life_watcher' => 'set',
+            '_get_life_watcher'   => 'get',
+            '_clear_life_watcher' => 'delete',
+            '_all_life_watchers'  => 'values'
         },
     );
     
@@ -567,92 +568,55 @@ class VRPipe::Persistent::InMemory {
         }
     }
     
+    # this will only work properly if called while you're in the middle of an
+    # EV::run
     method assert_life (Str $key!) {
         # we can't assert life if this key is already alive (though we return
         # true if it's alive in ourselves)
-        if (my $ref = $self->_get_maintenance_child($key)) {
-            my ($owner_pid, $child_pid) = @$ref;
-            if ($owner_pid == $$ && kill(0, $child_pid)) {
+        if (my $ref = $self->_get_life_watcher($key)) {
+            my ($owner_pid) = @$ref;
+            if ($owner_pid == $$) {
                 return 1;
             }
         }
         return if $self->is_alive($key);
         
-        # we'll fork a child that keeps refreshing a lock (this is better than
+        my $refresh_every = $deployment eq 'testing' ? 3  : 60;
+        my $unlock_after  = $deployment eq 'testing' ? 60 : 120;
+        $self->lock($key, key_prefix => 'life', unlock_after => $unlock_after) || return;
+        
+        # we'll make a watcher that keeps refreshing the lock (this is better than
         # subscribing to listen for a message because we don't need to hold
         # a connection open)
         # We don't just have an indefinite lock because sshing to the node to
         # check if the initiator is really alive seems to be unreliable
-        my $refresh_every = $deployment eq 'testing' ? 3  : 60;
-        my $unlock_after  = $deployment eq 'testing' ? 60 : 120;
-        my $parent_pid    = $$;
-        my $child_pid     = fork;
-        if (defined $child_pid && $child_pid == 0) {
-            my $r = $self->_redis;
-            $self->lock($key, key_prefix => 'life', unlock_after => $unlock_after) || exit;
+        my $r = $self->_redis();
+        weaken($r);
+        my $weakend_self = $self;
+        weaken($weakend_self);
+        my $watcher = EV::timer $refresh_every, $refresh_every, sub {
+            $r->connect;
             
-            my $sig_handler = sub {
-                eval {
-                    $r->connect;
-                    $self->unlock($key, key_prefix => 'life');
-                    $r->quit;
-                };
-                exit(0);
-            };
-            $SIG{INT}  = $sig_handler;
-            $SIG{QUIT} = $sig_handler;
-            $SIG{TERM} = $sig_handler;
-            
-            while (1) {
-                $r->connect;
-                
-                if (!kill(0, $parent_pid)) {
-                    $self->unlock($key, key_prefix => 'life');
-                    last;
-                }
-                
-                if (!$self->locked($key, key_prefix => 'life', by_me => 1)) {
-                    last;
-                }
-                
-                $r->expire("life.$key", $unlock_after);
-                
-                $r->quit;
-                sleep($refresh_every);
+            if (!$weakend_self->locked($key, key_prefix => 'life', by_me => 1)) {
+                $weakend_self->_clear_life_watcher($key);
+                return;
             }
             
+            $r->expire("life.$key", $unlock_after);
             $r->quit;
-            exit(0);
-        }
+        };
         
-        # we need some time for the child to start up and gain the lock
-        my $ok = 0;
-        for (1 .. 5) {
-            $ok = $self->is_alive($key);
-            last if $ok;
-            sleep(1);
-        }
-        
-        if ($ok) {
-            $self->_add_maintenance_child($key => [$$, $child_pid]);
-            return 1;
-        }
-        elsif ($child_pid) {
-            # hmmm, were we kit by a race condition??
-            kill(2, $child_pid);
-            waitpid $child_pid, 0;
-            return;
-        }
+        $self->_store_life_watcher($key => [$$, $watcher, $key]);
+        return 1;
     }
     
     sub DEMOLISH {
         my $self = shift;
-        foreach my $ref ($self->_all_maintenance_children) {
-            my ($parent_pid, $child_pid) = @$ref;
-            if ($parent_pid == $$) {
-                kill(0, $child_pid) || next;
-                kill(2, $child_pid);
-                waitpid $child_pid, 0;
+        foreach my $ref ($self->_all_life_watchers) {
+            my ($owner_pid, $watcher, $key) = @$ref;
+            if ($owner_pid == $$) {
+                $watcher->stop;
+                $self->unlock($key, key_prefix => 'life');
             }
         }
     }
