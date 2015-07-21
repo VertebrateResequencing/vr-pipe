@@ -8,7 +8,7 @@ use POSIX qw(getgroups);
 use VRPipe::Interface::CmdLine;
 
 BEGIN {
-    use Test::Most tests => 19;
+    use Test::Most tests => 20;
     use VRPipeTest;
     use TestPipelines;
 }
@@ -493,16 +493,18 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
             my $self         = shift;
             my ($input_file) = @{ $self->inputs->{fod_input} };
             my $fail         = $input_file->meta_value('fail');
+            my $change       = $input_file->meta_value('change_cmd');
+            my $prefix       = $change ? 'changed ' : '';
             my $req          = $self->new_requirements(memory => 1, time => 1);
             for (1 .. 3) {
                 my $ofile = $self->output_file(output_key => 'fod_output', basename => "output$_.txt", type => 'txt');
                 my $opath = $ofile->path;
-                my $cmd   = qq{echo "output for $_" >> $opath};
+                my $cmd   = qq{echo "${prefix}output for $_" >> $opath};
                 if ($_ == 2 && $fail) {
                     $self->dispatch([qq{$cmd; false}, $req, { output_files => [$ofile] }]);
                 }
                 else {
-                    $self->dispatch([qq{$cmd; true}, $req]);
+                    $self->dispatch([qq{$cmd; true}, $req, { output_files => [$ofile] }]);
                 }
             }
         },
@@ -571,6 +573,7 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
                 last;
             }
         }
+        $mtimes[$_] = $mtime;
         
         my $expected_content = "output for " . ($_ + 1) . "\n";
         if ($expected_content ne $ofile->slurp) {
@@ -579,6 +582,43 @@ is handle_pipeline(@md5_output_files), 1, 'all md5 files were created via Manage
         }
     }
     ok $all_good, 'vrpipe-submissions --partial_reset worked as expected';
+    
+    # partial_reset also needs to work when the command line of all failed and
+    # complete submissions changes; still only the failed stuff should rerun
+    $input_file->add_metadata({ change_cmd => 1 });
+    `$perl scripts/vrpipe-submissions --deployment testing --setup $setup_id --partial_reset`;
+    
+    wait_till_setup_done($setup);
+    
+    $all_good = 1;
+    for (0 .. 2) {
+        my $ofile = $ofiles[$_];
+        my $mtime = $ofile->stat->mtime;
+        
+        my $expected_content;
+        if ($_ == 1) {
+            unless ($mtime > $mtimes[1]) {
+                $all_good = 0;
+                last;
+            }
+            $expected_content = "changed output for " . ($_ + 1) . "\n";
+        }
+        else {
+            unless ($mtime == $mtimes[$_]) {
+                $all_good = 0;
+                warn "ofile $_ $ofile unexpectedly changed\n";
+                last;
+            }
+            $expected_content = "output for " . ($_ + 1) . "\n";
+        }
+        
+        if ($expected_content ne $ofile->slurp) {
+            warn "ofile $_ $ofile had bad content: $expected_content ne ", $ofile->slurp, "\n";
+            $all_good = 0;
+            last;
+        }
+    }
+    ok $all_good, 'vrpipe-submissions --partial_reset worked as expected, even when all command lines changed';
 }
 
 finish;

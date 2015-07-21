@@ -572,8 +572,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         }
                                         
                                         if ($same_as_us) {
-                                            # we just say that $state's submissions are
-                                            # the same as the other stepstate's
+                                            # we just say that $state's
+                                            # submissions are the same as the
+                                            # other stepstate's
                                             $state->same_submissions_as($same_as_us);
                                             $state->update;
                                             $self->log_event("PipelineSetup->trigger called parse(), which dispatched the same submissions as StepState $same_as_us", dataelement => $element->id, stepstate => $state->id);
@@ -585,31 +586,63 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         else {
                                             warn "   - this is a new set of jobs, so will create jobs & submissions\n" if $debug;
                                             
-                                            # create new submissions for the relevant
-                                            # stepstate ($state may have had start_over
-                                            # run on it, which would have deleted its
-                                            # same_submissions_as stepstate's subs, and
-                                            # we want to create the new submissions for
-                                            # that same_submissions_as stepstate, not
+                                            # in the case that this state has
+                                            # been partially reset but all the
+                                            # cmdlines have changed, we don't
+                                            # want to create new subs for cmds
+                                            # with output files that already
+                                            # exist, and where the sub that made
+                                            # those is done
+                                            my %output_files_from_done_subs;
+                                            foreach my $sub ($state->submissions()) {
+                                                next unless $sub->_done;
+                                                my $ofiles = $sub->job->output_files;
+                                                if ($ofiles && @$ofiles) {
+                                                    $output_files_from_done_subs{ join(',', sort map { $_->id } @$ofiles) } = 1;
+                                                }
+                                            }
+                                            
+                                            # create new submissions for the
+                                            # relevant stepstate ($state may
+                                            # have had start_over run on it,
+                                            # which would have deleted its
+                                            # same_submissions_as stepstate's
+                                            # subs, and we want to create the
+                                            # new submissions for that
+                                            # same_submissions_as stepstate, not
                                             # for $state, hence the use of
                                             # $state->submission_search_id)
                                             $self->log_event("PipelineSetup->trigger called parse(), which dispatched new things", dataelement => $element->id, stepstate => $state->id);
                                             foreach my $arrayref (@$dispatched) {
                                                 my ($cmd, $reqs, $job_args) = @$arrayref;
                                                 
-                                                # protect us against job_args->output_files having too many
-                                                # values to fit in the db by just deleting it in that case:
-                                                # it's a nicety, not a necessity.
-                                                if ($job_args && defined $job_args->{output_files} && $#{ $job_args->{output_files} } > 100) {
-                                                    delete $job_args->{output_files};
-                                                    undef $job_args unless keys %$job_args;
+                                                if ($job_args && defined $job_args->{output_files}) {
+                                                    if ($#{ $job_args->{output_files} } > 100) {
+                                                        # protect us against
+                                                        # job_args->output_files
+                                                        # having too many values
+                                                        # to fit in the db by
+                                                        # just deleting it in
+                                                        # that case: it's a
+                                                        # nicety, not a
+                                                        # necessity.
+                                                        delete $job_args->{output_files};
+                                                        undef $job_args unless keys %$job_args;
+                                                    }
+                                                    elsif (exists $output_files_from_done_subs{ join(',', sort map { $_->id } @{ $job_args->{output_files} }) }) {
+                                                        # we've already made
+                                                        # these files in an
+                                                        # equivalent done sub
+                                                        next;
+                                                    }
                                                 }
                                                 
-                                                # advertise that we're creating subs
-                                                # with this reqs->id so that if we
-                                                # create another one soon
-                                                # vrpipe-server will put them both
-                                                # in the same job array
+                                                # advertise that we're creating
+                                                # subs with this reqs->id so
+                                                # that if we create another one
+                                                # soon vrpipe-server will put
+                                                # them both in the same job
+                                                # array
                                                 $reqs->note('generating_subs', forget_after => 5);
                                                 
                                                 my $sub = VRPipe::Submission->create(job => VRPipe::Job->create(dir => $output_root, $job_args ? (%{$job_args}) : (), cmd => $cmd)->id, stepstate => $state->submission_search_id, requirements => $reqs->id);
@@ -631,9 +664,9 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                         }
                                     }
                                     else {
-                                        # it is possible for a parse to result in a
-                                        # different step being started over because
-                                        # input files were missing
+                                        # it is possible for a parse to result
+                                        # in a different step being started over
+                                        # because input files were missing
                                         warn "   - neither completed nor dispatched anything; it's possible a different step was started over due to missing input files?\n" if $debug;
                                     }
                                 }
