@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 101;
+    use Test::Most tests => 106;
     use VRPipeTest;
 }
 
@@ -446,6 +446,26 @@ SKIP: {
     is_deeply $cram->header_lines, [$header->slurp(chomp => 1)], 'header_lines() works for a cram file';
 }
 ok !$pfile->header_lines, 'header_lines() returns undef for a txt file';
+
+# test that permission denied causes a throw, not an assumption that a file
+# doesn't exist
+my $perm_dir = dir($tmp_dir, 'noperm');
+$vrobj->make_path($perm_dir);
+my $perm_path = file($perm_dir, 'perm.txt');
+my $perm_file = VRPipe::File->create(path => $perm_path);
+is $perm_file->e, 0, 'non-existent file reports e 0';
+my $perm_fh = $perm_file->openw;
+print $perm_fh "content\n";
+$perm_file->close;
+$perm_file = VRPipe::File->get(path => $perm_path);
+is $perm_file->e, 1, 'existent file reports e 1';
+system("chmod a-x $perm_dir");
+throws_ok { $perm_file->update_stats_from_disc } qr/Permission denied/, 'update_stats_from_disc() throws if permission denied';
+$perm_file = VRPipe::File->get(path => $perm_path);
+is $perm_file->e, 1, 'existent file still reports e 1 after permission denied';
+system("chmod a+x $perm_dir");
+$perm_file->update_stats_from_disc;
+is $perm_file->e, 1, 'update_stats_from_disc() worked once permissions ok';
 
 done_testing;
 exit;

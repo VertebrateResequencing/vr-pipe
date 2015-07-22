@@ -211,6 +211,13 @@ class VRPipe::File extends VRPipe::Persistent {
         $path ||= $self->path; # optional so that we can call this without a db connection by supplying the path
         $self->throw("no path!") unless $path;
         
+        # in the case of permission denied we don't want to just think the file
+        # doesn't exist, so we'll throw instead
+        my $ok = open(my $fh, '<', $path);
+        if (!$ok && $! && $! =~ /Permission denied/i) {
+            $self->throw("Could not stat $path: $!");
+        }
+        
         # NB: if $path is a symlink, stat returns results for the actual file
         # referenced by the symlink, not the symlink itself, which is what we
         # probably want in most cases anyway
