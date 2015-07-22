@@ -144,28 +144,37 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         my $graph_p       = $self->get('Pipeline', { name => $p->name });
         my $graph_pm;
         unless ($graph_p) {
-            $graph_p = $self->add('Pipeline', { name => $p->name, description => $p->description });
-            
-            # create the pipeline members
-            my $previous_pm = $graph_p;
-            foreach my $sm (sort { $a->step_number <=> $b->step_number } $p->step_members) {
-                # get/create the step
-                my $step = $sm->step;
-                my $graph_step = $self->add('Step', { name => $step->name, description => $step->description });
+            $p->block_until_locked;
+            $graph_p = $self->get('Pipeline', { name => $p->name });
+            if ($graph_p) {
+                $graph_pm = $self->get('PipelineMember', { sql_id => $desired_sm_id });
+            }
+            else {
+                $graph_p = $self->add('Pipeline', { name => $p->name, description => $p->description });
                 
-                my $sm_id = $sm->id;
-                my $pm = $self->add('PipelineMember', { sql_id => $sm_id }, incoming => { type => 'next_step', node => $previous_pm });
-                $pm->relate_to($graph_step, 'step', replace => 1);
-                $previous_pm = $pm;
-                
-                if ($sm_id == $desired_sm_id) {
-                    $graph_pm = $pm;
+                # create the pipeline members
+                my $previous_pm = $graph_p;
+                foreach my $sm (sort { $a->step_number <=> $b->step_number } $p->step_members) {
+                    # get/create the step
+                    my $step = $sm->step;
+                    my $graph_step = $self->add('Step', { name => $step->name, description => $step->description });
+                    
+                    my $sm_id = $sm->id;
+                    my $pm = $self->add('PipelineMember', { sql_id => $sm_id }, incoming => { type => 'next_step', node => $previous_pm });
+                    $pm->relate_to($graph_step, 'step', replace => 1);
+                    $previous_pm = $pm;
+                    
+                    if ($sm_id == $desired_sm_id) {
+                        $graph_pm = $pm;
+                    }
                 }
             }
+            $p->unlock;
         }
         else {
             $graph_pm = $self->get('PipelineMember', { sql_id => $desired_sm_id });
         }
+        $graph_pm || $self->throw("Failed to get a PipelineMember with an sql id of $desired_sm_id (step " . $ss->stepmember->step_number . " of pipeline " . $p->name . ')');
         
         # create the datasource
         my $ds = $ps->datasource;

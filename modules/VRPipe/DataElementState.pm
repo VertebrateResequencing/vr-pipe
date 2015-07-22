@@ -21,7 +21,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011 Genome Research Limited.
+Copyright (c) 2011, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -90,14 +90,15 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             %step_numbers = map { $_ => 1 } $self->our_step_numbers;
         }
         
-        $self->pipelinesetup->log_event("DataElementState->start_from_scratch called for steps " . join(", ", sort { $a <=> $b } keys %step_numbers), dataelement => $self->dataelement->id, record_stack => 1);
+        my @steps_to_scratch = sort { $a <=> $b } keys %step_numbers;
+        $self->pipelinesetup->log_event("DataElementState->start_from_scratch called for steps " . join(", ", @steps_to_scratch), dataelement => $self->dataelement->id, record_stack => 1);
         
         # get all the stepstates made for our dataelement and pipeline and
         # start_over() them
         foreach my $ss (VRPipe::StepState->search({ dataelement => $self->dataelement->id, pipelinesetup => $self->pipelinesetup->id }, { prefetch => 'stepmember' })) {
             next unless exists $step_numbers{ $ss->stepmember->step_number };
             $ss->pipelinesetup->log_event("Calling StepState->start_over as part of a DataElementState->start_from_scratch", stepstate => $ss->id, dataelement => $ss->dataelement->id);
-            $ss->start_over();
+            $ss->start_over(no_trigger => 1);
             
             # ss->start_over deletes submissions for this stepstate - or for the
             # stepstate that this ss had same_submissions_as. We want to avoid
@@ -127,8 +128,8 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         }
         
         # each start_over() call will have set completed_steps(<something>) on
-        # us, but we need it at 0 for sure
-        $self->completed_steps(0);
+        # us, but we need it at the highest step we didn't start_over
+        $self->completed_steps($steps_to_scratch[0] ? ($steps_to_scratch[0] - 1) : 0);
         $self->update;
         
         # If this data element was used as the source of another dataelement, we want to also restart those dataelements
@@ -147,6 +148,10 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             # loop, so that we won't do it again in that same loop
             $anti_repeat_store->{ $self->id } = 1;
         }
+        
+        # queue ourselves to be triggered again (vrpipe-server will look after
+        # this)
+        $self->_in_memory->enqueue('trigger', $self->pipelinesetup->id . ':' . $self->dataelement->id);
         
         $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);
     }

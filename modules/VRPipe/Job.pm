@@ -34,7 +34,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -156,7 +156,8 @@ class VRPipe::Job extends VRPipe::Persistent {
         isa     => 'Object',
         lazy    => 1,
         builder => '_build_cmd_monitor',
-        handles => { start_monitoring => 'start', stop_monitoring => 'stop' }
+        handles => { start_monitoring => 'start', '_stop_monitoring' => 'stop' },
+        clearer => '_clear_monitor'
     );
     
     has '_signalled_to_death' => (
@@ -170,18 +171,25 @@ class VRPipe::Job extends VRPipe::Persistent {
         isa     => 'ArrayRef[Object]',
         default => sub { [] },
         handles => {
-            store_watcher => 'push'
-        },
-        clearer => 'clear_watchers'
+            store_watcher  => 'push',
+            clear_watchers => 'clear'
+        }
     );
+    
+    method stop_monitoring {
+        $self->_stop_monitoring;
+        $self->_clear_monitor;
+    }
     
     method _build_cmd_monitor {
         my ($watcher, $watcher_count);
         # for the first 2 minutes, when a cmd is most likely to be quickly
         # ramping up its memory usage, we update the peak memory every second
+        my $monitored_self = $self;
+        weaken($monitored_self);
         $watcher = EV::timer_ns 1, 1, sub {
-            $self->stop_monitoring if $self->end_time;
-            $self->_update_peak_memory;
+            $monitored_self->stop_monitoring if $monitored_self->end_time;
+            $monitored_self->_update_peak_memory;
             
             $watcher_count++;
             if ($watcher_count == 120) {
@@ -342,7 +350,8 @@ class VRPipe::Job extends VRPipe::Persistent {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
-        our $ss = $submission->stepstate if $submission;
+        my $ss;
+        $ss = $submission->stepstate if $submission;
         
         # we'll have 3 responses: -1 = job already exited; 0 = job already
         # running; 1 = we just started running it
@@ -351,8 +360,8 @@ class VRPipe::Job extends VRPipe::Persistent {
         # avoid the db-based transaction and locking mechanism below by doing a
         # safer, simple redis lock with NX. We don't rely on this though, since
         # the redis server could go down and we'd lose all locks
-        unless ($self->lock) {
-            $ss->pipelinesetup->log_event("Job->run() called, but there is a lock on it", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+        unless ($self->assert_life) {
+            $ss->pipelinesetup->log_event("Job->run() called, but it's already running elsewhere", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
             return 0;
         }
         
@@ -378,20 +387,18 @@ class VRPipe::Job extends VRPipe::Persistent {
         };
         $self->do_transaction($transaction, 'Job pending check/ start up phase failed');
         if (defined $response) {
-            $self->unlock;
             return $response;
         }
         
         # fork ourselves off a child to run the cmd in. We wrap this up in a
         # single-fire watcher so that nothing actually happens here without the
         # caller doing EV::run
+        my $weakened_self = $self;
+        weaken($weakened_self);
         my $delayed_fork = EV::timer 0, 0, sub {
-            weaken($self) unless isweak($self);
-            
             my $cmd_pid = fork();
             if (!defined $cmd_pid) {
-                $self->unlock;
-                $self->throw("attempt to fork cmd failed: $!");
+                $weakened_self->throw("attempt to fork cmd failed: $!");
             }
             elsif ($cmd_pid) {
                 # parent
@@ -399,22 +406,22 @@ class VRPipe::Job extends VRPipe::Persistent {
             elsif ($cmd_pid == 0) {
                 # child, run the command after changing to the correct dir and
                 # redirecting output to files
-                $self->pid($$);
-                $self->host(hostname());
-                $self->user(scalar(getpwuid($<)));
-                $self->update;
+                $weakened_self->pid($$);
+                $weakened_self->host(hostname());
+                $weakened_self->user(scalar(getpwuid($<)));
+                $weakened_self->update;
                 
                 # get all info from db and disconnect before using the info below
-                my $dir         = $self->dir;
-                my $cmd         = $self->cmd;
-                my $stdout_file = $self->stdout_file->path;
+                my $dir         = $weakened_self->dir;
+                my $cmd         = $weakened_self->cmd;
+                my $stdout_file = $weakened_self->stdout_file->path;
                 $stdout_file->dir->mkpath;
-                my $stderr_file = $self->stderr_file->path;
-                $self->disconnect;
+                my $stderr_file = $weakened_self->stderr_file->path;
+                $weakened_self->disconnect;
                 
-                open STDOUT, '>', $stdout_file or $self->throw("Can't redirect STDOUT to '$stdout_file': $!");
+                open STDOUT, '>', $stdout_file or $weakened_self->throw("Can't redirect STDOUT to '$stdout_file': $!");
                 untie *STDERR;
-                open STDERR, '>', $stderr_file or $self->throw("Can't redirect STDERR to '$stderr_file': $!");
+                open STDERR, '>', $stderr_file or $weakened_self->throw("Can't redirect STDERR to '$stderr_file': $!");
                 
                 chdir($dir);
                 
@@ -436,7 +443,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 # be meaningless for us.
                 my $shell = VRPipe::Config->new->exec_shell;
                 if ($shell) {
-                    if ($shell =~ /bash$/ && $cmd =~ / \| /) {
+                    if ($shell =~ /bash$/ && $cmd =~ /\s\| /) {
                         $cmd = 'set -o pipefail; ' . $cmd;
                     }
                     exec {$shell} $shell, '-c', $cmd;
@@ -447,8 +454,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             }
             
             # start our watcher that keeps track of peak memory usage
-            $self->start_monitoring;
-            $self->assert_life;
+            $weakened_self->start_monitoring;
             
             # setup signal watchers for the various ways a scheduler might try
             # to ask us to die; in response we will try and guess why and update
@@ -456,24 +462,17 @@ class VRPipe::Job extends VRPipe::Persistent {
             # the cmd
             foreach my $signal (qw(TERM INT QUIT USR1 USR2)) {
                 my $signal_watcher = EV::signal $signal, sub {
-                    $self->_update_peak_memory(no_rounding => 1); # the child should actually be killed by now, so this likey does nothing
-                    my $own_memory = $self->_current_memory($$, 1);
+                    $weakened_self->_update_peak_memory(no_rounding => 1); # the child should actually be killed by now, so this likey does nothing
+                    my $own_memory = $weakened_self->_current_memory($$, 1);
                     my $total_memory = $own_memory;
                     
                     my $explanation = "VRPipe: the cmd received SIG$signal";
                     
                     # look at the requirements of the submission that was used
                     # to run us
-                    my $sid_str = '';
                     if ($submission) {
-                        my ($sid_to_sub) = VRPipe::SidToSub->search({ sub_id => $submission->id });
-                        if ($sid_to_sub) {
-                            my $sid_aid = $sid_to_sub->sid . '[' . $sid_to_sub->aid . ']';
-                            $sid_str = "; scheduler id $sid_aid";
-                        }
-                        
                         my $changed      = 0;
-                        my $peak_memory  = $self->peak_memory || 0;
+                        my $peak_memory  = $weakened_self->peak_memory || 0;
                         my $fudge_factor = 100;
                         $total_memory += $peak_memory + $fudge_factor;
                         my $reserved_memory = $submission->memory;
@@ -486,7 +485,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                         $explanation .= qq[; total memory used (cmd ${peak_memory}MB + vrpipe ${own_memory}MB + ${fudge_factor}MB fudge) $mem_cmp reserved memory (${reserved_memory}MB)];
                         
                         if ($allowed_time) {
-                            my $wall_time = $self->wall_time;
+                            my $wall_time = $weakened_self->wall_time;
                             my $time_cmp  = '<';
                             if ($wall_time >= $allowed_time) {
                                 $time_cmp = '>';
@@ -501,25 +500,24 @@ class VRPipe::Job extends VRPipe::Persistent {
                             # also change the requirements for all other subs
                             # for us *** does this happen any more?
                             my $new_req_id = $submission->requirements->id;
-                            VRPipe::Submission->search_rs({ job => $self->id, requirements => { '!=' => $new_req_id } })->update({ requirements => $new_req_id });
+                            VRPipe::Submission->search_rs({ job => $weakened_self->id, requirements => { '!=' => $new_req_id } })->update({ requirements => $new_req_id });
                         }
                     }
                     
-                    my $stderr_file = $self->stderr_file;
+                    my $stderr_file = $weakened_self->stderr_file;
                     if ($stderr_file) {
                         my $efh = $stderr_file->open('>>');
                         print $efh $explanation, "\n";
                         $stderr_file->close;
                     }
-                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation$sid_str), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id) if $ss;
                     
-                    $self->_signalled_to_death($signal);
+                    $weakened_self->_signalled_to_death($signal);
                     
-                    $self->kill_job($submission);
-                    $self->disconnect;
-                    $self->unlock;
+                    $weakened_self->kill_job($submission);
+                    $weakened_self->disconnect;
                 };
-                $self->store_watcher($signal_watcher);
+                $weakened_self->store_watcher($signal_watcher);
             }
             
             #*** what we don't handle well is the situation where we get
@@ -538,26 +536,9 @@ class VRPipe::Job extends VRPipe::Persistent {
             $child_watcher = EV::child $cmd_pid, 0, sub {
                 my $exit_code = $child_watcher->rstatus;
                 waitpid($cmd_pid, 0); # is this necessary??
-                $self->stop_monitoring;
+                $weakened_self->stop_monitoring;
                 
-                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
-                
-                if ($exit_code == 0) {
-                    # we shouldn't have exited with success yet lost our lock,
-                    # so in this case we return early before updating any
-                    # columns on job or submission to avoid screwing up another
-                    # process that might now be running the same job
-                    # (getting killed can lose our lock, and in that case we
-                    # will continue and record the submission as failed)
-                    if ($submission && !$submission->locked(by_me => 1)) {
-                        $self->warn("The Submission's (" . $submission->id . ") lock has been lost prior to completing Job status");
-                        return;
-                    }
-                    if (!$self->locked(by_me => 1)) {
-                        $self->warn("Our (job " . $self->id . ") lock has been lost prior to completing Job status");
-                        return;
-                    }
-                }
+                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id) if $ss;
                 
                 #*** ideally we want to update_stats_from_disc on all our
                 # output files, but that is time consuming and potentially
@@ -567,19 +548,18 @@ class VRPipe::Job extends VRPipe::Persistent {
                 my $end_time = DateTime->now();
                 my @to_trigger;
                 my $transaction = sub {
-                    # update ourselves (our still-maintained redis lock should
-                    # ensure we're seeing the latest data)
+                    # update ourselves
                     @to_trigger = ();
                     
-                    unless ($self->start_time) {
+                    unless ($weakened_self->start_time) {
                         #*** we can somehow manage to have no start
                         # time?? This is very bad, but there's not much
                         # we can do about it now other than set it to end_time
-                        $self->start_time($end_time);
+                        $weakened_self->start_time($end_time);
                     }
-                    $self->exit_code($exit_code);
-                    $self->end_time($end_time);
-                    $self->update;
+                    $weakened_self->exit_code($exit_code);
+                    $weakened_self->end_time($end_time);
+                    $weakened_self->update;
                     
                     # update our Submission
                     if ($submission) {
@@ -629,7 +609,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                         }
                     }
                 };
-                $self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");
+                $weakened_self->do_transaction($transaction, "Failed to finalise Job and Submission state after the cmd-running child exited");
                 
                 # trigger the next step now, outside the above transaction,
                 # since trigger() isn't really idempotent: it deletes files.
@@ -644,31 +624,25 @@ class VRPipe::Job extends VRPipe::Persistent {
                         my $error_message = $setup->trigger(dataelement => $de);
                         
                         if ($error_message) {
-                            $setup->log_event("Job->run() completed and tried to trigger the next step but failed: $error_message", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                            $setup->log_event("Job->run() completed and tried to trigger the next step but failed: $error_message", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id);
                         }
                         else {
-                            $setup->log_event("Job->run() completed and successfully triggered the next step", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+                            $setup->log_event("Job->run() completed and successfully triggered the next step", dataelement => $de->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id);
                         }
                     }
                 }
                 
-                # update and unlock now (not before the above, since that can
-                # take a while, and we don't want another process thinking we
-                # died before setting end_time and triggering)
-                $self->update;
-                $self->disconnect;
-                
                 #*** theoretically updating file existence now might be too
                 # late, but we assume StepRole will recheck file existence
                 # on files that seem to be missing anyway
-                if ($self->pid) {
+                if ($weakened_self->pid) {
                     #*** somehow we can not have a pid, which breaks the
                     # following 2 calls
-                    $self->stdout_file->update_stats_from_disc(retries => 3);
-                    $self->stderr_file->update_stats_from_disc(retries => 3);
+                    $weakened_self->stdout_file->update_stats_from_disc(retries => 3);
+                    $weakened_self->stderr_file->update_stats_from_disc(retries => 3);
                 }
                 
-                my $o_files = $self->output_files;
+                my $o_files = $weakened_self->output_files;
                 if ($o_files && @$o_files) {
                     foreach my $o_file (@$o_files) {
                         $o_file->update_stats_from_disc(retries => 3);
@@ -678,11 +652,10 @@ class VRPipe::Job extends VRPipe::Persistent {
                     $submission->stepstate->update_output_file_stats;
                 }
                 
-                $self->disconnect;
-                $self->unlock;
-                $self->clear_watchers;
+                $weakened_self->disconnect;
+                $weakened_self->clear_watchers;
             };
-            $self->store_watcher($child_watcher);
+            $weakened_self->store_watcher($child_watcher);
         };
         $self->store_watcher($delayed_fork);
         

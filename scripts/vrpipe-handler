@@ -29,31 +29,31 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use EV;
 use AnyEvent;
 use AnyEvent::Util qw(fork_call);
-use AnyEvent::ForkManager;
+use Parallel::ForkManager;
 use Sys::CPU;
 use VRPipe::FrontEnd;
 use VRPipe::Interface::BackEnd;
 use Proc::ProcessTable;
 use Proc::Killfam;
 use DateTime;
-use Parallel::ForkManager;
+use VRPipe::MessageTracker;
 
 # handle options
 my $cmdline = VRPipe::FrontEnd->new(
-    description => "Handle the running of setups or submissions while executing on a farm node.",
+    description => "Handle the updating of datasources or running submissions while executing on a farm node.",
     opt_spec    => [
-        ['One of two modes must be specified, as must --farm.'],
-        ['mode|m=s', 'setups|submissions - handle setups or submissions'],
-        ['farm=s',   'Handle setups being controlled by this farm'],
+        ['One of three modes must be specified, as must --farm.'],
+        ['mode|m=s', 'datasources|dataelementstates|submissions - handle datasources, dataelementstates or submissions'],
+        ['farm=s',   'Handle stuff being controlled by this farm'],
         [],
-        ['In --mode submissions, you must also supply either:'],
-        ['submission=i', 'a Submission id, to directly specify a single Submission to handle', { persistent_object => 'Submission' }],
-        ['Or, to potentially have it handle multiple Submissions, both of:'],
+        ['In --mode submissions, you must also supply:'],
         ['requirements|r=i', 'a Requirements id, to handle any Submission with these requirements', { persistent_object => 'Requirements' }],
         ['scheduler|s=i',    'a Scheduler id',                                                      { persistent_object => 'Scheduler' }],
         [],
-        ['debug',   'turn lots of debugging output on, and allow it to work without a server running'],
-        ['setup=s', 'when --debug is on and you are in --mode setups, you can make it only look at a given setup']
+        ['debug', 'turn lots of debugging output on, and allow it to work without a server running'],
+        ['datasource=i',       'when --debug is on and you are in --mode datasources, you can make it only look at a given datasource',             { persistent_object => 'DataSource' }],
+        ['dataelementstate=i', 'when --debug is on and you are in --mode dataelementstates, you can make it only look at a given dataelementstate', { persistent_object => 'DataElementState' }],
+        ['submission=i',       'when --debug is on and you are in --mode submissions, you can make it only look at the given Submission',           { persistent_object => 'Submission' }],
     ]
 );
 
@@ -74,7 +74,7 @@ my $mode = $cmdline->opts('mode') || $cmdline->die_with_error("--mode must be su
 my $fs;
 unless ($debug) {
     ($fs) = VRPipe::FarmServer->search({ farm => $farm });
-    unless ($fs) {
+    unless ($fs && $fs->is_alive) {
         $cmdline->die_with_error("There is no farm server running for farm '$farm'");
     }
 }
@@ -82,14 +82,17 @@ if ($debug || $deployment eq 'testing') {
     $backend->set_verbose_global(1);
 }
 
-if ($mode eq 'setups') {
-    my $setup_id = $cmdline->opts('setup');
-    my ($setup) = $setup_id && $debug ? VRPipe::PipelineSetup->search({ id => $setup_id }) : undef;
-    handle_setups($setup);
+if ($mode eq 'datasources') {
+    my $given_ds = $cmdline->opts('datasource') if $debug;
+    handle_datasources($given_ds);
+}
+elsif ($mode eq 'dataelementstates') {
+    my $given_des = $cmdline->opts('dataelementstate') if $debug;
+    handle_dataelementstates($given_des);
 }
 elsif ($mode eq 'submissions') {
     my ($req, $scheduler);
-    my $given_sub = $cmdline->opts('submission');
+    my $given_sub = $cmdline->opts('submission') if $debug;
     if ($given_sub) {
         $req       = $given_sub->requirements;
         $scheduler = $given_sub->scheduler;
@@ -107,44 +110,39 @@ else {
 
 exit 0;
 
-sub handle_setups {
+sub handle_datasources {
     $im->log_stderr unless $debug;
-    my $single_setup = shift;
+    my $single_ds = shift;
     
-    # every 30s we'll check for new setups we're supposed to handle, and also
-    # confirm there is still a farmserver up for our farm (and exit if not)
-    my %setups;
-    my %datasource_watchers;
-    my %setup_watchers;
-    my $setups_timer_interval = $deployment eq 'production' && !$debug ? 150 : 5;
+    # every 30s we'll check for new ds to handle, and also confirm there is
+    # still a farmserver up for our farm (and exit if not)
+    my (%datasource_watchers, %handled_datasources);
+    my $check_timer_interval = $deployment eq 'production' && !$debug ? 30 : 5;
     my $datasource_timer_interval = $deployment eq 'production' ? 300 : 10;
-    my $setup_state_timer_interval = $deployment eq 'production' && !$debug ? 1800 : 15;
-    my (%currently_triggering, %currently_unstalling);
-    my $setups_watcher;
-    my @watchers = ({ 1 => $setups_watcher }, \%datasource_watchers, \%setup_watchers);
-    $setups_watcher = EV::timer 0, $setups_timer_interval, sub {
-        my @setups = ();
+    my $check_watcher;
+    my @watchers = ({ 1 => $check_watcher }, \%datasource_watchers);
+    $check_watcher = EV::timer 0, $check_timer_interval, sub {
+        my @freshly_grabbed_datasources = ();
         eval {
             unless ($debug) { $fs->is_alive || die "no farmserver" }
-            if ($single_setup) {
-                @setups = ($single_setup);
+            if ($single_ds) {
+                $single_ds->note('grabbed', forget_after => $datasource_timer_interval);
+                @freshly_grabbed_datasources = ($single_ds);
             }
             else {
                 # the server has queued datasources that need handling; grab as
                 # many as we can cope with and note that we grabbed them so the
                 # server doesn't reque them
-                my $already_handling = keys %setups;
+                my $already_handling = keys %handled_datasources;
                 unless ($already_handling == $max_forks) {
                     my $start = $already_handling + 1;
                     for ($start .. $max_forks) {
                         my $ds_id = $im->dequeue('ds_for_handlers.' . $farm);
                         last unless $ds_id;
-                        my @these_setups = VRPipe::PipelineSetup->search({ active => 1, controlling_farm => $farm, datasource => $ds_id }, { prefetch => ['datasource', 'pipeline'] });
-                        redo unless @these_setups;
-                        foreach my $setup (@these_setups) {
-                            $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
-                            push(@setups, $setup);
-                        }
+                        my ($ds) = VRPipe::DataSource->search({ id => $ds_id });
+                        redo unless $ds;
+                        $ds->note('grabbed', forget_after => $datasource_timer_interval);
+                        push(@freshly_grabbed_datasources, $ds);
                     }
                 }
             }
@@ -159,37 +157,48 @@ sub handle_setups {
         }
         else {
             eval {
-                my %all_setups = map { $_->id => $_ } @setups;
-                while (my ($id, $setup) = each %setups) {
-                    $all_setups{$id} = $setup;
+                my %all_ds = map { $_->id => $_ } @freshly_grabbed_datasources;
+                while (my ($id, $ds) = each %handled_datasources) {
+                    $all_ds{$id} = $ds;
                 }
-                my @all_setups = values %all_setups;
+                my @all_ds = values %all_ds;
                 
-                if (@all_setups) {
-                    # remove handling and watchers for setups no longer active/
-                    # controlled by our farm
-                    while (my ($stored_setup_id, $stored_setup) = each %setups) {
-                        $stored_setup->reselect_values_from_db;
-                        my $active     = $stored_setup->active;
-                        my $controller = $stored_setup->controlling_farm;
+                if (@all_ds) {
+                    # remove watchers for datasources no longer for setups that
+                    # are active
+                    while (my ($stored_ds_id, $stored_ds) = each %handled_datasources) {
+                        my $active = VRPipe::PipelineSetup->search({ datasource => $stored_ds_id, active => 1, controlling_farm => $farm });
                         
-                        if (($active && ($controller eq $farm)) || ($debug && $single_setup)) {
-                            $stored_setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
+                        if ($active || ($debug && $single_ds)) {
+                            $stored_ds->note('grabbed', forget_after => $datasource_timer_interval);
                         }
                         else {
-                            my $ds_id = $stored_setup->datasource->id;
-                            $datasource_watchers{$ds_id}->{count}--;
-                            delete $datasource_watchers{$ds_id} if $datasource_watchers{$ds_id}->{count} == 0;
-                            delete $setup_watchers{$stored_setup_id};
-                            delete $setups{$stored_setup_id};
-                            $stored_setup->datasource->forget_note('grabbed');
+                            delete $datasource_watchers{$stored_ds_id};
+                            delete $handled_datasources{$stored_ds_id};
+                            $stored_ds->forget_note('grabbed');
                         }
                     }
-                    unless (@setups || keys %setups) {
-                        return exit_handler("There are no longer any more setups to handle for farm $farm", @watchers);
+                    unless (@freshly_grabbed_datasources || keys %handled_datasources) {
+                        return exit_handler("There are no longer any more datasources to handle for active setups on farm $farm", @watchers);
                     }
                     
-                    # trigger new setups, in parallel
+                    # when testing, we don't want to have this keep running
+                    # after all the setups associated with our ds have completed
+                    if ($deployment eq 'testing' && !($debug && $single_ds)) {
+                        my @all_setups;
+                        foreach my $ds (@all_ds) {
+                            push(@all_setups, VRPipe::PipelineSetup->search({ datasource => $ds, active => 1, controlling_farm => $farm }));
+                        }
+                        
+                        my $completed = 0;
+                        foreach my $setup (@all_setups) {
+                            $completed++ if $setup->currently_complete;
+                        }
+                        return exit_handler("All the datasources are for currently complete setups", @watchers) if $completed == @all_setups;
+                    }
+                    
+                    # create a watcher for each new datasource to keep it
+                    # up-to-date
                     my $ds_working_sub = sub {
                         my ($ds_id, $err) = @_;
                         $err =~ s/^DataSource error: // if $err;
@@ -201,7 +210,7 @@ sub handle_setups {
                             if ($err) {
                                 # email user about the error once per setup
                                 unless ($mt->already_sent("not working")) {
-                                    $s->log_event("vrpipe-handler for setups called found that DataSource $ds_id has problems: $err");
+                                    $s->log_event("vrpipe-handler for datasources found that DataSource $ds_id has problems: $err");
                                     $im->log("There is a problem with datasource $ds_id for setup $sid", email_to => [$s->user], subject => "Setup $sid has problems with its DataSource", long_msg => $err);
                                 }
                             }
@@ -211,94 +220,31 @@ sub handle_setups {
                         }
                     };
                     
-                    my @new_setups;
-                    foreach my $setup (@setups) {
-                        $setup->datasource->note('grabbed', forget_after => $datasource_timer_interval);
-                        my $sid = $setup->id;
-                        next if exists $setups{$sid};
-                        $setups{$sid} = $setup;
-                        push(@new_setups, $setup);
-                        
-                        # (because I couldn't get AnyEvent::ForkManager->on_finish
-                        #  to work, we use fork_calls instead)
-                        $currently_triggering{$sid} = 1;
-                        my $ds_id = $setup->datasource->id;
-                        $datasource_watchers{$ds_id}->{working} = 1;
-                        $setup->disconnect;
-                        fork_call {
-                            $im->debug("will trigger first_step_only for new setup $sid");
-                            return $setup->trigger(first_step_only => 1);
-                        }
-                        sub {
-                            delete $currently_triggering{$sid};
-                            delete $datasource_watchers{$ds_id}->{working};
-                            $im->debug("finished first_step_only trigger of setup $sid");
-                            my $error = shift || $@;
-                            if ($error) {
-                                if ($error =~ /^DataSource error: /) {
-                                    delete $setups{$sid};
-                                    &{$ds_working_sub}($ds_id, $error);
-                                }
-                                else {
-                                    # later on a watcher on this setup will have better
-                                    # error handling and report the setup problems
-                                }
-                            }
-                        };
-                    }
-                    
-                    # when testing, we don't want to have this keep running
-                    # after all the setups have completed
-                    if ($deployment eq 'testing' && !($debug && $single_setup)) {
-                        my $completed = 0;
-                        foreach my $setup (@all_setups) {
-                            $completed++ if $setup->currently_complete;
-                        }
-                        return exit_handler("All the setups are currently complete", @watchers) if $completed == @all_setups;
-                    }
-                    
-                    # create a watcher for each setup's datasource to keep it
-                    # up-to-date
-                    foreach my $setup (@new_setups) {
-                        my $ds = $setup->datasource;
-                        $ds->initialize_inmemory; # prior to forking
+                    foreach my $ds (@freshly_grabbed_datasources) {
                         my $ds_id = $ds->id;
-                        $datasource_watchers{$ds_id}->{count}++;
-                        next if defined $datasource_watchers{$ds_id}->{watcher};
-                        $datasource_watchers{$ds_id}->{watcher} = 1; # will replace with actual watcher later; this stops us doing this multiple times
+                        next if exists $handled_datasources{$ds_id};
+                        $handled_datasources{$ds_id} = $ds;
+                        next if defined $datasource_watchers{$ds_id};
                         
-                        $im->debug("will create watcher for ds $ds_id for setup " . $setup->id);
+                        $ds->initialize_inmemory; # prior to forking
+                        $im->debug("will create watcher for ds $ds_id");
                         
                         my $datasource_update_sub = sub {
                             return if $datasource_watchers{$ds_id}->{working};
                             $datasource_watchers{$ds_id}->{working} = 1;
                             
-                            $setup->disconnect;
+                            $ds->disconnect;
                             fork_call {
                                 $ds->reselect_values_from_db;
-                                my $e_before = VRPipe::DataElement->search({ datasource => $ds->id, withdrawn => 0 });
                                 $im->debug("will call ds->elements for ds $ds_id");
+                                # the elements call will queue up states to be
+                                # triggered; vrpipe-server will take care of
+                                # those
                                 my $e_after_pager = $ds->elements;
                                 unless ($e_after_pager) {
                                     # we changed to having 0 dataelements
                                     foreach my $s (VRPipe::PipelineSetup->search({ datasource => $ds->id })) {
                                         $s->log_event("vrpipe-handler for setups called datasource->elements and got 0 dataelements");
-                                    }
-                                    return;
-                                }
-                                
-                                # if we just got new elements, trigger them for each
-                                # setup that uses this ds
-                                my @triggered_setups = ();
-                                my $e_after          = $e_after_pager->total_entries;
-                                if ($e_after != $e_before) {
-                                    foreach my $ds_setup (VRPipe::PipelineSetup->search({ datasource => $ds_id, active => 1 }, { prefetch => ['datasource', 'pipeline'] })) {
-                                        # (it's too expensive/risky to set the
-                                        #  currently_triggering marker... it should
-                                        #  be ok to trigger first step only...)
-                                        $ds_setup->log_event("vrpipe-handler for setups called datasource->elements which changed the number of dataelements from $e_before => $e_after, will trigger the first step");
-                                        $ds_setup->trigger(first_step_only => 1, prepare_elements => 0);
-                                        $im->debug("finished first_step_only trigger for setup " . $ds_setup->id);
                                     }
                                 }
                                 
@@ -324,148 +270,6 @@ sub handle_setups {
                         
                         $datasource_watchers{$ds_id}->{watcher} = $watcher;
                     }
-                    
-                    # create a watcher to check the state of each setup, so we
-                    # can notify user of stalled/ failed/ completed ones
-                    foreach my $setup (@new_setups) {
-                        $setup->initialize_inmemory;
-                        my $sid = $setup->id;
-                        next if defined $setup_watchers{$sid};
-                        
-                        $im->debug("will create stall watcher for setup $sid");
-                        
-                        $setup_watchers{$sid} = EV::timer int(rand($setup_state_timer_interval)), $setup_state_timer_interval, sub {
-                            return if $currently_unstalling{$sid};
-                            $currently_unstalling{$sid} = 1;
-                            
-                            $setup->disconnect;
-                            fork_call {
-                                # we will email the user once when overall state
-                                # changes
-                                my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                                $setup->reselect_values_from_db;
-                                my $num_states = $setup->dataelementstates;
-                                
-                                if ($setup->currently_complete) {
-                                    unless ($mt->already_sent("complete with $num_states elements")) {
-                                        unless ($num_states == 0) {
-                                            $setup->log_event("vrpipe-handler for setups completed the setup with $num_states DataElements");
-                                            my $name = $setup->name;
-                                            my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $sid\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $sid --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $sid --deactivate\n";
-                                            $im->log("Setup $sid ($name) has completed for $num_states DataElements", email_to => [$setup->user], subject => "Setup $sid has completed", long_msg => $long);
-                                        }
-                                    }
-                                    
-                                    return;
-                                }
-                                
-                                # tell user about repeatedly failed subs
-                                my $perma_fails = VRPipe::Submission->search({ '_done' => 0, '_failed' => 1, retries => 3, 'stepstate.pipelinesetup' => $sid }, { join => ['stepstate'] });
-                                if ($perma_fails) {
-                                    unless ($mt->already_sent("has some perma fails")) {
-                                        $setup->log_event("vrpipe-handler for setups found repeated failures for the setup that need user intervention");
-                                        my $name = $setup->name;
-                                        my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --failed --start_over --no_report\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
-                                        $im->log("Setup $sid ($name) has repeated failures that need user intervention", email_to => [$setup->user], subject => "Setup $sid has problems", long_msg => $long);
-                                    }
-                                }
-                                
-                                # force a trigger for any apparently stalled
-                                # datalementstates
-                                $im->debug("looking for stalls");
-                                my $ie_pager = $setup->datasource->incomplete_element_states($setup, prepare => 0);
-                                my $error_message;
-                                my $pm = Parallel::ForkManager->new($max_forks);
-                                $pm->run_on_finish(
-                                    sub {
-                                        my ($pid, $this_error) = @_;
-                                        if ($this_error && !$error_message) {
-                                            $error_message = $this_error;
-                                        }
-                                    }
-                                );
-                                
-                                if ($ie_pager) {
-                                    $im->debug("got incomplete_element_states");
-                                    while (my $dess = $ie_pager->next) {
-                                        foreach my $des (@$dess) {
-                                            my $de = $des->dataelement;
-                                            my $have_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid }, { join => 'stepstate' });
-                                            $im->debug("de " . $de->id . " has $have_subs subs");
-                                            
-                                            if ($have_subs) {
-                                                # we have subs so must have parsed
-                                                # something so there's no need to
-                                                # trigger... except in the case that
-                                                # all the subs are complete, in
-                                                # which case either we have an
-                                                # incomplete stepstate that the
-                                                # parse failed on, or we managed to
-                                                # complete one stepstate without
-                                                # creating a stepstate for the next
-                                                # step
-                                                my $complete_subs = VRPipe::Submission->search({ 'stepstate.dataelement' => $de->id, 'stepstate.pipelinesetup' => $sid, '_done' => 1 }, { join => 'stepstate' });
-                                                next unless $complete_subs == $have_subs;
-                                            }
-                                            
-                                            $pm->start and next;
-                                            $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because it seems to be stalled");
-                                            my $this_error = $setup->trigger(dataelement => $de);
-                                            $pm->finish($this_error);
-                                        }
-                                    }
-                                    $pm->wait_all_children;
-                                }
-                                $im->debug("after looking for stalls");
-                                
-                                # make sure that any same_submissions_as stepstates
-                                # haven't gotten stuck, which seems to be an issue
-                                # (*** bug elsewhere?)
-                                my $step_state_pager = VRPipe::StepState->search_paged({ pipelinesetup => $sid, same_submissions_as => { '!=' => undef }, complete => 0 });
-                                if ($step_state_pager) {
-                                    while (my $step_states = $step_state_pager->next) {
-                                        foreach my $step_state (@$step_states) {
-                                            my $same = $step_state->same_submissions_as;
-                                            next unless $same->complete;
-                                            my $de = $step_state->dataelement;
-                                            $im->log("forcing the trigger of dataelement " . $de->id . " (setup $sid) because its stepstate has the same submissions as one that completed");
-                                            $pm->start and next;
-                                            my $this_error = $setup->trigger(dataelement => $de);
-                                            $pm->finish($this_error);
-                                        }
-                                    }
-                                    $pm->wait_all_children;
-                                }
-                                
-                                unless ($perma_fails) {
-                                    if ($error_message) {
-                                        unless ($mt->already_sent("trigger problem")) {
-                                            $setup->log_event("vrpipe-handler for setups hit problems during trigger(): $error_message");
-                                            $im->log($error_message, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                                        }
-                                    }
-                                    else {
-                                        $im->debug("no error - running normally");
-                                        $mt->update_message("running normally");
-                                    }
-                                }
-                                else {
-                                    $im->debug("had perma fails, so did not output error");
-                                }
-                                
-                                return;
-                            }
-                            sub {
-                                delete $currently_unstalling{$sid};
-                                my $err = $@ || return;
-                                my $mt = VRPipe::MessageTracker->create(subject => "overall state of setup $sid");
-                                unless ($mt->already_sent("unknown problem")) {
-                                    $setup->log_event("vrpipe-handler for setups encountered an unknown problem: $err");
-                                    $im->log("There is a problem with setup $sid:\n$err", email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems");
-                                }
-                            };
-                        };
-                    }
                 }
                 else {
                     return exit_handler("There are no longer any more setups to handle for farm $farm", @watchers);
@@ -485,17 +289,100 @@ sub handle_setups {
     my $sigquit_watcher = EV::signal 'QUIT', sub { exit_handler("SIGQUIT received", @watchers); };
     
     # run the event loop
-    $im->log("The setups handler for farm $farm is now running.");
+    $im->log("A datasource handler for farm $farm is now running.");
     EV::run;
     
     if ($im->datastore_ok) {
-        foreach my $grabbed_setup (values %setups) {
-            $grabbed_setup->datasource->forget_note('grabbed');
+        foreach my $grabbed_ds (values %handled_datasources) {
+            $grabbed_ds->forget_note('grabbed');
         }
     }
-    $im->log("The setups handler for farm $farm is now exiting!");
+    $im->log("A datasource handler for farm $farm is now exiting!");
     
     kill_remaining_children();
+    exit 0;
+}
+
+sub handle_dataelementstates {
+    $im->log_stderr unless $debug;
+    my $single_des = shift;
+    
+    $im->log("A dataelementstates handler for farm $farm is now running.");
+    my $inter_message_time = 86400;
+    
+    my $trigger_sub = sub {
+        my $des   = shift;
+        my $setup = $des->pipelinesetup;
+        my $err   = $setup->trigger(dataelement => $des->dataelement);
+        
+        my $sid     = $setup->id;
+        my $step    = $des->completed_steps + 1;
+        my $subject = "state of setup $sid at step $step (triggering)";
+        my $mt      = VRPipe::MessageTracker->create(subject => $subject);
+        
+        if ($err) {
+            unless ($mt->already_sent("trigger problem")) {
+                # since the message could be flipping back and forth between
+                # problem and normal for different dataelements of this setup,
+                # we'll only log the problem at most once per day
+                if ($im->lock($subject, unlock_after => $inter_message_time)) {
+                    $setup->log_event("vrpipe-handler for dataelementstates hit problems during trigger() of an element trying to go through step $step : $err");
+                    $im->log($err, email_to => [$setup->user], email_admin => 1, subject => "Setup $sid has problems getting to step $step");
+                }
+            }
+        }
+        else {
+            $mt->update_message("running normally");
+        }
+    };
+    
+    if ($single_des) {
+        &$trigger_sub($single_des);
+    }
+    else {
+        # we'll only trigger des that belong to active setups that our farm is
+        # handling
+        my %setup_ids;
+        foreach my $setup (VRPipe::PipelineSetup->search({ controlling_farm => $farm, active => 1 })) {
+            $setup_ids{ $setup->id } = 1;
+        }
+        
+        # in parallel we'll have loops that dequeue and trigger des until there
+        # are no more to trigger, then we exit after 30s of nothing to trigger
+        my $fm = Parallel::ForkManager->new($max_forks);
+        for (1 .. $max_forks) {
+            $fm->start and next;
+            
+            my $time_of_last_trigger = time();
+            while (1) {
+                while (my $to_trigger = $im->dequeue('trigger')) {
+                    my ($setup_id, $de_id) = split(/:/, $to_trigger);
+                    if (exists $setup_ids{$setup_id}) {
+                        my ($des) = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, dataelement => $de_id });
+                        if ($des) {
+                            # trigger this des
+                            &$trigger_sub($des);
+                            $time_of_last_trigger = time();
+                        }
+                        # else we won't requeue or do anything
+                    }
+                    else {
+                        # requeue it for someone else to deal with
+                        $im->enqueue('trigger', $to_trigger);
+                    }
+                }
+                
+                last if time() > $time_of_last_trigger + 30;
+                last unless $fs->is_alive;
+                sleep(1);
+            }
+            
+            $fm->finish();
+        }
+        $fm->wait_all_children;
+    }
+    
+    $im->log("A dataelementstates handler for farm $farm is now exiting!");
     exit 0;
 }
 
@@ -511,26 +398,33 @@ sub handle_submissions {
     
     $im->debug("entered handle_submissions");
     
-    my ($sidtosub, $grabbed_sub);
+    my $grabbed_sub;
     my $forget_notes_after = $deployment eq 'production' ? 600 : 60;
-    unless ($given_sub) {
+    
+    if ($given_sub) {
+        $grabbed_sub = $given_sub;
+        $grabbed_sub->note('grabbed', forget_after => $forget_notes_after);
+    }
+    else {
         # grab a submission from the InMemory queue
-        my $sub_id = $im->dequeue($req_id);
-        if ($sub_id) {
-            $im->debug("grabbed sub $sub_id from the redis queue");
-            
-            # note that we grabbed this, so that the server doesn't readd the
-            # sub to the queue. Set an expire time in case this process dies
-            # before finishing the submission
-            $grabbed_sub = VRPipe::Submission->get(id => $sub_id);
-            $grabbed_sub->note('grabbed', forget_after => $forget_notes_after);
-            
-            # create a sidtosub
-            $sidtosub = VRPipe::SidToSub->create(farm => $farm, req_id => $req->id, sid => $scheduler->get_scheduler_id, aid => $scheduler->get_1based_index, sub_id => $sub_id, assignment_time => DateTime->now);
-            $im->debug("created sidtosub " . $sidtosub->id . " for sid " . $scheduler->get_scheduler_id . "[" . $scheduler->get_1based_index . "] and sub $sub_id");
-        }
-        else {
-            return exit_handler("There were no submissions for req $req_id in the queue");
+        my $sub_id;
+        while (!$sub_id) {
+            $sub_id = $im->dequeue($req_id);
+            if ($sub_id) {
+                $im->debug("grabbed sub $sub_id from the redis queue");
+                
+                # note that we grabbed this, so that the server doesn't readd the
+                # sub to the queue. Set an expire time in case this process dies
+                # before starting the submission
+                $grabbed_sub = VRPipe::Submission->get(id => $sub_id);
+                $grabbed_sub->note('grabbed', forget_after => $forget_notes_after);
+            }
+            elsif ($req->noted('generating_subs')) {
+                sleep(6);
+            }
+            else {
+                return exit_handler("There were no submissions for req $req_id in the queue");
+            }
         }
     }
     
@@ -539,7 +433,7 @@ sub handle_submissions {
     # every so often we'll check on our submission to see how it is doing.
     # if we don't have one, we'll grab one from the redis queue
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    my ($submission, $job, $job_start_time, $working, $no_subs_found);
+    my ($submission, $job, $job_start_time, $working);
     
     my $handled_submissions = 0;
     my $watcher;
@@ -554,7 +448,6 @@ sub handle_submissions {
                 
                 if ($deployment eq 'testing') {
                     my $still_in_db = VRPipe::Job->search({ id => $submission->job->id });
-                    $still_in_db ||= VRPipe::SidToSub->search({ id => $sidtosub->id });
                     unless ($still_in_db) {
                         return exit_handler("Looks like the database was dropped", @watchers);
                     }
@@ -569,48 +462,59 @@ sub handle_submissions {
                 }
                 
                 my $close_to_time_limit = (time() - $job_start_time) > ($current_req_time - $seconds_before_switching);
-                my $still_locked = $job->locked(by_me => 1);
+                my $still_alive = $job->is_alive;
                 
-                if (!$still_locked && $job->end_time) {
-                    $job->reselect_values_from_db;
+                if ($job->end_time) {
                     $submission->reselect_values_from_db;
                     eval { $submission->archive_output; };
+                    my $ss      = $submission->stepstate;
+                    my $ps      = $ss->pipelinesetup;
+                    my $sid     = $ps->id;
+                    my $step    = $ss->stepmember->step_number;
+                    my $subject = "state of setup $sid at step $step (submissions)";
+                    my $mt      = VRPipe::MessageTracker->create(subject => $subject);
                     
                     if ($submission->done) {
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                        $ps->log_event("vrpipe-handler for submissions found that the Submission was done", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $submission->id, job => $job->id);
+                        $mt->update_message("running normally");
                     }
                     elsif ($submission->failed) {
                         # Job->run itself would have adjusted $submission's
-                        # requirements already if we failed due to running out of
-                        # time or memory; we just need to retry it if appropriate
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                        $submission->retry if $submission->retries < 3;
-                    }
-                    if ($sidtosub) {
-                        $im->debug("had a sidtosub, will undef it");
-                        $submission->forget_note('grabbed');
-                        eval {
-                            $sidtosub->sub_id(undef);
-                            $sidtosub->update;
-                            $req->disconnect;
-                        };
-                    }
-                    else {
-                        $im->debug("had no sidtosub");
+                        # requirements already if we failed due to running out
+                        # of time or memory; we just need to retry it if
+                        # appropriate
+                        $ps->log_event("vrpipe-handler for submissions found that the Submission is failed (now " . $submission->retries . " retries)", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $submission->id, job => $job->id);
+                        
+                        if ($submission->retries < 3) {
+                            $submission->retry;
+                        }
+                        else {
+                            unless ($mt->already_sent("submission problem")) {
+                                # since the message could be flipping back and
+                                # forth between a fail for some subs and success
+                                # for others, we'll only log the problem at most
+                                # once per day
+                                if ($im->lock($subject, unlock_after => 86400)) {
+                                    my $name = $ps->name;
+                                    my $long = "Investigate the problems by running:\n\$ vrpipe-submissions --setup $sid --step $step --failed\n(add --list 1 to limit the amount of output)\n\nOnce the issue has been resolved, give the failed submissions another try by running:\n\$ vrpipe-submissions --setup $sid --step $step --failed --start_over\n(or replace --start_over with --full_reset if your fix would change the command line that needs to be run)\n";
+                                    $im->log("Setup $sid ($name) has repeated failures at step $step that need user intervention", email_to => [$ps->user], subject => "Setup $sid has problems at step $step", long_msg => $long);
+                                }
+                            }
+                        }
                     }
                     
                     my $signal = $job->_signalled_to_death;
                     if ($signal) {
-                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                        $ss->log_event("vrpipe-handler for submissions will exit because it received a SIG$signal", stepstate => $ss->id, dataelement => $ss->dataelement->id, submission => $submission->id, job => $job->id);
                         return exit_handler($submission->id . " failed because we received a SIG$signal", @watchers);
                     }
                     
                     $im->debug("will undef submission");
-                    $submission->unlock;
                     undef $submission;
+                    undef $job;
                 }
-                elsif (!$still_locked) {
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because it lost the lock on a job it was monitoring", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                elsif (!$still_alive) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because the job it was working on is not longer alive", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
                     return exit_handler("lost the lock on job of submission " . $submission->id, @watchers);
                 }
                 elsif ($close_to_time_limit) {
@@ -622,10 +526,6 @@ sub handle_submissions {
                     my $current_queue = $scheduler->determine_queue($submission->requirements);
                     my $transaction   = sub {
                         $submission->extra_time;
-                        unless ($given_sub) {
-                            $sidtosub->req_id($submission->requirements->id);
-                            $sidtosub->update;
-                        }
                     };
                     $req->do_transaction($transaction, 'Failed to add extra time to our submission requirements');
                     $current_req_time = $submission->requirements->time;
@@ -639,9 +539,9 @@ sub handle_submissions {
                     }
                     
                     # we do not update $req, so that once this $submission has
-                    # finished we should think that we've run out of time and kill
-                    # ourselves, keeping vrpipe-server's estimation of how many
-                    # handlers per req are running nice and accurate
+                    # finished we should think that we've run out of time and
+                    # kill ourselves, keeping vrpipe-server's estimation of how
+                    # many handlers per req are running nice and accurate
                 }
                 else {
                     $im->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
@@ -649,18 +549,10 @@ sub handle_submissions {
             };
             
             if ($@) {
-                # we want to avoid exiting while we're still running a job, so
-                # just blindly ignore the problem and hope it goes away...
-                if ($deployment eq 'testing' && $@ =~ /Could not connect to Redis server/) {
-                    return exit_handler("There was a problem monitoring Submission " . $submission->id . "; it looks like the testing server was shut down", @watchers);
-                }
-                $im->log("There was a problem monitoring Submission " . $submission->id . ": $@");
-                
-                if ($submission->done) {
-                    # we encountered some error yet we managed to complete our
-                    # work, so just exit
-                    return exit_handler("encountered an unusual error yet finished handling submission " . $submission->id, @watchers);
-                }
+                # even though the job might still be running ok, we can't risk
+                # keeping this process alive forever while it's stuck due to
+                # this unknown error
+                return exit_handler("There was a problem monitoring Submission " . $submission->id . ": $@", @watchers);
             }
         }
         unless ($submission) {
@@ -674,102 +566,84 @@ sub handle_submissions {
                     return exit_handler("There is no longer a server for farm $farm", @watchers);
                 }
                 
-                # if we were given only one Submission to do, run it then exit
-                my $sub_id;
+                # sort out a sub to work on
                 if ($given_sub) {
+                    # if we were given only one Submission to do, run it then exit
                     $im->debug("was given a sub");
                     $given_sub->reselect_values_from_db;
                     if ($given_sub->done || $given_sub->failed) {
                         return exit_handler("Handled the given Submission", @watchers);
                     }
-                    else {
-                        $sub_id = $given_sub->id;
-                    }
                 }
-                else {
-                    my $still_in_db = VRPipe::SidToSub->search({ id => $sidtosub->id });
-                    unless ($still_in_db) {
-                        return exit_handler("Our SidToSub got deleted", @watchers);
-                    }
-                    
-                    # try to claim and run the sub_id we got from the redis queue
-                    # (and get one from the queue if we don't have one)
-                    $im->debug("will check if sid has grabbed a sub yet");
-                    $sidtosub->reselect_values_from_db;
-                    $sub_id = $sidtosub->sub_id;
-                    
-                    unless ($sub_id) {
-                        # get one from the redis queue
+                elsif (!$grabbed_sub) {
+                    # try to get another sub from the queue
+                    my $sub_id;
+                    while (!$sub_id) {
                         $sub_id = $im->dequeue($req_id);
                         if ($sub_id) {
+                            $im->debug("grabbed sub $sub_id from the redis queue");
                             $grabbed_sub = VRPipe::Submission->get(id => $sub_id);
                             $grabbed_sub->note('grabbed', forget_after => $forget_notes_after);
-                            $sidtosub->sub_id($sub_id);
-                            $sidtosub->update;
+                        }
+                        elsif ($req->noted('generating_subs')) {
+                            sleep(6);
+                        }
+                        else {
+                            return exit_handler("There were no submissions for req $req_id in the queue", @watchers);
                         }
                     }
                 }
                 
-                if ($sub_id) {
-                    $im->debug("we grabbed a sub, will try to run it");
-                    ($submission) = VRPipe::Submission->search({ id => $sub_id });
-                    unless ($submission) {
-                        $sidtosub->sub_id(undef);
-                        $sidtosub->update;
-                        $grabbed_sub->forget_note('grabbed');
-                        $im->debug("not assigned an existing submission");
-                    }
-                    else {
-                        # we'll try and claim this one to run
-                        undef $no_subs_found;
-                        my $remaining_time = int($end_time - time());
-                        if ($remaining_time < $time_needed) {
-                            $sidtosub->delete;
-                            
-                            # it's possible that we're dealing with a sub
-                            # with time requirements close to or matching
-                            # the limit of the queue we get submitted to,
-                            # which would mean we always exit here and never
-                            # actually run it; give it more time in that
-                            # case
-                            if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
-                                $submission->extra_time;
-                            }
-                            
-                            return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)", @watchers);
-                        }
-                        
-                        my $response;
-                        ($response, $job) = $submission->claim_and_run(allowed_time => $remaining_time);
-                        if ($response == 0) {
-                            # there was some problem with this sub and it
-                            # just got reset; let's ignore it for now and
-                            # deal with it on the next 'loop'
-                            undef $submission;
-                        }
-                        elsif ($response == 2 || $response == 3) {
-                            # the job already exited and the sub is
-                            # done/failed, or the job is currently running
-                            # under another process; in either case
-                            # unassign it
-                            $sidtosub->sub_id(undef);
-                            $sidtosub->update;
-                            undef $submission;
-                        }
-                        elsif ($response == 1) {
-                            # we just started running the sub's job
-                            $handled_submissions++;
-                            my $extra = '';
-                            if (!$given_sub && $sidtosub) {
-                                $extra = "(sidtosub " . $sidtosub->id . ", scheduler id " . $sidtosub->sid . '[' . $sidtosub->aid . '])';
-                            }
-                            $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful" . $extra, stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
-                            $job_start_time = $job->start_time->epoch;
-                        }
-                    }
+                my $sub_id = $grabbed_sub->id;
+                $im->debug("we grabbed a sub, will try to run it");
+                ($submission) = VRPipe::Submission->search({ id => $sub_id });
+                unless ($submission) {
+                    $grabbed_sub->forget_note('grabbed');
+                    undef $grabbed_sub;
+                    $im->debug("not assigned an existing submission");
                 }
                 else {
-                    $im->debug("no suitable subs in the redis queue");
+                    # we'll try and claim this one to run
+                    my $remaining_time = int($end_time - time());
+                    if ($remaining_time < $time_needed) {
+                        # it's possible that we're dealing with a sub
+                        # with time requirements close to or matching
+                        # the limit of the queue we get submitted to,
+                        # which would mean we always exit here and never
+                        # actually run it; give it more time in that
+                        # case
+                        if ($handled_submissions == 0 && $time_needed - $remaining_time < 300) {
+                            $submission->extra_time;
+                        }
+                        
+                        $grabbed_sub->forget_note('grabbed');
+                        return exit_handler("Not enough time to try and run our submission ($remaining_time < $time_needed)", @watchers);
+                    }
+                    
+                    my $response;
+                    ($response, $job) = $submission->claim_and_run(allowed_time => $remaining_time);
+                    if ($response == 0) {
+                        # there was some problem with this sub and it
+                        # just got reset; let's ignore it for now and
+                        # deal with it on the next 'loop'
+                        undef $submission;
+                    }
+                    elsif ($response == 2 || $response == 3) {
+                        # the job already exited and the sub is
+                        # done/failed, or the job is currently running
+                        # under another process; in either case
+                        # unassign it
+                        undef $submission;
+                    }
+                    elsif ($response == 1) {
+                        # we just started running the sub's job
+                        $handled_submissions++;
+                        $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions called claim_and_run() and was successful", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $submission->job->id);
+                        $job_start_time = $job->start_time->epoch;
+                    }
+                    
+                    $grabbed_sub->forget_note('grabbed');
+                    undef $grabbed_sub;
                 }
             };
             
@@ -778,14 +652,6 @@ sub handle_submissions {
                     return exit_handler("There was a problem claiming and running a new submission; it looks like the testing server was shut down", @watchers);
                 }
                 return exit_handler("There was a problem claiming and running a new submission: $@", @watchers);
-            }
-            elsif (!defined $submission) {
-                # wait for 5 failed attempts in a row to get a submission
-                # before exiting
-                $no_subs_found++;
-                if ($no_subs_found == 5) {
-                    return exit_handler("No submissions to work on", @watchers);
-                }
             }
         }
         

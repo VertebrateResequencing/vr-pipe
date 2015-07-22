@@ -26,7 +26,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -139,8 +139,8 @@ class VRPipe::Submission extends VRPipe::Persistent {
         my $response;
         
         # lock the Sub before trying to claim
-        $self->lock        || return 3;
-        $self->assert_life || return 3;
+        $self->lock || return 3;
+        $self->reselect_values_from_db;
         my $job = $self->job;
         
         my $transaction = sub {
@@ -225,7 +225,7 @@ class VRPipe::Submission extends VRPipe::Persistent {
         };
         $self->do_transaction($transaction, "Failed when trying to claim and run");
         
-        $self->unlock unless $response == 1;
+        $self->unlock;
         return ($response, $job);
     }
     

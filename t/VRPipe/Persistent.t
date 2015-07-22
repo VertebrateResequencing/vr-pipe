@@ -567,8 +567,11 @@ is $jobs[2]->end_time->epoch, $end_time, 'running a job again does nothing';
 ok !$jobs[2]->locked, 'the job is unlocked after returning from run() early';
 ok $jobs[2]->reset_job, 'could reset a job';
 is_deeply [$jobs[2]->ok, $jobs[2]->exit_code, $jobs[2]->pid, $jobs[2]->host, $jobs[2]->user, $jobs[2]->start_time, $jobs[2]->end_time], [0, undef, undef, undef, undef, undef, undef], 'after reset, job has cleared values';
-my $own_pid   = $$;
+my $jid = $jobs[2]->id;
+undef $jobs[2];
+$jobs[2] = VRPipe::Job->get(id => $jid);
 my $child_pid = fork();
+
 if ($child_pid) {
     my $cmd_pid;
     for (1 .. 10) {
@@ -648,9 +651,11 @@ exit;
 sub run_job {
     my $job = shift;
     
-    my $watcher = EV::timer 0, 2, sub {
+    my $watcher;
+    $watcher = EV::timer 0, 2, sub {
         $job->reselect_values_from_db;
         if ($job->end_time) {
+            undef $watcher;
             EV::unloop;
         }
     };
@@ -663,7 +668,8 @@ sub wait_until_done {
     
     my $count = 0;
     my ($sub, $job);
-    my $watcher = EV::timer 0, 2, sub {
+    my $watcher;
+    $watcher = EV::timer 0, 2, sub {
         $count++;
         if ($count > 500) {
             EV::unloop;
@@ -672,6 +678,7 @@ sub wait_until_done {
         if (!$sub) {
             $sub = pop(@subs);
             unless ($sub) {
+                undef $watcher;
                 EV::unloop;
                 return;
             }

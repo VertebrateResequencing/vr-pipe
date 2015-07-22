@@ -209,7 +209,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2013 Genome Research Limited.
+Copyright (c) 2011-2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -277,10 +277,11 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
     );
     
     has '_in_memory' => (
-        is      => 'ro',
-        isa     => 'Object',
-        lazy    => 1,
-        builder => '_build_in_memory_obj'
+        is        => 'ro',
+        isa       => 'Object',
+        lazy      => 1,
+        builder   => '_build_in_memory_obj',
+        predicate => '_in_memory_created'
     );
     
     # for when this instance was not retrieved via get()
@@ -1006,6 +1007,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
         $meta->add_method('assert_life' => sub { 
             my $self = shift;
             my $key  = $table_name . '.' . $self->id;
+            $self->disconnect;
             return $self->_in_memory->assert_life($key, @_);
         });
         
