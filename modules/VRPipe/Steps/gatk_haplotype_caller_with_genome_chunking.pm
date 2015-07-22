@@ -56,6 +56,7 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             my $haplotyper_opts = $options->{haplotype_caller_options};
             my $minimum_records = $options->{minimum_records};
             my $tabix           = $options->{tabix_exe};
+            my $avx             = $options->{avx_lsf_requirement_string};
             
             if ($haplotyper_opts =~ /$reference_fasta|-I |--input_file|-o | --output|HaplotypeCaller/) {
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
@@ -78,7 +79,7 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             unless ($cpus) {
                 ($cpus) = $haplotyper_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
             }
-            my $req = $self->new_requirements(memory => 6000, time => 1, $cpus ? (cpus => $cpus) : ());
+            my $req = $self->new_requirements(memory => 8000, time => 1, $cpus ? (cpus => $cpus) : (), $avx ? (custom => { lsf => $avx }) : ());
             my $basename = 'gatk_haplotype.vcf.gz';
             
             my $chunks = $self->chunks();
