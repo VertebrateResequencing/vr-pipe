@@ -164,7 +164,7 @@ class VRPipe::Steps::bamcheck with VRPipe::StepRole {
             $new_meta->{ $hash_key_prefix . 'bases_mapped_c' }   = $parser->bases_mapped_cigar;
             $new_meta->{ $hash_key_prefix . 'bases_trimmed' }    = $parser->bases_trimmed;
             $new_meta->{ $hash_key_prefix . 'reads_paired' }     = $parser->reads_paired;
-            $new_meta->{ $hash_key_prefix . 'paired' }           = $parser->is_paired;
+            $new_meta->{ $hash_key_prefix . 'paired' }           = $parser->reads_paired > 0 ? 1 : 0;
             $new_meta->{ $hash_key_prefix . 'error_rate' }       = $parser->error_rate;
             $new_meta->{ $hash_key_prefix . 'forward_reads' }    = $parser->first_fragments;
             $new_meta->{ $hash_key_prefix . 'reverse_reads' }    = $parser->last_fragments;
