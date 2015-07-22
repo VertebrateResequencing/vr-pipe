@@ -88,6 +88,10 @@ class VRPipe::Requirements extends VRPipe::PersistentLocklessCreate {
         allow_key_to_default => 1
     );
     
+    # custom requirements are a hashref so that you can specify
+    # custom requirements strings for specific schedulers, e.g.
+    # custom => { lsf => '-R "avx"'} will then append the AVX
+    # requirement to LSF scheduled jobs
     has 'custom' => (
         is                   => 'rw',
         isa                  => 'HashRef',

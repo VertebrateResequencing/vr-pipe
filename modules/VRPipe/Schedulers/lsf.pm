@@ -270,6 +270,10 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         if ($cpus > 1) {
             $requirments_string .= " -n$cpus -R 'span[hosts=1]'";
         }
+        my $custom = $requirements->custom->{lsf};
+        if ($custom) {
+            $requirments_string .= " $custom";
+        }
         
         # for command_status() to work efficiently we must always set a job
         # name that corresponds to the cmd. It must also be unique otherwise

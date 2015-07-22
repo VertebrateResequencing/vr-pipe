@@ -47,9 +47,10 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
     around options_definition {
         return {
             %{ $self->$orig }, # gatk options
-            haplotype_caller_options => VRPipe::StepOption->create(description => 'Options for GATK HaplotypeCaller, excluding -R,-I,-o'),
-            minimum_records          => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0),
-            tabix_exe                => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
+            haplotype_caller_options   => VRPipe::StepOption->create(description => 'Options for GATK HaplotypeCaller, excluding -R,-I,-o'),
+            minimum_records            => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0),
+            tabix_exe                  => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
+            avx_lsf_requirement_string => VRPipe::StepOption->create(description => 'job submission requirement string for LSF to select AVX machines for haplotype caller speedup', optional => 1, default_value => '-R "avx"'),
         };
     }
     
@@ -77,6 +78,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             my $haplotyper_opts = $options->{haplotype_caller_options};
             my $minimum_records = $options->{minimum_records};
             my $tabix           = $options->{tabix_exe};
+            my $avx             = $options->{avx_lsf_requirement_string};
             
             if ($haplotyper_opts =~ /$reference_fasta|-I |--input_file|-o | --output|HaplotypeCaller/) {
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
@@ -142,7 +144,11 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             my $vcf_index_file = $self->output_file(output_key => 'gatk_vcf_index_file', basename => "$basename.tbi", type => 'bin', metadata => $vcf_meta);
             my $vcf_path       = $vcf_file->path;
             
-            my $req = $self->new_requirements(memory => 6000, time => 1);
+            my ($cpus) = $haplotyper_opts =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $haplotyper_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 8000, time => 1, $cpus ? (cpus => $cpus) : (), $avx ? (custom => { lsf => $avx }) : ());
             $haplotyper_opts .= qq[ && $tabix -f -p vcf $vcf_path] if ($haplotyper_opts =~ m/--disable_auto_index_creation_and_locking_when_reading_rods/);
             my $cmd = 'q[' . $self->gatk_prefix($req->memory) . qq[ -T HaplotypeCaller -R $reference_fasta -I $bams_list_path -o $vcf_path $haplotyper_opts] . ']';
             $cmd .= qq[, input_file_list => $file_list_id] if $file_list_id;

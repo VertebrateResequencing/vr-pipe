@@ -103,7 +103,7 @@ class VRPipe::Steps::samtools_split_by_readgroup extends VRPipe::Steps::samtools
                 my @outfiles;
                 while (my ($rgid, $rg_info) = each %readgroup_info) {
                     my $rg_meta = {};
-                    while (my ($key, $val)) {
+                    while (my ($key, $val) = each %$meta) {
                         $$rg_meta{qq[$key]} = $val;
                     }
                     $rg_meta->{lane} ||= $rgid;

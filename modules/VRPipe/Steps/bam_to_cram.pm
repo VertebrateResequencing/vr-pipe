@@ -36,8 +36,9 @@ use VRPipe::Base;
 class VRPipe::Steps::bam_to_cram with VRPipe::StepRole {
     method options_definition {
         return {
-            samtools_exe    => VRPipe::StepOption->create(description => 'Path to samtools 1.0 or greater executable',                    optional => 1, default_value => 'samtools'),
-            reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping', optional => 1),
+            samtools_exe          => VRPipe::StepOption->create(description => 'Path to samtools 1.0 or greater executable',                                                                                                  optional => 1, default_value => 'samtools'),
+            samtools_view_options => VRPipe::StepOption->create(description => 'samtools view options -- user must ensure the option implies cram output, e.g. --output-fmt cram,version=3.0 for newer versions of samtools', optional => 1, default_value => '-C'),
+            reference_fasta       => VRPipe::StepOption->create(description => 'absolute path to genome reference file used to do the mapping',                                                                               optional => 1),
         };
     }
     
@@ -49,16 +50,17 @@ class VRPipe::Steps::bam_to_cram with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self     = shift;
-            my $options  = $self->options;
-            my $samtools = $options->{samtools_exe};
-            my $ref      = $options->{reference_fasta} ? " -T $options->{reference_fasta}" : '';
+            my $self      = shift;
+            my $options   = $self->options;
+            my $samtools  = $options->{samtools_exe};
+            my $view_opts = $options->{samtools_view_options};
+            my $ref       = $options->{reference_fasta} ? " -T $options->{reference_fasta}" : '';
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'samtools',
                     version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                    summary => "samtools view -C \$bam > \$cram"
+                    summary => "samtools view $view_opts \$bam > \$cram"
                 )
             );
             
@@ -73,7 +75,7 @@ class VRPipe::Steps::bam_to_cram with VRPipe::StepRole {
                     type       => 'cram',
                     metadata   => $bam->metadata
                 );
-                my $cmd = qq[$samtools view$ref -C $bam_path > ] . $cram_file->path;
+                my $cmd = qq[$samtools view$ref $view_opts $bam_path > ] . $cram_file->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_to_cram', 'cram_and_check', [$cmd, $req, { output_files => [$cram_file] }]);
             }
         };
@@ -96,7 +98,7 @@ class VRPipe::Steps::bam_to_cram with VRPipe::StepRole {
     }
     
     method cram_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_path, $out_path) = $cmd_line =~ /-C (\S+) > (\S+)$/;
+        my ($in_path, $out_path) = $cmd_line =~ /(\S+) > (\S+)$/;
         $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         
