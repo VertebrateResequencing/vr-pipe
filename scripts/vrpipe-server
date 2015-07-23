@@ -564,7 +564,7 @@ sub start_server {
                         }
                         
                         $num_handlers_needed = 0;
-                        $max_handlers        = 25;
+                        $max_handlers        = 10;
                         $shcmd               = "$handler_path --mode dataelementstates --farm $farm";
                         if ($triggers_queued) {
                             my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
