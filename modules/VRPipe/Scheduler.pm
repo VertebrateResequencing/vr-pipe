@@ -130,7 +130,7 @@ class VRPipe::Scheduler extends VRPipe::Persistent {
             $cwd ? (cwd => $cwd) : (),
             cmd        => $cmd,
             count      => $still_needed,
-            gloabl_max => $global_max
+            global_max => $global_max
         );
         system($scheduler_cmd_line);
         
