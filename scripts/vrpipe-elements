@@ -278,10 +278,12 @@ unless ($desired_ele) {
         while (my ($pipe_name, $step_details) = each %summary) {
             $frontend->display_hash("\t$pipe_name", $step_details);
         }
-        $frontend->output("---");
-        $frontend->output("Here's the break-down state of current submissions associated with these elements:");
-        while (my ($step_name, $sub_details) = each %sub_summary) {
-            $frontend->display_hash("\t$step_name", $sub_details);
+        unless ($no_report) {
+            $frontend->output("\n");
+            $frontend->output("Here's the break-down state of current submissions associated with these elements:");
+            while (my ($step_name, $sub_details) = each %sub_summary) {
+                $frontend->display_hash("\t$step_name", $sub_details);
+            }
         }
     }
 }
