@@ -171,7 +171,7 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
         $initialized = 1;
     }
     
-    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Int :$global_max = 0, Str :$cwd?) {
         # access the requirements object and build up the string based on
         # memory, time & cpu.
         my $megabytes           = $requirements->memory;
@@ -200,7 +200,7 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
         return qq[qsub -N $job_name -o $stdo_file -e $stde_file -m n $requirements_string$job_array_args -V -cwd -b yes $cmd];
     }
     
-    method determine_queue (VRPipe::Requirements $requirements) {
+    method determine_queue (VRPipe::Requirements $requirements, Int $global_max = 0) {
         # we rely on SGE's auto-queue selection, so aren't trying to determine
         # the best queue to run in; determine_queue() is called by a handler for
         # the purpose of queue switching, which we don't support anyway, and its

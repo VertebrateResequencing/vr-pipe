@@ -60,7 +60,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
       Dec 12);
     our $date_regex = qr/(\w+)\s+(\d+) (\d+):(\d+):(\d+)/;
     our %queues;
-    our @sorted_queues;
+    our %sorted_queues;
     our $mem_limit_multiplier;
     
     method initialize {
@@ -213,7 +213,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         
         # sort the queues, those most likely to run jobs sooner coming first
         my %ranking;
-        my %punished_for_max_user;
+        my %punished_for_max;
         foreach my $criterion (qw(max_user max hosts prio chunk_size runlimit memlimit)) { # instead of while loop, because max_user must come first
             my $specs = $criteria_handling{$criterion};
             my ($weight, $sort_order, $significant_change) = @$specs;
@@ -241,12 +241,17 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                 my $punishment = $rank * $weight;
                 if ($punishment) {
                     if ($criterion eq 'max_user') {
-                        $punished_for_max_user{$queue} = 1;
+                        $punished_for_max{$queue} = [$val, $punishment];
                     }
                     elsif ($criterion eq 'max') {
-                        # don't double-punish for queues that have both max_user
-                        # and max
-                        $punishment = 0;
+                        if (exists $punished_for_max{$queue}) {
+                            # don't double-punish for queues that have both
+                            # max_user and max
+                            $punishment = 0;
+                        }
+                        else {
+                            $punished_for_max{$queue} = [$val, $punishment];
+                        }
                     }
                     $ranking{$queue} += $punishment;
                 }
@@ -255,13 +260,27 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             }
         }
         
-        @sorted_queues = sort { $ranking{$a} <=> $ranking{$b} } keys %ranking;
+        $sorted_queues{0} = [sort { $ranking{$a} <=> $ranking{$b} } keys %ranking];
+        
+        while (my ($queue, $ref) = each %punished_for_max) {
+            my ($val, $punishment) = @$ref;
+            
+            my %this_ranking;
+            while (my ($rq, $pun) = each %ranking) {
+                if ($rq eq $queue) {
+                    $pun -= $punishment;
+                }
+                $this_ranking{$rq} = $pun;
+            }
+            
+            $sorted_queues{$val} = [sort { $this_ranking{$a} <=> $this_ranking{$b} } keys %this_ranking];
+        }
     }
     
-    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?, Int :$global_max = 0) {
         # access the requirements object and build up the string based on
         # memory, time, cpu etc.
-        my $queue = $self->determine_queue($requirements);
+        my $queue = $self->determine_queue($requirements, $global_max);
         # *** ...
         my $megabytes          = $requirements->memory;
         my $m                  = $megabytes * $mem_limit_multiplier;
@@ -295,13 +314,22 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return qq[bsub -J "$job_name" $output_string $requirments_string '$cmd'];
     }
     
-    method determine_queue (VRPipe::Requirements $requirements) {
+    method determine_queue (VRPipe::Requirements $requirements, Int $global_max = 0) {
         # pick a queue, preferring ones that are more likely to run our job
         # the soonest
-        my $seconds   = $requirements->time;
-        my $megabytes = $requirements->memory;
+        my $seconds      = $requirements->time;
+        my $megabytes    = $requirements->memory;
+        my $sorted_queue = 0;
+        if ($global_max) {
+            foreach my $queue_key (sort { $a <=> $b } keys %sorted_queues) {
+                next unless $global_max <= $queue_key;
+                $sorted_queue = $queue_key;
+                last;
+            }
+        }
+        
         my $chosen_queue;
-        foreach my $queue (@sorted_queues) {
+        foreach my $queue (@{ $sorted_queues{$sorted_queue} }) {
             my $mem_limit = $queues{$queue}->{memlimit};
             next if $mem_limit && $mem_limit < $megabytes;
             my $time_limit = $queues{$queue}->{runlimit};

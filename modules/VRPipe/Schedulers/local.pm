@@ -109,7 +109,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return 'free -m';
     }
     
-    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Str :$cwd?) {
+    method submit_command (VRPipe::Requirements :$requirements!, Str|File :$stdo_file!, Str|File :$stde_file!, Str :$cmd!, PositiveInt :$count = 1, Int :$global_max = 0, Str :$cwd?) {
         # we call a method in this module to submit
         my $class  = ref($self);
         my ($type) = $class =~ /VRPipe::Schedulers::(\S+)/;
@@ -311,7 +311,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return $pgid;
     }
     
-    method determine_queue (VRPipe::Requirements $requirements) {
+    method determine_queue (VRPipe::Requirements $requirements, Int $global_max = 0) {
         return 'local';
     }
     

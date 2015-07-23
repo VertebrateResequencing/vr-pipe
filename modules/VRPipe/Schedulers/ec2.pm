@@ -681,7 +681,7 @@ class VRPipe::Schedulers::ec2 extends VRPipe::Schedulers::local {
         return 'terminate_all_instances';
     }
     
-    method determine_queue (VRPipe::Requirements $requirements) {
+    method determine_queue (VRPipe::Requirements $requirements, Int $global_max = 0) {
         # based on the requirements we want to select an appropriate ec2
         # instance type to run the job on
         my $megabytes = $requirements->memory;
