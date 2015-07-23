@@ -307,13 +307,18 @@ sub handle_dataelementstates {
     $im->log_stderr unless $debug;
     my $single_des = shift;
     
-    $im->log("A dataelementstates handler for farm $farm is now running.");
+    my @triggers_queued = $im->queue('trigger');
+    my $total           = scalar(@triggers_queued);
+    
+    $im->log("A dataelementstates handler for farm $farm is now running; right now there are $total dataelements to be triggered.");
     my $inter_message_time = 86400;
     
     my $trigger_sub = sub {
         my $des   = shift;
         my $setup = $des->pipelinesetup;
-        my $err   = $setup->trigger(dataelement => $des->dataelement);
+        warn "will trigger setup ", $setup->id, ", de ", $des->dataelement->id, "\n" if $debug;
+        my $err = $setup->trigger(dataelement => $des->dataelement, debug => $debug);
+        $im->log("A dataelementstates handler triggered setup " . $setup->id . ", dataelement " . $des->dataelement->id . '.');
         
         my $sid     = $setup->id;
         my $step    = $des->completed_steps + 1;
@@ -336,8 +341,10 @@ sub handle_dataelementstates {
         }
     };
     
+    my $triggered = 0;
     if ($single_des) {
         &$trigger_sub($single_des);
+        $triggered = 1;
     }
     else {
         # we'll only trigger des that belong to active setups that our farm is
@@ -350,18 +357,27 @@ sub handle_dataelementstates {
         # in parallel we'll have loops that dequeue and trigger des until there
         # are no more to trigger, then we exit after 30s of nothing to trigger
         my $fm = Parallel::ForkManager->new($max_forks);
+        $fm->run_on_finish(
+            sub {
+                my ($pid, $trigs) = @_;
+                $triggered += $trigs if $trigs;
+            }
+        );
         for (1 .. $max_forks) {
             $fm->start and next;
             
             my $time_of_last_trigger = time();
+            my $trigs                = 0;
             while (1) {
                 while (my $to_trigger = $im->dequeue('trigger')) {
                     my ($setup_id, $de_id) = split(/:/, $to_trigger);
+                    warn "dequeued setup $setup_id, dataelement $de_id\n" if $debug;
                     if (exists $setup_ids{$setup_id}) {
                         my ($des) = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, dataelement => $de_id });
                         if ($des) {
                             # trigger this des
                             &$trigger_sub($des);
+                            $trigs++;
                             $time_of_last_trigger = time();
                         }
                         # else we won't requeue or do anything
@@ -369,20 +385,23 @@ sub handle_dataelementstates {
                     else {
                         # requeue it for someone else to deal with
                         $im->enqueue('trigger', $to_trigger);
+                        warn "requeued setup $setup_id, dataelement $de_id\n" if $debug;
                     }
                 }
                 
                 last if time() > $time_of_last_trigger + 30;
-                last unless $fs->is_alive;
+                if ($fs) {
+                    last unless $fs->is_alive;
+                }
                 sleep(1);
             }
             
-            $fm->finish();
+            $fm->finish($trigs);
         }
         $fm->wait_all_children;
     }
     
-    $im->log("A dataelementstates handler for farm $farm is now exiting!");
+    $im->log("A dataelementstates handler for farm $farm is now exiting, having triggered $triggered dataelements");
     exit 0;
 }
 
