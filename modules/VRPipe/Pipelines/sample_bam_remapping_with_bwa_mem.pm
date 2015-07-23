@@ -48,9 +48,9 @@ class VRPipe::Pipelines::sample_bam_remapping_with_bwa_mem with VRPipe::Pipeline
             'sequence_dictionary',                              #2
             'bwa_index',                                        #3
             'samtools_split_by_readgroup',                      #4
-            'bam_metadata',                                     #5
-            'bamtofastq',                                       #6 filter out SECONDARY,SUPPLEMENTARY,QCFAIL reads
-            'bwa_mem_to_bam',                                   #7 this will add sequence dictionary and @RG line, sort/fixmate/calmd/markdup_support with biobambam bamsort
+            'bam_metadata',                                     #5 -F0xb00, store_original_pg_chain => 0, bam_metadata_force_bamcheck => 1
+            'bamtofastq',                                       #6 filter out SECONDARY,SUPPLEMENTARY,QCFAIL reads, rescue orphans
+            'bwa_mem_to_bam',                                   #7 this will add sequence dictionary and @RG line, biobambam/bamsort inputformat=sam fixmates=1 adddupmarksupport=1 level=1
             'biobambam_bammerge_and_streaming_mark_duplicates', #8
         );
     }

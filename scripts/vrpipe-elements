@@ -166,6 +166,7 @@ else {
 
 my $count = 0;
 my %summary;
+my %sub_summary;
 my %for_scratching;
 foreach my $estate (@element_states) {
     my $setup           = $estate->pipelinesetup;
@@ -226,18 +227,23 @@ foreach my $estate (@element_states) {
             my @subs_desc;
             if ($num_perm_failed) {
                 push(@subs_desc, "$num_perm_failed PERMANENTLY failed");
+                $sub_summary{$current_step_name}->{permanent_fail} += $num_perm_failed;
             }
             if ($num_failed) {
                 push(@subs_desc, "$num_failed temporarily failed");
+                $sub_summary{$current_step_name}->{temporary_fail} += $num_failed;
             }
             if ($num_done) {
                 push(@subs_desc, "$num_done finished ok");
+                $sub_summary{$current_step_name}->{complete} += $num_done;
             }
             if ($num_running) {
                 push(@subs_desc, "$num_running currently running");
+                $sub_summary{$current_step_name}->{running} += $num_running;
             }
             if ($num_scheduled) {
                 push(@subs_desc, "$num_scheduled scheduled to run");
+                $sub_summary{$current_step_name}->{scheduled} += $num_scheduled;
             }
             my $subs_desc;
             if (@subs_desc) {
@@ -271,6 +277,13 @@ unless ($desired_ele) {
         $frontend->output("Here's the break-down by the name of the step the element last completed successfully:");
         while (my ($pipe_name, $step_details) = each %summary) {
             $frontend->display_hash("\t$pipe_name", $step_details);
+        }
+        unless ($no_report) {
+            $frontend->output("\n");
+            $frontend->output("Here's the break-down state of current submissions associated with these elements:");
+            while (my ($step_name, $sub_details) = each %sub_summary) {
+                $frontend->display_hash("\t$step_name", $sub_details);
+            }
         }
     }
 }

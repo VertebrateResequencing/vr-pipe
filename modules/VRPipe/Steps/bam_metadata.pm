@@ -63,6 +63,12 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
             optional    => 1
         );
         
+        $options->{bam_metadata_force_bamcheck} = VRPipe::StepOption->create(
+            description   => 'boolean; rerun bamcheck when true even if required metadata keys already exist',
+            optional      => 1,
+            default_value => 0
+        );
+        
         return $options;
     }
     
@@ -74,6 +80,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
             my $bamcheck_exe  = $options->{bamcheck_exe};
             my $store_pg      = $options->{store_original_pg_chain};
             my $bamcheck_opts = $options->{bam_metadata_bamcheck_options} ? $options->{bam_metadata_bamcheck_options} : '';
+            my $force_check   = $options->{bam_metadata_force_bamcheck};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             foreach my $bam_file (@{ $self->inputs->{bam_files} }) {
@@ -85,7 +92,7 @@ class VRPipe::Steps::bam_metadata extends VRPipe::Steps::bamcheck {
                 foreach my $type (@{ $self->meta_to_check }) {
                     $meta_count++ if $meta->{$type};
                 }
-                unless ($meta_count == @{ $self->meta_to_check }) {
+                if ($force_check || $meta_count != @{ $self->meta_to_check }) {
                     my $check_file = $self->output_file(basename => $ifile->basename . '.bamcheck', type => 'txt', temporary => 1);
                     my $ofile = $check_file->path;
                     $self->dispatch_wrapped_cmd('VRPipe::Steps::bamcheck', 'stats_from_bamcheck', ["$bamcheck_exe $bamcheck_opts $ifile > $ofile", $req, { output_files => [$check_file] }]);
