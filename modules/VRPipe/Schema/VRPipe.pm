@@ -280,7 +280,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                     $params{ $dir_num . '_uuid' }     = $uuid;
                     $developing_path .= "/$dir";
                     $params{ $dir_num . '_path' } = $developing_path;
-                    push(@chain, $only_get ? "-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename`, path: { param }.`${dir_num}_path` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
+                    push(@chain, $only_get ? "-[:contains]->(`$dir_num` { basename: { param }.`${dir_num}_basename` })" : "MERGE (`$previous`)-[:contains]->(`$dir_num`:$fse_labels { basename: { param }.`${dir_num}_basename`, path: { param }.`${dir_num}_path` }) ON CREATE SET `$dir_num`.uuid = { param }.`${dir_num}_uuid`");
                     $previous = $dir_num;
                 }
                 $cypher .= join($only_get ? '' : ' ', @chain);
@@ -290,7 +290,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 $params{leaf_basename} = $basename;
                 $params{leaf_uuid}     = $uuid;
                 $params{leaf_path}     = "$path";
-                $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
+                $cypher .= ($only_get ? "-[:contains]->(leaf { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             }
             else {
                 # we've only been asked for the root node

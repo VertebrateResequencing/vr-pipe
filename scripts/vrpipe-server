@@ -564,7 +564,7 @@ sub start_server {
                         }
                         
                         $num_handlers_needed = 0;
-                        $max_handlers        = 25;
+                        $max_handlers        = 10;
                         $shcmd               = "$handler_path --mode dataelementstates --farm $farm";
                         if ($triggers_queued) {
                             my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
@@ -581,8 +581,9 @@ sub start_server {
                         
                         if ($num_handlers_needed) {
                             $scheduler->ensure_running(
-                                cmd   => $shcmd,
-                                count => $num_handlers_needed,
+                                cmd        => $shcmd,
+                                count      => $num_handlers_needed,
+                                global_max => $max_handlers,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
                                 requirements => VRPipe::Requirements->create(memory => 500, time => 1)
                             );

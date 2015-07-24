@@ -1094,8 +1094,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # remove possible appendage of _CTRL
         $sample =~ s/_CTRL$//;
         
+        # examples are:
+        # HPSI0114pf-eipl_QC1Hip-3780 => HPSI0114pf-eipl + QC1Hip-3780
+        # HPSI0114i-eipl_1_EBISC_C-7595 => HPSI0114i-eipl_1 + EBISC_C-7595
+        
         my ($sample_source, $sample_node);
-        if ($sample =~ /^(.+)_([^_]+)$/) {
+        if ($sample =~ /^([^_]+_\d+)_(.+)$/ || $sample =~ /^(.+?)_(.+)$/) {
             # public_name+sample
             $sample_node = $self->get('Sample', { public_name => $1, name => $2 });
             if ($sample_node) {
@@ -1124,7 +1128,16 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my $sample_props;
         if ($sample_source eq 'public_name+sample') {
-            my ($public_name, $name) = $sample =~ /^(.+)_([^_]+)$/;
+            # examples are:
+            # HPSI0114pf-eipl_QC1Hip-3780 => HPSI0114pf-eipl + QC1Hip-3780
+            # HPSI0114i-eipl_1_EBISC_C-7595 => HPSI0114i-eipl_1 + EBISC_C-7595
+            my ($public_name, $name);
+            if ($sample =~ /^([^_]+_\d+)_(.+)$/) {
+                ($public_name, $name) = ($1, $2);
+            }
+            else {
+                ($public_name, $name) = $sample =~ /^(.+?)_(.+)$/;
+            }
             $sample_props = { public_name => $public_name, name => $name };
         }
         elsif ($sample_source eq 'sample') {
