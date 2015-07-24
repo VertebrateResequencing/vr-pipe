@@ -891,7 +891,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 foreach my $node_id (@{ $rels{$sid} }) {
                     push(@nodes, $nodes{$label}->{$node_id});
                 }
-                my ($node) = sort { $b->{properties}->{date} || 0 <=> $a->{properties}->{date} || 0 } @nodes;
+                my ($node) = sort { ($b->{properties}->{date} || 0) <=> ($a->{properties}->{date} || 0) } @nodes;
                 next unless $node;
                 
                 my $data = $graph->json_decode($graph->node_property($node, 'data'));
