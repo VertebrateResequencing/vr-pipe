@@ -78,7 +78,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected aberrant_chrs)], # who failed/selected and for what reason is stored on a relationship between this node and a User node
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed aberrant_chrs)], # who failed/selected/passed and for what reason is stored on a relationship between this node and a User node
                 keep_history => 1
             },
             
@@ -523,7 +523,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
         }
         
-        my (%failed, %selected, @fail_reasons, %fail_reasons, $is_admin);
+        my (%failed, %selected, %passed, @fail_reasons, %fail_reasons, $is_admin);
         foreach my $rel (@{ $graph_data->{relationships} }) {
             my $end_node = $nodes{ $rel->{endNode} } || next;
             my $end_node_props = $graph->node_properties($end_node);
@@ -547,7 +547,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         # set new qc status if supplied
-        if ($is_admin && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|selected|pending)$/) {
+        if ($is_admin && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|passed|selected|pending)$/) {
             my ($sample_name, $new_status, $reason) = @$new;
             my $user_node = $user_nodes{$user};
             my $sample    = $sample_nodes_by_name{$sample_name};
@@ -556,22 +556,37 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 if ($new_status eq 'selected') {
                     $sample->qc_selected(1);
                     $sample->qc_failed(0);
+                    $sample->qc_passed(0);
                     $sample->relate_to($user_node, 'selected_by', replace => 1, properties => { time => $time });
                     delete $failed{ $sample->{id} };
                     $selected{ $sample->{id} } = [$user, $time];
                 }
-                elsif ($new_status eq 'failed' && $reason) {
+                elsif ($new_status eq 'passed') {
+                    $sample->qc_passed(1);
                     $sample->qc_selected(0);
+                    $sample->qc_failed(0);
+                    $sample->relate_to($user_node, 'passed_by', replace => 1, properties => { time => $time });
+                    delete $failed{ $sample->{id} };
+                    $passed{ $sample->{id} } = [$user, $time];
+                }
+                elsif ($new_status eq 'failed' && $reason) {
                     $sample->qc_failed(1);
+                    $sample->qc_selected(0);
+                    $sample->qc_passed(0);
                     $sample->relate_to($user_node, 'failed_by', replace => 1, properties => { time => $time, reason => $reason });
                     delete $selected{ $sample->{id} };
                     $failed{ $sample->{id} } = [$user, $time, $reason];
                 }
                 elsif ($new_status eq 'pending') {
                     $sample->qc_selected(0);
+                    $sample->qc_passed(0);
                     $sample->qc_failed(0);
+                    foreach my $user ($sample->related(outgoing => { namespace => 'VRTrack', label => 'User' })) {
+                        $sample->divorce_from($user);
+                    }
                     delete $failed{ $sample->{id} };
                     delete $selected{ $sample->{id} };
+                    delete $passed{ $sample->{id} };
                 }
             }
         }
@@ -583,15 +598,16 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my $sample_props = $graph->node_properties($sample);
             my $failed       = $failed{ $sample->{id} } || [];
             my $selected     = $selected{ $sample->{id} } || [];
+            my $passed       = $passed{ $sample->{id} } || [];
             push(
                 @results,
                 {
                     type               => 'sample_status',
                     sample_name        => $sample_props->{name},
                     sample_public_name => $sample_props->{public_name},
-                    qc_status          => $sample_props->{qc_failed} ? 'failed' : ($sample_props->{qc_selected} ? 'selected' : 'pending'),
-                    qc_by   => $sample_props->{qc_failed} ? $failed->[0] : $selected->[0],
-                    qc_time => $sample_props->{qc_failed} ? $failed->[1] : $selected->[1],
+                    qc_status          => $sample_props->{qc_failed} ? 'failed' : ($sample_props->{qc_selected} ? 'selected' : ($sample_props->{qc_passed} ? 'passed' : 'pending')),
+                    qc_by   => $sample_props->{qc_failed} ? $failed->[0] : $selected->[0] || $passed->[0],
+                    qc_time => $sample_props->{qc_failed} ? $failed->[1] : $selected->[1] || $passed->[1],
                     qc_failed_reason => $failed->[2]
                 }
             );
