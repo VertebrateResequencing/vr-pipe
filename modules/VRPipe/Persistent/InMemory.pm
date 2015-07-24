@@ -464,7 +464,16 @@ class VRPipe::Persistent::InMemory {
     }
     
     method queue (Str $key!) {
-        return $self->_redis->smembers('queue.' . $key);
+        # smembers returns an array ref in scalar context, but we want the
+        # count of members, so we force list context and then return the right
+        # thing
+        my @members = $self->_redis->smembers('queue.' . $key);
+        if (wantarray) {
+            return @members;
+        }
+        else {
+            return scalar(@members);
+        }
     }
     
     method drop_queue (Str $key!) {
