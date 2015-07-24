@@ -687,9 +687,8 @@ sub start_server {
                                 next;
                             }
                             
-                            my $sub_ids = $im->queue($req_id);
                             my @to_rem;
-                            foreach my $sub_id (@$sub_ids) {
+                            foreach my $sub_id ($im->queue($req_id)) {
                                 next if exists $redis_queue{$req_id}->{$sub_id};
                                 push(@to_rem, $sub_id);
                             }
