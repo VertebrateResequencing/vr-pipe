@@ -106,7 +106,7 @@
                                                     <label class="radio-inline">
                                                         <input type="radio" name="qcstatus" value="selected" data-bind="checked: new_qc_status" /> select
                                                     </label>
-                                                    &nbsp;&nbsp;<input class="btn btn-sm" data-bind="css: { 'btn-danger': new_qc_status() == 'failed', 'btn-success': new_qc_status() == 'selected' or new_qc_status() == 'passed', 'btn-primary': new_qc_status() == 'pending', disabled: (qc_status == 'failed' && new_qc_status() == 'failed') ? (new_qc_failed_reason() == qc_failed_reason) : (new_qc_status() == qc_status) }, click: $parent.changeQCStatus" type="button" value="Submit">
+                                                    &nbsp;&nbsp;<input class="btn btn-sm" data-bind="css: { 'btn-danger': new_qc_status() == 'failed', 'btn-success': new_qc_status() == 'selected', 'btn-info': new_qc_status() == 'passed', 'btn-primary': new_qc_status() == 'pending', disabled: (qc_status == 'failed' && new_qc_status() == 'failed') ? (new_qc_failed_reason() == qc_failed_reason) : (new_qc_status() == qc_status) }, click: $parent.changeQCStatus" type="button" value="Submit">
                                                 </div>
                                             <!-- ko if: new_qc_status() == "failed" -->
                                                 <br>
