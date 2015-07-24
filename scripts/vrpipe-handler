@@ -269,6 +269,7 @@ sub handle_datasources {
                         }
                         
                         $datasource_watchers{$ds_id}->{watcher} = $watcher;
+                        $im->log("A datasource handler for farm $farm is now watching datasource $ds_id");
                     }
                 }
                 else {
@@ -289,7 +290,8 @@ sub handle_datasources {
     my $sigquit_watcher = EV::signal 'QUIT', sub { exit_handler("SIGQUIT received", @watchers); };
     
     # run the event loop
-    $im->log("A datasource handler for farm $farm is now running.");
+    my $num_ds = $im->queue('ds_for_handlers.' . $farm);
+    $im->log("A datasource handler for farm $farm is now running; currently there are $num_ds datasources in the queue.");
     EV::run;
     
     if ($im->datastore_ok) {
