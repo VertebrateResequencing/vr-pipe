@@ -478,8 +478,7 @@ sub start_server {
                         # to the t directory when testing, we will cd to the git
                         # root first for scheduler that need to
                         my $ds_handler_queue = 'ds_for_handlers.' . $farm;
-                        $im->drop_queue($ds_handler_queue);
-                        my $shcmd = "$handler_path --mode datasources --farm $farm";
+                        my $shcmd            = "$handler_path --mode datasources --farm $farm";
                         my %ds_queued;
                         my %grabbed;
                         my %ds_wanted;
@@ -500,6 +499,13 @@ sub start_server {
                             $ds_queued{$ds_id} = 1;
                         }
                         my $grabbed = keys %grabbed;
+                        
+                        my @to_dequeue;
+                        foreach my $ds_id ($im->queue($ds_handler_queue)) {
+                            next if exists $ds_queued{$ds_id};
+                            push(@to_dequeue, $ds_id);
+                        }
+                        $im->dequeue($ds_handler_queue, \@to_dequeue) if @to_dequeue;
                         
                         # based on number of datasources that need work and
                         # the number that have already been grabbed, pick
