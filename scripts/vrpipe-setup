@@ -51,7 +51,8 @@ my $frontend = VRPipe::FrontEnd->new(
         ['touch',         'Force a refresh of the dataelements corresponding to the given --setup'],
         ['reset',         'Wipe out all progress on the --setup, returning everything to the state it was just after you first created the setup, and leaves it in a deactivated state'],
         ['cleanup',       'Like --reset, but only for DataElements that are now withdrawn (use to recover wasted disk space)'],
-        ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it']
+        ['delete',        'Like --reset, but also delete the pipelinesetup itself so there is no trace you ever even created it'],
+        ['chown=s',       'Change the owner of the given --setup']
     ]
 );
 
@@ -66,6 +67,7 @@ my $cleanup       = $frontend->opts('cleanup');
 my $delete        = $frontend->opts('delete');
 my $list          = $frontend->opts('list');
 my $based_on      = $frontend->opts('based_on');
+my $chown         = $frontend->opts('chown');
 
 if (@setups && $list) {
     $frontend->error("--setup and --list don't make sense together; ignoring --list");
@@ -82,7 +84,7 @@ if (($deactivate || $reactivate) && !@setups) {
 if ($deactivate && $reactivate) {
     $frontend->die_with_error("--deactivate and --activate are mutually exclusive");
 }
-if (@setups > 1 && !($deactivate || $reactivate || $touch)) {
+if (@setups > 1 && !($deactivate || $reactivate || $touch || $chown)) {
     $frontend->die_with_error("cannot modify options for more than one setup at a time");
 }
 
@@ -243,6 +245,13 @@ if (@setups) {
             $im->_redis->del("lock.datasource." . $datasource->id);
             
             $frontend->output("The datasource ", $datasource->id, " of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") was touched. Elements for this setup will be refreshed");
+        }
+        elsif ($chown) {
+            $setup->user(qq[$chown]);
+            $setup->log_event("vrpipe-setup --chown $chown called");
+            $setup->update;
+            my $new_user = $setup->user;
+            $frontend->output("The 'user' state of PipelineSetup '", $setup->name, "' (id ", $setup->id, ") is now $new_user");
         }
         else {
             # allow the user to change pipeline setup options
