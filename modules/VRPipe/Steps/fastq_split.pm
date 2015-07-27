@@ -44,8 +44,8 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         return {
             fastq_files => VRPipe::StepIODefinition->create(
                 type        => 'fq',
-                max_files   => 3,
-                description => '1-3 fastq files of the same lane',
+                max_files   => -1,
+                description => '1-3 fastq files of the for each lane',
                 metadata    => {
                     lane            => 'lane name (a unique identifer for this sequencing run)',
                     bases           => 'total number of base pairs',
@@ -63,39 +63,45 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
         return sub {
             my $self = shift;
             
-            my ($se, @pe, %ended);
-            foreach my $fastq (@{ $self->inputs->{fastq_files} }) {
-                my $metadata = $fastq->metadata;
-                my $paired   = $metadata->{paired};
+            my $chunk_size = $self->options->{fastq_chunk_size};
+            my @fq_files   = @{ $self->inputs->{fastq_files} };
+            
+            my %fqs_by_lane;
+            foreach my $fq (@fq_files) {
+                my $fq_meta = $fq->metadata;
+                my $paired  = $fq_meta->{paired};
+                my $lane    = $fq_meta->{lane};
                 if ($paired == 0) {
-                    $se = $fastq->path;
+                    $fqs_by_lane{$lane}->{se} = [$fq->path];
                 }
                 elsif ($paired == 1) {
-                    unshift(@pe, $fastq->path);
+                    unshift(@{ $fqs_by_lane{$lane}->{pe} }, $fq->path);
                 }
                 elsif ($paired == 2) {
-                    push(@pe, $fastq->path);
+                    push(@{ $fqs_by_lane{$lane}->{pe} }, $fq->path);
                 }
             }
-            $ended{pe} = @pe == 2 ? \@pe  : undef;
-            $ended{se} = $se      ? [$se] : undef;
+            
             my $out_root = $self->output_root;
             my $req = $self->new_requirements(memory => 500, time => 1);
             
-            my $chunk_size = $self->options->{fastq_chunk_size};
-            
-            while (my ($ended, $fqs) = each %ended) {
-                next unless $fqs;
-                my $split_subdir = $ended . '_' . $chunk_size;
-                my $split_dir = dir($out_root, $split_subdir);
-                
-                my @outs = VRPipe::Steps::fastq_split->fastq_split_outs(split_dir => $split_dir, fastqs => $fqs, chunk_size => $chunk_size);
-                my @ofiles;
-                foreach my $out (@outs) {
-                    push(@ofiles, $self->output_file(output_key => 'split_fastq_files', sub_dir => $split_subdir, basename => $out->basename, type => 'fq'));
+            foreach my $lane (keys %fqs_by_lane) {
+                my %ended;
+                $ended{pe} = @{ $fqs_by_lane{$lane}->{pe} } == 2 ? $fqs_by_lane{$lane}->{pe} : undef;
+                $ended{se} = $fqs_by_lane{$lane}->{se}           ? $fqs_by_lane{$lane}->{se} : undef;
+                while (my ($ended, $fqs) = each %ended) {
+                    next unless $fqs;
+                    my $split_subdir = $lane . '_' . $ended . '_' . $chunk_size;
+                    my $split_dir = dir($out_root, $split_subdir);
+                    
+                    my @outs = VRPipe::Steps::fastq_split->fastq_split_outs(split_dir => $split_dir, fastqs => $fqs, chunk_size => $chunk_size);
+                    my @ofiles;
+                    foreach my $out (@outs) {
+                        push(@ofiles, $self->output_file(output_key => 'split_fastq_files', sub_dir => $split_subdir, basename => $out->basename, type => 'fq'));
+                    }
+                    
+                    $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_split; VRPipe::Steps::fastq_split->fastq_split(split_dir => q[$split_dir], fastqs => [qw(@$fqs)], chunk_size => $chunk_size);], $req, { output_files => \@ofiles });
                 }
-                
-                $self->dispatch_vrpipecode(qq[use VRPipe::Steps::fastq_split; VRPipe::Steps::fastq_split->fastq_split(split_dir => q[$split_dir], fastqs => [qw(@$fqs)], chunk_size => $chunk_size);], $req, { output_files => \@ofiles });
             }
         };
     }
@@ -186,19 +192,22 @@ class VRPipe::Steps::fastq_split with VRPipe::StepRole {
             push(@outs, [$prefix, $split_file, $ofh]);
         }
         
-        # just symlink if we only have 1 chunk
+        # just copy if we only have 1 chunk
         if ($splits == 1) {
             foreach my $i (0 .. $#ins) {
                 my $fq_file = $ins[$i]->[1];
                 $fq_file->close();
                 my $split_file = $outs[$i]->[1];
                 $split_file->unlink;
-                symlink($fq_file->path, $split_file->path); # don't use $fq_file->symlink because $split_file->metadata must be different
+                my $ok = $fq_file->copy($split_file);
+                $self->throw("copy of single chunk failed: " . $fq_file->path . " => " . $split_file->path) unless $ok;
                 $split_file->update_stats_from_disc;
                 my $meta = $fq_file->metadata;
                 delete $meta->{expected_md5};
-                $meta->{chunk} = 1;
-                $split_file->add_metadata($meta);
+                $meta->{chunk}        = 1;
+                $meta->{source_fastq} = $split_file->metadata->{source_fastq};
+                $split_file->metadata($meta);
+                $split_file->update;
             }
             return 1;
         }

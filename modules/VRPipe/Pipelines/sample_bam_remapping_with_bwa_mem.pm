@@ -39,7 +39,7 @@ class VRPipe::Pipelines::sample_bam_remapping_with_bwa_mem with VRPipe::Pipeline
     }
     
     method description {
-        return 'Remap BAM or CRAM files.';
+        return 'Remap BAM or CRAM files for a sample using the bwa mem algorithm.';
     }
     
     method step_names {

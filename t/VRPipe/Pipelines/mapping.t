@@ -188,7 +188,7 @@ is_deeply [VRPipe::File->create(path => file(qw(t data 8324_8_1.fastq))->absolut
   ],
   'fastqs that went through the first step of the mapping pipeline have the correct metadata';
 
-my @split_fqs = (VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'se_8000', '2822_6.1.fastq')), VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.1.fastq.gz')), VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.3.fastq.gz')), VRPipe::File->create(path => file(output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_2.4.fastq.gz')));
+my @split_fqs = (VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', '2822_6_se_8000', '2822_6.1.fastq')), VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', '2822_6_pe_8000', '2822_6_1.1.fastq.gz')), VRPipe::File->create(path => file(output_subdirs(1), '5_fastq_split', '2822_6_pe_8000', '2822_6_2.3.fastq.gz')), VRPipe::File->create(path => file(output_subdirs(3), '5_fastq_split', '2823_4_pe_8000', '2823_4_2.4.fastq.gz')));
 
 is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->metadata, $split_fqs[3]->metadata],
   [{
@@ -229,7 +229,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
         avg_read_length => '61.00',
         analysis_group  => 'low coverage',
         paired          => 1,
-        mate            => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_2.1.fastq.gz')->stringify,
+        mate            => file(output_subdirs(1), '5_fastq_split', '2822_6_pe_8000', '2822_6_2.1.fastq.gz')->stringify,
         source_fastq    => file(qw(t data 2822_6_1.fastq))->absolute->stringify
     },
     {
@@ -250,7 +250,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
         avg_read_length => '54.00',
         analysis_group  => 'low coverage',
         paired          => 2,
-        mate            => file(output_subdirs(1), '5_fastq_split', 'pe_8000', '2822_6_1.3.fastq.gz')->stringify,
+        mate            => file(output_subdirs(1), '5_fastq_split', '2822_6_pe_8000', '2822_6_1.3.fastq.gz')->stringify,
         source_fastq    => file(qw(t data 2822_6_2.fastq))->absolute->stringify
     },
     {
@@ -271,7 +271,7 @@ is_deeply [$split_fqs[0]->metadata, $split_fqs[1]->metadata, $split_fqs[2]->meta
         avg_read_length => '54.00',
         analysis_group  => 'low coverage',
         paired          => 2,
-        mate            => file(output_subdirs(3), '5_fastq_split', 'pe_8000', '2823_4_1.4.fastq.gz')->stringify,
+        mate            => file(output_subdirs(3), '5_fastq_split', '2823_4_pe_8000', '2823_4_1.4.fastq.gz')->stringify,
         source_fastq    => file(qw(t data 2823_4_2.fastq))->absolute->stringify
     }
   ],
@@ -290,7 +290,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     
     if ($lane eq '2822_6') {
         for my $i (1 .. 1) {
-            my $fq = file(@output_subdirs, '5_fastq_split', 'se_8000', "${lane}.$i.fastq");
+            my $fq = file(@output_subdirs, '5_fastq_split', "${lane}_se_8000", "${lane}.$i.fastq");
             my $sai = $fq . '.sai';
             $existing_outputs  += -s $fq  ? 1 : 0;
             $existing_sai_outs += -s $sai ? 1 : 0;
@@ -301,7 +301,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
         }
         for my $i (1 .. 3) {
             for my $j (1 .. 2) {
-                my $fq = file(@output_subdirs, '5_fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file(@output_subdirs, '5_fastq_split', "${lane}_pe_8000", "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq . '.sai';
                 $existing_outputs  += -s $fq  ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
@@ -321,7 +321,7 @@ foreach my $lane (qw(2822_6 2822_7 2823_4 8324_8)) {
     else {
         for my $i (1 .. 4) {
             for my $j (1 .. 2) {
-                my $fq = file(@output_subdirs, '5_fastq_split', 'pe_8000', "${lane}_$j.$i.fastq.gz");
+                my $fq = file(@output_subdirs, '5_fastq_split', "${lane}_pe_8000", "${lane}_$j.$i.fastq.gz");
                 my $sai = $fq . '.sai';
                 $existing_outputs  += -s $fq  ? 1 : 0;
                 $existing_sai_outs += -s $sai ? 1 : 0;
