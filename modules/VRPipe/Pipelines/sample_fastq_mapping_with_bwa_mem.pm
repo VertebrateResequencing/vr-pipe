@@ -60,7 +60,7 @@ class VRPipe::Pipelines::sample_fastq_mapping_with_bwa_mem with VRPipe::Pipeline
             { from_step => 0, to_step => 5, to_key   => 'fastq_files' },
             { from_step => 5, to_step => 6, from_key => 'split_fastq_files', to_key => 'fastq_files' },
             { from_step => 2, to_step => 6, from_key => 'reference_dict', to_key => 'dict_file' },
-            { from_step => 6, to_step => 7, from_key => 'bam_files', to_key => 'aln_files' },
+            { from_step => 6, to_step => 7, from_key => 'bam_files', to_key => 'bam_files' },
         );
     }
     

@@ -52,7 +52,7 @@ class VRPipe::Steps::unitig_pileup_calling with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',
                 max_files   => -1,
                 description => '1 or more coordinate-sorted BAM files from which to call variants'
@@ -64,7 +64,7 @@ class VRPipe::Steps::unitig_pileup_calling with VRPipe::StepRole {
     method body_sub {
         return sub {
             my $self     = shift;
-            my $vcf_meta = $self->common_metadata($self->inputs->{aln_files});
+            my $vcf_meta = $self->common_metadata($self->inputs->{bam_files});
             $vcf_meta = { %$vcf_meta, $self->element_meta };
             my $options = $self->handle_override_options($vcf_meta);
             
@@ -84,7 +84,7 @@ class VRPipe::Steps::unitig_pileup_calling with VRPipe::StepRole {
                 $pileup_opts .= " -b " . $sites_file->path;
             }
             
-            my @inputs = map { $_->path } @{ $self->inputs->{aln_files} };
+            my @inputs = map { $_->path } @{ $self->inputs->{bam_files} };
             
             my $summary_opts = $pileup_opts;
             my $basename     = 'pileup.vcf.gz';

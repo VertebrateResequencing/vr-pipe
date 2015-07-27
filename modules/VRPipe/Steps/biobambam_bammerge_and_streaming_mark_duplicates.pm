@@ -45,7 +45,7 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',                                          # cram or bam
                 max_files   => -1,
                 description => '1 or more coordinate sorted BAM or CRAM files',
@@ -94,7 +94,7 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
             my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
-            my $inputs          = $self->inputs->{aln_files};
+            my $inputs          = $self->inputs->{bam_files};
             my $merged_metadata = $self->common_metadata($inputs);
             my @input_paths     = map { "I=" . $_->path } @$inputs;
             my $file_list       = VRPipe::FileList->create(files => $inputs)->id;

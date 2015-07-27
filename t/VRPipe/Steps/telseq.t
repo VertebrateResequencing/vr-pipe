@@ -15,7 +15,7 @@ BEGIN {
     use_ok('VRPipe::Steps::telseq');
 }
 
-my ($output_dir, $pipeline, $step) = create_single_step_pipeline('telseq', 'aln_files');
+my ($output_dir, $pipeline, $step) = create_single_step_pipeline('telseq', 'bam_files');
 is_deeply [$step->id, $step->description], [1, 'Runs telseq on BAM files to estimate telomere length'], 'telseq step created and has correct description';
 
 my $setup = VRPipe::PipelineSetup->create(

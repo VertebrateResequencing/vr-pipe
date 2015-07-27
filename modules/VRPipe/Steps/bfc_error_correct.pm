@@ -45,7 +45,7 @@ class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { aln_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => 'one or more BAM or CRAM files') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => 'one or more BAM or CRAM files') };
     }
     
     method body_sub {
@@ -75,7 +75,7 @@ class VRPipe::Steps::bfc_error_correct with VRPipe::StepRole {
             
             my ($cpus) = $bfc_opts =~ m/-t\s*(\d+)/;
             my $req = $self->new_requirements(memory => 60000, time => 1, $cpus ? (cpus => $cpus) : ());
-            foreach my $aln (@{ $self->inputs->{aln_files} }) {
+            foreach my $aln (@{ $self->inputs->{bam_files} }) {
                 my $prefix = $aln->basename;
                 $prefix =~ s/\.(cr|b)am$//;
                 my $ec_fastq_file = $self->output_file(

@@ -47,7 +47,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',
                 max_files   => -1,
                 description => 'BAM or CRAM files',
@@ -97,7 +97,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $memory = $req->memory;
             
-            foreach my $file (@{ $self->inputs->{aln_files} }) {
+            foreach my $file (@{ $self->inputs->{bam_files} }) {
                 my $rg_line = $self->rg_line_from_metadata($file, sample_key => $sample_key, study_key => $study_key);
                 my $basename = $file->basename;
                 $basename =~ s/(cr|b)am$//;

@@ -15,7 +15,7 @@ BEGIN {
     use_ok('VRPipe::Steps::mpileup_bcf_with_genome_chunking');
 }
 
-my ($output_dir, $pipeline, $step) = create_single_step_pipeline('mpileup_bcf_with_genome_chunking', 'aln_files');
+my ($output_dir, $pipeline, $step) = create_single_step_pipeline('mpileup_bcf_with_genome_chunking', 'bam_files');
 is_deeply [$step->id, $step->description], [1, 'Run mpileup for one or more BAM or CRAM files. Split calling into multiple jobs across the genome generating one BCF file per chunk.'], 'mpileup_bcf_with_genome_chunking step created and has correct description';
 
 my $original_ref_fa = VRPipe::File->create(path => file(qw(t data human_g1k_v37.chr11.chr20.fa.gz))->absolute);

@@ -43,7 +43,7 @@ class VRPipe::Steps::samtools_merge with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',                                          # cram or bam
                 max_files   => -1,
                 description => '1 or more coordinate sorted BAM or CRAM files',
@@ -75,7 +75,7 @@ class VRPipe::Steps::samtools_merge with VRPipe::StepRole {
             
             my $req = $self->new_requirements(memory => 3000, time => 1);
             
-            my $inputs          = $self->inputs->{aln_files};
+            my $inputs          = $self->inputs->{bam_files};
             my $merged_metadata = $self->common_metadata($inputs);
             $merged_metadata = { %$merged_metadata, $self->element_meta };
             my @input_paths = map { $_->path } @$inputs;

@@ -43,7 +43,7 @@ class VRPipe::Steps::telseq with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',
                 max_files   => -1,
                 description => '1 or more coordinate sorted BAM files',
@@ -66,7 +66,7 @@ class VRPipe::Steps::telseq with VRPipe::StepRole {
                 )
             );
             
-            my $inputs = $self->inputs->{aln_files};
+            my $inputs = $self->inputs->{bam_files};
             my @input_bam_paths;
             if (@$inputs > 5) {
                 my $fofn = $self->output_file(basename => "teleseq_input.list", type => 'txt', temporary => 1);

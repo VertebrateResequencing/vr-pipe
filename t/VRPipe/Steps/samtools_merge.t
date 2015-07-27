@@ -15,7 +15,7 @@ BEGIN {
     use_ok('VRPipe::Steps::samtools_merge');
 }
 
-my ($output_dir, $pipeline, $step) = create_single_step_pipeline('samtools_merge', 'aln_files');
+my ($output_dir, $pipeline, $step) = create_single_step_pipeline('samtools_merge', 'bam_files');
 is_deeply [$step->id, $step->description], [1, 'Merges CRAM and BAM files using samtools merge to create a merged BAM file'], 'samtools_merge step created and has correct description';
 
 my $setup = VRPipe::PipelineSetup->create(

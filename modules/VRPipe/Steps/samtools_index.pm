@@ -45,7 +45,7 @@ class VRPipe::Steps::samtools_index with VRPipe::StepRole {
     }
     
     method inputs_definition {
-        return { aln_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files to index') };
+        return { bam_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files to index') };
     }
     
     method body_sub {
@@ -55,7 +55,7 @@ class VRPipe::Steps::samtools_index with VRPipe::StepRole {
             my $samtools = $options->{samtools_exe};
             
             my $req = $self->new_requirements(memory => 500, time => 1);
-            foreach my $aln (@{ $self->inputs->{aln_files} }) {
+            foreach my $aln (@{ $self->inputs->{bam_files} }) {
                 my $aln_path   = $aln->path;
                 my $suffix     = $aln->type eq 'bam' ? '.bai' : '.crai';
                 my $index_file = $self->output_file(

@@ -78,7 +78,7 @@ class VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates extends VRPipe
             $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
             my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
-            my $inputs          = $self->inputs->{aln_files};
+            my $inputs          = $self->inputs->{bam_files};
             my $merged_metadata = $self->common_metadata($inputs);
             $merged_metadata = { %$merged_metadata, $self->element_meta };
             my @input_paths = map { $_->path } @$inputs;

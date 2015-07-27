@@ -15,7 +15,7 @@ BEGIN {
     use_ok('VRPipe::Steps::samtools_merge_and_streaming_mark_duplicates');
 }
 
-my ($output_dir, $pipeline, $step) = create_single_step_pipeline('samtools_merge_and_streaming_mark_duplicates', 'aln_files');
+my ($output_dir, $pipeline, $step) = create_single_step_pipeline('samtools_merge_and_streaming_mark_duplicates', 'bam_files');
 is_deeply [$step->id, $step->description], [1, 'Merges BAM and CRAM files using samtools merge and marks duplicates using biobambam bamstreamingmarkduplicates'], 'samtools_merge_and_streaming_mark_duplicates step created and has correct description';
 
 my $setup = VRPipe::PipelineSetup->create(

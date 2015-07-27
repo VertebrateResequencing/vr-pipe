@@ -1,8 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::bam_merge_and_streaming_mark_duplicates - a
-pipeline
+VRPipe::Pipelines::bam_merge_and_streaming_mark_duplicates - a pipeline
 
 =head1 DESCRIPTION
 
@@ -51,7 +50,7 @@ class VRPipe::Pipelines::bam_merge_and_streaming_mark_duplicates with VRPipe::Pi
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key => 'aln_files' },
+            { from_step => 0, to_step => 1, to_key => 'bam_files' },
         );
     }
     

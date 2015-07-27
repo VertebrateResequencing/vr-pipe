@@ -57,12 +57,12 @@ class VRPipe::Pipelines::sample_bam_remapping_with_bwa_mem with VRPipe::Pipeline
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 4, to_key   => 'aln_files' },
+            { from_step => 0, to_step => 4, to_key   => 'bam_files' },
             { from_step => 4, to_step => 5, from_key => 'rg_split_files', to_key => 'bam_files' },
             { from_step => 4, to_step => 6, from_key => 'rg_split_files', to_key => 'bam_files' },
             { from_step => 6, to_step => 7, from_key => 'fastq_files', to_key => 'fastq_files' },
             { from_step => 2, to_step => 7, from_key => 'reference_dict', to_key => 'dict_file' },
-            { from_step => 7, to_step => 8, from_key => 'bam_files', to_key => 'aln_files' },
+            { from_step => 7, to_step => 8, from_key => 'bam_files', to_key => 'bam_files' },
         );
     }
     

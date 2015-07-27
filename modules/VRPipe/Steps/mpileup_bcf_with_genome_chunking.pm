@@ -37,8 +37,8 @@ use VRPipe::Base;
 class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpileup_bcf with VRPipe::StepGenomeChunkingRole {
     method inputs_definition {
         return {
-            aln_files       => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files from which to call variants'),
-            aln_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more index files for BAM or CRAM files'),
+            bam_files       => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files from which to call variants'),
+            bam_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more index files for BAM or CRAM files'),
             sites_file      => VRPipe::StepIODefinition->create(type => 'txt', min_files => 0,  max_files   => 1, description => 'Optional sites file for calling only at the given sites'),
         };
     }
@@ -46,7 +46,7 @@ class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpi
     method body_sub {
         return sub {
             my $self     = shift;
-            my $bcf_meta = $self->common_metadata($self->inputs->{aln_files});
+            my $bcf_meta = $self->common_metadata($self->inputs->{bam_files});
             $bcf_meta = { %$bcf_meta, $self->element_meta };
             my $options = $self->handle_override_options($bcf_meta);
             
@@ -68,8 +68,8 @@ class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpi
             }
             
             my $file_list_id;
-            if (@{ $self->inputs->{aln_files} } > 1) {
-                $file_list_id = VRPipe::FileList->create(files => $self->inputs->{aln_files})->id;
+            if (@{ $self->inputs->{bam_files} } > 1) {
+                $file_list_id = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
             }
             
             $self->set_cmd_summary(
@@ -99,7 +99,7 @@ class VRPipe::Steps::mpileup_bcf_with_genome_chunking extends VRPipe::Steps::mpi
                     $bams_list_path = "-b $bams_list_path";
                 }
                 else {
-                    $bams_list_path = $self->inputs->{aln_files}->[0]->path;
+                    $bams_list_path = $self->inputs->{bam_files}->[0]->path;
                 }
                 my $bcf_file  = $self->output_file(output_key => 'mpileup_bcf_files',       basename => $chunk_basename,       type => 'bcf', metadata => $chunk_meta);
                 my $bcf_index = $self->output_file(output_key => 'mpileup_bcf_index_files', basename => "$chunk_basename.csi", type => 'csi', metadata => $chunk_meta);

@@ -46,7 +46,7 @@ class VRPipe::Steps::samtools_split_by_readgroup extends VRPipe::Steps::samtools
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',
                 max_files   => -1,
                 description => 'BAM or CRAM files to be split by readgroup',
@@ -94,7 +94,7 @@ class VRPipe::Steps::samtools_split_by_readgroup extends VRPipe::Steps::samtools
             my $memory = $req->memory;
             
             my $idx = 1;
-            foreach my $aln (@{ $self->inputs->{aln_files} }) {
+            foreach my $aln (@{ $self->inputs->{bam_files} }) {
                 my $meta           = $aln->metadata;
                 my $parser         = VRPipe::Parser->create($aln->type, { file => $aln });
                 my %readgroup_info = $parser->readgroup_info();
