@@ -206,8 +206,12 @@ class VRPipe::Persistent::Graph {
             my $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content);
             my $res = $tx->success;
             unless ($res) {
-                my $err = $tx->error;
-                $self->throw('[' . $err->{code} . '] ' . " [$example_cypher] " . $err->{message});
+                my $err  = $tx->error;
+                my $code = $err->{code};
+                $code ||= 'no error code';
+                my $message = $err->{message};
+                $message ||= '(no message)';
+                $self->throw("[$code] [$example_cypher] $message");
             }
             $decode = $json->decode($res->body);
             
