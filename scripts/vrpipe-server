@@ -518,8 +518,8 @@ sub start_server {
                             if ($grabbed) {
                                 my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
                                 if ($already_running) {
-                                    my $grabbed_per_handler = floor($grabbed / $already_running);
-                                    $grabbed_per_handler ||= 1;
+                                    my $grabbed_per_handler = $grabbed / $already_running;
+                                    $grabbed_per_handler = $grabbed_per_handler < 1 ? 1 : $grabbed_per_handler;
                                     $num_handlers_needed = ceil($ds_wanted / $grabbed_per_handler);
                                     
                                     if ($num_handlers_needed <= $already_running && $ds_wanted > $grabbed) {

@@ -560,11 +560,10 @@ class VRPipe::Interface::CmdLine {
     # testing purposes, we prefer this to some version of the files installed
     # elsewhere.
     method vrpipe_script_command (ClassName|Object $self: Str $script, Str $deployment) {
-        my $command = $self->vrpipe_perl_command($deployment) . ' ';
-        
+        my $command;
         my $local_script = file('blib', 'script', $script)->absolute;
         if ($deployment eq 'testing' && -x $local_script) {
-            $command .= $local_script;
+            $command = $self->vrpipe_perl_command($deployment) . ' ' . $local_script;
         }
         else {
             $command = $script;
