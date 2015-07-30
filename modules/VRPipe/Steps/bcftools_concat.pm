@@ -116,7 +116,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                     my $file_list_id    = VRPipe::FileList->create(files => \@sorted_vcf_files)->id;
                     my $concat_meta     = $self->common_metadata(\@vcf_files);
                     my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.chr$chr.vcf.gz", type => 'vcf', metadata => $concat_meta);
-                    my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.chr$chr.vcf.gz.tbi", type => 'bin');
+                    my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.chr$chr.vcf.gz.tbi", type => 'bin', metadata => $concat_meta);
                     my $merge_list_path = $merge_list->path;
                     my $concat_vcf_path = $concat_vcf->path;
                     my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index -ft $concat_vcf_path];
@@ -137,7 +137,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
                 }
                 my $concat_meta     = $self->common_metadata($self->inputs->{vcf_files});
                 my $concat_vcf      = $self->output_file(output_key => 'concat_vcf', basename => "merged.vcf.gz", type => 'vcf', metadata => $concat_meta);
-                my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.tbi", type => 'bin');
+                my $vcf_index       = $self->output_file(output_key => 'vcf_index', basename => "merged.vcf.gz.tbi", type => 'bin', metadata => $concat_meta);
                 my $merge_list_path = $merge_list->path;
                 my $concat_vcf_path = $concat_vcf->path;
                 my $cmd             = qq[($bcftools_exe concat$opts -f $merge_list_path$cut$filter | bgzip -c > $concat_vcf_path) && $bcftools_exe index -ft $concat_vcf_path];
