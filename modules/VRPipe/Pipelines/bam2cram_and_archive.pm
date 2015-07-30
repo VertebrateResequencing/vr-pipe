@@ -20,7 +20,7 @@ class VRPipe::Pipelines::bam2cram_and_archive with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
-            { from_step => 1, to_step => 1, from_key => 'cram_files', to_key => 'file' },
+            { from_step => 1, to_step => 2, from_key => 'cram_files', to_key => 'file' },
             { from_step => 1, to_step => 3, from_key => 'cram_files', to_key => 'cram_files' },
         );
     }
