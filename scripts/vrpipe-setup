@@ -690,8 +690,35 @@ else {
     if ($correct eq 'y') {
         my $ds = VRPipe::DataSource->create(type => $chosen_ds_type, method => $chosen_method, source => $ds_source, options => $chosen_method_args);
         my $ps = VRPipe::PipelineSetup->create(name => $setup_name, datasource => $ds, pipeline => $pipeline, output_root => $output_root, options => \%pipeline_args, user => $user, $group ? (unix_group => $group) : (), $farm ? (desired_farm => $farm) : ());
-        $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: ", $ps->id, " (remember at least one of these for use later)");
+        my $setup_id = $ps->id;
+        $frontend->output("\nYour new PipelineSetup has been created!\nName: $setup_name; Id: $setup_id (remember at least one of these for use later)");
         $ps->log_event("vrpipe-setup used to create this new PipelineSetup");
+        
+        # the datasource watcher for file-based datasources will only run
+        # ->elements when the file changes, so if $ds already existed previously
+        # the new setup will never be triggered. For other pre-existing
+        # datasources we'd also like things to start as soon as possible. In
+        # both cases we don't want to actually run elements() ourselves in case
+        # that takes a long time, so we just do the bit of elements() that
+        # creates the new dataelementstates and queues the des to be triggered
+        my $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $ds->id });
+        my (@des_args, @enqueue_args);
+        while (my $dataelement_ids = $pager->next) {
+            foreach my $eid (@$dataelement_ids) {
+                push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
+                push(@enqueue_args, [$setup_id, $eid]);
+            }
+        }
+        if (@des_args) {
+            $frontend->output("\nSince the new PipelineSetup uses the same datasource as another PipelineSetup, I'll now be able to set things up to start it quicker...");
+            VRPipe::DataElementState->bulk_create_or_update(@des_args);
+            my $im = $ds->_in_memory;
+            foreach my $args (@enqueue_args) {
+                $im->enqueue('trigger', "$args->[0]:$args->[1]");
+            }
+            $frontend->output("All done!");
+            $ps->log_event("vrpipe-setup was able to immediately create the dataelementstates and queue their triggers");
+        }
     }
     else {
         $frontend->output("Abandoning the setup, nothing was done");
