@@ -61,17 +61,20 @@ class VRPipe::Steps::gatk_gvcf_linear_index extends VRPipe::Steps::gatk_v2 {
             foreach my $gvcf (@{ $self->inputs->{gvcf_files} }) {
                 my $gvcf_path = $gvcf->path;
                 my $basename  = "$idx." . $gvcf->basename;
-                my $meta      = $gvcf->metadata;
+                my $meta      = { %{ $gvcf->metadata }, $self->element_meta };
                 $basename =~ s/\.vcf\.gz$/.g.vcf/;
                 my $uncompressed_gvcf_file  = $self->output_file(output_key => 'uncompressed_gvcf_files',       basename => $basename,          type => 'vcf', metadata => $meta);
                 my $uncompressed_gvcf_index = $self->output_file(output_key => 'uncompressed_gvcf_index_files', basename => $basename . ".idx", type => 'bin', metadata => $meta);
                 my $jvm_args                = $self->jvm_args($req->memory);
                 my $cmd                     = $self->java_exe . qq[ $jvm_args -cp ] . $self->jar . qq[ org.broadinstitute.gatk.tools.CatVariants -R $reference_fasta -assumeSorted --variant $gvcf_path -out ] . $uncompressed_gvcf_file->path;
+                my $check_input_output_records = 1;
+                
                 if (exists $$meta{chrom}) {
                     $cmd .= " -L $$meta{chrom}";
                     $cmd .= ":$$meta{from}-$$meta{from}" if (exists $$meta{from} && exists $$meta{from});
+                    $check_input_output_records = 0;
                 }
-                my $this_cmd = "use VRPipe::Steps::gatk_gvcf_linear_index; VRPipe::Steps::gatk_gvcf_linear_index->uncompress_and_check(q[$cmd]);";
+                my $this_cmd = "use VRPipe::Steps::gatk_gvcf_linear_index; VRPipe::Steps::gatk_gvcf_linear_index->uncompress_and_check(q[$cmd], check_input_output_records => $check_input_output_records);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$uncompressed_gvcf_file, $uncompressed_gvcf_index] });
                 $idx++;
             }
@@ -97,7 +100,7 @@ class VRPipe::Steps::gatk_gvcf_linear_index extends VRPipe::Steps::gatk_v2 {
         return 0;            # meaning unlimited
     }
     
-    method uncompress_and_check (ClassName|Object $self: Str $cmd_line) {
+    method uncompress_and_check (ClassName|Object $self: Str $cmd_line, Bool :$check_input_output_records!) {
         my ($input_path, $out_path) = $cmd_line =~ /--variant (\S+) -out (\S+)/;
         $input_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
         $out_path   || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
@@ -115,7 +118,7 @@ class VRPipe::Steps::gatk_gvcf_linear_index extends VRPipe::Steps::gatk_v2 {
         my $input_recs  = $input_file->num_records;
         my $output_recs = $out_file->num_records;
         
-        unless ($output_recs == $input_recs) {
+        if ($check_input_output_records && $output_recs != $input_recs) {
             $out_file->unlink;
             $out_index->unlink;
             $self->throw("Output gVCF has different number of data lines from input gVCF (input $input_recs, output $output_recs)");
