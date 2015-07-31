@@ -106,8 +106,8 @@ is $ft->check_type(), 1, 'a typ1 file passes the check';
 $ft->file(file(qw(t data 2822_6.pe.typ2))->absolute);
 is $ft->check_type(), 0, 'a typ2 file failes a typ1 check';
 
-# because the database has a length limit of 4, however, we don't allow long
+# because the database has a length limit of 8, however, we don't allow long
 # filetypes
-throws_ok { $ft = VRPipe::FileType->create('foobar', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype of greater than 4 characters';
+throws_ok { $ft = VRPipe::FileType->create('foobarbaz', {}); } qr/Invalid implementation class|perhaps you forgot to load/, 'throws when asked to create an invalid filetype of greater than 8 characters';
 
 exit;

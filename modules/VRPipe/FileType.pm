@@ -56,7 +56,7 @@ sub create {
         # allow arbitrary filetypes by falling back to 'any' type
         if ($@ =~ qr/Invalid implementation class|perhaps you forgot to load/) {
             my $arbitrary = shift;
-            die $@ if ($arbitrary eq 'any' || length($arbitrary) > 4);
+            die $@ if ($arbitrary eq 'any' || length($arbitrary) > 8);
             $return = $self->SUPER::create('any', @_);
             
             #*** type() is read-only and I can't figure out how to make the any

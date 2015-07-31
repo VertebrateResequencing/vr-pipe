@@ -162,7 +162,7 @@ class_type('File::Temp::File');
 
 subtype FileType, as Str, where {
     my $type = $_;
-    length($type) <= 4 || return 0;
+    length($type) <= 8 || return 0;
     
     # we used to more do checking, but now anything can be a valid filetype
     # because arbitrary types are allowed
