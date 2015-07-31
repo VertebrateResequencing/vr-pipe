@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller - a pipeline
+VRPipe::Pipelines::gatk_gvcf_linear_index - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,7 +9,7 @@ VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller - a pipeline
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -33,34 +33,31 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gatk_gvcf_linear_index with VRPipe::PipelineRole {
     method name {
-        return 'gvcf_calling_with_gatk_haplotype_caller';
+        return 'gatk_gvcf_linear_index';
     }
     
     method description {
-        return 'Run GATK to genotype gVCF files.';
+        return 'Run GATK CatVariants to make uncompressed gVCF files with linear index.';
     }
     
     method step_names {
         (
-            'gatk_genotype_gvcfs_with_genome_chunking', #1
-            'bcftools_concat',                          #2
+            'gatk_gvcf_linear_index', #1
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
-            { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
-            { from_step => 1, to_step => 2, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
+            { from_step => 0, to_step => 1, to_key => 'gvcf_files' },
+            { from_step => 0, to_step => 1, to_key => 'gvcf_index_files' },
         );
     }
     
     method behaviour_definitions {
         (
-            { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
-            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 1, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
         );
     }
 
