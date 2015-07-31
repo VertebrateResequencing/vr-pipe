@@ -51,6 +51,7 @@ class VRPipe::Pipelines::vqsr with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key => 'vcf_files' },
+            { from_step => 0, to_step => 1, to_key => 'vcf_index_files' },
         );
     }
 }

@@ -33,7 +33,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vqsr_for_indels with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vqsr_for_indels extends VRPipe::Pipelines::vqsr {
     method name {
         return 'vqsr_for_indels';
     }

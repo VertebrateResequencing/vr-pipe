@@ -55,12 +55,12 @@ class VRPipe::Pipelines::apply_vqsr_for_snps_and_indels with VRPipe::PipelineRol
             
             { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
             { from_step => 0, to_step => 1, to_key   => 'vcf_index_files' },
-            { from_step => 0, to_step => 1, from_key => 'recalibration_file', to_key => 'recalibration_file' },
-            { from_step => 0, to_step => 1, from_key => 'tranches_file', to_key => 'tranches_file' },
+            { from_step => 0, to_step => 1, to_key   => 'recalibration_file' },
+            { from_step => 0, to_step => 1, to_key   => 'tranches_file' },
             { from_step => 1, to_step => 2, from_key => 'recalibrated_vcf_files', to_key => 'vcf_files' },
             { from_step => 1, to_step => 2, from_key => 'recalibrated_vcf_index_files', to_key => 'vcf_index_files' },
-            { from_step => 0, to_step => 2, from_key => 'recalibration_file', to_key => 'recalibration_file' },
-            { from_step => 0, to_step => 2, from_key => 'tranches_file', to_key => 'tranches_file' },
+            { from_step => 0, to_step => 2, to_key   => 'recalibration_file' },
+            { from_step => 0, to_step => 2, to_key   => 'tranches_file' },
             { from_step => 2, to_step => 3, from_key => 'recalibrated_vcf_files', to_key => 'vcf_files' },
         );
     }
