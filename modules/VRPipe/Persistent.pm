@@ -476,7 +476,7 @@ class VRPipe::Persistent extends (DBIx::Class::Core, VRPipe::Base::Moose) { # be
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => -1, is_numeric => 0);
                 }
                 elsif ($cname eq 'FileType') {
-                    $size = 4;
+                    $size = 8;
                     ($cname, $size, $is_numeric) = $converter->get_column_info(size => $size, is_numeric => 0);
                 }
                 else {

@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vqsr - a pipeline
+VRPipe::Pipelines::gatk_gvcf_linear_index - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,27 +33,34 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vqsr with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gatk_gvcf_linear_index with VRPipe::PipelineRole {
     method name {
-        return 'vqsr';
+        return 'gatk_gvcf_linear_index';
     }
     
     method description {
-        return 'Run GATK VariantRecalibrator on both SNPs and INDELs (BOTH mode).';
+        return 'Run GATK CatVariants to make uncompressed gVCF files with linear index.';
     }
     
     method step_names {
         (
-            'gatk_variant_recalibration', #1
+            'gatk_gvcf_linear_index', #1
         );
     }
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key => 'vcf_files' },
-            { from_step => 0, to_step => 1, to_key => 'vcf_index_files' },
+            { from_step => 0, to_step => 1, to_key => 'gvcf_files' },
+            { from_step => 0, to_step => 1, to_key => 'gvcf_index_files' },
         );
     }
+    
+    method behaviour_definitions {
+        (
+            { after_step => 1, behaviour => 'delete_inputs', act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
+        );
+    }
+
 }
 
 1;

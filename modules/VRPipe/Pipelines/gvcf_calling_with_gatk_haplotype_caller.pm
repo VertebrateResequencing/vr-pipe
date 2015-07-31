@@ -44,9 +44,8 @@ class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::Pi
     
     method step_names {
         (
-            'gatk_gvcf_linear_index',                   #1
-            'gatk_genotype_gvcfs_with_genome_chunking', #2
-            'bcftools_concat',                          #3
+            'gatk_genotype_gvcfs_with_genome_chunking', #1
+            'bcftools_concat',                          #2
         );
     }
     
@@ -54,17 +53,14 @@ class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::Pi
         (
             { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
             { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
-            { from_step => 1, to_step => 2, from_key => 'uncompressed_gvcf_files', to_key => 'gvcf_files' },
-            { from_step => 1, to_step => 2, from_key => 'uncompressed_gvcf_index_files', to_key => 'gvcf_index_files' },
-            { from_step => 2, to_step => 3, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
         );
     }
     
     method behaviour_definitions {
         (
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
-            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
-            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_gvcf_chunks', default_regulation => 1 },
         );
     }
 

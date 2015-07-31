@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,40 +33,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vqsr_for_snps with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vqsr_for_snps extends VRPipe::Pipelines::vqsr {
     method name {
         return 'vqsr_for_snps';
     }
     
     method description {
-        return 'Filter SNPs with VQSR.';
+        return 'Run GATK VariantRecalibrator for SNPs.';
     }
     
     method step_names {
         (
-            'vcf_index',                           #1
-            'gatk_variant_recalibration_for_snps', #2
-            'gatk_apply_recalibration_for_snps',   #3
-            'vcf_index',                           #4
-        );
-    }
-    
-    method adaptor_definitions {
-        (
-            { from_step => 0, to_step => 1, to_key   => 'vcf_files' },
-            { from_step => 0, to_step => 2, to_key   => 'vcf_files' },
-            { from_step => 0, to_step => 3, to_key   => 'vcf_files' },
-            { from_step => 2, to_step => 3, from_key => 'recalibration_file', to_key => 'recalibration_file' },
-            { from_step => 2, to_step => 3, from_key => 'tranches_file', to_key => 'tranches_file' },
-            { from_step => 3, to_step => 4, from_key => 'recalibrated_vcfs', to_key => 'vcf_files' }
-        );
-    }
-    
-    method behaviour_definitions {
-        (
-            { after_step => 3, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'remove_input_vcfs',          default_regulation => 0 },
-            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'remove_input_vcfs',          default_regulation => 0 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'remove_recalibration_files', default_regulation => 0 }
+            'gatk_variant_recalibration_for_snps', #1
         );
     }
 }

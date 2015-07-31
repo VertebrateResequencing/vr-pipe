@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::vqsr - a pipeline
+VRPipe::Pipelines::vqsr_for_indels - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,25 +33,18 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::vqsr with VRPipe::PipelineRole {
+class VRPipe::Pipelines::vqsr_for_indels extends VRPipe::Pipelines::vqsr {
     method name {
-        return 'vqsr';
+        return 'vqsr_for_indels';
     }
     
     method description {
-        return 'Run GATK VariantRecalibrator on both SNPs and INDELs (BOTH mode).';
+        return 'Run GATK VariantRecalibrator for INDELs.';
     }
     
     method step_names {
         (
-            'gatk_variant_recalibration', #1
-        );
-    }
-    
-    method adaptor_definitions {
-        (
-            { from_step => 0, to_step => 1, to_key => 'vcf_files' },
-            { from_step => 0, to_step => 1, to_key => 'vcf_index_files' },
+            'gatk_variant_recalibration_for_indels', #1
         );
     }
 }

@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -55,7 +55,10 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
     }
     
     method inputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more vcf files') };
+        return {
+            vcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => '1 or more vcf files'),
+            vcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => '1 or more vcf index files'),
+        };
     }
     
     method body_sub {
@@ -77,7 +80,7 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
                 VRPipe::StepCmdSummary->create(
                     exe     => 'GenomeAnalysisTK',
                     version => $self->determine_gatk_version(),
-                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T VariantRecalibrator -R \$reference_fasta -I \$vcf_file(s) -recalFile $mode.recal -tranchesFile $mode.recal.tranches -rscriptFile $mode.recal.r -mode $mode $recal_opts]
+                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T VariantRecalibrator -R \$reference_fasta -I \$vcf_file(s) -recalFile $mode.recal.vcf -tranchesFile $mode.recal.tranches -rscriptFile $mode.recal.r -mode $mode $recal_opts]
                 )
             );
             
@@ -90,24 +93,26 @@ class VRPipe::Steps::gatk_variant_recalibration extends VRPipe::Steps::gatk {
             my @vcfs = map { '-input ' . $_->path } @{ $self->inputs->{vcf_files} };
             my $vcf_list = join ' ', @vcfs;
             
-            my $recal_file         = $self->output_file(output_key => 'recalibration_file',      basename => "$mode.recal",              type => 'txt');
-            my $tranches_file      = $self->output_file(output_key => 'tranches_file',           basename => "$mode.recal.tranches",     type => 'txt');
-            my $tranches_plot_file = $self->output_file(output_key => 'tranches_plot_file',      basename => "$mode.recal.tranches.pdf", type => 'any');
-            my $rscript_file       = $self->output_file(output_key => 'rscript_file',            basename => "$mode.recal.r",            type => 'txt');
-            my $recal_plot_file    = $self->output_file(output_key => 'recalibration_plot_file', basename => "$mode.recal.r.pdf",        type => 'any');
+            my $recal_file         = $self->output_file(output_key => 'recalibration_file',       basename => "$mode.re.cal.vcf",          type => 'cal.vcf',  metadata => { mode => $mode });
+            my $recal_index_file   = $self->output_file(output_key => 'recalibration_index_file', basename => "$mode.re.cal.vcf.idx",      type => 'bin',      metadata => { mode => $mode });
+            my $tranches_file      = $self->output_file(output_key => 'tranches_file',            basename => "$mode.re.cal.tranches",     type => 'tranches', metadata => { mode => $mode });
+            my $tranches_plot_file = $self->output_file(output_key => 'tranches_plot_file',       basename => "$mode.re.cal.tranches.pdf", type => 'pdf',      metadata => { mode => $mode });
+            my $rscript_file       = $self->output_file(output_key => 'rscript_file',             basename => "$mode.re.cal.r",            type => 'txt',      metadata => { mode => $mode });
+            my $recal_plot_file    = $self->output_file(output_key => 'recalibration_plot_file',  basename => "$mode.re.cal.r.pdf",        type => 'pdf',      metadata => { mode => $mode });
             
             my $this_cmd = $self->gatk_prefix($req->memory) . qq[ -T VariantRecalibrator -R $ref ] . $vcf_list . qq[ -recalFile ] . $recal_file->path . qq[ -tranchesFile ] . $tranches_file->path . qq[ -rscriptFile ] . $rscript_file->path . qq[ -mode $mode $recal_opts];
-            $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_variant_recalibration', 'variant_recal_and_check', [$this_cmd, $req, { output_files => [$recal_file, $tranches_file, $tranches_plot_file, $rscript_file, $recal_plot_file] }]);
+            $self->dispatch_wrapped_cmd('VRPipe::Steps::gatk_variant_recalibration', 'variant_recal_and_check', [$this_cmd, $req, { output_files => [$recal_file, $recal_index_file, $tranches_file, $tranches_plot_file, $rscript_file, $recal_plot_file] }]);
         };
     }
     
     method outputs_definition {
         return {
-            recalibration_file      => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'Variant recalibration data file'),
-            tranches_file           => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'Variant recalibration tranches file'),
-            tranches_plot_file      => VRPipe::StepIODefinition->create(type => 'any', max_files => 1, description => 'Plots to visualise the recalibration data', check_existence => 0),
-            rscript_file            => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'Rscript file generated by the VQSR to aid in visualisation of the input data and learned model.'),
-            recalibration_plot_file => VRPipe::StepIODefinition->create(type => 'any', max_files => 1, description => 'PDF file associated with rscript file.', check_existence => 0)
+            recalibration_file       => VRPipe::StepIODefinition->create(type => 'cal.vcf',  max_files => 1, description => 'Variant recalibration data file',     metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' }),
+            recalibration_index_file => VRPipe::StepIODefinition->create(type => 'bin',      max_files => 1, description => 'Variant recalibration index file',    metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' }),
+            tranches_file            => VRPipe::StepIODefinition->create(type => 'tranches', max_files => 1, description => 'Variant recalibration tranches file', metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' }),
+            tranches_plot_file => VRPipe::StepIODefinition->create(type => 'pdf', max_files => 1, description => 'Plots to visualise the recalibration data', check_existence => 0, metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' }),
+            rscript_file => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'Rscript file generated by the VQSR to aid in visualisation of the input data and learned model.', metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' }),
+            recalibration_plot_file => VRPipe::StepIODefinition->create(type => 'pdf', max_files => 1, description => 'PDF file associated with rscript file.', check_existence => 0, metadata => { mode => 'recalibration mode: SNP|INDEL|BOTH' })
         };
     }
     
