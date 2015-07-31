@@ -65,7 +65,7 @@ class VRPipe::Pipelines::gvcf_calling_one_combine_with_gatk_haplotype_caller wit
         (
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
             { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
-            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'delete_gvcf_chunks', default_regulation => 1 },
         );
     }
 
