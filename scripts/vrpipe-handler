@@ -681,7 +681,7 @@ sub handle_submissions {
     };
     
     # run the event loop
-    $im->debug("The submissions handler for farm $farm, req " . $req->id . " is now running.");
+    $im->log("The submissions handler for farm $farm, req " . $req->id . " is now running.");
     EV::run;
     
     if ($im->datastore_ok) {
@@ -691,7 +691,7 @@ sub handle_submissions {
         if ($submission) {
             $submission->unlock;
         }
-        $im->debug("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
+        $im->log("The submissions handler for farm $farm, req " . $req->id . " is now exiting, having handled $handled_submissions submissions!");
     }
     
     kill_remaining_children();
