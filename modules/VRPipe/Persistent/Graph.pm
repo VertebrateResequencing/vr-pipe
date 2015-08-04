@@ -211,6 +211,15 @@ class VRPipe::Persistent::Graph {
                 $code ||= 'no error code';
                 my $message = $err->{message};
                 $message ||= '(no message)';
+                
+                if ($message =~ /connection/i) {
+                    # neo4j server may be down during a backup, so we'll wait a
+                    # a few mins for it to come back
+                    warn "retrying cypher [$example_cypher] due to: $message\n";
+                    sleep($_);
+                    next;
+                }
+                
                 $self->throw("[$code] [$example_cypher] $message");
             }
             $decode = $json->decode($res->body);
