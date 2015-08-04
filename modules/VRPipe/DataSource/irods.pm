@@ -247,6 +247,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $fh = $file->openr;
             while (<$fh>) {
                 chomp;
+                next if /^#/; # skip comments
                 push(@queries, $_) if $_;
             }
             $file->close;
