@@ -36,7 +36,7 @@ use VRPipe::Base;
 class VRPipe::Steps::vep_annotate_with_genome_chunking extends VRPipe::Steps::vep_annotate with VRPipe::StepGenomeChunkingRole {
     method inputs_definition {
         return {
-            var_file => VRPipe::StepIODefinition->create(type => 'var', max_files => 1, description => 'one vcf or bcf file to annotate'),
+            vcf_file => VRPipe::StepIODefinition->create(type => 'var', max_files => 1, description => 'one vcf or bcf file to annotate'),
         };
     }
     
@@ -63,7 +63,7 @@ class VRPipe::Steps::vep_annotate_with_genome_chunking extends VRPipe::Steps::ve
                 )
             );
             my $suffix     = $post_vep_cmds =~ /\$output_bcf/ ? 'bcf' : 'vcf.gz';
-            my $input_file = $self->inputs->{var_file}[0];
+            my $input_file = $self->inputs->{vcf_file}[0];
             my $input_path = $input_file->path;
             my $input_meta = $input_file->metadata;
             my $chunks     = $self->chunks();
@@ -76,8 +76,8 @@ class VRPipe::Steps::vep_annotate_with_genome_chunking extends VRPipe::Steps::ve
                 my $chunk_meta     = { %$input_meta, %$chunk };
                 my $chunk_basename = "${chrom}_${from}-${to}.vep_annot.$suffix";
                 #$self->output_file(basename => "${chunk_basename}_temp.vcf", type => 'vcf', temporary => 1);
-                my $output_file  = $self->output_file(output_key => 'vep_annot_var_file',        basename => $chunk_basename,       type => 'var', metadata => $chunk_meta);
-                my $output_index = $self->output_file(output_key => 'vep_annot_var_index_files', basename => "$chunk_basename.csi", type => 'idx', metadata => $chunk_meta);
+                my $output_file  = $self->output_file(output_key => 'vep_annot_vcf_file',        basename => $chunk_basename,       type => 'var', metadata => $chunk_meta);
+                my $output_index = $self->output_file(output_key => 'vep_annot_vcf_index_files', basename => "$chunk_basename.csi", type => 'idx', metadata => $chunk_meta);
                 my $output_path  = $output_file->path;
                 my $post_vep     = $post_vep_cmds;
                 $post_vep =~ s/\$output_(b|v)cf/$output_path/;
@@ -90,8 +90,8 @@ class VRPipe::Steps::vep_annotate_with_genome_chunking extends VRPipe::Steps::ve
     
     method outputs_definition {
         return {
-            vep_annot_var_file        => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => 'output .bcf or .vcf chunks'),
-            vep_annot_var_index_files => VRPipe::StepIODefinition->create(type => 'idx', max_files => -1, description => 'output CSI index for VCF/BCF chunks')
+            vep_annot_vcf_file        => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => 'output .bcf or .vcf chunks'),
+            vep_annot_vcf_index_files => VRPipe::StepIODefinition->create(type => 'idx', max_files => -1, description => 'output CSI index for VCF/BCF chunks')
         };
     }
     

@@ -1,7 +1,8 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller - a pipeline
+VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller_with_vep - a
+pipeline
 
 =head1 DESCRIPTION
 
@@ -33,19 +34,20 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::PipelineRole {
+class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller_with_vep with VRPipe::PipelineRole {
     method name {
-        return 'gvcf_calling_with_gatk_haplotype_caller';
+        return 'gvcf_calling_with_gatk_haplotype_caller_with_vep';
     }
     
     method description {
-        return 'Run GATK to genotype gVCF files. Use this pipeline for up to 200 samples.';
+        return 'Run GATK to genotype gVCF files and run Variant Effect Predictor (VEP). Use this pipeline for up to 200 samples.';
     }
     
     method step_names {
         (
             'gatk_genotype_gvcfs_with_genome_chunking', #1
-            'bcftools_concat',                          #2
+            'vep_annotate',                             #2
+            'bcftools_concat',                          #3
         );
     }
     
@@ -54,13 +56,15 @@ class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::Pi
             { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
             { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
             { from_step => 1, to_step => 2, from_key => 'genotype_gvcf_file', to_key => 'vcf_files' },
+            { from_step => 2, to_step => 3, from_key => 'vep_annot_vcf_files', to_key => 'vcf_files' },
         );
     }
     
     method behaviour_definitions {
         (
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_gvcfs', default_regulation => 0 },
-            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'delete_gvcf_chunks', default_regulation => 1 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',            default_regulation => 1 },
+            { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'delete_gvcf_chunks', default_regulation => 1 },
         );
     }
 

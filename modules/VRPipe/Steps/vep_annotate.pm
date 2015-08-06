@@ -47,7 +47,7 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            var_files => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => '1 or more vcf or bcf files to annotate'),
+            vcf_files => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => '1 or more vcf or bcf files to annotate'),
         };
     }
     
@@ -74,13 +74,13 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
                 )
             );
             my $suffix = $post_vep_cmds =~ /\$output_bcf/ ? "bcf" : "vcf.gz";
-            foreach my $input_file (@{ $self->inputs->{var_files} }) {
+            foreach my $input_file (@{ $self->inputs->{vcf_files} }) {
                 my $input_meta = $input_file->metadata;
                 my $basename   = $input_file->basename;
                 $basename =~ s/(\.vcf\.gz$|\.bcf$)//;
                 #$self->output_file(basename => "$basename.${suffix}_temp.vcf", type => 'vcf', temporary => 1);
-                my $output_file  = $self->output_file(output_key => 'vep_annot_var_files',       basename => "$basename.$suffix",     type => 'var', metadata => $input_meta);
-                my $output_index = $self->output_file(output_key => 'vep_annot_var_index_files', basename => "$basename.$suffix.csi", type => 'idx', metadata => $input_meta);
+                my $output_file  = $self->output_file(output_key => 'vep_annot_vcf_files',       basename => "$basename.$suffix",     type => 'var', metadata => $input_meta);
+                my $output_index = $self->output_file(output_key => 'vep_annot_vcf_index_files', basename => "$basename.$suffix.csi", type => 'idx', metadata => $input_meta);
                 my $input_path   = $input_file->path;
                 my $output_path  = $output_file->path;
                 my $post_vep     = $post_vep_cmds;
@@ -94,8 +94,8 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
     
     method outputs_definition {
         return {
-            vep_annot_var_files       => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => 'output .bcf or .vcf files'),
-            vep_annot_var_index_files => VRPipe::StepIODefinition->create(type => 'idx', max_files => -1, description => 'output CSI index for VCF/BCF files')
+            vep_annot_vcf_files       => VRPipe::StepIODefinition->create(type => 'var', max_files => -1, description => 'output .bcf or .vcf files'),
+            vep_annot_vcf_index_files => VRPipe::StepIODefinition->create(type => 'idx', max_files => -1, description => 'output CSI index for VCF/BCF files')
         };
     }
     
