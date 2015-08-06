@@ -482,8 +482,16 @@ sub handle_submissions {
                     }
                 }
                 
+                # the submission may have been started over, in which case it
+                # no longer exists in db; we'll just give up in this case
+                my $still_in_db = VRPipe::Submission->search({ id => $submission->id });
+                unless ($still_in_db) {
+                    $job->kill_job($submission, 1);
+                    return exit_handler("Looks like submission " . $submission->id . " no longer exists", @watchers);
+                }
+                
                 my $close_to_time_limit = (time() - $job_start_time) > ($current_req_time - $seconds_before_switching);
-                my $still_alive = $job->is_alive;
+                my $still_running = $job->cmd_running;
                 
                 if ($job->end_time) {
                     $submission->reselect_values_from_db;
@@ -534,9 +542,9 @@ sub handle_submissions {
                     undef $submission;
                     undef $job;
                 }
-                elsif (!$still_alive) {
-                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because the job it was working on is not longer alive", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
-                    return exit_handler("lost the lock on job of submission " . $submission->id, @watchers);
+                elsif (!$still_running) {
+                    $submission->stepstate->pipelinesetup->log_event("vrpipe-handler for submissions will exit because the job it was working on is mysteriously no longer running", stepstate => $submission->stepstate->id, dataelement => $submission->stepstate->dataelement->id, submission => $submission->id, job => $job->id);
+                    return exit_handler("job " . $job->id . " stopped running in an abnormal way ", @watchers);
                 }
                 elsif ($close_to_time_limit) {
                     # user's scheduler might kill the submission if it runs too

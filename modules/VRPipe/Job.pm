@@ -662,6 +662,19 @@ class VRPipe::Job extends VRPipe::Persistent {
         return 1;
     }
     
+    method cmd_running {
+        my $pid  = $self->pid  || return 0;
+        my $host = $self->host || return 0;
+        $self->start_time || return 0;
+        $self->end_time && return 0;
+        if ($host eq hostname()) {
+            return kill(0, $pid);
+        }
+        else {
+            return $self->is_alive;
+        }
+    }
+    
     method stdout_file {
         my $dir = $self->dir;
         my $file = $self->_std_file || return;
@@ -680,7 +693,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         return ".host_$host.pid_$pid";
     }
     
-    method kill_job (VRPipe::Submission $submission?) {
+    method kill_job (VRPipe::Submission $submission?, Bool $only_local?) {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id }, { rows => 1 });
         }
@@ -692,7 +705,7 @@ class VRPipe::Job extends VRPipe::Persistent {
             if (hostname() eq $host) {
                 killfam "KILL", $pid;
             }
-            else {
+            elsif (!$only_local) {
                 eval {
                     $backend->ssh("$user\@$host", qq[perl -MProc::Killfam -e 'killfam q[KILL], $pid']);
                     # *** we need to do something if the kill fails...
