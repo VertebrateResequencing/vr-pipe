@@ -79,6 +79,13 @@ role VRPipe::StepGenomeChunkingRole with VRPipe::StepRole {
         default => sub { {} }
     );
     
+    has 'target_regions' => (
+        is      => 'rw',
+        isa     => 'Str',
+        lazy    => 1,
+        default => ''
+    );
+    
     has '_processed_extra_options' => (
         is      => 'rw',
         isa     => 'Bool',
@@ -89,8 +96,9 @@ role VRPipe::StepGenomeChunkingRole with VRPipe::StepRole {
         my $options = $self->$orig();
         unless ($self->_processed_extra_options) {
             $self->reference_index(file($options->{reference_fasta} . '.fai')->absolute->stringify);
-            $self->chunk_size(delete $options->{chunk_size})       if (exists $options->{chunk_size});
-            $self->chunk_overlap(delete $options->{chunk_overlap}) if (exists $options->{chunk_overlap});
+            $self->chunk_size(delete $options->{chunk_size})         if (exists $options->{chunk_size});
+            $self->chunk_overlap(delete $options->{chunk_overlap})   if (exists $options->{chunk_overlap});
+            $self->target_regions(delete $options->{target_regions}) if (exists $options->{target_regions});
             if (exists $options->{chrom_list}) {
                 my $chrom_list = delete $options->{chrom_list};
                 $self->chrom_list([split(' ', $chrom_list)]) if $chrom_list;
@@ -108,10 +116,11 @@ role VRPipe::StepGenomeChunkingRole with VRPipe::StepRole {
         return {
             %{ $self->$orig },
             reference_fasta => VRPipe::StepOption->create(description => 'Absolute path to the reference fasta file. The fasta index (fai) file must exist'),
-            chrom_list      => VRPipe::StepOption->create(description => 'Space separated list of chromosomes', optional => 1, default_value => '1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 X Y MT'),
+            chrom_list      => VRPipe::StepOption->create(description => 'Space separated list of chromosomes', optional => 1),
             chunk_size      => VRPipe::StepOption->create(description => 'Number of base pairs to have in a chunk', optional => 1, default_value => 50_000_000),
             chunk_overlap   => VRPipe::StepOption->create(description => 'Chunk overlap size', optional => 1, default_value => 0),
-            ploidy => VRPipe::StepOption->create(description => "File defining the ploidy to be used to call in different regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}", optional => 1),
+            target_regions => VRPipe::StepOption->create(description => "BED file defining targetted sequecing regions. Chunks will be created such that there is *at least* chunk_size bases in a chunk made from ",                                                                                   optional => 1),
+            ploidy         => VRPipe::StepOption->create(description => "File defining the ploidy to be used to call in different regions of the genome, eg {default=>2, X=>[{ from=>1, to=>60_000, M=>1 },{ from=>2_699_521, to=>154_931_043, M=>1 },],Y=>[{ from=>1, to=>59_373_566, M=>1, F=>0 }]}", optional => 1),
         };
     }
     
@@ -121,10 +130,11 @@ role VRPipe::StepGenomeChunkingRole with VRPipe::StepRole {
         my $chunk_overlap   = $self->chunk_overlap;
         my $chrom_list      = $self->chrom_list;
         my $ploidy_regions  = $self->ploidy;
+        my $target_regions  = $self->target_regions;
         
         use VRPipe::Utils::GenomeChunking;
         my $chunk_util = VRPipe::Utils::GenomeChunking->new();
-        return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions);
+        return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions, $target_regions ? (target_regions => $target_regions) : ());
     }
 }
 

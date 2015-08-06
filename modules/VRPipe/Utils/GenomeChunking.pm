@@ -45,15 +45,16 @@ class VRPipe::Utils::GenomeChunking {
 =head2 chunks
  
  Title   : chunks
- Usage   : my $chunks = $obj->chunks(reference_index => $reference_index, chunk_size => 100000);
+ Usage   : my $chunks = $obj->chunks(reference_fasta => $reference_fasta chunk_size => 100000);
  Function: Splits a reference .
  Returns : ArrayRef of chunk HashRefs. Chunks HashRef consists of keys chrom, from and to and seq_no. Optionally, male_ploidy and female_ploidy.
  Args    : 
 
 =cut
     
-    method chunks (Str|File :$reference_index!, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, ArrayRef :$chroms = [], HashRef :$ploidy = {}) {
+    method chunks (Str|File :$reference_index!, Str|File :$target_regions?, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, ArrayRef :$chroms = [], HashRef :$ploidy = {}) {
         my $ploidy_default = $$ploidy{default} || 2;
+        $self->throw("method not ready for target_regions option chunk_overlap yet") if ($target_regions && $chunk_overlap);
         
         my $pars = VRPipe::Parser->create('fai', { file => $reference_index });
         my $parsed_record = $pars->parsed_record();
@@ -61,6 +62,19 @@ class VRPipe::Utils::GenomeChunking {
         my @seqs = @$chroms;
         unless (@seqs) {
             @seqs = $pars->seq_ids;
+        }
+        
+        my %regions;
+        if ($target_regions) {
+            my $targets_file = VRPipe::File->create(path => $target_regions);
+            my $fh = $targets_file->openr;
+            while (<$fh>) {
+                chomp;
+                my ($chr, $from, $to) = split /\t/;
+                $self->throw("Could not parse this BED file line [$_]\n") unless (defined $chr && defined $from && defined $to);
+                push @{ $regions{$chr} }, [$from + 1, $to]; # convert from 0-based BED coords to 1-based coords used by samtools/gatk etc
+            }
+            close $fh;
         }
         
         my @chr_regions;
@@ -75,6 +89,7 @@ class VRPipe::Utils::GenomeChunking {
                 last;
             }
             if (!defined $chr) { next; }
+            if ($target_regions && !(exists $regions{$chr})) { next; } # skip chromosomes not in the target bed file
             
             if (!exists($$ploidy{$chr})) {
                 push @chr_regions, { chrom => $chr, from => $from, to => $to, female => $ploidy_default, male => $ploidy_default };
@@ -102,6 +117,67 @@ class VRPipe::Utils::GenomeChunking {
         
         my @chunks;
         my $seq_no = 1;
+        
+        # if we have a target regions we will make chunks
+        # that contain target regions that consist of at least
+        # $chunk_size bases. We do not split target regions
+        # which means we may end up with some quite large
+        # chunks if the input targets are not smallish
+        if ($target_regions) {
+            for my $region (@chr_regions) {
+                my $chr    = $$region{chrom};
+                my $female = $$region{female};
+                my $male   = $$region{male};
+                
+                my @chr_targets = @{ $regions{$chr} };
+                
+                # remove targets not overlapping this region
+                my @region_targets;
+                foreach my $tgt (@chr_targets) {
+                    next if ($$tgt[0] < $$region{from} && $$tgt[1] < $$region{from});
+                    next if ($$tgt[0] > $$region{to}   && $$tgt[1] > $$region{to});
+                    push @region_targets, $tgt;
+                }
+                next unless @region_targets;
+                if ($region_targets[-1]->[0] < $$region{from}) { $region_targets[-1]->[1] = $$region{from}; }
+                if ($region_targets[-1]->[1] > $$region{to})   { $region_targets[-1]->[1] = $$region{to}; }
+                
+                if ($chunk_size) {
+                    while (@region_targets) {
+                        my $target          = shift @region_targets;
+                        my $from            = $$target[0];
+                        my $this_chunk_size = $$target[1] - $$target[0];
+                        while (@region_targets && $this_chunk_size < $chunk_size) {
+                            $target = shift @region_targets;
+                            $this_chunk_size += $$target[1] - $$target[0];
+                        }
+                        my $to = $$target[1];
+                        
+                        if (keys %$ploidy) {
+                            push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
+                        }
+                        else {
+                            push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, seq_no => $seq_no };
+                        }
+                        ++$seq_no;
+                        $this_chunk_size = 0;
+                    }
+                }
+                else {
+                    my $from = $region_targets[0]->[0];
+                    my $to   = $region_targets[-1]->[1];
+                    if (keys %$ploidy) {
+                        push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, female_ploidy => $female, male_ploidy => $male, seq_no => $seq_no };
+                    }
+                    else {
+                        push @chunks, { chrom => $$region{chrom}, from => $from, to => $to, seq_no => $seq_no };
+                    }
+                    ++$seq_no;
+                }
+            }
+            return \@chunks;
+        }
+        
         for my $region (@chr_regions) {
             my $pos     = $$region{from};
             my $end_pos = $$region{to};

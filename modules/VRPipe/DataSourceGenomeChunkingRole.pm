@@ -86,6 +86,13 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         default => sub { {} }
     );
     
+    has 'target_regions' => (
+        is      => 'rw',
+        isa     => 'Str',
+        lazy    => 1,
+        default => ''
+    );
+    
     has '_processed_extra_options' => (
         is      => 'rw',
         isa     => 'Bool',
@@ -148,8 +155,9 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         unless ($self->_processed_extra_options) {
             $self->reference_index(delete $options->{reference_index});
             $self->chunk_override_file(delete $options->{chunk_override_file});
-            $self->chunk_size(delete $options->{chunk_size})       if (exists $options->{chunk_size});
-            $self->chunk_overlap(delete $options->{chunk_overlap}) if (exists $options->{chunk_overlap});
+            $self->chunk_size(delete $options->{chunk_size})         if (exists $options->{chunk_size});
+            $self->chunk_overlap(delete $options->{chunk_overlap})   if (exists $options->{chunk_overlap});
+            $self->target_regions(delete $options->{target_regions}) if (exists $options->{target_regions});
             if (exists $options->{chrom_list}) {
                 my $chrom_list = delete $options->{chrom_list};
                 $self->chrom_list([split(' ', $chrom_list)]) if $chrom_list;
@@ -170,7 +178,7 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         return @return;
     }
     
-    method _with_genome_chunking (Defined :$handle!, Str|File :$reference_index!, Str|File :$chunk_override_file!, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, Str :$chrom_list?, Str|File :$ploidy?) {
+    method _with_genome_chunking (Defined :$handle!, Str|File :$reference_index!, Str|File :$chunk_override_file!, Int :$chunk_size! = 1000000, Int :$chunk_overlap! = 0, Str :$chrom_list?, Str|File :$ploidy?, Str|File :$target_regions?) {
         return;
     }
     
@@ -179,11 +187,12 @@ role VRPipe::DataSourceGenomeChunkingRole with VRPipe::DataSourceRole {
         my $chunk_size      = $self->chunk_size;
         my $chunk_overlap   = $self->chunk_overlap;
         my $chrom_list      = $self->chrom_list;
+        my $target_regions  = $self->target_regions;
         my $ploidy_regions  = $self->ploidy;
         
         use VRPipe::Utils::GenomeChunking;
         my $chunk_util = VRPipe::Utils::GenomeChunking->new();
-        return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions);
+        return $chunk_util->chunks(reference_index => $reference_index, chunk_size => $chunk_size, chroms => $chrom_list, ploidy => $ploidy_regions, $target_regions ? (target_regions => $target_regions) : ());
     }
 }
 
