@@ -224,6 +224,10 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         $pfh->close;
         $ploidy_file->update_stats_from_disc(retries => 3);
         
+        if ($sample_sex_file && !$expected_samples) {
+            $self->throw("no samples in $sample_sex_file overlapped with samples in the input files");
+        }
+        
         # check that the number of samples is as expected
         my $actual_samples = $ploidy_file->lines;
         unless ($actual_samples == $expected_samples) {
