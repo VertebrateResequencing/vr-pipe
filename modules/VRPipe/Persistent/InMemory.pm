@@ -80,6 +80,7 @@ class VRPipe::Persistent::InMemory {
     our $email_domain = $vrp_config->email_domain();
     our $admin_email  = $vrp_config->admin_user() . '@' . $email_domain;
     our %redis_instances;
+    our $log_hostname = hostname();
     
     our ($deployment, $reconnect_time, $log_dir, $log_file, $redis_port, $redis_server, $backend);
     
@@ -689,7 +690,7 @@ class VRPipe::Persistent::InMemory {
         # we'll just warn, which will end up in the log file automatically; we
         # do not try and do anything fancy with flock() since that can be too
         # slow or end up locking the log file forever
-        my $log_msg = "$time{'yyyy-mm-dd hh:mm:ss'} | pid $$ | $msg\n";
+        my $log_msg = "$time{'yyyy-mm-dd hh:mm:ss'} | host $log_hostname | pid $$ | $msg\n";
         warn $log_msg;
         
         if (($force_when_testing || $deployment eq 'production') && ($email_to || $email_admin)) {

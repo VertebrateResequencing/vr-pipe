@@ -46,7 +46,7 @@ is $im->is_alive('bar'),  1, 'after undefing the new instance, the orig instance
 is $im->is_alive('char'), 0, 'but the new instance assertions are dead';
 
 # test the log() method and its ability to email
-warning_like { $im->log('log_test', email_admin => 1, force_when_testing => 1) } qr/^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \| pid \d+ \| log_test$/, 'log() generates a warning';
+warning_like { $im->log('log_test', email_admin => 1, force_when_testing => 1) } qr/^\d\d\d\d-\d\d-\d\d \d\d:\d\d:\d\d \| hostname \S+ \| pid \d+ \| log_test$/, 'log() generates a warning';
 my @deliveries = Email::Sender::Simple->default_transport->deliveries;
 my $email      = $deliveries[0]->{email};
 my $email_body = $email->get_body;
