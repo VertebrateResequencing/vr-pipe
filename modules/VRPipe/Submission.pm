@@ -141,24 +141,24 @@ class VRPipe::Submission extends VRPipe::Persistent {
         # lock the Sub before trying to claim
         $self->lock || return 3;
         $self->reselect_values_from_db;
-        my $job = $self->job;
+        my $job            = $self->job;
+        my $ss             = $self->stepstate;
+        my $ps             = $ss->pipelinesetup;
+        my %log_event_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $self->id, job => $job->id);
         
         my $transaction = sub {
-            my $ss             = $self->stepstate;
-            my $ps             = $ss->pipelinesetup;
-            my %log_event_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $self->id, job => $job->id);
             # first check if the job has already started or finished
             if ($self->done || $self->failed || (defined $job->exit_code && $job->end_time)) {
                 if (!($self->done || $self->failed)) {
                     # the job ran under a different submission; we just need to
                     # update this submission
                     if ($job->ok) {
-                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job is done fine");
+                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job is done fine", %log_event_args);
                         $self->_done(1);
                         $self->_failed(0);
                     }
                     else {
-                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job failed");
+                        $ps->log_event("claim_and_run() found that the Job ran under a different submission, and the job failed", %log_event_args);
                         $self->_done(0);
                         $self->_failed(1);
                     }
