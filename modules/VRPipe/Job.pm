@@ -350,8 +350,12 @@ class VRPipe::Job extends VRPipe::Persistent {
         unless ($submission) {
             ($submission) = VRPipe::Submission->search({ job => $self->id, '_done' => 0, '_failed' => 0 }, { rows => 1 });
         }
-        my $ss;
-        $ss = $submission->stepstate if $submission;
+        my ($ss, $ps, %log_args);
+        if ($submission) {
+            $ss       = $submission->stepstate;
+            $ps       = $ss->pipelinesetup;
+            %log_args = (dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id);
+        }
         
         # we'll have 3 responses: -1 = job already exited; 0 = job already
         # running; 1 = we just started running it
@@ -361,7 +365,7 @@ class VRPipe::Job extends VRPipe::Persistent {
         # safer, simple redis lock with NX. We don't rely on this though, since
         # the redis server could go down and we'd lose all locks
         unless ($self->assert_life) {
-            $ss->pipelinesetup->log_event("Job->run() called, but it's already running elsewhere", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+            $ps->log_event("Job->run() called, but it's already running elsewhere", %log_args) if $ss;
             return 0;
         }
         
@@ -371,10 +375,10 @@ class VRPipe::Job extends VRPipe::Persistent {
             if ($self->start_time) {
                 if ($self->end_time) {
                     $response = -1;
-                    $ss->pipelinesetup->log_event("Job->run() called, but we already have an end_time", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ps->log_event("Job->run() called, but we already have an end_time", %log_args) if $ss;
                 }
                 else {
-                    $ss->pipelinesetup->log_event("Job->run() called, but we've already started running and not finished yet", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $self->id) if $ss;
+                    $ps->log_event("Job->run() called, but we've already started running and not finished yet", %log_args) if $ss;
                     $response = 0;
                 }
                 return; # out of the transaction
@@ -510,7 +514,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                         print $efh $explanation, "\n";
                         $stderr_file->close;
                     }
-                    $ss->pipelinesetup->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id) if $ss;
+                    $ps->log_event("Job->run() signal watcher detected SIG$signal ($explanation), will kill_job()", %log_args) if $ss;
                     
                     $weakened_self->_signalled_to_death($signal);
                     
@@ -538,7 +542,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                 waitpid($cmd_pid, 0); # is this necessary??
                 $weakened_self->stop_monitoring;
                 
-                $ss->pipelinesetup->log_event("Job->run() cmd-running child exited with code $exit_code", dataelement => $ss->dataelement->id, stepstate => $ss->id, submission => $submission->id, job => $weakened_self->id) if $ss;
+                $ps->log_event("Job->run() cmd-running child exited with code $exit_code", %log_args) if $ss;
                 
                 #*** ideally we want to update_stats_from_disc on all our
                 # output files, but that is time consuming and potentially
@@ -588,7 +592,7 @@ class VRPipe::Job extends VRPipe::Persistent {
                             $submission->update;
                             
                             if ($done == @step_subs - 1) {
-                                $ss->pipelinesetup->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", stepstate => $ss->id, dataelement => $ss->dataelement->id);
+                                $ps->log_event("At end of Job->run() noted that all Submissions for this Job's Submission's StepState are done, so will trigger the next Step", %log_args);
                                 push(@to_trigger, [$ss->pipelinesetup, $ss->dataelement]);
                                 
                                 # also trigger any dataelements that have the
@@ -663,10 +667,22 @@ class VRPipe::Job extends VRPipe::Persistent {
     }
     
     method cmd_running {
-        my $pid  = $self->pid  || return 0;
-        my $host = $self->host || return 0;
-        $self->start_time || return 0;
+        my $start_time = $self->start_time || return 0;
         $self->end_time && return 0;
+        
+        my $pid = $self->pid;
+        unless ($pid) {
+            # allow some time for the cmd pid to spawn and start running the job
+            if (time() <= ($start_time->epoch + 10)) {
+                warn "cmd_running applying leeway\n";
+                return 1;
+            }
+            else {
+                return 0;
+            }
+        }
+        
+        my $host = $self->host || return 0;
         if ($host eq hostname()) {
             return kill(0, $pid);
         }
