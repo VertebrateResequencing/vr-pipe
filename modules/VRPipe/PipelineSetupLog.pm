@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013 Genome Research Limited.
+Copyright (c) 2013,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -72,6 +72,13 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         is_nullable => 1
     );
     
+    has 'host' => (
+        is          => 'rw',
+        isa         => Varchar [64],
+        traits      => ['VRPipe::Persistent::Attributes'],
+        is_nullable => 1
+    );
+    
     has 'pid' => (
         is     => 'rw',
         isa    => IntSQL [6],
@@ -121,7 +128,8 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         my $date = DateTime->from_epoch(epoch => $self->date->epoch, time_zone => $local_timezone);
         my $date_str = "$date";
         $date_str =~ s/T/ /;
-        my $str = "$date_str [ps " . $self->ps_id;
+        my $host = $self->host || 'unknown';                                              # host wasn't always stored
+        my $str = "$date_str | host $host | pid " . $self->pid . " | [ps " . $self->ps_id;
         foreach my $method (qw(de_id ss_id sub_id job_id)) {
             my $val = $self->$method;
             if ($val) {
@@ -132,7 +140,7 @@ class VRPipe::PipelineSetupLog extends VRPipe::Persistent {
         
         my $msg = $self->message;
         chomp($msg);
-        $str .= "] pid " . $self->pid . ' | ' . $self->message . "\n";
+        $str .= '] | ' . $self->message . "\n";
         
         if ($show_traces) {
             my $trace = $self->stack;

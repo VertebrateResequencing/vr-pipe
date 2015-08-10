@@ -59,8 +59,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     use DateTime::TimeZone;
     use VRPipe::Config;
     use VRPipe::MessageTracker;
+    use Sys::Hostname;
     
     our $local_timezone = DateTime::TimeZone->new(name => 'local');
+    our $log_host = hostname();
     
     has 'name' => (
         is     => 'rw',
@@ -768,12 +770,12 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             my $friendly_dt = DateTime->from_epoch(epoch => $dt->epoch, time_zone => $local_timezone);
             my $date_str = "$friendly_dt";
             $date_str =~ s/T/ /;
-            my $str = "$date_str [ps " . $self->id;
+            my $str = "$date_str | host $log_host | pid $$ | [ps " . $self->id;
             $str .= ", de $dataelement" if $dataelement;
             $str .= ", ss $stepstate"   if $stepstate;
             $str .= ", sub $submission" if $submission;
             $str .= ", job $job"        if $job;
-            $str .= "] pid $$ | " . $msg;
+            $str .= "] | " . $msg;
             chomp($str);
             warn $str, "\n";
             
@@ -793,6 +795,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
             ps_id   => $self->id,
             message => $msg,
             date    => $dt,
+            host    => $log_host,
             pid     => $$,
             $record_stack ? (stack => $self->stack_trace) : (),
             de_id        => $dataelement,
@@ -803,7 +806,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         );
     }
     
-    method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Int :$pid?, Bool :$include_undefined?, Bool :$paged?, Str :$from?, Str :$to?) {
+    method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Int :$pid?, Str :$host?, Bool :$include_undefined?, Bool :$paged?, Str :$from?, Str :$to?) {
         my @date_args = ();
         if ($from || $to) {
             my $parser = DateTime::Format::Natural->new;
@@ -846,7 +849,8 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 $stepstate   ? (ss_id  => $include_undefined ? { -in => [0, $stepstate] }   : $stepstate)   : (),
                 $submission  ? (sub_id => $include_undefined ? { -in => [0, $submission] }  : $submission)  : (),
                 $job         ? (job_id => $include_undefined ? { -in => [0, $job] }         : $job)         : (),
-                $pid ? (pid => $pid) : (),
+                $pid  ? (pid  => $pid)  : (),
+                $host ? (host => $host) : (),
                 @date_args
             }
         );
