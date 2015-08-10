@@ -39,7 +39,7 @@ class VRPipe::Pipelines::gvcf_calling_with_gatk_haplotype_caller with VRPipe::Pi
     }
     
     method description {
-        return 'Run GATK to genotype gVCF files.';
+        return 'Run GATK to genotype gVCF files. Use this pipeline for up to 200 samples.';
     }
     
     method step_names {

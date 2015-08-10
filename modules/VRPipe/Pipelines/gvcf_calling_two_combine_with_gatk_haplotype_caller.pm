@@ -40,7 +40,7 @@ class VRPipe::Pipelines::gvcf_calling_two_combine_with_gatk_haplotype_caller wit
     }
     
     method description {
-        return 'Run GATK to combine and genotype gVCF files.';
+        return 'Run GATK to combine and genotype gVCF files. Use this pipeline for more than 40,000 samples.';
     }
     
     method step_names {

@@ -68,7 +68,7 @@ class VRPipe::Steps::bcftools_concat with VRPipe::StepRole {
     method inputs_definition {
         return {
             vcf_files => VRPipe::StepIODefinition->create(
-                type        => 'vcf',
+                type        => 'var',
                 max_files   => -1,
                 description => 'vcf files to concat',
                 metadata    => {
