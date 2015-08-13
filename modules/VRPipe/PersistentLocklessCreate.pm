@@ -48,7 +48,22 @@ class VRPipe::PersistentLocklessCreate extends VRPipe::Persistent {
         my $self = shift;
         my $return = $self->_get(-1, @_);
         unless ($return) {
-            return $self->_get(1, @_);
+            # we really really don't want to resort to 'FOR UPDATE' queries in
+            # MySQL, so we'll block and lock using Redis, which will be much
+            # faster
+            my $im        = VRPipe::Persistent::InMemory->new();
+            my %args      = @_;
+            my $fa        = $self->_find_args(\%args);
+            my %find_args = %{ $fa->[0] || {} };
+            my $key       = join(',', map { $_ . '=>' . $find_args{$_} } sort keys %find_args);
+            if ($key) {
+                $im->block_until_locked($key);
+                $return = $self->_get(-1, @_);
+            }
+            unless ($return) {
+                $return = $self->_get(1, @_);
+            }
+            $im->unlock($key) if $key;
         }
         return $return;
     }

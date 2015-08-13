@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use Path::Class;
 use Sys::Hostname;
+use Parallel::ForkManager;
 
 BEGIN {
     use Test::Most tests => 21;
@@ -11,10 +12,25 @@ BEGIN {
     use_ok('VRPipe::Scheduler');
 }
 
-ok my $scheduler = VRPipe::Scheduler->create, 'able to create a VRPipe::Scheduler based on configured default';
+my $fm     = Parallel::ForkManager->new(8);
+my $num_ok = 0;
+$fm->run_on_finish(
+    sub {
+        my ($pid, $ok) = @_;
+        $num_ok++ if $ok;
+    }
+);
+for (1 .. 8) {
+    $fm->start and next;
+    my $scheduler = VRPipe::Scheduler->create;
+    my $ok = defined $scheduler && $scheduler->can('type');
+    $fm->finish($ok);
+}
+$fm->wait_all_children;
+is $num_ok, 8, 'able to create a VRPipe::Scheduler based on configured default, 8 times in parallel';
 
 # local
-ok $scheduler = VRPipe::Scheduler->create(type => 'local'), q[able to get the lsf scheduler using get(type => 'local')];
+ok my $scheduler = VRPipe::Scheduler->create(type => 'local'), q[able to get the lsf scheduler using get(type => 'local')];
 is $scheduler->type, 'local', 'the type really is local';
 
 my $requirements = VRPipe::Requirements->create(memory => 1, time => 1);

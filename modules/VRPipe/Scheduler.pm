@@ -51,7 +51,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Scheduler extends VRPipe::Persistent {
+class VRPipe::Scheduler extends VRPipe::PersistentLocklessCreate {
     use VRPipe::Config;
     my $vrp_config = VRPipe::Config->new();
     use VRPipe::Persistent::SchemaBase;
