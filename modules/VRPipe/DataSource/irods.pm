@@ -267,7 +267,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $self->debug_log(" query [imeta -z $zone qu -d $query] took $e seconds to run, returning " . scalar(@cmd_output) . " lines\n");
             my $collection;
             $t = time();
-            my $f_count = 0;
+            my $f_count     = 0;
+            my $f_skip_qc   = 0;
+            my $f_skip_meta = 0;
             QU: foreach (@cmd_output) {
                 #*** do we have to worry about spaces in file paths?...
                 if (/^collection:\s+(\S+)/) {
@@ -339,6 +341,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         }
                         
                         if ($require_qc_files && @qc_files != @desired_qc_file_suffixes) {
+                            $f_skip_qc++;
                             next QU;
                         }
                         elsif (@qc_files) {
@@ -541,6 +544,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     }
                     
                     foreach my $key (@required_keys) {
+                        $f_skip_meta++;
                         next QU unless defined $meta->{$key};
                     }
                     
@@ -709,7 +713,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             }
             $e = time() - $t;
             warn "\n" if $debug;
-            $self->debug_log(" getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds\n");
+            my $skip_msg = "; $f_skip_meta files skipped due to not having required metadata" if $f_skip_meta;
+            $skip_msg .= "; $f_skip_qc files skipped due to not having required qc files" if $f_skip_qc;
+            $self->debug_log(" getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds$skip_msg\n");
         }
         
         return \%files;
