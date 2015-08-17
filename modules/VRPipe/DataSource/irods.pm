@@ -713,8 +713,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             }
             $e = time() - $t;
             warn "\n" if $debug;
-            my $skip_msg = "; $f_skip_meta files skipped due to not having required metadata" if $f_skip_meta;
-            $skip_msg .= "; $f_skip_qc files skipped due to not having required qc files" if $f_skip_qc;
+            my $skip_msg = '';
+            $skip_msg .= "; $f_skip_meta files skipped due to not having required metadata" if $f_skip_meta;
+            $skip_msg .= "; $f_skip_qc files skipped due to not having required qc files"   if $f_skip_qc;
             $self->debug_log(" getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds$skip_msg\n");
         }
         
