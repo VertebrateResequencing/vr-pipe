@@ -151,7 +151,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 }
                 $this_cmd = "cd $output_dir; " . $this_cmd;
                 
-                my $args = qq[q[$this_cmd], input_path => q[$input_path], output_path => q[$input_path]];
+                my $args = qq[q[$this_cmd], input_path => q[$input_path], output_path => q[$output_path]];
                 $args .= qq[, check_records_vs_input => 1]  if $check_records;
                 $args .= qq[, samtools_exe => q[$samtools]] if $idx_output;
                 
