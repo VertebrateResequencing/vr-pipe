@@ -503,7 +503,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $study_labels = $self->cypher_labels('Study');
         my $group_labels = $self->cypher_labels('Group');
         my $user_labels  = $self->cypher_labels('User');
-        my $cypher       = "MATCH (donor)-[:sample]->(sample) WHERE id(donor) = {donor}.id MATCH (donor)<-[:member]-(study:$study_labels)<-[:has]-(group:$group_labels) OPTIONAL MATCH (group)<-[ar:administers]-(auser:$user_labels) OPTIONAL MATCH (sample)-[fbr:failed_by]->(fuser:$user_labels) OPTIONAL MATCH (sample)-[sbr:selected_by]->(suser:$user_labels) return donor,sample,group,ar,auser,fbr,fuser,sbr,suser";
+        my $cypher       = "MATCH (donor)-[:sample]->(sample) WHERE id(donor) = {donor}.id MATCH (donor)<-[:member]-(study:$study_labels)<-[:has]-(group:$group_labels) OPTIONAL MATCH (group)<-[ar:administers]-(auser:$user_labels) OPTIONAL MATCH (sample)-[fbr:failed_by]->(fuser:$user_labels) OPTIONAL MATCH (sample)-[sbr:selected_by]->(suser:$user_labels) OPTIONAL MATCH (sample)-[pbr:passed_by]->(puser:$user_labels) return donor,sample,group,ar,auser,fbr,fuser,sbr,suser,pbr,puser";
         my $graph        = $self->graph;
         my $graph_data   = $graph->_run_cypher([[$cypher, { donor => { id => $donor } }]]);
         
@@ -532,6 +532,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             elsif ($rel->{type} eq 'selected_by') {
                 $selected{ $rel->{startNode} } = [$end_node_props->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
+            }
+            elsif ($rel->{type} eq 'passed_by') {
+                $passed{ $rel->{startNode} } = [$end_node_props->{username}, DateTime->from_epoch(epoch => $rel->{properties}->{time})->ymd];
             }
             elsif ($rel->{type} eq 'administers') {
                 my $user_name = $graph->node_property($nodes{ $rel->{startNode} }, 'username');
