@@ -199,7 +199,7 @@ class VRPipe::Persistent::Graph {
                 }
             );
         }
-        #warn "cypher: $example_cypher (plus ", scalar($#{$array}), " similar)\n";
+        #warn "cypher: $example_cypher (plus $#{$array} similar)\n";
         
         my $decode;
         for (1 .. 20) {
