@@ -89,10 +89,10 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 # you can add, supplying path (only), and you get back a
                 # FileSystemElement for your file basename attached to ones for
                 # the parent dirs up to root
-                label          => 'FileSystemElement',              # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
+                label          => 'FileSystemElement',     # it could be a file or a dir, and could represent something that does not exist, so we can't test to see which
                 unique         => [qw(uuid)],
-                indexed        => [qw(basename md5 path protocol)], # full path is stored just to avoid a query to find the full path based on relationships when you're given a FileSystemElement in some other query; it isn't canonical but we hope to keep it up-to-date
-                allow_anything => 1,                                # allow arbitrary metadata to be stored on files/dirs
+                indexed        => [qw(basename md5 path)], # full path is stored just to avoid a query to find the full path based on relationships when you're given a FileSystemElement in some other query; it isn't canonical but we hope to keep it up-to-date
+                allow_anything => 1,                       # allow arbitrary metadata to be stored on files/dirs
                 methods        => {
                     path              => sub { __PACKAGE__->filesystemelement_to_path(shift, shift) }, # don't trust the path property - calculate instead
                     protocolless_path => sub { __PACKAGE__->filesystemelement_to_path(shift, 1) },
@@ -254,58 +254,11 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             $encryped_protocol = 'file:';
         }
         
-        my $apply_protocol = 0;
-        if ($only_get && $return_leaves && @$paths == 1) {
-            # the below "speed" query is taking ~4seconds, which is
-            # debilitatingly slow. In get mode we'll try and shortcut by
-            # seeing if we have exactly 1 node with matching path and protocol
-            # properties and returning that. Extra stuff here is due to us not
-            # always having had a protocol property of FSEs
-            my $t       = time();
-            my @matches = $self->get('FileSystemElement', { path => $paths->[0], protocol => $encryped_protocol });
-            my $e       = time() - $t;
-            warn "quick mode took $e seconds\n";
-            
-            #*** but this "shortcut", getting files by indexed path, is a bit
-            # slower than the chained graph query!!
-            
-            my $final;
-            if (@matches == 1) {
-                $final = $matches[0];
-            }
-            elsif (!@matches) {
-                @matches = $self->get('FileSystemElement', { path => $paths->[0] });
-                if (@matches) {
-                    my $no_protocol = 0;
-                    foreach my $match (@matches) {
-                        my $props = $match->properties;
-                        unless (exists $props->{protocol}) {
-                            $no_protocol++;
-                        }
-                    }
-                    
-                    if ($no_protocol == @matches) {
-                        if (@matches == 1) {
-                            $final = $matches[0];
-                            $final->add_properties({ protocol => $encryped_protocol });
-                            warn "immediately added protocol\n";
-                        }
-                        else {
-                            warn "will add protocol via slow method\n";
-                            $apply_protocol = 1;
-                        }
-                    }
-                }
-            }
-            
-            if ($final) {
-                if (wantarray()) {
-                    return ($final);
-                }
-                else {
-                    return $final;
-                }
-            }
+        # root node, which is / for local disc, and something like
+        # ftp://user:password@ftpserver:port/ for other protocols
+        my $root_basename = '/';
+        if ($encryped_protocol ne 'file:') {
+            $root_basename = $encryped_protocol . $root_basename;
         }
         
         my @cypher;
@@ -319,14 +272,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # either get existing dirs and file, or creates them with new uuids;
             # this bypasses the normal checking we have when using add() etc.,
             # but anything else would be too slow
-            
-            # root node, which is / for local disc, and something like
-            # ftp://user:password@ftpserver:port/ for other protocols
-            my $uuid          = $self->create_uuid();
-            my $root_basename = '/';
-            if ($encryped_protocol ne 'file:') {
-                $root_basename = $encryped_protocol . $root_basename;
-            }
+            my $uuid   = $self->create_uuid();
             my %params = (root_basename => $root_basename, root_uuid => $uuid);
             my $cypher = $only_get ? "MATCH (root:$fse_labels { basename: { param }.root_basename })" : "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
             
@@ -353,8 +299,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 $params{leaf_basename} = $basename;
                 $params{leaf_uuid}     = $uuid;
                 $params{leaf_path}     = "$path";
-                $params{leaf_protocol} = $encryped_protocol;
-                $cypher .= (($only_get && !$apply_protocol) ? "-[:contains]->(leaf { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid , leaf.protocol = { param }.leaf_protocol ON MATCH SET leaf.protocol = { param }.leaf_protocol") . ($return_leaves ? ' RETURN leaf' : '');
+                $cypher .= ($only_get ? "-[:contains]->(leaf { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             }
             else {
                 # we've only been asked for the root node
@@ -369,10 +314,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         }
         
         if ($return_leaves) {
-            my $t    = time();
             my $data = $graph->_run_cypher(\@cypher);
-            my $e    = time() - $t;
-            warn "slow mode took $e seconds\n";
             if ($data && $data->{nodes}) {
                 foreach my $node (@{ $data->{nodes} }) {
                     bless $node, 'VRPipe::Schema::VRPipe::FileSystemElement';
@@ -467,8 +409,6 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         my $dir = $self->path_to_filesystemelement($file->dir->stringify, $protocol ? (protocol => $protocol) : ());
         $dir->relate_to($source, 'contains', selfish => 1);
         $source->add_properties({ basename => $file->basename, path => $dest });
-        
-        # because getting FSE leaf nodes now has a shortcut that
         
         return $source;
     }
