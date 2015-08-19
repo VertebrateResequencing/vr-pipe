@@ -57,7 +57,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 default_value => 'samtools'
             ),
             input_metadata_to_keep => VRPipe::StepOption->create(
-                description => 'comma-separated list of metadata to be carried over to the processed files',
+                description => 'comma-separated list of metadata to be carried over to the processed files. By default copies all metadata to the output files; set to "-"" to transfer no metadata',
                 optional    => 1
             ),
             index_output => VRPipe::StepOption->create(
@@ -69,11 +69,6 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 description   => 'boolean; check the number of input records equals the number of output records when true',
                 optional      => 1,
                 default_value => 0
-            ),
-            sample_metadata_key => VRPipe::StepOption->create(
-                description   => 'metadata key for sample name',
-                optional      => 1,
-                default_value => 'sample'
             ),
         };
     }
@@ -94,7 +89,6 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
             my $options       = $self->options;
             my $cmd_line      = $options->{command_line};
             my $samtools      = $options->{samtools_exe};
-            my $sample_key    = $options->{sample_metadata_key};
             my $idx_output    = $options->{index_output};
             my $check_records = $options->{check_records_vs_input};
             my @metadata_keys = split(',', $options->{input_metadata_to_keep});
@@ -126,6 +120,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 my $in_meta  = $in_bam->metadata;
                 if (@metadata_keys) {
                     foreach my $key (@metadata_keys) {
+                        next if $key eq '-';
                         $out_meta->{$key} = $in_meta->{$key};
                     }
                 }
@@ -133,7 +128,8 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                     $out_meta = $in_meta;
                 }
                 $out_meta->{source_bam} = $in_bam->path;
-                my $basename = ($in_meta->{$sample_key}) ? $in_meta->{$sample_key} : "processed";
+                my $basename = $in_bam->basename;
+                $basename =~ s/\.(cr|b)am$//;
                 my $suffix = $cmd_line =~ /\$output_bam/ ? 'bam' : 'cram';
                 my $out_bam     = $self->output_file(sub_dir => $sub_dir, output_key => 'processed_bam_files', basename => "$basename.$suffix", type => $suffix, metadata => $out_meta);
                 my @out_files   = ($out_bam);
