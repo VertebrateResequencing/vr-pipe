@@ -5,7 +5,7 @@ use Path::Class;
 use Digest::MD5;
 
 BEGIN {
-    use Test::Most tests => 8;
+    use Test::Most tests => 10;
     use VRPipeTest (required_env => 'VRPIPE_TEST_PIPELINES');
     use TestPipelines;
 }
@@ -82,10 +82,20 @@ foreach my $tfile (@test_files) {
 }
 is scalar(@archive_files), scalar(@test_files), 'all the files were archived to expected locations';
 
+my $skip_pool;
+my @archive_file_paths = map { $_->absolute->stringify } @archive_files;
+foreach my $pool (qw(pool1 pool2 pool3)) {
+    if (grep /$pool/, @archive_file_paths) {
+        $skip_pool = $pool;
+        last;
+    }
+}
+
 # now let's check we can use an altered pool file and it still works
 $dpfh  = $dpf->openw;
 @pools = ();
-foreach my $pool (qw(pool1 pool2 pool4)) {
+foreach my $pool (qw(pool1 pool2 pool3 pool4)) {
+    next if $pool eq $skip_pool;
     my $dir = dir($archive_output_dir, $pool);
     $pipeline->make_path($dir);
     print $dpfh $dir, "\n";
@@ -114,12 +124,12 @@ foreach my $tfile (@archive_files) {
     my $moved_to = VRPipe::File->create(path => $tfile)->resolve->path;
     next unless $moved_to =~ /^$pool_regex/;
     
-    # only those in pool3 should have been archived again
-    my $expected = $tfile =~ /pool3/ ? file(archive_file_location($tfile))->stringify : $tfile;
+    # only those in $skip_pool should have been archived again
+    my $expected = $tfile =~ /$skip_pool/ ? file(archive_file_location($tfile))->stringify : $tfile;
     next unless $moved_to =~ /$expected$/;
     push(@new_archive_files, $moved_to);
     
-    if ($tfile =~ /pool3/ && !$moved_from) {
+    if ($tfile =~ /$skip_pool/ && !$moved_from) {
         $moved_to_path = $moved_to;
         $moved_from    = $tfile;
         $md5           = VRPipe::File->get(path => $moved_to)->md5;
@@ -130,6 +140,31 @@ is scalar(@new_archive_files), scalar(@archive_files), 'all the round-2 files we
 my $file = VRPipe::File->create(path => $moved_to_path);
 $moved_from = VRPipe::File->create(path => $moved_from);
 is_deeply [$moved_from->moved_to->id, $file->md5], [$file->id, $md5 ? $md5 : -1], 'moved file has appropriate properties';
+
+VRPipe::PipelineSetup->create(
+    name       => 'my third archive pipeline setup',
+    datasource => VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'my second archive pipeline setup[0]',
+        options => {}
+    ),
+    output_root => $archive_output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        disc_pool_file       => $dpf->path->stringify,
+        subdir_from_metadata => 'project_subdir',
+    }
+);
+
+ok handle_pipeline(), 'archiving to project_subdir worked';
+my @subdir_archive_files;
+foreach my $tfile (@archive_files) {
+    my $moved_to = VRPipe::File->create(path => $tfile)->resolve->path;
+    next unless $moved_to =~ /project_subdir/;
+    push(@subdir_archive_files, $moved_to);
+}
+is scalar(@subdir_archive_files), scalar(@archive_files), 'all the round-3 files were archived to expected locations';
 
 finish;
 exit;

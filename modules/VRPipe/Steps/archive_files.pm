@@ -37,7 +37,10 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
     use Digest::MD5;
     
     method options_definition {
-        return { disc_pool_file => VRPipe::StepOption->create(description => 'path to a file with an absolute path of a storage root directory on each line') };
+        return {
+            disc_pool_file       => VRPipe::StepOption->create(description => 'path to a file with an absolute path of a storage root directory on each line'),
+            subdir_from_metadata => VRPipe::StepOption->create(description => 'path to a file with an absolute path of a storage root directory on each line', optional => 1),
+        };
     }
     
     method inputs_definition {
@@ -56,7 +59,20 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             # successfully but 1 does not and the user does a reset to fix
             # the failure, the successfully moved file gets deleted and our
             # input no longer exists!
-            my ($file) = @{ $self->inputs->{file} };
+            my ($file)   = @{ $self->inputs->{file} };
+            my $sub_dir  = $options->{subdir_from_metadata};
+            my @keys     = $sub_dir =~ m/%([^%]+)%/g;
+            my $metadata = $file->metadata;
+            foreach my $key (@keys) {
+                if (defined $metadata->{$key}) {
+                    my $val = $metadata->{$key};
+                    $val =~ s/[^\w#]/_/g;
+                    $sub_dir =~ s/%$key%/$val/;
+                }
+                else {
+                    $self->throw("File " . $file->path . " does not have the metadata key $key.");
+                }
+            }
             
             # parse the disc_pool_file; we don't cache these results in a class
             # variable because disc_pool_file could be updated at any time.
@@ -66,10 +82,10 @@ class VRPipe::Steps::archive_files with VRPipe::StepRole {
             while (<$fh>) {
                 chomp;
                 next if /^#/;
-                my $dir = $_;
-                next unless dir($dir)->is_absolute;
-                next unless $file->check_destination_space(dir($dir), 5, 0);
-                push(@dirs, $dir);
+                my $dir = dir($_, $sub_dir ? $sub_dir : ());
+                next unless $dir->is_absolute;
+                next unless $file->check_destination_space($dir, 5, 0);
+                push(@dirs, $dir->stringify);
             }
             my $max = @dirs;
             
