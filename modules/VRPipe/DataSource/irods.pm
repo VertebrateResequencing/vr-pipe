@@ -43,13 +43,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     use Path::Class;
     use VRPipe::Persistent::InMemory;
     use VRPipe::Schema;
-    use VRPipe::Steps::irods;
+    use File::Which qw(which);
+    use JSON::XS;
+    use IPC::Run;
+    
+    our %ignore_keys = map { $_ => 1 } qw(study_id study_title study_accession_number sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
     
     has '_irods_files_and_metadata_cache' => (
         is        => 'rw',
         isa       => 'HashRef',
         clearer   => '_clear_cache',
         predicate => '_cached',
+    );
+    
+    has '_analysis_to_col' => (
+        is      => 'rw',
+        isa     => 'HashRef',
+        default => sub { {} }
     );
     
     method description {
@@ -62,7 +72,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method method_description (Str $method) {
         if ($method eq 'all') {
-            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option (none supplied means the dataelements will have paths like irod:/abs/path/to/file.txt, and the step(s) in your pipeline will have to be able to handle such paths). To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 1 day in production.";
+            return "An element will comprise one of the files returned by imeta qu -d given the arguments you supply for the 'file_query' option (which can be the options specified directly, or the absolute path to a file containing multiple sets of imeta options, 1 set per line). The file will have all the relevant irods metadata associated with it, and a local path based on the 'local_root_dir' option (none supplied means the dataelements will have paths like irod:/abs/path/to/file.txt, and the step(s) in your pipeline will have to be able to handle such paths). To avoid spamming the irods server, the update_interval option allows you to specify the minimum number of minutes between each check for changes to files. If update_interval is not supplied it defaults to 5 seconds when testing, and 30mins in production.";
         }
         if ($method eq 'all_with_warehouse_metadata') {
             return "In addition to doing everything the all method does, it adds extra metadata found in the warehouse database to the files with the keys public_name, sample_supplier_name, sample_control, sample_cohort, taxon_id, sample_created_date and study_title (if defined). Optionally provide a comma-separated list of required keys to the required_metadata option to ignore files lacking that metadata. If any analysis has been done to a file, the associated files are stored under irods_analysis_files. If any qc files have been stored with the file, these are associated with a qc_file relationship; the require_qc_files option will skip files that do not have all the qc files specified in desired_qc_files, which is a comma-separated list of main-file-basename(excluding extension) suffixes, defaulting to _F0xB00.stats,.genotype.json,.verify_bam_id.json. The vrtrack_group option determines which group the studies your data are in are placed under - use it for grouping together studies you will analyse the same way later. The graph_filter option is a string of the form 'namespace#label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify VRTrack#Sample#qc_failed#0 to only have files related to samples that have not been qc failed. (This method is Sanger-specific and also requires the environment variables WAREHOUSE_DATABASE, WAREHOUSE_HOST, WAREHOUSE_PORT and WAREHOUSE_USER.)";
@@ -91,9 +101,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     
     method _irods_file_metadata_checksum {
         # we need a quick way of looking at all the relevant metadata for all
-        # our desired files, but imeta/iquest doesn't give us this; to avoid
-        # abusing the irods server too much we only actually calculate the
-        # checksum anew every x mins; otherwise we just return the current
+        # our desired files, but imeta/iquest doesn't give us this, so we
+        # use baton instead.
+        # to avoid abusing the irods server too much we only actually calculate
+        # the checksum anew every x mins; otherwise we just return the current
         # checksum
         my $im      = VRPipe::Persistent::InMemory->new;
         my $options = $self->options;
@@ -107,23 +118,34 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             else {
                 $update_interval = $options->{update_interval};
             }
+            
+            # this used to be really slow so we had defaults or user settings
+            # of like a day, so we'll set it down to at most an hour
+            if ($update_interval > 3600) {
+                $update_interval = 3600;
+            }
         }
         else {
-            # default to 24hrs
-            $update_interval = 86400;
+            # default to 30mins
+            $update_interval = 1800;
         }
-        my $lock_key              = 'irods_datasource.' . $self->_datasource_id;
-        my $locked                = $im->lock($lock_key, unlock_after => $update_interval);
-        my $current_checksum      = $self->_changed_marker;
-        my $graph_filter          = $options->{graph_filter};
-        my $filter_after_grouping = $options->{filter_after_grouping};
-        my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
-        my $required_metadata = $options->{required_metadata} || '';
-        my $vrtrack_group     = $options->{vrtrack_group}     || '';
-        my $require_qc_files  = $options->{require_qc_files}  || 0;
-        my $desired_qc_files = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0xB00.stats,.genotype.json,.verify_bam_id.json';
+        my $lock_key = 'irods_datasource.' . $self->_datasource_id;
+        
+        my $current_checksum = $self->_changed_marker;
+        unless ($im->assert_life($lock_key)) {
+            warn "irods datasource will return without checking since it it currently being updated in another process\n" if $self->debug;
+            return $current_checksum;
+        }
+        
+        my $locked                      = $im->lock($lock_key, unlock_after => $update_interval);
+        my $graph_filter                = $options->{graph_filter};
+        my $filter_after_grouping       = $options->{filter_after_grouping};
+        my $required_metadata           = $options->{required_metadata} || '';
+        my $vrtrack_group               = $options->{vrtrack_group} || '';
+        my $require_qc_files            = $options->{require_qc_files} || 0;
+        my $desired_qc_files            = defined $options->{desired_qc_files} ? $options->{desired_qc_files} : '_F0xB00.stats,.genotype.json,.verify_bam_id.json';
         my $add_metadata_from_warehouse = $self->method =~ /with_warehouse_metadata$/ ? 1 : 0;
-        my $local_root_dir = $options->{local_root_dir} || '';
+        my $local_root_dir              = $options->{local_root_dir} || '';
         
         if ($current_checksum && length($current_checksum) == 32) {
             unless ($locked) {
@@ -136,17 +158,19 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         # get the current files and their metadata and stringify it all
         my $t     = time();
-        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files);
+        my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files, $graph_filter, $filter_after_grouping);
         my $e     = time() - $t;
         $self->debug_log("irods _get_irods_files_and_metadata call took $e seconds\n");
         $self->_irods_files_and_metadata_cache($files);
+        
         my $data = '';
-        foreach my $path (sort keys %$files) {
+        while (my ($path, $meta) = each %$files) {
             $data .= $path;
             
-            my $meta = $files->{$path}->[0];
             foreach my $key (sort keys %$meta) {
                 next if $key eq 'vrpipe_irods_order';
+                next if $key eq 'irods_datasource_changed';
+                next if $key eq 'irods_datasource_graph_filter';
                 my $val = $meta->{$key};
                 next unless defined $val;
                 # limit to printable ascii so md5_hex subroutine will work
@@ -154,8 +178,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 $data .= "|$key:$val|";
             }
             
-            if ($graph) {
-                my $pass = $self->_file_filter($files->{$path}->[1], $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+            if ($graph_filter) {
+                my $pass = $meta->{irods_datasource_graph_filter};
                 $pass ||= 0;
                 $data .= "|graph_filter:$pass|";
             }
@@ -165,10 +189,17 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         return $digest;
     }
     
-    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Str $local_root_dir!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?) {
+    method _get_irods_files_and_metadata (Str $zone!, Str $raw_query!, Str $local_root_dir!, Bool $add_metadata_from_warehouse!, Str $required_metadata!, Str $vrtrack_group!, Bool $require_qc_files?, Str $desired_qc_files?, Maybe[Str] $graph_filter?, Bool $filter_after_grouping?) {
         return $self->_irods_files_and_metadata_cache if $self->_cached;
         
         my $debug = $self->debug;
+        
+        my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
+        
+        my ($baton_metaquery, $baton_list);
+        unless (($baton_metaquery = which('baton-metaquery')) && ($baton_list = which('baton-list'))) {
+            $self->throw('baton-metaquery and baton-list must be in your PATH for the irods datasource to work (see http://wtsi-npg.github.io/baton/)');
+        }
         
         my @required_keys;
         if ($required_metadata) {
@@ -176,7 +207,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         }
         my @desired_qc_file_suffixes = split(/,/, $desired_qc_files) if $desired_qc_files;
         my $desired_qc_file_suffixes = join('|', @desired_qc_file_suffixes) if @desired_qc_file_suffixes;
-        my $desired_qc_file_regex = qr/\s+(\S+(?:$desired_qc_file_suffixes))/ if $desired_qc_file_suffixes;
+        my $desired_qc_file_regex = qr/(\S+(?:$desired_qc_file_suffixes))/ if $desired_qc_file_suffixes;
         
         my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender, $internal_id);
         my ($study_sth, $study_title, $study_ac, $study_id_sth, $warehouse_study_id);
@@ -258,468 +289,701 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         }
         $self->debug_log("have " . scalar(@queries) . " queries to deal with\n");
         
+        # subs for working with baton-* which will be fed json
+        my $json = JSON::XS->new->allow_nonref(1);
+        
+        my %harnesses;
+        my $run_baton = sub {
+            my ($cmd, $json_input) = @_;
+            
+            # we use IPC::Run to hold open a pipe to and from baton for each
+            # different baton command...
+            my $cmd_str = join(' ', @$cmd);
+            my ($h, $in, $out, $err);
+            unless (defined $harnesses{$cmd_str}) {
+                my $i = '';
+                my $o = '';
+                my $e = '';
+                $in  = \$i;
+                $out = \$o;
+                $err = \$e;
+                $h   = IPC::Run::harness($cmd, $in, $out, $err);
+                $harnesses{$cmd_str} = [$h, $in, $out, $err];
+            }
+            else {
+                ($h, $in, $out, $err) = @{ $harnesses{$cmd_str} };
+            }
+            
+            # ... then send the command some json and wait for the json
+            # response
+            ${$in} .= $json_input . "\n";
+            $h->pump until ${$out} =~ m{[\r\n]$}msx;
+            
+            if (${$err}) {
+                #*** should I throw here instead of just warn?
+                warn "irods datasource baton error while processing [$json_input | $cmd_str]: ${$err}\n";
+            }
+            ${$err} = '';
+            
+            # now we decode and return the json response
+            my $result;
+            if (${$out}) {
+                chomp(${$out});
+                $result = $json->decode(${$out});
+            }
+            ${$out} = '';
+            
+            return $result;
+        };
+        
+        my $run_baton_metadata = sub {
+            my ($query, $mode) = @_; # $mode is files|dirs
+            my $type = $mode eq 'dirs' ? '--coll' : '--obj';
+            my @cmd = ($baton_metaquery, qw(--unbuffered --zone), $zone, qw(--checksum --avu), $type);
+            
+            # convert query string to baton-compatible json
+            # '{avus: [{attribute: "fluidigm_plate", value: "%", o: "like"}, {attribute: "study_id", value: "3679"}]}'
+            my @avus;
+            foreach my $avu (split(/\s+and\s+/i, $query)) {
+                my ($attribute, $o, $value) = split(/\s+/, $avu);
+                foreach my $s (\$attribute, \$value, \$o) {
+                    if (${$s} && ${$s} =~ /^['"].*['"]$/) {
+                        ${$s} =~ s/^['"]//;
+                        ${$s} =~ s/['"]$//;
+                    }
+                }
+                push(@avus, { attribute => $attribute, value => $value, o => $o });
+            }
+            my $json_input = $json->encode({ avus => \@avus });
+            
+            my $baton_output = &$run_baton(\@cmd, $json_input);
+            
+            my @files;
+            foreach my $file_hash (@$baton_output) {
+                my $collection = $file_hash->{collection};
+                my $basename   = $file_hash->{data_object};
+                
+                # convert all the avus in to a flat metadata hash
+                my $meta = {};
+                foreach my $avu (@{ $file_hash->{avus} }) {
+                    my $attribute = $avu->{attribute};
+                    next if $mode eq 'files' && $attribute =~ /^dcterms:/;
+                    next if $attribute =~ /_history$/;
+                    $meta->{$attribute} = $avu->{value};
+                }
+                
+                push(@files, { dir => $collection, $basename ? (basename => $basename) : (), metadata => $meta });
+            }
+            
+            return \@files;
+        };
+        
+        my $run_baton_list;
+        $run_baton_list = sub {
+            my ($collection, $mode, $recursive_files_only) = @_; # $mode is contents|metadata
+            my $type = $mode eq 'contents' ? '--contents' : '--avu';
+            my @cmd = ($baton_list, '--unbuffered', $type);
+            
+            # convert collection string to baton-compatible json
+            # '{collection: "/seq/fluidigm/34/b9/41/1662049042/11/d7/28"}'
+            my $json_input = $json->encode({ collection => $collection });
+            
+            my $baton_output = &$run_baton(\@cmd, $json_input);
+            
+            if ($mode eq 'contents') {
+                my @files;
+                foreach my $content (@{ $baton_output->{contents} }) {
+                    my $dir      = $content->{collection};
+                    my $basename = $content->{data_object};
+                    
+                    if ($recursive_files_only && !$basename) {
+                        push(@files, &$run_baton_list($dir, $mode, 1));
+                        next;
+                    }
+                    
+                    push(@files, $dir . ($basename ? "/$basename" : ''));
+                }
+                return @files;
+            }
+            else {
+                my $meta = {};
+                foreach my $avu (@{ $baton_output->{avus} }) {
+                    $meta->{ $avu->{attribute} } = $avu->{value};
+                }
+                return $meta;
+            }
+        };
+        
+        # use Time::HiRes qw(gettimeofday tv_interval);
+        # my @times;
+        
+        my $tt = time();
         my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache);
         my $order = 1;
         foreach my $query (@queries) {
-            my $t          = time();
-            my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -d $query");
-            my $e          = time() - $t;
-            $self->debug_log(" query [imeta -z $zone qu -d $query] took $e seconds to run, returning " . scalar(@cmd_output) . " lines\n");
-            my $collection;
+            my $t                         = time();
+            my $irods_files_with_metadata = &$run_baton_metadata($query, 'files');
+            my $e                         = time() - $t;
+            $self->debug_log(" baton query for [$query] took $e seconds to run, returning " . scalar(@$irods_files_with_metadata) . " files with their metadata\n");
+            
             $t = time();
             my $f_count     = 0;
             my $f_skip_qc   = 0;
             my $f_skip_meta = 0;
-            QU: foreach (@cmd_output) {
-                #*** do we have to worry about spaces in file paths?...
-                if (/^collection:\s+(\S+)/) {
-                    $collection = $1;
-                }
-                elsif (/^----/) {
-                    undef $collection;
-                }
-                elsif ($collection && /^dataObj:\s+(\S+)/) {
-                    my $basename = $1;
-                    my $path     = "$collection/$basename";
-                    # get all the metadata for this file
-                    $f_count++;
-                    print STDERR '. ' if $debug;
-                    my $meta = VRPipe::Steps::irods->get_file_metadata($path);
-                    $meta->{vrpipe_irods_order} = $order++;
+            FILE: foreach my $file_hash (@$irods_files_with_metadata) {
+                my $collection = $file_hash->{dir};
+                my $basename   = $file_hash->{basename};
+                my $path       = "$collection/$basename";
+                my $meta       = $file_hash->{metadata};
+                $f_count++;
+                print STDERR '. ' if $debug;
+                $meta->{vrpipe_irods_order} = $order++;
+                $meta->{expected_md5} = $file_hash->{checksum} if $file_hash->{checksum};
+                
+                # a Sanger-specific thing is that we can have qc-related
+                # files stored in the same folder or qc sub-folder as our
+                # main file, so we'll associate these files with the main
+                # file if they exist, and skip if some don't exist and
+                # we're in require mode
+                my %qc_files;
+                if ($vrtrack && $desired_qc_file_regex) {
+                    my $prefix = $basename;
+                    $prefix =~ s/\.[^\.]+$//;
+                    my $desired_regex = qr/$prefix(?:$desired_qc_file_suffixes)/;
                     
-                    # a Sanger-specific thing is that we can have qc-related
-                    # files stored in the same folder or qc sub-folder as our
-                    # main file, so we'll associate these files with the main
-                    # file if they exist, and skip if some don't exist and
-                    # we're in require mode
-                    my $graph_file;
-                    if ($vrtrack && $desired_qc_file_regex) {
-                        my $prefix = $basename;
-                        $prefix =~ s/\.[^\.]+$//;
-                        my $desired_regex = qr/$prefix(?:$desired_qc_file_suffixes)/;
+                    my $ils_output = [];
+                    if (exists $ils_cache{$collection}) {
+                        $ils_output = $ils_cache{$collection};
+                    }
+                    else {
+                        my @base_ils_output = &$run_baton_list($collection, 'contents');
+                        my @qc_ils_output;
+                        foreach (reverse(@base_ils_output)) {
+                            if ($_ eq "$collection/qc") {
+                                @qc_ils_output = &$run_baton_list("$collection/qc", 'contents');
+                                last;
+                            }
+                        }
                         
-                        my $ils_output = [];
-                        if (exists $ils_cache{$collection}) {
-                            $ils_output = $ils_cache{$collection};
+                        foreach (@base_ils_output, @qc_ils_output) {
+                            if (/^$desired_qc_file_regex$/) {
+                                push(@$ils_output, $_);
+                            }
+                        }
+                        
+                        $ils_cache{$collection} = $ils_output;
+                    }
+                    
+                    my @qc_files;
+                    foreach my $path (@$ils_output) {
+                        my $basename = file($path)->basename;
+                        if ($basename =~ /^$desired_regex$/) {
+                            push(@qc_files, $path);
+                        }
+                    }
+                    
+                    if ($require_qc_files && @qc_files != @desired_qc_file_suffixes) {
+                        $f_skip_qc++;
+                        next FILE;
+                    }
+                    elsif (@qc_files) {
+                        foreach my $qc_file_path (@qc_files) {
+                            $qc_files{$qc_file_path} = 1;
+                        }
+                    }
+                }
+                
+                # grab extra info from the warehouse database if requested
+                if ($sample_sth) {
+                    undef $public_name;
+                    undef $donor_id;
+                    undef $supplier_name;
+                    undef $control;
+                    undef $taxon_id;
+                    undef $created;
+                    undef $gender;
+                    undef $internal_id;
+                    my $sanger_sample_id = $meta->{sample};
+                    
+                    if ($sanger_sample_id) {
+                        $sample_sth->execute($sanger_sample_id);
+                        $sample_sth->fetch;
+                        if ($public_name) {
+                            $meta->{public_name} = "$public_name";
+                        }
+                        if ($donor_id) {
+                            $meta->{sample_cohort} = "$donor_id";
+                        }
+                        if ($supplier_name) {
+                            $meta->{sample_supplier_name} = "$supplier_name";
+                        }
+                        if (defined $control) {
+                            $meta->{sample_control} = "$control";
+                        }
+                        if (defined $taxon_id) {
+                            $meta->{taxon_id} = "$taxon_id";
+                        }
+                        if (defined $created) {
+                            $meta->{sample_created_date} = "$created";
+                        }
+                        if (defined $gender) {
+                            $meta->{sample_gender} = "$gender";
+                        }
+                    }
+                    
+                    # override irods study_id with warehouse study_id, and
+                    # set study_title
+                    if (defined $internal_id) {
+                        undef $warehouse_study_id;
+                        $study_id_sth->execute($internal_id);
+                        my (@study_ids, @study_titles, @study_acs);
+                        while ($study_id_sth->fetch) {
+                            push(@study_ids, "$warehouse_study_id");
+                            
+                            undef $study_title;
+                            undef $study_ac;
+                            $study_sth->execute($warehouse_study_id);
+                            $study_sth->fetch;
+                            if ($study_title) {
+                                push(@study_titles, "$study_title");
+                                $study_ac ||= ''; # ac isn't always set in warehouse
+                                push(@study_acs, "$study_ac");
+                            }
+                        }
+                        
+                        # because we most likely want to populate VRTrack
+                        # based on this metadata, and VRTrack can't cope
+                        # with multiple study_ids per sample, we'll check
+                        # the source to see if we wanted just a single study
+                        # and make note of that one
+                        my $preferred_i;
+                        if (@study_ids > 1) {
+                            $meta->{study_id} = \@study_ids;
+                            
+                            if ($query =~ /study_id\s+=\s+(\d+)/) {
+                                my $desired = $1;
+                                foreach my $i (0 .. $#study_ids) {
+                                    my $id = $study_ids[$i];
+                                    if ($id == $desired) {
+                                        $meta->{study_id_preferred} = $desired;
+                                        $preferred_i = $i;
+                                        last;
+                                    }
+                                }
+                            }
                         }
                         else {
-                            my @base_ils_output = VRPipe::Steps::irods->open_irods_command("ils $collection");
-                            my @qc_ils_output;
-                            foreach (reverse(@base_ils_output)) {
-                                if (/^\s+C- (\S+)/) {
-                                    if ($1 eq "$collection/qc") {
-                                        @qc_ils_output = VRPipe::Steps::irods->open_irods_command("ils $collection/qc");
+                            $meta->{study_id} = $study_ids[0];
+                        }
+                        
+                        if (@study_titles > 1) {
+                            $meta->{study_title}            = \@study_titles;
+                            $meta->{study_accession_number} = \@study_acs;
+                            
+                            if ($query =~ /study\s+=\s+["']([^"']+)["']/) {
+                                my $desired = $1;
+                                foreach my $i (0 .. $#study_titles) {
+                                    my $title = $study_titles[$i];
+                                    if ($title == $desired) {
+                                        $meta->{study_id_preferred} = $study_ids[$i];
+                                        last;
                                     }
+                                }
+                            }
+                        }
+                        else {
+                            $meta->{study_title} = $study_titles[0];
+                            $meta->{study_accession_number} = $study_acs[0] if $study_acs[0];
+                        }
+                    }
+                    
+                    # another Sanger-specific thing is if we had an
+                    # analysis_uuid, see if there are any collections with the
+                    # same analysis_uuid and store some of the associated files
+                    if (exists $meta->{analysis_uuid}) {
+                        # get the most recent collection associated with an
+                        # analysis done for this file
+                        my @uuids = ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid});
+                        my $analysis_to_col_hash = $self->_analysis_to_col;
+                        my %collections;
+                        foreach my $uuid (@uuids) {
+                            if (exists $analysis_to_cols{$uuid}) {
+                                foreach my $this_col (@{ $analysis_to_cols{$uuid} }) {
+                                    $collections{$this_col} = 1;
+                                }
+                            }
+                            else {
+                                my $irods_dirs_with_metadata = &$run_baton_metadata("analysis_uuid = $uuid", 'dirs');
+                                
+                                my @these_cols;
+                                foreach my $dir_hash (@$irods_dirs_with_metadata) {
+                                    my $this_col = $dir_hash->{dir};
+                                    $collections{$this_col} = 1;
+                                    push(@these_cols, $this_col);
+                                    
+                                    unless (exists $col_dates{$this_col}) {
+                                        my $date = $dir_hash->{metadata}->{'dcterms:created'} || '2013-01-01T12:00:00';
+                                        $col_dates{$this_col} = $date;
+                                        $analysis_to_col_hash->{uuids}->{$uuid}->{$this_col} = $vrtrack->date_to_epoch($date);
+                                    }
+                                }
+                                
+                                $analysis_to_cols{$uuid} = \@these_cols;
+                            }
+                        }
+                        
+                        my ($analysis_collection) = sort { $col_dates{$b} cmp $col_dates{$a} } keys %collections;
+                        
+                        if ($analysis_collection) {
+                            my @files;
+                            if (exists $analysis_files{$analysis_collection}) {
+                                @files = @{ $analysis_files{$analysis_collection} };
+                            }
+                            else {
+                                my @file_contents = &$run_baton_list($analysis_collection, 'contents', 1);
+                                foreach my $file (@file_contents) {
+                                    push(@files, $file);
+                                    $analysis_to_col_hash->{cols}->{$analysis_collection}->{$file} = 1;
+                                }
+                                
+                                $analysis_files{$analysis_collection} = [@files];
+                            }
+                            
+                            if (@files) {
+                                $meta->{irods_analysis_files} = @files > 1 ? \@files : $files[0];
+                            }
+                        }
+                    }
+                }
+                
+                foreach my $key (@required_keys) {
+                    unless (defined $meta->{$key}) {
+                        $f_skip_meta++;
+                        next FILE;
+                    }
+                }
+                
+                # represent lab tracking metadata in the graph database
+                my $graph_file;
+                if ($vrtrack) {
+                    # we'll only do the heavy-duty graph access if the file has
+                    # changed (or is new)
+                    #my $gtod = [gettimeofday];
+                    #*** this get_file() is critically slow (~3s per get);
+                    # collecting all paths and getting them in one cypher query
+                    # doesn't help; having md5sum lookups indexed on the files
+                    # doesn't help get them faster either
+                    my $graph_file = $vrtrack->get_file($path, 'irods:');
+                    #$times[0] += tv_interval($gtod);
+                    if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1))) {
+                        #$gtod = [gettimeofday];
+                        my $already_in_graph = 0;
+                        if ($graph_file) {
+                            my @related = $graph_file->related();
+                            if (@related > 2) {
+                                $already_in_graph = 1;
+                            }
+                        }
+                        else {
+                            $graph_file = $vrtrack->add_file($path, 'irods:');
+                        }
+                        #$times[1] += tv_interval($gtod);
+                        
+                        #$gtod = [gettimeofday];
+                        my $from_scratch = 1;
+                        if ($changes && ref($changes)) { # $changes is 0 for no change, 1 for brand new, and an array ref of changes if changed
+                            $meta->{vrpipe_meta_changed} = $changes;
+                            
+                            if ($already_in_graph) {
+                                # try and quickly fix up basic changes without
+                                # having to merge every single node and rel
+                                
+                                my $handled   = 0;
+                                my $unhandled = '';
+                                foreach my $change (@$changes) {
+                                    my ($key, $old, $new, $diff) = @$change;
+                                    if ($key eq 'public_name') {
+                                        my $sample = $vrtrack->get('Sample', { public_name => $new });
+                                        if ($sample) {
+                                            $handled = 1;
+                                            next;
+                                        }
+                                        $sample = $vrtrack->get('Sample', { public_name => $old });
+                                        if ($sample) {
+                                            $sample->public_name($new);
+                                            $handled = 1;
+                                            next;
+                                        }
+                                    }
+                                    
+                                    $unhandled .= "$key: $diff; ";
+                                }
+                                
+                                if ($handled == @$changes) {
+                                    $from_scratch = 0;
                                 }
                                 else {
-                                    last;
+                                    $self->debug_log("  {temp debug; tell Sendu about this!} couldn't quickly handle all changes for $path [$unhandled]\n");
                                 }
                             }
-                            
-                            if (@qc_ils_output) {
-                                my $dir;
-                                foreach (@base_ils_output, @qc_ils_output) {
-                                    next unless $_;
-                                    if (/^($collection\S*):$/) {
-                                        $dir = $1;
-                                    }
-                                    elsif (/^$desired_qc_file_regex$/) {
-                                        push(@$ils_output, [$dir, $1]);
-                                    }
-                                }
-                            }
-                            
-                            $ils_cache{$collection} = $ils_output;
                         }
+                        #$times[2] += tv_interval($gtod);
                         
-                        my @qc_files;
-                        foreach my $ref (@$ils_output) {
-                            my ($dir, $basename) = @$ref;
-                            if ($basename =~ /^$desired_regex$/) {
-                                push(@qc_files, "$dir/$basename");
-                            }
-                        }
-                        
-                        if ($require_qc_files && @qc_files != @desired_qc_file_suffixes) {
-                            $f_skip_qc++;
-                            next QU;
-                        }
-                        elsif (@qc_files) {
-                            $graph_file = $vrtrack->add_file($path, 'irods:');
-                            foreach my $qc_file_path (@qc_files) {
+                        #$gtod = [gettimeofday];
+                        if ($from_scratch) {
+                            print STDERR '! ' if $debug;
+                            
+                            # relate any qc files to this file
+                            foreach my $qc_file_path (keys %qc_files) {
                                 my $qc_file = $vrtrack->add_file($qc_file_path, 'irods:');
                                 $graph_file->relate_to($qc_file, 'qc_file');
                             }
-                        }
-                    }
-                    
-                    # grab extra info from the warehouse database if requested
-                    if ($sample_sth) {
-                        undef $public_name;
-                        undef $donor_id;
-                        undef $supplier_name;
-                        undef $control;
-                        undef $taxon_id;
-                        undef $created;
-                        undef $gender;
-                        undef $internal_id;
-                        my $sanger_sample_id = $meta->{sample};
-                        
-                        if ($sanger_sample_id) {
-                            $sample_sth->execute($sanger_sample_id);
-                            $sample_sth->fetch;
-                            if ($public_name) {
-                                $meta->{public_name} = "$public_name";
-                            }
-                            if ($donor_id) {
-                                $meta->{sample_cohort} = "$donor_id";
-                            }
-                            if ($supplier_name) {
-                                $meta->{sample_supplier_name} = "$supplier_name";
-                            }
-                            if (defined $control) {
-                                $meta->{sample_control} = "$control";
-                            }
-                            if (defined $taxon_id) {
-                                $meta->{taxon_id} = "$taxon_id";
-                            }
-                            if (defined $created) {
-                                $meta->{sample_created_date} = "$created";
-                            }
-                            if (defined $gender) {
-                                $meta->{sample_gender} = "$gender";
-                            }
-                        }
-                        
-                        # override irods study_id with warehouse study_id, and
-                        # set study_title
-                        if (defined $internal_id) {
-                            undef $warehouse_study_id;
-                            $study_id_sth->execute($internal_id);
-                            my (@study_ids, @study_titles, @study_acs);
-                            while ($study_id_sth->fetch) {
-                                push(@study_ids, "$warehouse_study_id");
-                                
-                                undef $study_title;
-                                undef $study_ac;
-                                $study_sth->execute($warehouse_study_id);
-                                $study_sth->fetch;
-                                if ($study_title) {
-                                    push(@study_titles, "$study_title");
-                                    $study_ac ||= ''; # ac isn't always set in warehouse
-                                    push(@study_acs, "$study_ac");
-                                }
-                            }
                             
-                            # because we most likely want to populate VRTrack
-                            # based on this metadata, and VRTrack can't cope
-                            # with multiple study_ids per sample, we'll check
-                            # the source to see if we wanted just a single study
-                            # and make note of that one
-                            my $preferred_i;
-                            if (@study_ids > 1) {
-                                $meta->{study_id} = \@study_ids;
-                                
-                                if ($query =~ /study_id\s+=\s+(\d+)/) {
-                                    my $desired = $1;
-                                    foreach my $i (0 .. $#study_ids) {
-                                        my $id = $study_ids[$i];
-                                        if ($id == $desired) {
-                                            $meta->{study_id_preferred} = $desired;
-                                            $preferred_i = $i;
-                                            last;
-                                        }
-                                    }
-                                }
-                            }
-                            else {
-                                $meta->{study_id} = $study_ids[0];
-                            }
-                            
-                            if (@study_titles > 1) {
-                                $meta->{study_title}            = \@study_titles;
-                                $meta->{study_accession_number} = \@study_acs;
-                                
-                                if ($query =~ /study\s+=\s+["']([^"']+)["']/) {
-                                    my $desired = $1;
-                                    foreach my $i (0 .. $#study_titles) {
-                                        my $title = $study_titles[$i];
-                                        if ($title == $desired) {
-                                            $meta->{study_id_preferred} = $study_ids[$i];
-                                            last;
-                                        }
-                                    }
-                                }
-                            }
-                            else {
-                                $meta->{study_title} = $study_titles[0];
-                                $meta->{study_accession_number} = $study_acs[0] if $study_acs[0];
-                            }
-                        }
-                        
-                        # another Sanger-specific thing is if we had an
-                        # analysis_uuid, see if there are any collections with the
-                        # same analysis_uuid and store some of the associated files
-                        if (exists $meta->{analysis_uuid}) {
-                            # get the most recent collection associated with an
-                            # analysis done for this file
-                            my @uuids = ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid});
-                            my %collections;
-                            foreach my $uuid (@uuids) {
-                                if (exists $analysis_to_cols{$uuid}) {
-                                    foreach my $this_col (@{ $analysis_to_cols{$uuid} }) {
-                                        $collections{$this_col} = 1;
-                                    }
-                                }
-                                else {
+                            # if _get_irods_files_and_metadata() stored collection info, relate
+                            # those now as well
+                            my $analysis_to_col_hash = $self->_analysis_to_col;
+                            if (exists $meta->{analysis_uuid}) {
+                                foreach my $uuid (ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid})) {
+                                    my $cols_hash = $analysis_to_col_hash->{uuids}->{$uuid} || next;
                                     my $vrtrack_analysis = $vrtrack->add('Analysis', { uuid => $uuid });
-                                    $analyses{$uuid} = $vrtrack_analysis;
-                                    my @cmd_output = VRPipe::Steps::irods->open_irods_command("imeta -z $zone qu -C analysis_uuid = $uuid");
-                                    
-                                    my @these_cols;
-                                    foreach (@cmd_output) {
-                                        if (/^collection:\s+(\S+)/) {
-                                            my $this_col = $1;
-                                            $collections{$this_col} = 1;
-                                            push(@these_cols, $this_col);
-                                            
-                                            unless (exists $col_dates{$this_col}) {
-                                                my @date_cmd_output = VRPipe::Steps::irods->open_irods_command("imeta ls -C $this_col dcterms:created");
-                                                my $date;
-                                                foreach (@date_cmd_output) {
-                                                    if (/^value: (.+)$/) {
-                                                        $date = $1;
-                                                        last;
-                                                    }
-                                                }
-                                                $date ||= '2013-01-01T12:00:00';
-                                                $col_dates{$this_col} = $date;
-                                                
-                                                my $vrtrack_col = $vrtrack->add('Collection', { path => $this_col, date => $vrtrack->date_to_epoch($date) }, incoming => { type => 'directory', node => $vrtrack_analysis });
-                                                $collections{$this_col} = $vrtrack_col;
-                                            }
+                                    $graph_file->relate_to($vrtrack_analysis, 'analysed');
+                                    while (my ($this_col, $date) = each %{$cols_hash}) {
+                                        my $vrtrack_col = $vrtrack->add('Collection', { path => $this_col, date => $date }, incoming => { type => 'directory', node => $vrtrack_analysis });
+                                        
+                                        my $file_hash = $analysis_to_col_hash->{cols}->{$this_col} || next;
+                                        foreach my $file (keys %{$file_hash}) {
+                                            my $vrtrack_file = $vrtrack->add_file($file, 'irods:');
+                                            $vrtrack_col->relate_to($vrtrack_file, 'contains');
                                         }
+                                        delete $analysis_to_col_hash->{cols}->{$this_col};
                                     }
-                                    
-                                    $analysis_to_cols{$uuid} = \@these_cols;
+                                    delete $analysis_to_col_hash->{uuids}->{$uuid};
                                 }
                             }
                             
-                            my ($analysis_collection) = sort { $col_dates{$b} cmp $col_dates{$a} } keys %collections;
-                            
-                            if ($analysis_collection) {
-                                my @files;
-                                if (exists $analysis_files{$analysis_collection}) {
-                                    @files = @{ $analysis_files{$analysis_collection} };
-                                }
-                                else {
-                                    my @cmd_output = VRPipe::Steps::irods->open_irods_command("ils -r $analysis_collection");
-                                    my $dir;
-                                    foreach (@cmd_output) {
-                                        if (/^($analysis_collection[^:]*)/) {
-                                            $dir = $1;
-                                        }
-                                        elsif (/^\s+(\w\S+)$/) {
-                                            #*** there are files with spaces in
-                                            # the filename and also ones that
-                                            # start with special chars like ~$,
-                                            # but it's too awkward to bother
-                                            # supporting them - they are ignored!
-                                            my $path = file($dir, $1)->stringify;
-                                            push(@files, $path);
-                                            
-                                            my $vrtrack_file = $vrtrack->add_file($path, 'irods:');
-                                            $collections{$analysis_collection}->relate_to($vrtrack_file, 'contains');
-                                        }
+                            # general
+                            my $group = $vrtrack->add('Group', { name => $vrtrack_group });
+                            my (@studies, $preferred_study, %study_relate_to_props);
+                            my @study_ids = ref $meta->{study_id} ? @{ $meta->{study_id} } : ($meta->{study_id});
+                            my @study_titles = ($meta->{study_title} && ref $meta->{study_title}) ? @{ $meta->{study_title} } : ($meta->{study_title} || $meta->{study});
+                            my @study_acs = ($meta->{study_accession_number} && ref $meta->{study_accession_number}) ? @{ $meta->{study_accession_number} } : ($meta->{study_accession_number});
+                            my $preferred_study_id = delete $meta->{study_id_preferred};
+                            foreach my $i (0 .. $#study_ids) {
+                                push(@studies, $vrtrack->add('Study', { id => $study_ids[$i], name => $study_titles[$i], $study_acs[$i] ? (accession => $study_acs[$i]) : () }, incoming => { type => 'has', node => $group }));
+                                if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
+                                    $preferred_study = $studies[-1];
+                                    %study_relate_to_props = (properties => { preferred => 1 });
+                                    
+                                    # in VRPipe::File metadata we'll just store the
+                                    # preferred details; this is inline with old
+                                    # behaviour, is probably what the user expects,
+                                    # and avoids problems if you're grouping on
+                                    # study_id and then your sample gets added to a
+                                    # new study
+                                    $meta->{study_id}    = $study_ids[$i];
+                                    $meta->{study_title} = $study_titles[$i];
+                                    $meta->{study}       = $study_titles[$i] if defined $meta->{study};
+                                    if ($study_acs[$i] && defined $meta->{study_accession_number}) {
+                                        $meta->{study_accession_number} = $study_acs[$i];
                                     }
-                                    
-                                    $analysis_files{$analysis_collection} = [@files];
-                                }
-                                
-                                if (@files) {
-                                    $meta->{irods_analysis_files} = @files > 1 ? \@files : $files[0];
+                                    else {
+                                        delete $meta->{study_accession_number};
+                                    }
                                 }
                             }
-                        }
-                    }
-                    
-                    foreach my $key (@required_keys) {
-                        $f_skip_meta++;
-                        next QU unless defined $meta->{$key};
-                    }
-                    
-                    # represent lab tracking metadata in the graph database
-                    if ($vrtrack) {
-                        # general
-                        my $group = $vrtrack->add('Group', { name => $vrtrack_group });
-                        my (@studies, $preferred_study, %study_relate_to_props);
-                        my @study_ids = ref $meta->{study_id} ? @{ $meta->{study_id} } : ($meta->{study_id});
-                        my @study_titles = ($meta->{study_title} && ref $meta->{study_title}) ? @{ $meta->{study_title} } : ($meta->{study_title} || $meta->{study});
-                        my @study_acs = ($meta->{study_accession_number} && ref $meta->{study_accession_number}) ? @{ $meta->{study_accession_number} } : ($meta->{study_accession_number});
-                        my $preferred_study_id = delete $meta->{study_id_preferred};
-                        foreach my $i (0 .. $#study_ids) {
-                            push(@studies, $vrtrack->add('Study', { id => $study_ids[$i], name => $study_titles[$i], $study_acs[$i] ? (accession => $study_acs[$i]) : () }, incoming => { type => 'has', node => $group }));
-                            if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
-                                $preferred_study = $studies[-1];
-                                %study_relate_to_props = (properties => { preferred => 1 });
-                                
-                                # in VRPipe::File metadata we'll just store the
-                                # preferred details; this is inline with old
-                                # behaviour, is probably what the user expects,
-                                # and avoids problems if you're grouping on
-                                # study_id and then your sample gets added to a
-                                # new study
-                                $meta->{study_id}    = $study_ids[$i];
-                                $meta->{study_title} = $study_titles[$i];
-                                $meta->{study}       = $study_titles[$i] if defined $meta->{study};
-                                if ($study_acs[$i] && defined $meta->{study_accession_number}) {
-                                    $meta->{study_accession_number} = $study_acs[$i];
-                                }
-                                else {
-                                    delete $meta->{study_accession_number};
+                            
+                            my $donor;
+                            if (defined $meta->{sample_cohort}) {
+                                $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                                foreach my $study (@studies) {
+                                    $study->relate_to($donor, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                                 }
                             }
-                        }
-                        
-                        my $donor;
-                        if (defined $meta->{sample_cohort}) {
-                            $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                            
+                            my $sample_created_date;
+                            if (defined $meta->{sample_created_date}) {
+                                # convert '2013-05-10 06:45:32' to epoch seconds
+                                $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
+                            }
+                            my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} });
                             foreach my $study (@studies) {
-                                $study->relate_to($donor, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
-                            }
-                        }
-                        
-                        my $sample_created_date;
-                        if (defined $meta->{sample_created_date}) {
-                            # convert '2013-05-10 06:45:32' to epoch seconds
-                            $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
-                        }
-                        my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} });
-                        foreach my $study (@studies) {
-                            $study->relate_to($sample, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
-                        }
-                        
-                        my $sex = 'U'; # unknown
-                        if (defined $meta->{sample_gender}) {
-                            if ($meta->{sample_gender} =~ /^f/i) {
-                                $sex = 'F';
-                            }
-                            elsif ($meta->{sample_gender} =~ /^m/i) {
-                                $sex = 'M';
-                            }
-                            delete $meta->{sample_gender}; # this new thing we don't want on our VRPipe::File metadata
-                        }
-                        $vrtrack->add('Gender', { source_gender_md5 => md5_hex('sequencescape.' . $sex), source => 'sequencescape', gender => $sex }, incoming => { type => 'gender', node => $sample });
-                        
-                        if ($donor) {
-                            #*** we don't have a way of tracking changes to
-                            # relationships, so won't have a record if we swap
-                            # to a different donor here
-                            $donor->relate_to($sample, 'sample', selfish => 1);
-                        }
-                        
-                        if (defined $meta->{taxon_id}) {
-                            my $taxon = $vrtrack->add('Taxon', { id => $meta->{taxon_id}, common_name => $meta->{sample_common_name} });
-                            $taxon->relate_to($sample, 'member', selfish => 1);
-                        }
-                        
-                        $graph_file ||= $vrtrack->add_file($path, 'irods:');
-                        $graph_file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
-                        my $file_connected = 0;
-                        my $unique         = file($path)->basename;
-                        $unique =~ s/\.gz$//;
-                        $unique =~ s/\.[^\.]+$//;
-                        
-                        if (defined $meta->{analysis_uuid}) {
-                            foreach my $uuid (ref($meta->{analysis_uuid}) ? @{ $meta->{analysis_uuid} } : ($meta->{analysis_uuid})) {
-                                $graph_file->relate_to($analyses{$uuid}, 'analysed');
-                            }
-                        }
-                        if ($local_root_dir) {
-                            my $local_file = $vrtrack->add_file(file($local_root_dir, $path)->stringify);
-                            $graph_file->relate_to($local_file, 'local_file');
-                        }
-                        
-                        # bams
-                        my $library;
-                        if (defined $meta->{library_id}) {
-                            $library = $vrtrack->add('Library', { id => $meta->{library_id}, name => $meta->{library}, tag => $meta->{tag} });
-                            $sample->relate_to($library, 'prepared', selfish => 1);
-                        }
-                        
-                        my $lane;
-                        if (defined $meta->{lane}) {
-                            $lane = $vrtrack->add('Lane', { unique => $unique, lane => $meta->{lane}, run => $meta->{id_run}, total_reads => $meta->{total_reads}, is_paired_read => $meta->{is_paired_read} });
-                            
-                            $lane->relate_to($graph_file, 'aligned', selfish => 1);
-                            $file_connected = 1;
-                            
-                            if ($library) {
-                                $library->relate_to($lane, 'sequenced', selfish => 1);
-                            }
-                        }
-                        
-                        if ($meta->{alignment} && defined $meta->{reference}) {
-                            my $aln = $vrtrack->add('Alignment', { reference => $meta->{reference} });
-                            $aln->relate_to($graph_file, 'reference', selfish => 1);
-                        }
-                        
-                        if (defined $meta->{ebi_sub_acc} && $meta->{ebi_run_acc}) {
-                            my $sub = $vrtrack->add('EBI_Submission', { acc => $meta->{ebi_sub_acc}, defined $meta->{ebi_sub_date} ? (sub_date => $vrtrack->date_to_epoch($meta->{ebi_sub_date})) : () });
-                            
-                            my $run = $vrtrack->add('EBI_Run', { acc => $meta->{ebi_run_acc}, md5 => $meta->{ebi_sub_md5} }, incoming => { type => 'submitted', node => $graph_file }, outgoing => { type => 'submitted', node => $sub });
-                        }
-                        
-                        # infinium idats and gtc
-                        if (defined $meta->{beadchip}) {
-                            my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} });
-                            foreach my $study (@studies) {
-                                $study->relate_to($beadchip, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                $study->relate_to($sample, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                             }
                             
-                            if (defined $meta->{beadchip_section}) {
-                                my $section = $vrtrack->add('Section', { unique => $unique, section => $meta->{beadchip_section} }, incoming => { type => 'placed', node => $sample });
-                                $beadchip->relate_to($section, 'section', selfish => 1);
-                                $section->relate_to($graph_file, 'processed', selfish => 1);
+                            my $sex = 'U'; # unknown
+                            if (defined $meta->{sample_gender}) {
+                                if ($meta->{sample_gender} =~ /^f/i) {
+                                    $sex = 'F';
+                                }
+                                elsif ($meta->{sample_gender} =~ /^m/i) {
+                                    $sex = 'M';
+                                }
+                                delete $meta->{sample_gender}; # this new thing we don't want on our VRPipe::File metadata
+                            }
+                            $vrtrack->add('Gender', { source_gender_md5 => md5_hex('sequencescape.' . $sex), source => 'sequencescape', gender => $sex }, incoming => { type => 'gender', node => $sample });
+                            
+                            if ($donor) {
+                                #*** we don't have a way of tracking changes to
+                                # relationships, so won't have a record if we swap
+                                # to a different donor here
+                                $donor->relate_to($sample, 'sample', selfish => 1);
+                            }
+                            
+                            if (defined $meta->{taxon_id}) {
+                                my $taxon = $vrtrack->add('Taxon', { id => $meta->{taxon_id}, common_name => $meta->{sample_common_name} });
+                                $taxon->relate_to($sample, 'member', selfish => 1);
+                            }
+                            
+                            $graph_file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
+                            my $file_connected = 0;
+                            my $unique         = file($path)->basename;
+                            $unique =~ s/\.gz$//;
+                            $unique =~ s/\.[^\.]+$//;
+                            
+                            if ($local_root_dir) {
+                                my $local_file = $vrtrack->add_file(file($local_root_dir, $path)->stringify);
+                                $graph_file->relate_to($local_file, 'local_file');
+                            }
+                            
+                            # bams
+                            my $library;
+                            if (defined $meta->{library_id}) {
+                                $library = $vrtrack->add('Library', { id => $meta->{library_id}, name => $meta->{library}, tag => $meta->{tag} });
+                                $sample->relate_to($library, 'prepared', selfish => 1);
+                            }
+                            
+                            my $lane;
+                            if (defined $meta->{lane}) {
+                                $lane = $vrtrack->add('Lane', { unique => $unique, lane => $meta->{lane}, run => $meta->{id_run}, total_reads => $meta->{total_reads}, is_paired_read => $meta->{is_paired_read} });
+                                
+                                $lane->relate_to($graph_file, 'aligned', selfish => 1);
                                 $file_connected = 1;
-                            }
-                        }
-                        
-                        my $isample;
-                        if (defined $meta->{infinium_sample}) {
-                            $isample = $vrtrack->add('Infinium_Sample', { id => $meta->{infinium_sample} });
-                            $sample->relate_to($isample, 'infinium', selfish => 1);
-                        }
-                        
-                        if (defined $meta->{infinium_plate}) {
-                            my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} });
-                            foreach my $study (@studies) {
-                                $study->relate_to($plate, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                
+                                if ($library) {
+                                    $library->relate_to($lane, 'sequenced', selfish => 1);
+                                }
                             }
                             
-                            if (defined $meta->{infinium_well}) {
-                                my $well = $vrtrack->add('Well', { unique => $meta->{infinium_plate} . '.' . $meta->{infinium_well}, well => $meta->{infinium_well} }, incoming => { type => 'placed', node => $isample || $sample });
-                                $plate->relate_to($well, 'well', selfish => 1);
+                            if ($meta->{alignment} && defined $meta->{reference}) {
+                                my $aln = $vrtrack->add('Alignment', { reference => $meta->{reference} });
+                                $aln->relate_to($graph_file, 'reference', selfish => 1);
+                            }
+                            
+                            if (defined $meta->{ebi_sub_acc} && $meta->{ebi_run_acc}) {
+                                my $sub = $vrtrack->add('EBI_Submission', { acc => $meta->{ebi_sub_acc}, defined $meta->{ebi_sub_date} ? (sub_date => $vrtrack->date_to_epoch($meta->{ebi_sub_date})) : () });
+                                
+                                my $run = $vrtrack->add('EBI_Run', { acc => $meta->{ebi_run_acc}, md5 => $meta->{ebi_sub_md5} }, incoming => { type => 'submitted', node => $graph_file }, outgoing => { type => 'submitted', node => $sub });
+                            }
+                            
+                            # infinium idats and gtc
+                            if (defined $meta->{beadchip}) {
+                                my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} });
+                                foreach my $study (@studies) {
+                                    $study->relate_to($beadchip, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                }
+                                
+                                if (defined $meta->{beadchip_section}) {
+                                    my $section = $vrtrack->add('Section', { unique => $unique, section => $meta->{beadchip_section} }, incoming => { type => 'placed', node => $sample });
+                                    $beadchip->relate_to($section, 'section', selfish => 1);
+                                    $section->relate_to($graph_file, 'processed', selfish => 1);
+                                    $file_connected = 1;
+                                }
+                            }
+                            
+                            my $isample;
+                            if (defined $meta->{infinium_sample}) {
+                                $isample = $vrtrack->add('Infinium_Sample', { id => $meta->{infinium_sample} });
+                                $sample->relate_to($isample, 'infinium', selfish => 1);
+                            }
+                            
+                            if (defined $meta->{infinium_plate}) {
+                                my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} });
+                                foreach my $study (@studies) {
+                                    $study->relate_to($plate, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                }
+                                
+                                if (defined $meta->{infinium_well}) {
+                                    my $well = $vrtrack->add('Well', { unique => $meta->{infinium_plate} . '.' . $meta->{infinium_well}, well => $meta->{infinium_well} }, incoming => { type => 'placed', node => $isample || $sample });
+                                    $plate->relate_to($well, 'well', selfish => 1);
+                                }
+                            }
+                            
+                            unless ($file_connected) {
+                                $sample->relate_to($graph_file, 'processed');
                             }
                         }
-                        
-                        unless ($file_connected) {
-                            $sample->relate_to($graph_file, 'processed');
-                        }
+                        #$times[3] += tv_interval($gtod);
                     }
                     
-                    $files{$path} = [$meta, $graph_file];
+                    # apply graph filter
+                    if ($gfs) {
+                        my $pass = $self->_file_filter($graph_file, $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+                        $meta->{irods_datasource_graph_filter} = $pass;
+                    }
                 }
+                else {
+                    my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1);
+                    if ($changes && ref($changes)) {
+                        $meta->{vrpipe_meta_changed} = $changes;
+                    }
+                }
+                
+                $files{$path} = $meta;
             }
             $e = time() - $t;
             warn "\n" if $debug;
             my $skip_msg = '';
             $skip_msg .= "; $f_skip_meta files skipped due to not having required metadata" if $f_skip_meta;
             $skip_msg .= "; $f_skip_qc files skipped due to not having required qc files"   if $f_skip_qc;
-            $self->debug_log(" getting the metadata for the $f_count files returned by [imeta -z $zone qu -d $query] took $e seconds$skip_msg\n");
+            $self->debug_log(" updating the graph db for the $f_count files returned by baton for [$query] took $e seconds$skip_msg\n");
+        }
+        
+        my $total_time = time() - $tt;
+        $self->debug_log("all the queries took $total_time seconds to handle, will now update the mysql db with the new set of dataelements\n");
+        
+        foreach my $ref (values %harnesses) {
+            my $h = $ref->[0];
+            $h->finish;
         }
         
         return \%files;
+    }
+    
+    method _file_changed (Str $path, HashRef $new_metadata, Str $local_root_dir, Bool $warehouse_mode) {
+        my ($file_abs_path, $protocol);
+        if ($local_root_dir) {
+            my $sub_path = $path;
+            $sub_path =~ s/^\///;
+            $file_abs_path = file($local_root_dir, $sub_path)->stringify;
+        }
+        else {
+            $file_abs_path = $path;
+            $protocol      = 'irods:';
+        }
+        
+        my ($vrfile) = VRPipe::File->search({ path => $file_abs_path, $protocol ? (protocol => $protocol) : () });
+        return 1 unless $vrfile;
+        $vrfile = $vrfile->original;
+        
+        # detect metadata changes
+        my $current_metadata = $vrfile->metadata;
+        my @changed;
+        if ($current_metadata && keys %$current_metadata) {
+            while (my ($key, $val) = each %$current_metadata) {
+                if ($warehouse_mode) {
+                    next if exists $ignore_keys{$key};
+                    next if $key =~ /_history$/;
+                }
+                
+                next unless defined $val;
+                next unless defined $new_metadata->{$key};
+                if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
+                    push(@changed, [$key, $val, $new_metadata->{$key}, $diff]);
+                }
+            }
+        }
+        
+        return @changed ? \@changed : 0;
     }
     
     method all (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?) {
@@ -802,28 +1066,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     method _all_files (Defined :$handle!, Str :$file_query!, Str|Dir :$local_root_dir?, Str :$update_interval?, Bool :$add_metadata_from_warehouse?, Str :$required_metadata?, Str :$vrtrack_group?, Str :$graph_filter?, Bool :$filter_after_grouping = 1, Bool :$require_qc_files = 0, Str :$desired_qc_files = '_F0xB00.stats,.genotype.json,.verify_bam_id.json') {
         # _get_irods_files_and_metadata will get called twice in row: once to
         # see if the datasource changed, and again here; _has_changed caches
-        # the result, and we clear the cache after getting that data
+        # the result, and we clear the cache after getting that data.
         $add_metadata_from_warehouse ||= 0;
-        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '', $require_qc_files, $desired_qc_files);
+        my $files = $self->_get_irods_files_and_metadata($handle, $file_query, $local_root_dir || '', $add_metadata_from_warehouse || 0, $required_metadata || '', $vrtrack_group || '', $require_qc_files, $desired_qc_files, $graph_filter, $filter_after_grouping);
         $self->_clear_cache;
-        
-        my %ignore_keys = map { $_ => 1 } qw(study_id study_title study_accession_number sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
-        
-        my (undef, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters(undef, $graph_filter);
         
         my $did = $self->_datasource_id;
         my @results;
         my @changed_details;
         my $anti_repeat_store = {};
-        foreach my $path (sort { $files->{$a}->[0]->{vrpipe_irods_order} <=> $files->{$b}->[0]->{vrpipe_irods_order} } keys %$files) {
-            my $pass_filter;
-            if ($graph) {
-                $pass_filter = $self->_file_filter($files->{$path}->[1], $filter_after_grouping, undef, $gfs, $vrpipe_graph_schema, $graph);
+        foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
+            my $new_metadata = $files->{$path};
+            delete $new_metadata->{vrpipe_irods_order};
+            
+            my $pass_filter = delete $new_metadata->{irods_datasource_graph_filter};
+            if ($graph_filter) {
                 next unless defined($pass_filter);
             }
-            
-            my $new_metadata = $files->{$path}->[0];
-            delete $new_metadata->{vrpipe_irods_order};
             
             my ($file_abs_path, $protocol);
             if ($local_root_dir) {
@@ -844,24 +1103,16 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ())->original;
             
             # add metadata to file, detecting any changes
-            my $current_metadata = $vrfile->metadata;
-            my $changed          = 0;
-            if ($current_metadata && keys %$current_metadata) {
-                while (my ($key, $val) = each %$current_metadata) {
-                    if ($add_metadata_from_warehouse) {
-                        next if exists $ignore_keys{$key};
-                        next if $key =~ /_history$/;
-                    }
-                    
-                    next unless defined $val;
-                    next unless defined $new_metadata->{$key};
-                    if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
-                        $changed = 1;
-                        push(@changed_details, "$file_abs_path $key: $diff");
-                        last;
-                    }
+            my $changes = delete $new_metadata->{vrpipe_meta_changed};
+            my $changed = 0;
+            if ($changes) {
+                $changed = 1;
+                foreach my $change (@$changes) {
+                    push(@changed_details, "$file_abs_path $change->[0]: $change->[3]");
+                    last;
                 }
             }
+            
             if ($add_metadata_from_warehouse && exists $new_metadata->{lane}) {
                 my $lane = $vrfile->basename;
                 $lane =~ s/\.gz$//;
