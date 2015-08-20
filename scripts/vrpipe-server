@@ -512,8 +512,9 @@ sub start_server {
                         # an appropriate number of handlers that should be
                         # running
                         my $num_handlers_needed = 0;
-                        my $max_handlers        = $max_subs ? int($max_subs / 2) : 500;
-                        my $ds_wanted           = keys %ds_wanted;
+                        my $max_handlers = $max_subs ? int($max_subs / 2) : 500;
+                        $max_handlers ||= 1;
+                        my $ds_wanted = keys %ds_wanted;
                         if ($ds_wanted) {
                             if ($grabbed) {
                                 my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
