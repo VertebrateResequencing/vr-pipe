@@ -137,6 +137,12 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         handles => [qw(description source_description method_description)]
     );
     
+    has 'debug' => (
+        is      => 'rw',
+        isa     => 'Bool',
+        default => 0
+    );
+    
     method _build_source {
         my $changed_marker = $self->_changed_marker;
         return VRPipe::DataSourceFactory->create(
@@ -146,7 +152,8 @@ class VRPipe::DataSource extends VRPipe::Persistent {
                 source  => $self->source,
                 options => $self->options,
                 $changed_marker ? ('_changed_marker' => $changed_marker) : (),
-                '_datasource_id' => $self->id
+                '_datasource_id' => $self->id,
+                debug            => $self->debug
             }
         );
     }
@@ -158,13 +165,13 @@ class VRPipe::DataSource extends VRPipe::Persistent {
         # we don't return $self->$orig because that returns all associated
         # elements; we need to first create all elements, and then only return
         # elements that are still "current" (haven't been deleted in the source)
-        $self->_prepare_elements_and_states($status_messages, $debug);
+        $self->_prepare_elements_and_states($status_messages, $debug || $self->debug);
         return VRPipe::DataElement->search_paged({ datasource => $self->id, withdrawn => 0 });
     }
     
     method incomplete_element_states (VRPipe::PipelineSetup $setup, Bool :$include_withdrawn = 0, Bool :$prepare = 1, Bool :$only_not_started = 0, Bool :$debug = 0) {
         if ($prepare) {
-            $self->_prepare_elements_and_states(0, $debug);
+            $self->_prepare_elements_and_states(0, $debug || $self->debug);
         }
         
         my $pipeline  = $setup->pipeline;
@@ -185,6 +192,7 @@ class VRPipe::DataSource extends VRPipe::Persistent {
     
     method _prepare_elements_and_states (Bool $status_messages?, Bool $debug?) {
         my $source = $self->_source_instance || return;
+        $debug ||= $self->debug;
         unless (defined $status_messages) {
             $status_messages = $self->verbose > 0 ? 1 : 0;
         }
