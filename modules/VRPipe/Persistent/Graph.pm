@@ -202,21 +202,22 @@ class VRPipe::Persistent::Graph {
         #warn "cypher: $example_cypher (plus $#{$array} similar)\n";
         
         my $decode;
-        for (1 .. 20) {
-            my $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content);
-            my $res = $tx->success;
+        foreach my $try_num (1 .. 20) {
+            my ($tx, $res);
+            eval { $tx = $ua->post($transaction_endpoint => $ua_headers => json => $post_content); };
+            $res = $tx->success if $tx;
             unless ($res) {
                 my $err  = $tx->error;
                 my $code = $err->{code};
                 $code ||= 'no error code';
                 my $message = $err->{message};
-                $message ||= '(no message)';
+                $message ||= $@ || '(no message)';
                 
                 if ($message =~ /connection/i) {
                     # neo4j server may be down during a backup, so we'll wait a
                     # a few mins for it to come back
-                    warn "retrying cypher [$example_cypher] due to: $message\n";
-                    sleep($_);
+                    warn "retrying cypher [$example_cypher] due to: [$code] $message\n";
+                    sleep(2 * $try_num);
                     next;
                 }
                 
@@ -226,13 +227,23 @@ class VRPipe::Persistent::Graph {
             
             my $errors = $decode->{errors};
             if (@$errors) {
-                my $error = $errors->[0];
-                if ($error->{code} =~ /CouldNotCommit|TransientError/) {
-                    warn "retrying cypher [$example_cypher] due to: ", '[' . $error->{code} . '] ' . $error->{message}, "\n";
-                    sleep(1);
+                my $err  = $errors->[0];
+                my $code = $err->{code};
+                $code ||= 'no error code';
+                my $message = $err->{message};
+                $message ||= '(no message)';
+                if ($try_num < 20 && ($code =~ /CouldNotCommit|TransientError/ || $message =~ /connection/i)) {
+                    warn "retrying cypher [$example_cypher] due to: [$code] $message\n";
+                    
+                    if ($message =~ /connection/i) {
+                        sleep(2 * $try_num);
+                    }
+                    else {
+                        sleep(1);
+                    }
                 }
                 else {
-                    $self->throw('[' . $error->{code} . '] ' . " [$example_cypher] " . $error->{message});
+                    $self->throw("[$code] [$example_cypher] $message");
                 }
             }
             else {
