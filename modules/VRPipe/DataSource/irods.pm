@@ -46,6 +46,14 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
     use File::Which qw(which);
     use JSON::XS;
     use IPC::Run;
+    # https://rt.cpan.org/Public/Bug/Display.html?id=102824
+    # we tie STDERR in vrpipe-handler which will call this module, but since
+    # we have no FILENO method in VRPipe::Persistent::InMemory, IPC::Run will
+    # break. The following is a hack to work around:
+    {
+        no warnings 'redefine';
+        *IPC::Run::_debug_fd = sub { };
+    }
     
     our %ignore_keys = map { $_ => 1 } qw(study_id study_title study_accession_number sample_common_name ebi_sub_acc reference ebi_sub_md5 ebi_run_acc ebi_sub_date sample_created_date taxon_id lane);
     
@@ -321,7 +329,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             if (${$err}) {
                 #*** should I throw here instead of just warn?
-                warn "irods datasource baton error while processing [$json_input | $cmd_str]: ${$err}\n";
+                unless (${$err} =~ /The client\/server socket connection has been renewed/i) {
+                    $self->debug_log(" irods datasource baton error while processing [$json_input | $cmd_str]: ${$err}\n");
+                }
             }
             ${$err} = '';
             
@@ -700,6 +710,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 
                                 my $handled   = 0;
                                 my $unhandled = '';
+                                my $punted    = 0;
                                 foreach my $change (@$changes) {
                                     my ($key, $old, $new, $diff) = @$change;
                                     if ($key eq 'public_name') {
@@ -715,6 +726,11 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                             next;
                                         }
                                     }
+                                    elsif ($key eq 'sample_cohort' || 'sample_donor_id') {
+                                        # this is a little bit involved; punting
+                                        # for now
+                                        $punted++;
+                                    }
                                     
                                     $unhandled .= "$key: $diff; ";
                                 }
@@ -722,7 +738,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 if ($handled == @$changes) {
                                     $from_scratch = 0;
                                 }
-                                else {
+                                elsif ($punted != @$changes) {
                                     $self->debug_log("  {temp debug; tell Sendu about this!} couldn't quickly handle all changes for $path [$unhandled]\n");
                                 }
                             }

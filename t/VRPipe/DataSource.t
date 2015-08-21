@@ -877,6 +877,16 @@ SKIP: {
     my (undef, $irods_zone) = split('/', $irods_root);
     my $schema = VRPipe::Schema->create("VRTrack");
     
+    # irods ds uses IPC::Run, which breaks if STDERR is tied, so we'll tie it
+    # to test that our workaround works
+    {
+        package MySTDERR;
+        use Symbol qw(geniosym);
+        sub TIEHANDLE { return bless geniosym, __PACKAGE__ }
+        sub PRINT { shift; print @_ }
+    }
+    tie *STDERR, 'MySTDERR' or die $!;
+    
     # real-world test
     ok my $ds = VRPipe::DataSource->create(
         type    => 'irods',
@@ -960,6 +970,9 @@ SKIP: {
         push(@results, $element->paths);
     }
     is_deeply [\@results, $element_count], [['irods:/seq/16139/16139_7.cram', 'irods:/seq/16139/16139_8.cram'], 1], 'the resulting files had irods protocols, and grouping working correctly';
+    
+    # also check that it works with STDERR untied
+    untie *STDERR;
     
     # check that we can aggregate results from multiple imeta queries specified
     # in a file
