@@ -183,7 +183,7 @@ if ($setup) {
                             
                             eval { $file->move(VRPipe::File->create(path => $dest), check_md5s => $check_md5s); };
                             if ($@) {
-                                $frontend->error("Failed to move $source => $old_root, skipping");
+                                $frontend->error("Failed to move $source => $dest, skipping:\n$@");
                                 $errors++;
                                 next;
                             }
