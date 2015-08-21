@@ -726,7 +726,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                             next;
                                         }
                                     }
-                                    elsif ($key eq 'sample_cohort' || 'sample_donor_id') {
+                                    elsif ($key eq 'sample_cohort' || $key eq 'sample_donor_id') {
                                         # this is a little bit involved; punting
                                         # for now
                                         $punted++;
