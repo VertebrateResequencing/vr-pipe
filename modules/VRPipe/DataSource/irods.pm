@@ -301,8 +301,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $json = JSON::XS->new->allow_nonref(1);
         
         my %harnesses;
-        my $run_baton = sub {
-            my ($cmd, $json_input) = @_;
+        my $run_baton;
+        $run_baton = sub {
+            my ($cmd, $json_input, $retries) = @_;
+            $retries ||= 0;
             
             # we use IPC::Run to hold open a pipe to and from baton for each
             # different baton command...
@@ -324,24 +326,44 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             # ... then send the command some json and wait for the json
             # response
+            ${$err} = '';
             ${$in} .= $json_input . "\n";
             $h->pump until ${$out} =~ m{[\r\n]$}msx;
             
             if (${$err}) {
-                #*** should I throw here instead of just warn?
-                unless (${$err} =~ /The client\/server socket connection has been renewed/i) {
-                    $self->debug_log(" irods datasource baton error while processing [$json_input | $cmd_str]: ${$err}\n");
+                my @errors = grep { $_ ne 'The client/server socket connection has been renewed' } split(/\n/, ${$err});
+                if (@errors) {
+                    $self->debug_log(" irods datasource baton error while processing [$json_input | $cmd_str]:\n  " . join("\n  ", @errors) . "\n");
                 }
             }
-            ${$err} = '';
             
             # now we decode and return the json response
             my $result;
             if (${$out}) {
                 chomp(${$out});
                 $result = $json->decode(${$out});
+                ${$out} = '';
             }
-            ${$out} = '';
+            
+            if (!$result || (ref($result) eq 'HASH' && exists $result->{error})) {
+                my $err = $result ? qq/: "$result->{error}->{message}"/ : '';
+                my $msg = qq/baton returned nothing from [$json_input | $cmd_str]$err/;
+                if ($retries < 5) {
+                    $self->debug_log(" irods datasource error: $msg; will retry\n");
+                    $retries++;
+                    sleep($retries);
+                    
+                    # we'll recurse to retry the command with a fresh connection
+                    $h->finish;
+                    delete $harnesses{$cmd_str};
+                    return &$run_baton($cmd, $json_input, $retries);
+                }
+                else {
+                    my $fatal = "irods datasource fatal error: $msg; giving up\n";
+                    $self->debug_log($fatal);
+                    die $fatal;
+                }
+            }
             
             return $result;
         };
@@ -437,9 +459,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $self->debug_log(" baton query for [$query] took $e seconds to run, returning " . scalar(@$irods_files_with_metadata) . " files with their metadata\n");
             
             $t = time();
-            my $f_count     = 0;
-            my $f_skip_qc   = 0;
-            my $f_skip_meta = 0;
+            my $f_count        = 0;
+            my $f_skip_qc      = 0;
+            my $f_skip_meta    = 0;
+            my $f_count_actual = 0;
             FILE: foreach my $file_hash (@$irods_files_with_metadata) {
                 my $collection = $file_hash->{dir};
                 my $basename   = $file_hash->{basename};
@@ -945,13 +968,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 }
                 
                 $files{$path} = $meta;
+                $f_count_actual++;
             }
             $e = time() - $t;
             warn "\n" if $debug;
             my $skip_msg = '';
             $skip_msg .= "; $f_skip_meta files skipped due to not having required metadata" if $f_skip_meta;
             $skip_msg .= "; $f_skip_qc files skipped due to not having required qc files"   if $f_skip_qc;
-            $self->debug_log(" updating the graph db for the $f_count files returned by baton for [$query] took $e seconds$skip_msg\n");
+            my $total_files = $f_count_actual < $f_count ? "$f_count_actual/$f_count passing files" : "$f_count files";
+            $self->debug_log(" updating the graph db for the $total_files from [$query] took $e seconds$skip_msg\n");
         }
         
         my $total_time = time() - $tt;
