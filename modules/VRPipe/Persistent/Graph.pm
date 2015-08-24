@@ -140,24 +140,39 @@ class VRPipe::Persistent::Graph {
                 $ua_headers->{Authorization} = 'Basic ' . substr(encode_base64("$user:$password"), 0, -2);
             }
             
-            my $tx = $ua->get("$url" => $ua_headers);
-            my $res = $tx->success;
-            unless ($res) {
-                my $err = $tx->error;
-                $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
+            foreach my $try_num (1 .. 20) {
+                eval {
+                    my $tx = $ua->get("$url" => $ua_headers);
+                    my $res = $tx->success;
+                    unless ($res) {
+                        my $err = $tx->error;
+                        $self->throw("Failed to connect to '$url': [$err->{code}] $err->{message}");
+                    }
+                    my $decode = $json->decode($res->body);
+                    my $data_endpoint = $decode->{data} || $self->throw("No data endpoint found at $url");
+                    
+                    $tx = $ua->get($data_endpoint => $ua_headers);
+                    $res = $tx->success;
+                    unless ($res) {
+                        my $err = $tx->error;
+                        $self->throw("Failed to connect to '$data_endpoint': [$err->{code}] $err->{message}");
+                    }
+                    $decode = $json->decode($res->body);
+                    $transaction_endpoint = $decode->{transaction} || $self->throw("No transaction endpoint found at $data_endpoint");
+                    $transaction_endpoint .= '/commit';
+                };
+                if ($@) {
+                    if ($try_num == 20) {
+                        die $@;
+                    }
+                    else {
+                        sleep($try_num * 2);
+                    }
+                }
+                else {
+                    last;
+                }
             }
-            my $decode = $json->decode($res->body);
-            my $data_endpoint = $decode->{data} || $self->throw("No data endpoint found at $url");
-            
-            $tx = $ua->get($data_endpoint => $ua_headers);
-            $res = $tx->success;
-            unless ($res) {
-                my $err = $tx->error;
-                $self->throw("Failed to connect to '$data_endpoint': [$err->{code}] $err->{message}");
-            }
-            $decode = $json->decode($res->body);
-            $transaction_endpoint = $decode->{transaction} || $self->throw("No transaction endpoint found at $data_endpoint");
-            $transaction_endpoint .= '/commit';
             
             if ($deployment eq 'production') {
                 $global_label = "vdp";
