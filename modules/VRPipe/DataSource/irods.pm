@@ -560,7 +560,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             $meta->{sample_created_date} = "$created";
                         }
                         if (defined $gender) {
-                            $meta->{sample_gender} = "$gender";
+                            $meta->{sample_gender} = lc($gender);
                         }
                     }
                     
