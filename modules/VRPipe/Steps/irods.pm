@@ -330,7 +330,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         return $failed;
     }
     
-    method _path_escape (Str $path) {
+    method _path_escape (ClassName|Object $self: Str $path) {
         return quotemeta($path);
         #*** strictly speaking quotemeta isn't meant for this, and
         # String::ShellQuote may be more appropriate, and avoiding the shell
