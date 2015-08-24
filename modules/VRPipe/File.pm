@@ -603,24 +603,27 @@ class VRPipe::File extends VRPipe::Persistent {
             $self->check_destination_space($dp->dir);
             
             $self->disconnect;
+            my $error = '[no error msg]';
             if (-l $sp) {
                 # File::Copy::move copies symlinks across filesystem boundries
                 # as the files they point to instead of copying them as
                 # symlinks
                 my $dst = readlink($sp);
                 $success = symlink($dst, $dp);
+                $error = $!;
                 if ($success) {
                     unlink($sp);
                 }
             }
             else {
                 $success = File::Copy::move($sp, $dp);
+                $error = $!;
             }
             
             $dest->update_stats_from_disc;
             unless ($success) {
                 $self->update_stats_from_disc;
-                $self->throw("move of $sp => $dp failed: $!");
+                $self->throw("move of $sp => $dp failed: $error");
             }
             $dest->add_metadata($self->metadata);
         }
@@ -952,17 +955,20 @@ class VRPipe::File extends VRPipe::Persistent {
         
         $self->disconnect;
         my $success;
+        my $error = '[no error msg]';
         if (-l $sp) {
             # File::Copy::copy copies symlinks across filesystem boundries
             # as the files they point to instead of copying them as
             # symlinks
             my $dst = readlink($sp);
             $success = symlink($dst, $dp);
+            $error = $!;
         }
         else {
             # File::Copy::copy and similar do not preserve ownership, so we use
             # unix cp -p instead, which is --preserve=mode,ownership,timestamps
             $success = !system("cp -p $sp $dp");
+            $error   = $!;
         }
         $dest->update_stats_from_disc;
         
@@ -970,7 +976,7 @@ class VRPipe::File extends VRPipe::Persistent {
             unless ($d_existed) {
                 $dest->remove;
             }
-            $self->throw("copy of $sp => $dp failed: $!");
+            $self->throw("copy of $sp => $dp failed: $error");
         }
         else {
             # check md5s match
