@@ -8,7 +8,7 @@ use Parallel::ForkManager;
 use Sys::Hostname;
 
 BEGIN {
-    use Test::Most tests => 106;
+    use Test::Most tests => 111;
     use VRPipeTest;
 }
 
@@ -466,6 +466,21 @@ is $perm_file->e, 1, 'existent file still reports e 1 after permission denied';
 system("chmod a+x $perm_dir");
 $perm_file->update_stats_from_disc;
 is $perm_file->e, 1, 'update_stats_from_disc() worked once permissions ok';
+
+# we should be able to create File objects for paths with spaces in them
+my $space_path = file($tmp_dir, 'file with spaces.txt');
+ok my $space_f = VRPipe::File->create(path => $space_path), 'could create a file with spaces in the name';
+ok $ofh = $space_f->openw, 'could open a file with spaces for writing';
+print $ofh "s p a c e\n";
+$space_f->close;
+my $space_dir = dir($tmp_dir, 'dir with spaces');
+$vrobj->make_path($space_dir);
+my $dest_space_f = VRPipe::File->create(path => file($space_dir, 'moved with spaces.txt'));
+ok $space_f->move($dest_space_f), 'was able to move a space file to a space path';
+ok $ifh = $dest_space_f->openr, 'could open a file with spaces for reading';
+my $space_str = <$ifh>;
+$dest_space_f->close;
+is $space_str, "s p a c e\n", 'the move and open really worked';
 
 done_testing;
 exit;
