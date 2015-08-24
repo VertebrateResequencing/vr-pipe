@@ -132,6 +132,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     }
     
     method get_file_md5 (ClassName|Object $self: Str :$file!, Str|File :$ichksum!, Str :$ichksum_args!) {
+        $file = $self->_path_escape($file);
         my ($chksum) = $self->open_irods_command("$ichksum $ichksum_args $file");
         my ($md5)    = $chksum =~ m/\b([0-9a-f]{32})\b/i;                        # 32 char MD5 hex string
         unless ($md5) {
@@ -155,18 +156,21 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         
         my $failed;
         my $converted_cram_to_bam = 0;
+        my $source_path           = $self->_path_escape($source);
+        my $dest_path             = $self->_path_escape($dest);
         if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
+            $samtools_for_cram_to_bam = $self->_path_escape($samtools_for_cram_to_bam);
             $iget_args =~ s/-?[Kf]//g;                                           #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
             $iget_args =~ s/^\s+//;
             $iget_args =~ s/\s+$//;
-            $failed                = $self->run_irods_command("$iget $iget_args $source - | $samtools_for_cram_to_bam view -b - > $dest");
+            $failed                = $self->run_irods_command("$iget $iget_args $source_path - | $samtools_for_cram_to_bam view -b - > $dest_path");
             $converted_cram_to_bam = 1;
         }
         else {
             # -K: checksum
             # -Q: use UDP rather than TCP
             # -f: force overwrite
-            $failed = $self->run_irods_command("$iget $iget_args $source $dest");
+            $failed = $self->run_irods_command("$iget $iget_args $source_path $dest_path");
         }
         
         $dest_file->update_stats_from_disc;
@@ -223,6 +227,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     }
     
     method get_file_metadata (ClassName|Object $self: Str $path!, Str|File :$imeta = 'imeta') {
+        $path = $self->_path_escape($path);
         my @cmd_output = $self->open_irods_command("$imeta ls -d $path");
         my $meta       = {};
         my $attribute;
@@ -323,6 +328,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             last;
         }
         return $failed;
+    }
+    
+    method _path_escape (Str $path) {
+        return quotemeta($path);
+        #*** strictly speaking quotemeta isn't meant for this, and
+        # String::ShellQuote may be more appropriate, and avoiding the shell
+        # in *_irods_commands() would be best, but this should do for our
+        # purposes...
     }
 }
 
