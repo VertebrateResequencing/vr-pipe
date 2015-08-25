@@ -190,7 +190,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             }
             sleep(5);
             
-            unless ($can_run && $warned_waiting) {
+            if (!$can_run && !$warned_waiting) {
                 $self->debug_log(" (will wait until there are not $max other irods datasources updating)\n");
                 $warned_waiting = 1;
             }
