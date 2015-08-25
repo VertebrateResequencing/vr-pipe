@@ -417,10 +417,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my @cmd = ($baton_metaquery, qw(--unbuffered --zone), $zone, qw(--checksum --avu), $type);
             
             # convert query string to baton-compatible json
-            # '{avus: [{attribute: "fluidigm_plate", value: "%", o: "like"}, {attribute: "study_id", value: "3679"}]}'
+            # study = "Exome - Neo-antigen discovery in mouse lung cancer" and target = 1 and type = cram
             my @avus;
             foreach my $avu (split(/\s+and\s+/i, $query)) {
-                my ($attribute, $o, $value) = split(/\s+/, $avu);
+                my ($attribute, $o, $value) = $avu =~ /^(\S+)\s+(\S+)\s+(.+)/;
                 foreach my $s (\$attribute, \$value, \$o) {
                     if (${$s} && ${$s} =~ /^['"].*['"]$/) {
                         ${$s} =~ s/^['"]//;
