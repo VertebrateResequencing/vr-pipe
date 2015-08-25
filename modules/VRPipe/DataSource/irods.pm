@@ -427,6 +427,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 foreach my $content (@{ $baton_output->{contents} }) {
                     my $dir      = $content->{collection};
                     my $basename = $content->{data_object};
+                    next if $basename =~ /[~\$]/;
                     
                     if ($recursive_files_only && !$basename) {
                         push(@files, &$run_baton_list($dir, $mode, 1));
@@ -560,7 +561,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             $meta->{sample_created_date} = "$created";
                         }
                         if (defined $gender) {
-                            $meta->{sample_gender} = lc($gender);
+                            $meta->{sample_gender} = "\u$gender";
                         }
                     }
                     
