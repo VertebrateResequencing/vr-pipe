@@ -140,7 +140,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $lock_key = 'irods_datasource.' . $self->_datasource_id;
         
         my $current_checksum = $self->_changed_marker;
-        unless ($im->assert_life($lock_key)) {
+        if ($im->is_alive($lock_key)) {
             warn "irods datasource will return without checking since it it currently being updated in another process\n" if $self->debug;
             return $current_checksum;
         }
@@ -164,12 +164,55 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # else we always get the latest checksum if we have no valid checksum
         $self->debug_log("irods datasource will do a full check since it's been more than $update_interval seconds since the last check\n");
         
+        #*** while neo4j suffers from too many of these running at once,
+        # we'll only run 4 irods datasource updates at once, globally
+        my $ids_queue_key = 'irods_datasource_queue';
+        $im->enqueue($ids_queue_key, $lock_key);
+        my $can_run        = 0;
+        my $warned_waiting = 0;
+        my $max            = 4;
+        while (!$can_run) {
+            my $running = 0;
+            foreach my $queued ($im->queue($ids_queue_key)) {
+                if ($im->is_alive($queued)) {
+                    $running++;
+                }
+                elsif ($queued eq $lock_key) {
+                    $can_run = 1 if $running <= $max;
+                    last;
+                }
+                elsif ($running <= $max) {
+                    next;
+                }
+                else {
+                    last;
+                }
+            }
+            sleep(5);
+            
+            unless ($can_run && $warned_waiting) {
+                $self->debug_log(" (will wait until there are not $max other irods datasources updating)\n");
+                $warned_waiting = 1;
+            }
+        }
+        
+        # recheck we're not updating elsewhere, since we could have a race
+        # condition following the prior is_alive() call. assert_life() avoids
+        # the race condition but we didn't want to use it until after the above
+        # queue was resolved.
+        unless ($im->assert_life($lock_key)) {
+            warn "irods datasource will return without checking since it it currently being updated in another process\n" if $self->debug;
+            return $current_checksum;
+        }
+        
         # get the current files and their metadata and stringify it all
         my $t     = time();
         my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files, $graph_filter, $filter_after_grouping);
         my $e     = time() - $t;
         $self->debug_log("irods _get_irods_files_and_metadata call took $e seconds\n");
         $self->_irods_files_and_metadata_cache($files);
+        
+        $im->dequeue($ids_queue_key, [$lock_key]);
         
         my $data = '';
         while (my ($path, $meta) = each %$files) {
@@ -427,7 +470,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 foreach my $content (@{ $baton_output->{contents} }) {
                     my $dir      = $content->{collection};
                     my $basename = $content->{data_object};
-                    next if $basename =~ /[~\$]/;
+                    next if ($basename && $basename =~ /[~\$]/);
                     
                     if ($recursive_files_only && !$basename) {
                         push(@files, &$run_baton_list($dir, $mode, 1));
