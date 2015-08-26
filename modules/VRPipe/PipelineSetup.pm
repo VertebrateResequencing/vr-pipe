@@ -794,7 +794,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         return VRPipe::PipelineSetupLog->create(
             ps_id   => $self->id,
             message => $msg,
-            date    => $dt,
+            date    => $dt,      # dates in the database are not in local time
             host    => $log_host,
             pid     => $$,
             $record_stack ? (stack => $self->stack_trace) : (),
@@ -809,7 +809,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
     method logs (Str :$like?, Int :$dataelement?, Int :$stepstate?, Int :$submission?, Int :$job?, Int :$pid?, Str :$host?, Bool :$include_undefined?, Bool :$paged?, Str :$from?, Str :$to?) {
         my @date_args = ();
         if ($from || $to) {
-            my $parser = DateTime::Format::Natural->new;
+            my $parser = DateTime::Format::Natural->new(time_zone => $local_timezone);
             my @dts;
             foreach my $dstr ($from, $to) {
                 unless ($dstr) {
@@ -822,7 +822,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 
                 my $dt = $parser->parse_datetime($dstr);
                 if ($parser->success) {
-                    push(@dts, $dt);
+                    push(@dts, DateTime->from_epoch(epoch => $dt->epoch));
                 }
                 else {
                     warn $parser->error, "\n";
