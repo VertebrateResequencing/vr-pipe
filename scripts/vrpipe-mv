@@ -263,7 +263,9 @@ elsif ($old_disc) {
     foreach my $ds (VRPipe::DataSource->search({})) {
         my $instance = $ds->_source_instance;
         next unless $instance->can('source_file');
-        my $sf = $instance->source_file;
+        my $sf;
+        eval { $sf = $instance->source_file; };
+        next if $@; # skip broken datasources
         my $sp = $sf->path;
         if ($sp =~ /^$old_disc/) {
             mv_file($sf);
