@@ -51,6 +51,7 @@ my $frontend = VRPipe::FrontEnd->new(
         [],
         [q[Other options:]],
         ['pretend|p', q[Only print out what files would be moved; don't actually move anything]],
+        ['fast|f',    q[In --setup mode, don't confirm the existence of source files on disk, just trust VRPipe's knowledge; this may skip files that VRPipe thinks don't exist but actually do!]],
         ['verbose|v', q[Print out the files that are being moved (automatically on if using --pretend)]],
         ['check_md5s', q[Calculate the md5sum of each source file, copy it to the destination, check the md5 matches, then delete the source (this can be very slow, and does not apply when doing normal unix mv of files)], { default => 0 }]
     ]
@@ -63,6 +64,7 @@ my $new_root   = $frontend->opts('new_root');
 my $old_disc   = $frontend->opts('old_disc');
 my $new_disc   = $frontend->opts('new_disc');
 my $check_md5s = $frontend->opts('check_md5s');
+my $fast_mode  = $frontend->opts('fast');
 my @paths      = @ARGV;
 
 if ((defined $setup ? 1 : 0) + (defined $new_root ? 1 : 0) == 1) {
@@ -132,6 +134,7 @@ if ($setup) {
     my $moved         = 0;
     my $num_elements  = 0;
     my $estates_pager = $setup->dataelementstates_pager(include_withdrawn => 1);
+    my %done_states;
     my %done_files;
     my $errors = 0;
     while (my $estates = $estates_pager->next) {
@@ -140,8 +143,13 @@ if ($setup) {
             my $element = $element_state->dataelement;
             $num_elements++;
             foreach my $stepm (@step_members) {
+                print STDERR '. ' if $verbose;
+                
                 my ($step_state) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup });
                 $step_state || next;
+                next if exists $done_states{ $step_state->id };
+                my $same = $step_state->same_submissions_as;
+                next if ($same && (exists $done_states{ $same->id }));
                 
                 # we'll only move files within the output_root, so we don't care
                 # about uniqueness: it is harmless to move a file, but
@@ -151,7 +159,7 @@ if ($setup) {
                 my $smid = $stepm->id;
                 
                 while (my ($kind, $files) = each %$step_outs) {
-                    my @files = grep { $_->update_stats_from_disc; $_->e } map { $_->resolve(not_symlinks => 1) } @$files;
+                    my @files = grep { $_->update_stats_from_disc unless $fast_mode; $_->e } map { $_->resolve(not_symlinks => 1) } @$files;
                     next unless @files;
                     
                     foreach my $file (@files) {
@@ -191,6 +199,9 @@ if ($setup) {
                         $moved++;
                     }
                 }
+                
+                $done_states{ $step_state->id } = 1;
+                $done_states{ $same->id } = 1 if $same;
             }
         }
     }
