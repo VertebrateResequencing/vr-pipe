@@ -178,17 +178,20 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     $running++;
                 }
                 elsif ($queued eq $lock_key) {
-                    $can_run = 1 if $running <= $max;
+                    $can_run = 1 if $running < $max;
                     last;
                 }
-                elsif ($running <= $max) {
+                elsif ($running < $max) {
                     next;
                 }
                 else {
                     last;
                 }
             }
-            sleep(5);
+            
+            if (!$can_run) {
+                sleep(5);
+            }
             
             if (!$can_run && !$warned_waiting) {
                 $self->debug_log(" (will wait until there are not $max other irods datasources updating)\n");
