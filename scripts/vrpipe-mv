@@ -236,10 +236,11 @@ elsif ($old_disc) {
     }
     
     sub mv_file {
-        my $file     = shift;
-        my $source   = $file->path;
+        my $file   = shift;
+        my $source = $file->path;
+        return unless -e $source;
         my $rel_path = File::Spec->abs2rel($source, $old_disc);
-        my $dest     = File::Spec->rel2abs($rel_path, $new_disc);
+        my $dest = File::Spec->rel2abs($rel_path, $new_disc);
         return if $dest eq $source;
         
         if ($verbose) {
