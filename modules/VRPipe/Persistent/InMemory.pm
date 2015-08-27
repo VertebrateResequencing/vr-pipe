@@ -451,24 +451,29 @@ class VRPipe::Persistent::InMemory {
     }
     
     method enqueue (Str $key!, Str $value!) {
-        return $self->_redis->sadd('queue.' . $key, $value);
+        return $self->_redis->rpush('queue.' . $key, $value);
     }
     
     method dequeue (Str $key!, ArrayRef $members?) {
         my $redis_key = 'queue.' . $key;
+        my $redis     = $self->_redis;
         if ($members) {
-            return $self->_redis->srem($redis_key, @$members);
+            my $removed = 0;
+            foreach my $val (@$members) {
+                $removed += $redis->lrem($redis_key, 0, $val);
+            }
+            return $removed;
         }
         else {
-            return $self->_redis->spop($redis_key);
+            return $redis->lpop($redis_key);
         }
     }
     
     method queue (Str $key!) {
-        # smembers returns an array ref in scalar context, but we want the
+        # lrange returns an array ref in scalar context, but we want the
         # count of members, so we force list context and then return the right
         # thing
-        my @members = $self->_redis->smembers('queue.' . $key);
+        my @members = $self->_redis->lrange('queue.' . $key, 0, -1);
         if (wantarray) {
             return @members;
         }
