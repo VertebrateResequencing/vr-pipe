@@ -46,6 +46,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     my $graph      = VRPipe::Persistent::Graph->new();
     my $config     = VRPipe::Config->new();
     my $fse_labels = $graph->_labels('VRPipe', 'FileSystemElement');
+    my (undef, $fse_label) = split(/:/, $fse_labels);
     
     method schema_definitions {
         return [{
@@ -274,7 +275,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
             # but anything else would be too slow
             my $uuid   = $self->create_uuid();
             my %params = (root_basename => $root_basename, root_uuid => $uuid);
-            my $cypher = $only_get ? "MATCH (root:$fse_labels { basename: { param }.root_basename })" : "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
+            my $cypher = $only_get ? "MATCH (root:$fse_label { basename: { param }.root_basename })" : "MERGE (root:$fse_labels { basename: { param }.root_basename }) ON CREATE SET root.uuid = { param }.root_uuid ";
             
             # sub dirs
             if ($basename) {
@@ -299,14 +300,14 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
                 $params{leaf_basename} = $basename;
                 $params{leaf_uuid}     = $uuid;
                 $params{leaf_path}     = "$path";
-                $cypher .= ($only_get ? "-[:contains]->(leaf { basename: { param }.leaf_basename })" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
+                $cypher .= ($only_get ? "-[:contains]->(leaf:$fse_label { basename: { leaf_basename } }) USING INDEX leaf:$fse_label(basename)" : " MERGE (`$previous`)-[:contains]->(leaf:$fse_labels { basename: { param }.leaf_basename, path: { param }.leaf_path }) ON CREATE SET leaf.uuid = { param }.leaf_uuid") . ($return_leaves ? ' RETURN leaf' : '');
             }
             else {
                 # we've only been asked for the root node
                 $cypher .= ' RETURN root' if $return_leaves;
             }
             
-            push(@cypher, [$cypher, { param => \%params }]);
+            push(@cypher, [$cypher, { param => \%params, $basename ? (leaf_basename => $basename, leaf_path => "$path") : () }]);
         }
         
         if ($return_cypher) {
