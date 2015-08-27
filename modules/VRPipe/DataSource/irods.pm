@@ -749,10 +749,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     # we'll only do the heavy-duty graph access if the file has
                     # changed (or is new)
                     #my $gtod = [gettimeofday];
-                    #*** this get_file() is critically slow (~3s per get);
-                    # collecting all paths and getting them in one cypher query
-                    # doesn't help; having md5sum lookups indexed on the files
-                    # doesn't help get them faster either
                     my $graph_file = $vrtrack->get_file($path, 'irods:');
                     #$times[0] += tv_interval($gtod);
                     if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1))) {
