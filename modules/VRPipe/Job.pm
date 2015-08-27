@@ -674,7 +674,6 @@ class VRPipe::Job extends VRPipe::Persistent {
         unless ($pid) {
             # allow some time for the cmd pid to spawn and start running the job
             if (time() <= ($start_time->epoch + 10)) {
-                warn "cmd_running applying leeway\n";
                 return 1;
             }
             else {
