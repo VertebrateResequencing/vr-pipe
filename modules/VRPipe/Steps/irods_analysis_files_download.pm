@@ -98,24 +98,25 @@ class VRPipe::Steps::irods_analysis_files_download extends VRPipe::Steps::irods 
                     $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_analysis_files_download; VRPipe::Steps::irods_analysis_files_download->get_file(source => q[$afile], dest => q[$download_path], iget => q[$iget], ichksum => q[$ichksum], imeta => q[$imeta], add_metadata => 1);], $req, { output_files => [$download_file], block_and_skip_if_ok => 1 });
                 }
                 
-                # we always specify our inputs as outputs so that other setups
-                # can use us a source, even if they don't need the files
-                # downloaded
-                my $meta = $file->metadata;
-                $meta->{irods_local_storage_dir} = $irods_local_storage_dir if $irods_local_storage_dir;
-                my $dest = $self->output_file(output_key => 'input_files', output_dir => $file->dir, basename => $file->basename, type => $file->type, metadata => $meta)->path;
-                
                 if ($get_inputs) {
+                    my $meta = $file->metadata;
+                    $meta->{irods_local_storage_dir} = $irods_local_storage_dir if $irods_local_storage_dir;
+                    
                     if (!$file->s) {
-                        # actually download
+                        # actually download to the path of input ($file)
+                        my $dest = $self->output_file(output_key => 'input_files', output_dir => $file->dir, basename => $file->basename, type => $file->type, metadata => $meta)->path;
                         $self->dispatch_vrpipecode(qq[use VRPipe::Steps::irods_analysis_files_download; VRPipe::Steps::irods_analysis_files_download->get_file(source => q[$meta->{irods_path}], dest => q[$dest], iget => q[$iget], ichksum => q[$ichksum]);], $req);
                     }
                     else {
-                        # symlink our existing input file to the pipeline output dir
-                        # so that if this step is restarted, we won't delete our
-                        # input file
-                        my $ofile = $self->output_file(output_key => 'input_files', basename => $file->basename, type => $file->type, metadata => $file->metadata);
-                        $file->symlink($ofile);
+                        # check it wasn't us that previously downloaded $file
+                        my %output_by = map { $_->id => 1 } $file->output_by;
+                        unless (exists $output_by{ $self->step_state->id }) {
+                            # symlink our existing input file to the pipeline
+                            # output dir so that if this step is restarted, we
+                            # won't delete our input file
+                            my $ofile = $self->output_file(output_key => 'input_files', basename => $file->basename, type => $file->type, metadata => $file->metadata);
+                            $file->symlink($ofile);
+                        }
                     }
                 }
             }
