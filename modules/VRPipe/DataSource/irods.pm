@@ -473,7 +473,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 foreach my $content (@{ $baton_output->{contents} }) {
                     my $dir      = $content->{collection};
                     my $basename = $content->{data_object};
-                    next if ($basename && $basename =~ /[~\$]/);
+                    next if ($basename && $basename =~ /[~\$ ]/); # just ignore annoying files we don't need anyway
                     
                     if ($recursive_files_only && !$basename) {
                         push(@files, &$run_baton_list($dir, $mode, 1));
