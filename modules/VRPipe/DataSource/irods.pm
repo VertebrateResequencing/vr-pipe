@@ -751,7 +751,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     #my $gtod = [gettimeofday];
                     my $graph_file = $vrtrack->get_file($path, 'irods:');
                     #$times[0] += tv_interval($gtod);
-                    if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1))) {
+                    if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1, $vrtrack))) {
                         #$gtod = [gettimeofday];
                         my $already_in_graph = 0;
                         if ($graph_file) {
@@ -1033,7 +1033,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         return \%files;
     }
     
-    method _file_changed (Str $path, HashRef $new_metadata, Str $local_root_dir, Bool $warehouse_mode) {
+    method _file_changed (Str $path, HashRef $new_metadata, Str $local_root_dir, Bool $warehouse_mode, Object $vrtrack?) {
         my ($file_abs_path, $protocol);
         if ($local_root_dir) {
             my $sub_path = $path;
@@ -1064,6 +1064,23 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
                     push(@changed, [$key, $val, $new_metadata->{$key}, $diff]);
                 }
+            }
+        }
+        
+        if (!@changed && $vrtrack && defined $new_metadata->{sample} && defined $new_metadata->{public_name}) {
+            # double check the most important sample metadata, since $vrfile's
+            # metadata could have been updated to latest irods data without
+            # the graph sample node being updated to match
+            my $sample = $vrtrack->get('Sample', { name => $new_metadata->{sample} });
+            if ($sample) {
+                my $graph_pn = $sample->public_name;
+                my $new_pn   = $new_metadata->{public_name};
+                if ($graph_pn ne $new_pn) {
+                    push(@changed, ['public_name', $graph_pn, $new_pn, "$graph_pn => $new_pn"]);
+                }
+            }
+            else {
+                return 1;
             }
         }
         
