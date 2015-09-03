@@ -159,7 +159,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $source_path           = $self->_path_escape($source);
         my $dest_path             = $self->_path_escape("$dest");
         if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
-            $samtools_for_cram_to_bam = $self->_path_escape($samtools_for_cram_to_bam);
+            $samtools_for_cram_to_bam = $self->_path_escape("$samtools_for_cram_to_bam");
             $iget_args =~ s/-?[Kf]//g;                                           #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
             $iget_args =~ s/^\s+//;
             $iget_args =~ s/\s+$//;
