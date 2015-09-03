@@ -1157,7 +1157,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         my $did = $self->_datasource_id;
         my @results;
-        my @changed_details;
         my $anti_repeat_store = {};
         foreach my $path (sort { $files->{$a}->{vrpipe_irods_order} <=> $files->{$b}->{vrpipe_irods_order} } keys %$files) {
             my $new_metadata = $files->{$path};
@@ -1187,10 +1186,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ())->original;
             
             # add metadata to file, detecting any changes
+            my @changed_details;
             my $changes = delete $new_metadata->{vrpipe_meta_changed};
-            my $changed = 0;
             if ($changes) {
-                $changed = 1;
                 foreach my $change (@$changes) {
                     push(@changed_details, "$file_abs_path $change->[0]: $change->[3]");
                     last;
@@ -1209,7 +1207,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $vrfile->add_metadata({ $protocol ? () : (irods_path => $path), defined $new_metadata->{md5} ? (expected_md5 => $new_metadata->{md5}) : () });
             
             my $result_hash = { paths => [$file_abs_path], $protocol ? (protocol => $protocol) : (irods_path => $path) };
-            if ($changed) {
+            if (@changed_details) {
                 $result_hash->{changed} = [[$vrfile, $new_metadata]];
                 $self->_start_over_elements_due_to_file_metadata_change($result_hash, \@changed_details, $anti_repeat_store);
                 delete $result_hash->{changed};
