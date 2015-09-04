@@ -773,22 +773,16 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             if ($already_in_graph) {
                                 # try and quickly fix up basic changes without
                                 # having to merge every single node and rel
-                                
                                 my $handled   = 0;
                                 my $unhandled = '';
                                 my $punted    = 0;
                                 foreach my $change (@$changes) {
                                     my ($key, $old, $new, $diff) = @$change;
                                     if ($key eq 'public_name') {
-                                        my $sample = $vrtrack->get('Sample', { public_name => $new });
-                                        if ($sample) {
-                                            $handled = 1;
-                                            next;
-                                        }
-                                        $sample = $vrtrack->get('Sample', { public_name => $old });
+                                        my $sample = $vrtrack->get('Sample', { name => $meta->{sample} });
                                         if ($sample) {
                                             $sample->public_name($new);
-                                            $handled = 1;
+                                            $handled++;
                                             next;
                                         }
                                     }
