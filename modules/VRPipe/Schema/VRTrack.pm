@@ -340,6 +340,22 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return \%nodes;
     }
     
+    method node_and_hierarchy_properties ($node) {
+        my $props;
+        while (my ($key, $val) = each %{ $node->properties }) {
+            $props->{$key} = $val;
+        }
+        
+        my $h = $self->get_sequencing_hierarchy($node);
+        while (my ($label, $hnode) = each %{$h}) {
+            while (my ($key, $val) = each %{ $hnode->properties }) {
+                $props->{"vrtrack_${label}_$key"} = $val;
+            }
+        }
+        
+        return $props;
+    }
+    
     method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
