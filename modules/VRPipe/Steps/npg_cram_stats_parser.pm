@@ -299,7 +299,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
         
         # compare the cram header to what we know about the sequencing
         my $header_lines       = $cram_file->header_lines;                                                                                                       # automagically works with irods files if HTSLIB has been compiled with irods support
-        my $props              = $graph_file->properties(flatten_parents => 1);
+        my $props              = $schema->node_and_hierarchy_properties($graph_file);
         my %rg_key_to_prop_key = (LB => ['vrtrack_library_id', 'vrtrack_library_name'], SM => 'vrtrack_sample_accession', DS => "vrtrack_study_$sample_id_type");
         my (%diffs, $ref_md5s);
         foreach (@$header_lines) {
