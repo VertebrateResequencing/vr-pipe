@@ -700,14 +700,14 @@ class VRPipe::Persistent::Graph {
             unless (exists $node->{parent_properties}) {
                 # get all the node properties of all parent nodes
                 $node->{parent_properties} = {};
-                foreach my $parent ($self->related_nodes($node, incoming => { min_depth => 1, max_depth => 999 })) {
+                foreach my $parent ($self->related_nodes($node, incoming => { min_depth => 1, max_depth => 6 })) { # we can't have max_depth 999 since that can kill Neo4J
                     my $prefix = $parent->{namespace} ne $node->{namespace} ? $parent->{namespace} . '_' : '';
                     $prefix .= $parent->{label};
                     $prefix = lc($prefix);
                     
                     while (my ($key, $val) = each %{ $parent->{properties} || {} }) {
                         my $full_key = $prefix . '_' . $key;
-                        $node->{parent_properties}->{$full_key} = $val; #*** we should probably merge and keep multiple vals for same full_key
+                        $node->{parent_properties}->{$full_key} = $val;                                            #*** we should probably merge and keep multiple vals for same full_key
                     }
                 }
             }
@@ -973,6 +973,13 @@ class VRPipe::Persistent::Graph {
         my $hash = $self->related($start_node, $undirected, $incoming, $outgoing, 1, $return_history_nodes);
         return unless ($hash && defined $hash->{nodes});
         return grep { $_->{id} != $start_id } @{ $hash->{nodes} };
+    }
+    
+    # direction is 'incoming' or 'outgoing' or 'undirected'
+    sub closest_node_with_label {
+        my ($self, $start_node, $namespace, $label, $direction) = @_;
+        my ($closest) = $self->related_nodes($start_node, $direction => { max_depth => 20, namespace => $namespace, label => $label });
+        return $closest;
     }
     
     method root_nodes {
