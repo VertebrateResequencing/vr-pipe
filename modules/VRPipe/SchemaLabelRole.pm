@@ -234,6 +234,16 @@ role VRPipe::SchemaLabelRole {
     method divorce_from (HashRef|Object $node!, Str $type?) {
         $graph->divorce($self, $node, $type ? (type => $type) : ());
     }
+    
+    # direction is 'incoming' or 'outgoing'; not supplied means undirected
+    method closest (Str $namespace!, Str $label!, Str :$direction?) {
+        my $node = $graph->closest_node_with_label($self, $namespace, $label, $direction ? ($direction) : ());
+        if ($node) {
+            bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
+            return $node;
+        }
+        return;
+    }
 }
 
 1;

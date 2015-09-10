@@ -217,7 +217,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         $vrlane ||= $self->add('Lane', { unique => $lane, lane => $lane });
         my %return = (lane => $vrlane);
         
-        my ($vrlib) = $vrlane->related(incoming => { namespace => 'VRTrack', label => 'Library' });
+        my $vrlib = $vrlane->closest('VRTrack', 'Library', direction => 'incoming');
         if ($vrlib) {
             if ($vrlib->id ne $library) {
                 if ($enforce) {
@@ -234,7 +234,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         $return{library} = $vrlib;
         
-        my ($vrsam) = $vrlib->related(incoming => { namespace => 'VRTrack', label => 'Sample' });
+        my $vrsam = $vrlib->closest('VRTrack', 'Sample', direction => 'incoming');
         if ($vrsam) {
             if ($vrsam->name ne $sample) {
                 if ($enforce) {
@@ -265,7 +265,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         if ($taxon) {
-            my ($vrtax) = $vrsam->related(incoming => { namespace => 'VRTrack', label => 'Taxon' });
+            my $vrtax = $vrsam->closest('VRTrack', 'Taxon', direction => 'incoming');
             if ($vrtax) {
                 if ($vrtax->id ne $taxon) {
                     if ($enforce) {
@@ -296,14 +296,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $taxon_labels = $self->cypher_labels('Taxon');
         my $study_labels = $self->cypher_labels('Study');
         
-        my ($start) = $node->related(incoming => { max_depth => 20, namespace => 'VRTrack', label => 'Lane' });
+        my $start = $node->closest('VRTrack', 'Lane', direction => 'incoming');
         my $cypher_start;
         if ($start) {
             # sequencing data
             $cypher_start = 'MATCH (start)<-[:sequenced]-(second)<-[:prepared]-(sample) WHERE id(start) = {param}.start_id';
         }
         else {
-            ($start) = $node->related(incoming => { max_depth => 20, namespace => 'VRTrack', label => 'Section' });
+            $start = $node->closest('VRTrack', 'Section', direction => 'incoming');
             if ($start) {
                 # microarray
                 $cypher_start = 'MATCH (start)<-[:placed]-(sample), (start)<-[:section]-(second) WHERE id(start) = {param}.start_id';

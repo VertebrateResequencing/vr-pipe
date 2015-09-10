@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 154;
+    use Test::Most tests => 158;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -131,6 +131,15 @@ $lib1->relate_to($lane1, 'sequenced', selfish => 1, properties => { machine => '
 is_deeply [sort map { $_->node_id } @related], [$lib1->node_id], 'relate_to(selfish => 1) worked';
 my ($r) = @{ $graph->related($lib1, undef, undef, { type => 'sequenced' })->{relationships} };
 is $r->{properties}->{machine}, 'big_one', 'relate_to(properties => {}) worked';
+
+my $closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing');
+like $closest->id, qr/l[12]/, 'closest(outgoing) worked';
+$closest = $lib3->closest('VRTrack', 'Sample', direction => 'outgoing');
+is $closest, undef, 'closest(outgoing) returns nothing when searching for non-existing';
+$closest = $lib3->closest('VRTrack', 'Sample', direction => 'incoming');
+is $closest->name, 's1', 'closest(incoming) worked';
+$closest = $lib3->closest('VRTrack', 'Sample');
+is $closest->name, 's1', 'closest() worked';
 
 # make sure we delete history nodes when we delete a schema node
 $lib3->tag('A');

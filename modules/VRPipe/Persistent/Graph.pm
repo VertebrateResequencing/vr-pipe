@@ -92,7 +92,7 @@ class VRPipe::Persistent::Graph {
     our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
     our $vrp_config = VRPipe::Config->new();
-    our ($ua, $transaction_endpoint, $global_label, $schemas, $schema_labels);
+    our ($ua, $url, $transaction_endpoint, $global_label, $schemas, $schema_labels);
     our $ua_headers = { 'Accept' => 'application/json', 'Content-Type' => 'application/json', 'Charset' => 'UTF-8', 'X-Stream' => 'true' };
     
     has 'throw_with_no_stacktrace' => (
@@ -127,7 +127,7 @@ class VRPipe::Persistent::Graph {
             
             # connect and get the transaction endpoint
             my $method_name = $deployment . '_neo4j_server_url';
-            my $url         = $vrp_config->$method_name();
+            $url         = $vrp_config->$method_name();
             $method_name = $deployment . '_neo4j_user';
             my $user = $vrp_config->$method_name();
             $method_name = $deployment . '_neo4j_password';
@@ -214,7 +214,6 @@ class VRPipe::Persistent::Graph {
                 }
             );
         }
-        #warn "cypher: $example_cypher (plus $#{$array} similar)\n";
         
         my $decode;
         foreach my $try_num (1 .. 20) {
@@ -975,11 +974,46 @@ class VRPipe::Persistent::Graph {
         return grep { $_->{id} != $start_id } @{ $hash->{nodes} };
     }
     
-    # direction is 'incoming' or 'outgoing' or 'undirected'
+    # direction is 'incoming' or 'outgoing'. Undef means undirected
     sub closest_node_with_label {
         my ($self, $start_node, $namespace, $label, $direction) = @_;
-        my ($closest) = $self->related_nodes($start_node, $direction => { max_depth => 20, namespace => $namespace, label => $label });
-        return $closest;
+        
+        # this plugin needs to be installed in Neo4J first:
+        # https://github.com/VertebrateResequencing/neo_path_to_label
+        my $start_id  = $start_node->{id};
+        my $extra     = $direction ? "&direction=$direction" : '';
+        my $pluginurl = "$url/v1/service/path_to/$global_label\%7C$namespace\%7C$label/from/$start_id?depth=100$extra";
+        
+        my $data;
+        foreach my $try_num (1 .. 20) {
+            eval {
+                my $tx = $ua->get($pluginurl => $ua_headers);
+                my $res = $tx->success;
+                unless ($res) {
+                    my $err = $tx->error;
+                    $self->throw("Failed to connect to '$pluginurl': [$err->{code}] $err->{message}");
+                }
+                $data = $json->decode($res->body);
+            
+            };
+            if ($@) {
+                if ($try_num == 20) {
+                    die $@;
+                }
+                else {
+                    sleep($try_num * 2);
+                }
+            }
+            else {
+                last;
+            }
+        }
+        
+        if ($data && ref($data) eq 'HASH' && exists $data->{neo4j_node_id}) {
+            my $nid = delete $data->{neo4j_node_id};
+            return { id => $nid, namespace => $namespace, label => $label, properties => $data };
+        }
+        return;
     }
     
     method root_nodes {
