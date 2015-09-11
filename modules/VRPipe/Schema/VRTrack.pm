@@ -751,7 +751,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     
     method _handle_discordance_cypher (HashRef $graph_data, Str $identifier, Int $node_id, ArrayRef $results, Str $type) {
         my $check_largest_study = $type eq 'discordance_fluidigm';
-        my $require_sample      = $identifier eq 'sample';
+        my $all_samples         = $identifier eq 'sample';
         my $disc_type           = $type =~ /fluidigm/ ? 'fluidigm' : 'genotype';
         my $graph               = $self->graph;
         
@@ -781,15 +781,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             my $study_id = join(',', sort { $a <=> $b } @study_ids) || 0;
             my $props = $graph->node_properties($sample);
-            if ($require_sample) {
-                if ($sid != $node_id) {
-                    next if $props->{qc_failed};
-                }
-            }
-            else {
+            unless ($all_samples) {
                 next if $props->{qc_failed};
             }
-            $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid, $props->{donor_node_id}];
+            $sample_meta{$sid} = [$props->{name}, $props->{public_name}, $props->{control}, $study_id, $sid, $props->{donor_node_id}, $props->{qc_failed}];
             $allowed_samples{ $props->{name} } = $sid;
             
             my @discs;
@@ -801,7 +796,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             }
             my ($disc) = sort { $b->{properties}->{date} <=> $a->{properties}->{date} } @discs;
             next unless $disc;
-            $disc->{properties}->{sample} = $props->{name} unless $require_sample;
+            $disc->{properties}->{sample} = $props->{name} unless $all_samples;
             $discs{ $disc->{id} } = $disc;
         }
         
@@ -816,7 +811,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my $cns        = $graph->json_decode($disc_props->{cns});
             my $sample     = $disc_props->{sample};
             while (my ($key, $val) = each %$cns) {
-                if ($require_sample ? 1 : exists $allowed_samples{ $val->[3] }) {
+                if ($all_samples ? 1 : exists $allowed_samples{ $val->[3] }) {
                     $cns{$key} = [$val->[0], $val->[1], $val->[2], sort ($val->[3], $sample ? ($sample) : ())];
                 }
             }
@@ -831,9 +826,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 push(@samples_meta, $sample_meta{ $allowed_samples{$sample} });
             }
             
-            if ($require_sample) {
+            if ($all_samples) {
                 my $sample_meta = $samples_meta[0];
-                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2] || 0, sample_node_id => $sample_meta->[4], donor_node_id => $sample_meta->[5] });
+                push(@$results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample_name => $sample_meta->[0], sample_public_name => $sample_meta->[1], sample_control => $sample_meta->[2] || 0, sample_node_id => $sample_meta->[4], donor_node_id => $sample_meta->[5], failed => $sample_meta->[6] || 0 });
             }
             else {
                 my ($sample1_meta, $sample2_meta) = sort { $a->[3] cmp $b->[3] || $b->[2] <=> $a->[2] || $a->[1] cmp $b->[1] } @samples_meta;
