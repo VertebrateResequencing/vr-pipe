@@ -447,7 +447,19 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     my $attribute = $avu->{attribute};
                     next if $mode eq 'files' && $attribute =~ /^dcterms:/;
                     next if $attribute =~ /_history$/;
-                    $meta->{$attribute} = $avu->{value};
+                    if (exists $meta->{$attribute}) {
+                        my $val = $meta->{$attribute};
+                        if (ref($val)) {
+                            push(@$val, $avu->{value});
+                        }
+                        else {
+                            $val = [$val, $avu->{value}];
+                        }
+                        $meta->{$attribute} = $val;
+                    }
+                    else {
+                        $meta->{$attribute} = $avu->{value};
+                    }
                 }
                 
                 push(@files, { dir => $collection, $basename ? (basename => $basename) : (), metadata => $meta });
@@ -487,7 +499,20 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             else {
                 my $meta = {};
                 foreach my $avu (@{ $baton_output->{avus} }) {
-                    $meta->{ $avu->{attribute} } = $avu->{value};
+                    my $attribute = $avu->{attribute};
+                    if (exists $meta->{$attribute}) {
+                        my $val = $meta->{$attribute};
+                        if (ref($val)) {
+                            push(@$val, $avu->{value});
+                        }
+                        else {
+                            $val = [$val, $avu->{value}];
+                        }
+                        $meta->{$attribute} = $val;
+                    }
+                    else {
+                        $meta->{$attribute} = $avu->{value};
+                    }
                 }
                 return $meta;
             }
