@@ -589,6 +589,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     
                     if ($require_qc_files && @qc_files != @desired_qc_file_suffixes) {
                         $f_skip_qc++;
+                        $self->debug_log("  $path didn't have all required qc files\n");
                         next FILE;
                     }
                     elsif (@qc_files) {
