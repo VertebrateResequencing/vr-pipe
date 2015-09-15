@@ -681,6 +681,13 @@ class VRPipe::Persistent::Graph {
         return $nodes[0];
     }
     
+    method get_nodes_by_regex (Str :$namespace!, Str :$label!, Str :$key!, Str :$regex!) {
+        my $labels = $self->_labels($namespace, $label);
+        $regex =~ s/\\/\\\\/g;
+        $regex =~ s/"/\\"/g;
+        return @{ $self->_run_cypher([[qq{MATCH (n:$labels) WHERE n.`$key` =~ "$regex" RETURN n}]])->{nodes} };
+    }
+    
     sub node_id {
         my ($self, $node) = @_;
         if (defined $node->{id}) {

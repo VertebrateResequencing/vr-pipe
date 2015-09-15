@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 91;
+    use Test::Most tests => 93;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -230,6 +230,12 @@ is_deeply $fresh_step_result->{properties}, { uuid => $uuid, foo => 'baz', lemur
 # we can get a node by its database id
 $node = $graph->get_node_by_id($graph->node_id($step_result));
 is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'get_node_by_id() worked';
+
+# we can search using regexes
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', key => 'name', regex => 'Person\d+');
+is scalar(@nodes), 1050, 'get_nodes_by_regex() worked';
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', key => 'name', regex => 'Person1.+');
+is scalar(@nodes), 161, 'get_nodes_by_regex() worked with a different regex';
 
 # usually you can have node related to an unlimited number of other nodes,
 # but sometimes you want it to only connect to a single node of a certain type,

@@ -355,6 +355,23 @@ role VRPipe::SchemaRole {
         return $self->_get_and_bless_nodes($label, 'get_nodes', $properties ? ($properties) : ());
     }
     
+    method search (Str $label!, Str :$key!, Str :$regex!) {
+        my $namespace = $self->namespace;
+        my @nodes = $self->graph->get_nodes_by_regex(namespace => $namespace, label => $label, key => $key, regex => $regex);
+        
+        # bless the nodes into the appropriate class
+        foreach my $node (@nodes) {
+            bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
+        }
+        
+        if (wantarray()) {
+            return @nodes;
+        }
+        else {
+            return $nodes[0];
+        }
+    }
+    
     method delete ($node) {
         my $graph = $self->graph;
         my ($history_data, $im, $lock_key);

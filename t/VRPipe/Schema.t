@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 158;
+    use Test::Most tests => 160;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -197,6 +197,11 @@ my @second_queue = ($schema->get('Sample', { name => 'enqueue1' }), $schema->get
 is_deeply [[sort map { $_->name() } @second_queue], [sort map { $_->node_id() } @second_queue], $second_queue[0]->public_name], [['enqueue1', 'enqueue2', 'enqueue3'], [$expected_queue[0]->node_id, $expected_queue[1]->node_id, $second_queue[2]->node_id], 'enqueue1_public_b'], 'dispatch_queue() was able to update, leave alone and add a new node';
 @history = $second_queue[0]->property_history();
 is_deeply [$history[0]->{properties}->{public_name}, $history[1]->{properties}->{public_name}], ['enqueue1_public_b', 'enqueue1_public_a'], 'history was maintained on a node updated via dispatch_queue()';
+
+# test search()
+my @samples = $schema->search('Sample', key => 'name', regex => '.+queue\d+');
+is scalar(@samples), 3, 'search() worked';
+is_deeply [sort map { $_->name() } @samples], ['enqueue1', 'enqueue2', 'enqueue3'], 'search() returned the correct blessed objects';
 
 # before creating the VRPipe schema, test that related() on a VRTrack node can
 # return fully-functional VRPipe nodes
