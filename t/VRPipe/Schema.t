@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 160;
+    use Test::Most tests => 161;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -134,6 +134,8 @@ is $r->{properties}->{machine}, 'big_one', 'relate_to(properties => {}) worked';
 
 my $closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing');
 like $closest->id, qr/l[12]/, 'closest(outgoing) worked';
+my @closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1);
+is_deeply [sort map { $_->id } @closest], ['l1', 'l2', 'l3'], 'closest(all) worked';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'outgoing');
 is $closest, undef, 'closest(outgoing) returns nothing when searching for non-existing';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'incoming');

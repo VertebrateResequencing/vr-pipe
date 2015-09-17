@@ -236,11 +236,19 @@ role VRPipe::SchemaLabelRole {
     }
     
     # direction is 'incoming' or 'outgoing'; not supplied means undirected
-    method closest (Str $namespace!, Str $label!, Str :$direction?) {
-        my $node = $graph->closest_node_with_label($self, $namespace, $label, $direction ? ($direction) : ());
-        if ($node) {
+    # all as true will get the closest node along every path extending from
+    # the start node
+    method closest (Str $namespace!, Str $label!, Str :$direction?, Int :$depth = 100, Bool :$all = 0) {
+        my @nodes = $graph->closest_nodes_with_label($self, $namespace, $label, $direction ? (direction => $direction) : (), depth => $depth, all => $all);
+        foreach my $node (@nodes) {
             bless $node, 'VRPipe::Schema::' . $namespace . '::' . $label;
-            return $node;
+        }
+        
+        if (@nodes) {
+            if (wantarray) {
+                return @nodes;
+            }
+            return $nodes[0];
         }
         return;
     }

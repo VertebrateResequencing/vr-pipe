@@ -101,14 +101,14 @@ is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(John Libr
 @nodes = $graph->related_nodes($study, incoming => { min_depth => 0 }, outgoing => { min_depth => 0 });
 is_deeply [sort map { $graph->node_property($_, 'name') } @nodes], [qw(Jane John)], 'related_nodes works correctly with a min_depth of 0';
 
-my $closest = $graph->closest_node_with_label($john, 'VRTrack', 'Study', 'incoming');
-is $graph->node_property($closest, 'name'), 'Study of Disease_xyz', 'closest_node_with_label(incoming) worked';
-$closest = $graph->closest_node_with_label($john, 'VRTrack', 'Study');
-is $graph->node_property($closest, 'name'), 'Study of Disease_xyz', 'closest_node_with_label() worked';
-$closest = $graph->closest_node_with_label($john, 'VRTrack', 'Lane', 'incoming');
-is $closest, undef, 'closest_node_with_label(incoming) returns nothing if searching for something that does not exist';
-$closest = $graph->closest_node_with_label($john, 'VRTrack', 'Lane', 'outgoing');
-is $graph->node_property($closest, 'name'), 'Lane1', 'closest_node_with_label(outgoing) worked';
+my $closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Study', direction => 'incoming');
+is $graph->node_property($closest, 'name'), 'Study of Disease_xyz', 'closest_nodes_with_label(incoming) worked';
+$closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Study');
+is $graph->node_property($closest, 'name'), 'Study of Disease_xyz', 'closest_nodes_with_label() worked';
+$closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'incoming');
+is $closest, undef, 'closest_nodes_with_label(incoming) returns nothing if searching for something that does not exist';
+$closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing');
+is $graph->node_property($closest, 'name'), 'Lane1', 'closest_nodes_with_label(outgoing) worked';
 
 # test deleting relationships
 my $samson  = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Samson' });

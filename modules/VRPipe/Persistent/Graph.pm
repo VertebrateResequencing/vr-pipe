@@ -982,14 +982,12 @@ class VRPipe::Persistent::Graph {
     }
     
     # direction is 'incoming' or 'outgoing'. Undef means undirected
-    sub closest_node_with_label {
-        my ($self, $start_node, $namespace, $label, $direction) = @_;
-        
+    method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, Int :$depth = 100, Bool :$all = 0) {
         # this plugin needs to be installed in Neo4J first:
         # https://github.com/VertebrateResequencing/neo_path_to_label
         my $start_id  = $start_node->{id};
-        my $extra     = $direction ? "&direction=$direction" : '';
-        my $pluginurl = "$url/v1/service/path_to/$global_label\%7C$namespace\%7C$label/from/$start_id?depth=100$extra";
+        my $dir       = $direction ? "&direction=$direction" : '';
+        my $pluginurl = "$url/v1/service/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir";
         
         my $data;
         foreach my $try_num (1 .. 20) {
@@ -1001,7 +999,6 @@ class VRPipe::Persistent::Graph {
                     $self->throw("Failed to connect to '$pluginurl': [$err->{code}] $err->{message}");
                 }
                 $data = $json->decode($res->body);
-            
             };
             if ($@) {
                 if ($try_num == 20) {
@@ -1016,9 +1013,18 @@ class VRPipe::Persistent::Graph {
             }
         }
         
-        if ($data && ref($data) eq 'HASH' && exists $data->{neo4j_node_id}) {
-            my $nid = delete $data->{neo4j_node_id};
-            return { id => $nid, namespace => $namespace, label => $label, properties => $data };
+        my @nodes;
+        if ($data && ref($data) eq 'HASH') {
+            while (my ($nid, $props) = each %{$data}) {
+                push(@nodes, { id => int($nid), namespace => $namespace, label => $label, properties => $props });
+            }
+        }
+        
+        if (@nodes) {
+            if (wantarray) {
+                return @nodes;
+            }
+            return $nodes[0];
         }
         return;
     }
