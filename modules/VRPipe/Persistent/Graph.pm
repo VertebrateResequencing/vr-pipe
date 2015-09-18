@@ -88,6 +88,7 @@ class VRPipe::Persistent::Graph {
     use Data::UUID;
     use DateTime::Format::Natural;
     use MIME::Base64;
+    use URI::Escape;
     
     our $json       = JSON::XS->new->allow_nonref(1);
     our $data_uuid  = Data::UUID->new();
@@ -982,12 +983,20 @@ class VRPipe::Persistent::Graph {
     }
     
     # direction is 'incoming' or 'outgoing'. Undef means undirected
-    method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, Int :$depth = 100, Bool :$all = 0) {
+    method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, Str :$property_key?, Str :$property_value?, Str :$property_regex?, Int :$depth = 100, Bool :$all = 0) {
         # this plugin needs to be installed in Neo4J first:
         # https://github.com/VertebrateResequencing/neo_path_to_label
-        my $start_id  = $start_node->{id};
-        my $dir       = $direction ? "&direction=$direction" : '';
-        my $pluginurl = "$url/v1/service/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir";
+        my $start_id = $start_node->{id};
+        my $dir      = $direction ? "&direction=$direction" : '';
+        my $prop     = '';
+        if ($property_key && $property_value) {
+            $prop = "&property_key=$property_key&property_value=$property_value";
+        }
+        elsif ($property_key && $property_regex) {
+            my $encoded_regex = uri_escape($property_regex);
+            $prop = "&property_key=$property_key&property_regex=$encoded_regex";
+        }
+        my $pluginurl = "$url/v1/service/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop";
         
         my $data;
         foreach my $try_num (1 .. 20) {

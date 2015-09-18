@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 161;
+    use Test::Most tests => 163;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -28,7 +28,7 @@ my $orig_ebi_id = $ebisub->node_id();
 $ebisub = $schema->add('EBI_Submission', { acc => 'ebi1', sub_date => 67890 });
 is_deeply [$ebisub->{id}, $ebisub->{properties}, $ebisub->changed()], [$orig_ebi_id, { acc => 'ebi1', sub_date => 67890 }], 'add() twice on the same unique property with different other properties does an update on a history-less label';
 
-ok my @libs = $schema->add('Library', [{ id => 'l1' }, { id => 'l2' }], incoming => { type => 'prepared', node => $sample }), 'add() worked with incoming option, and for adding more than 1 at a time';
+ok my @libs = $schema->add('Library', [{ id => 'l1', center_name => 'sanger1' }, { id => 'l2' }], incoming => { type => 'prepared', node => $sample }), 'add() worked with incoming option, and for adding more than 1 at a time';
 
 throws_ok { $schema->add('Foo', { foo => 'bar' }) } qr/'Foo' isn't a valid label for schema VRTrack/, 'add() throws when given an invalid label';
 throws_ok { $schema->add('Sample', { id => '1' }) } qr/Parameter 'name' must be supplied/, 'add() throws when not given a required parameter';
@@ -55,10 +55,10 @@ is $lib1->name, 'libone', 'auto-generated property method worked to set';
 $lib1 = $schema->get('Library', { id => 'l1' });
 is $lib1->name, 'libone', 'the set was really in the database';
 
-is_deeply $lib1->properties(flatten_parents => 1), { id => 'l1', name => 'libone', sample_name => 's1', sample_public_name => 'public_s1' }, 'properties() method worked with flatten_parents';
+is_deeply $lib1->properties(flatten_parents => 1), { id => 'l1', name => 'libone', sample_name => 's1', sample_public_name => 'public_s1', center_name => 'sanger1' }, 'properties() method worked with flatten_parents';
 $lib1->add_properties({ name => 'lib1', tag => 'ATG' });
 $lib1 = $schema->get('Library', { id => 'l1' });
-is_deeply $lib1->properties(), { id => 'l1', name => 'lib1', tag => 'ATG' }, 'add_properties() method worked';
+is_deeply $lib1->properties(), { id => 'l1', name => 'lib1', center_name => 'sanger1', tag => 'ATG', }, 'add_properties() method worked';
 is $lib1->parent_property('sample_name'), 's1', 'parent_property() worked';
 
 throws_ok { $sample->add_properties({ foo  => 'bar' }) } qr/Property 'foo' supplied, but that isn't defined in the schema for VRTrack::Sample/,           'add_properties() throws when given an invalid property';
@@ -122,6 +122,8 @@ $sample->relate_to($lib3, 'prepared');
 @related = $lib3->related();
 is_deeply [sort map { $_->node_id } @related], [$sample->node_id], 'relate_to() worked';
 is $related[0]->name, 's1', 'related() returns working objects';
+my $lib4 = $schema->add('Library', { id => 'l4', center_name => 'sanger' });
+$sample->relate_to($lib4, 'prepared');
 my $lane1 = $schema->add('Lane', { unique => 'lane1', lane => 1 });
 $lib3->relate_to($lane1, 'sequenced');
 @related = $lane1->related(incoming => {});
@@ -135,7 +137,11 @@ is $r->{properties}->{machine}, 'big_one', 'relate_to(properties => {}) worked';
 my $closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing');
 like $closest->id, qr/l[12]/, 'closest(outgoing) worked';
 my @closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1);
-is_deeply [sort map { $_->id } @closest], ['l1', 'l2', 'l3'], 'closest(all) worked';
+is_deeply [sort map { $_->id } @closest], ['l1', 'l2', 'l3', 'l4'], 'closest(all) worked';
+@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, property_key => 'center_name', property_value => 'sanger');
+is_deeply [sort map { $_->id } @closest], ['l4'], 'closest(all) with a specified property limit worked';
+@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, property_key => 'center_name', property_regex => 'san\wer.*');
+is_deeply [sort map { $_->id } @closest], ['l1', 'l4'], 'closest(all) with a regex property limit worked';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'outgoing');
 is $closest, undef, 'closest(outgoing) returns nothing when searching for non-existing';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'incoming');

@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 93;
+    use Test::Most tests => 96;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -109,6 +109,12 @@ $closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction 
 is $closest, undef, 'closest_nodes_with_label(incoming) returns nothing if searching for something that does not exist';
 $closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing');
 is $graph->node_property($closest, 'name'), 'Lane1', 'closest_nodes_with_label(outgoing) worked';
+my @closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing', all => 1);
+is_deeply [sort map { $graph->node_property($_, 'name') } @closest], [qw(Lane1 Lane2)], 'closest_nodes_with_label(all => 1) worked';
+@closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing', all => 1, property_key => 'foo', property_value => 'bar');
+is_deeply [sort map { $graph->node_property($_, 'name') } @closest], [qw(Lane2)], 'closest_nodes_with_label() with a specific property limit worked';
+@closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing', all => 1, property_key => 'foo', property_regex => 'b\w.*');
+is_deeply [sort map { $graph->node_property($_, 'name') } @closest], [qw(Lane2)], 'closest_nodes_with_label() with a regex property limit worked';
 
 # test deleting relationships
 my $samson  = $graph->add_node(namespace => 'VRTrack', label => 'Individual', properties => { name => 'Samson' });

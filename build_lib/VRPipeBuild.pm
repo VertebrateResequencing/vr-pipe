@@ -121,7 +121,8 @@ sub required_modules {
         'Test::Strict'                   => 0,
         'Time::Format'                   => 0,
         'Twiggy::TLS'                    => 0,
-        'TryCatch'                       => 0
+        'TryCatch'                       => 0,
+        'URI::Escape'                    => 0
     };
 }
 
