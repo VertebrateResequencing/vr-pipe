@@ -127,19 +127,8 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
             my $passes = 0;
             foreach my $gf (@$gfs) {
                 my ($namespace, $label, $prop, $value) = @$gf;
-                my @nodes = $graph->related_nodes(
-                    $file_node,
-                    incoming => {
-                        namespace => $namespace,
-                        label     => $label,
-                        max_depth => 20,
-                        $value ? (properties => { $prop => $value }) : ()
-                    }
-                );
-                #*** there are definitely optimisations
-                # that can be made here: we can get all file nodes at once, and
-                # we can check all property#value pairs on the same label at
-                # once.
+                my @nodes = $file_node->closest($namespace, $label, direction => 'incoming', all => 1, $value ? (property_key => $prop, property_value => $value) : ());
+                
                 if (@nodes) {
                     unless ($value) {
                         # we didn't restrict nodes to those that have $prop set
