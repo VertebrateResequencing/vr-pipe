@@ -600,7 +600,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     $sample->qc_selected(0);
                     $sample->qc_passed(0);
                     $sample->qc_failed(0);
-                    foreach my $user ($sample->related(outgoing => { namespace => 'VRTrack', label => 'User' })) {
+                    foreach my $user ($sample->closest('VRTrack', 'User', direction => 'outgoing', all => 1)) {
                         $sample->divorce_from($user);
                     }
                     delete $failed{ $sample->{id} };

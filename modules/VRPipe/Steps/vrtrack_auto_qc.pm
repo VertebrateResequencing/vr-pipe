@@ -139,16 +139,9 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                     $schema ||= VRPipe::Schema->create("VRPipe");
                     my $file_graph_node = $schema->get('File', { path => $file->path->stringify });
                     if ($file_graph_node) {
-                        my ($lane_node) = $schema->graph->related_nodes(
-                            $file_graph_node,
-                            incoming => {
-                                namespace => 'VRTrack',
-                                label     => 'Lane',
-                                max_depth => 4
-                            }
-                        );
+                        my $lane_node = $file_graph_node->closest('VRTrack', 'Lane', direction => 'incoming');
                         if ($lane_node) {
-                            $lane = $schema->graph->node_property($lane_node, "unique");
+                            $lane = $lane_node->unique;
                         }
                     }
                 }

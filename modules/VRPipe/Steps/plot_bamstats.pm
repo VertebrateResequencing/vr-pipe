@@ -74,7 +74,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 my $vrtrack = VRPipe::Schema->create('VRTrack');
                 my $vrstats_file = $vrtrack->get_file($s_file->protocolless_path, $s_file->protocol);
                 $self->throw($s_file->path . " was not in the graph database") unless $vrstats_file;
-                my ($vr_lane) = $vrstats_file->related(incoming => { namespace => 'VRTrack', label => 'Lane', max_depth => 5 });
+                my $vr_lane = $vrstats_file->closest('VRTrack', 'Lane', direction => 'incoming');
                 my ($vr_stats) = $vrstats_file->related(outgoing => { type => 'summary_stats' });
                 my $prefix = $vr_lane->unique() || $s_file->basename;
                 
