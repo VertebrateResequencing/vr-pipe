@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::§ - a pipeline
+VRPipe::Pipelines::snp_calling_mpileup_from_bcf - a pipeline
 
 =head1 DESCRIPTION
 
