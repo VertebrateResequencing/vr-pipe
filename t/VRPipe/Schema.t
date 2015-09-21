@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 163;
+    use Test::Most tests => 164;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -138,10 +138,12 @@ my $closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing');
 like $closest->id, qr/l[12]/, 'closest(outgoing) worked';
 my @closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1);
 is_deeply [sort map { $_->id } @closest], ['l1', 'l2', 'l3', 'l4'], 'closest(all) worked';
-@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, property_key => 'center_name', property_value => 'sanger');
+@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, properties => [['center_name', 'sanger']]);
 is_deeply [sort map { $_->id } @closest], ['l4'], 'closest(all) with a specified property limit worked';
-@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, property_key => 'center_name', property_regex => 'san\wer.*');
+@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, properties => [['center_name', 'san\wer.*', 1]]);
 is_deeply [sort map { $_->id } @closest], ['l1', 'l4'], 'closest(all) with a regex property limit worked';
+@closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, properties => [['center_name', 'san\wer.*', 1], ['id', 'l[12]', 1]]);
+is_deeply [sort map { $_->id } @closest], ['l1'], 'closest(all) with 2 regex property limits worked';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'outgoing');
 is $closest, undef, 'closest(outgoing) returns nothing when searching for non-existing';
 $closest = $lib3->closest('VRTrack', 'Sample', direction => 'incoming');

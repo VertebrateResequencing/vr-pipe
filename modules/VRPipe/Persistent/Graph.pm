@@ -983,18 +983,23 @@ class VRPipe::Persistent::Graph {
     }
     
     # direction is 'incoming' or 'outgoing'. Undef means undirected
-    method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, Str :$property_key?, Str :$property_value?, Str :$property_regex?, Int :$depth = 100, Bool :$all = 0) {
+    # properties is [['key', 'value', 0], [ ... ]], where third value is a booleon which if true means the value is treated as a regex
+    method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, ArrayRef[ArrayRef] :$properties?, Int :$depth = 100, Bool :$all = 0) {
         # this plugin needs to be installed in Neo4J first:
-        # https://github.com/VertebrateResequencing/neo_path_to_label
+        # https://github.com/VertebrateResequencing/vrpipe_neo4j_plugin
         my $start_id = $start_node->{id};
         my $dir      = $direction ? "&direction=$direction" : '';
         my $prop     = '';
-        if ($property_key && $property_value) {
-            $prop = "&property_key=$property_key&property_value=$property_value";
-        }
-        elsif ($property_key && $property_regex) {
-            my $encoded_regex = uri_escape($property_regex);
-            $prop = "&property_key=$property_key&property_regex=$encoded_regex";
+        if ($properties) {
+            my @props;
+            foreach my $prop_array (@$properties) {
+                my ($key, $val, $regex) = @$prop_array;
+                my $type = $regex ? 'regex' : 'literal';
+                $val = uri_escape($val);
+                push(@props, "$type\%40_\%40$key\%40_\%40$val");
+            }
+            my $props = join('%40%40%40', @props);
+            $prop = "&properties=$props";
         }
         my $pluginurl = "$url/v1/service/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop";
         

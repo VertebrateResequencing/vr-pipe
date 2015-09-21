@@ -237,16 +237,15 @@ role VRPipe::SchemaLabelRole {
     
     # direction is 'incoming' or 'outgoing'; not supplied means undirected.
     # all => true will get the closest node along every path extending from
-    # the start node
-    method closest (Str $namespace!, Str $label!, Str :$direction?, Str :$property_key?, Str :$property_value?, Str :$property_regex?, Int :$depth = 100, Bool :$all = 0) {
+    # the start node.
+    # properties is [['key', 'value', 0], [ ... ]], where third value is a booleon which if true means the value is treated as a regex
+    method closest (Str $namespace!, Str $label!, Str :$direction?, ArrayRef[ArrayRef] :$properties?, Int :$depth = 100, Bool :$all = 0) {
         my @nodes = $graph->closest_nodes_with_label(
             $self,
             $namespace,
             $label,
-            $direction      ? (direction      => $direction)      : (),
-            $property_key   ? (property_key   => $property_key)   : (),
-            $property_value ? (property_value => $property_value) : (),
-            $property_regex ? (property_regex => $property_regex) : (),
+            $direction  ? (direction  => $direction)  : (),
+            $properties ? (properties => $properties) : (),
             depth => $depth,
             all   => $all
         );
