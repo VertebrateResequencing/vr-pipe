@@ -127,7 +127,8 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
             my $passes = 0;
             foreach my $gf (@$gfs) {
                 my ($namespace, $label, $prop, $value) = @$gf;
-                my @nodes = $file_node->closest($namespace, $label, direction => 'incoming', all => 1, $value ? (property_key => $prop, property_value => $value) : ());
+                my @nodes = $file_node->closest($namespace, $label, direction => 'incoming', all => 1, $value ? (properties => [[$prop, $value]]) : ());
+                #*** this could be optimised by grouping on $label and passing multiple properties at once...
                 
                 if (@nodes) {
                     unless ($value) {
