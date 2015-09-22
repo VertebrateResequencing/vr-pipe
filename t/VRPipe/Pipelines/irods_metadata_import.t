@@ -87,8 +87,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'md5'                     => '41b6f345a2f92f095f09a7ff22bbbc00',
         'expected_md5'            => '41b6f345a2f92f095f09a7ff22bbbc00',
         'sample_supplier_name'    => 'face6d88-7e90-4215-aa80-fb2c3df5a4ed',
-        'irods_analysis_files'    => [qw(/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.xlsx /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Control_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)],
-        'irods_local_storage_dir' => $output_root
+        'irods_analysis_files'    => [qw(/archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15.xlsx /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Control_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.gz /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_Sample_Probe_Profile.txt.zip /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_annotation.txt /archive/GAPI/exp/analysis/e1/b2/08/hipsci_7samples_2013-05-15/hipsci_2013-05-15_quantile_Sample_Probe_Profile.txt)]
       },
       'correct file metadata was present on the first idat file';
 }
@@ -218,8 +217,7 @@ foreach my $result (map { result_with_inflated_paths($_) } @{ get_elements($ds) 
         'md5'                     => '17b7159554bca4ff4376384b385da51f',
         'expected_md5'            => '17b7159554bca4ff4376384b385da51f',
         'sample_supplier_name'    => '87e7ee6f-e16f-41f6-94c5-194933e2b192',
-        'irods_analysis_files'    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz',
-        'irods_local_storage_dir' => $output_root
+        'irods_analysis_files'    => '/archive/GAPI/gen/analysis/74/39/87/coreex_hips/20130613/coreex_hips_20130613.fcr.txt.gz'
       },
       'correct file metadata was present on the first gtc file';
 }
