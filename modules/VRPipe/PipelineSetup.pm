@@ -293,6 +293,10 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                 foreach my $input_step_number (@{ $step_inputs{$step_number} || [] }) {
                                     my $input_member = $step_members[$input_step_number - 1];
                                     my ($input_ss) = VRPipe::StepState->search({ stepmember => $input_member, dataelement => $element, pipelinesetup => $self });
+                                    unless ($input_ss) {
+                                        die "DataElement ", $element->id, " passed step $input_step_number, but the StepState corresponding to that doesn't exist! You'll probably have to 'vrpipe-elements --setup ", $self->id, " --start_from_scratch ...' this and other stuck dataelements to redo step $input_step_number\n";
+                                    }
+                                    
                                     my $input_step = $input_member->step(step_state => $input_ss);
                                     while (my ($key, $val) = each %{ $input_step->outputs() }) {
                                         $previous_step_outputs{$key}->{$input_step_number} = $val;
