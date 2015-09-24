@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011, 2013 Genome Research Limited.
+Copyright (c) 2011, 2013, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -260,6 +260,16 @@ role VRPipe::DataSourceRole {
         }
         
         return;
+    }
+    
+    method debug_log (Str $msg) {
+        if ($self->debug) {
+            warn $msg;
+        }
+        chomp($msg);
+        foreach my $setup (VRPipe::PipelineSetup->search({ datasource => $self->_datasource_id, active => 1 })) {
+            $setup->log_event($msg);
+        }
     }
 }
 

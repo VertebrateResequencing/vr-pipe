@@ -897,6 +897,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             my $donor;
                             if (defined $meta->{sample_cohort}) {
                                 $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                                
+                                # clear any old study to donor rels before
+                                # adding the current ones
+                                foreach my $study ($donor->closest('VRTrack', 'Study', direction => 'incoming', all => 1)) {
+                                    $study->divorce_from($donor, 'member');
+                                }
+                                
                                 foreach my $study (@studies) {
                                     $study->relate_to($donor, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                                 }
@@ -908,6 +915,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 $sample_created_date = $vrtrack->date_to_epoch($meta->{sample_created_date});
                             }
                             my $sample = $vrtrack->add('Sample', { name => $meta->{sample}, public_name => $meta->{public_name}, id => $meta->{sample_id}, supplier_name => $meta->{sample_supplier_name}, accession => $meta->{sample_accession_number}, created_date => $sample_created_date, consent => $meta->{sample_consent}, control => $meta->{sample_control} });
+                            
+                            # clear any old study to samples rels before adding
+                            # the current ones
+                            foreach my $study ($sample->closest('VRTrack', 'Study', direction => 'incoming', all => 1)) {
+                                $study->divorce_from($sample, 'member');
+                            }
+                            
                             foreach my $study (@studies) {
                                 $study->relate_to($sample, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                             }
@@ -980,6 +994,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             # infinium idats and gtc
                             if (defined $meta->{beadchip}) {
                                 my $beadchip = $vrtrack->add('Beadchip', { id => $meta->{beadchip}, design => $meta->{beadchip_design} });
+                                
+                                # clear any old study to beadchip rels before
+                                # adding the current ones
+                                foreach my $study ($beadchip->closest('VRTrack', 'Study', direction => 'incoming', all => 1)) {
+                                    $study->divorce_from($beadchip, 'has');
+                                }
+                                
                                 foreach my $study (@studies) {
                                     $study->relate_to($beadchip, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                                 }
@@ -1000,6 +1021,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             
                             if (defined $meta->{infinium_plate}) {
                                 my $plate = $vrtrack->add('Infinium_Plate', { id => $meta->{infinium_plate} });
+                                
+                                # clear any old study to plate rels before adding
+                                # the current ones
+                                foreach my $study ($plate->closest('VRTrack', 'Study', direction => 'incoming', all => 1)) {
+                                    $study->divorce_from($plate, 'has');
+                                }
+                                
                                 foreach my $study (@studies) {
                                     $study->relate_to($plate, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                                 }
@@ -1255,16 +1283,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         $self->_clear_file_filter_cache();
         
         return @results;
-    }
-    
-    method debug_log (Str $msg) {
-        if ($self->debug) {
-            warn $msg;
-        }
-        chomp($msg);
-        foreach my $setup (VRPipe::PipelineSetup->search({ datasource => $self->_datasource_id, active => 1 })) {
-            $setup->log_event($msg);
-        }
     }
 }
 
