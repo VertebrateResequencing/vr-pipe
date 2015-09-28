@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 165;
+    use Test::Most tests => 169;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -435,5 +435,62 @@ $hierarchy->{lane}->relate_to($lane8_file, 'aligned');
 $hierarchy = $schema->get_sequencing_hierarchy($lane8_file);
 %hierarchy_props = map { $_ => $hierarchy->{$_}->properties } keys %{$hierarchy};
 is_deeply \%hierarchy_props, { lane => { unique => 'esh_lane8', lane => 'esh_lane8' }, library => { id => 'esh_library8' }, sample => { name => 'esh_sample8' }, study => { id => 'esh_study8' }, taxon => { id => 'esh_taxon1' } }, 'get_sequencing_hierarchy() returned the correct nodes for another bam file, in the simple case of there being only 1 study for the sample';
+
+my $hierarchy_meta = $schema->node_and_hierarchy_properties($lane8_file);
+is_deeply $hierarchy_meta, { vrtrack_lane_unique => 'esh_lane8', vrtrack_lane_lane => 'esh_lane8', vrtrack_library_id => 'esh_library8', vrtrack_sample_name => 'esh_sample8', vrtrack_study_id => 'esh_study8', vrtrack_taxon_id => 'esh_taxon1' }, 'node_and_hierarchy_properties() worked';
+
+# test file_qc_nodes() by first manually adding the nodes that
+# npg_cram_stats_parser step adds
+my $qc_file = $vrpipe->add('File', { path => '/seq/8/8.stats' });
+$lane8_file->relate_to($qc_file, 'qc_file');
+$schema->add(
+    'Bam_Stats',
+    {
+        mode                  => 'normal',
+        options               => '-opt',
+        date                  => 1443015733,
+        'reads QC failed'     => 99,
+        'raw total sequences' => 10001
+    },
+    incoming => { type => 'summary_stats', node => $qc_file }
+);
+$qc_file = $vrpipe->add('File', { path => '/seq/8/8.genotype.json' });
+$lane8_file->relate_to($qc_file, 'qc_file');
+$schema->add(
+    'Genotype',
+    {
+        date                 => 1443015733,
+        pass                 => 1,
+        expected_sample_name => 'foo',
+        matched_sample_name  => 'foo'
+    },
+    incoming => { type => 'genotype_data', node => $qc_file }
+);
+$qc_file = $vrpipe->add('File', { path => '/seq/qc/8/8.verify_bam_id.json' });
+$lane8_file->relate_to($qc_file, 'qc_file');
+$schema->add(
+    'Verify_Bam_ID',
+    {
+        date    => 1443015733,
+        pass    => 0,
+        freemix => 'foo'
+    },
+    incoming => { type => 'verify_bam_id_data', node => $qc_file }
+);
+
+my $qc_nodes = $schema->file_qc_nodes($lane8_file);
+my %qc_props = map { $_ => $qc_nodes->{$_}->properties } keys %{$qc_nodes};
+delete $qc_props{bam_stats}->{uuid};
+delete $qc_props{genotype}->{uuid};
+delete $qc_props{verify_bam_id}->{uuid};
+is_deeply \%qc_props, { bam_stats => { mode => 'normal', options => '-opt', date => 1443015733, 'reads QC failed' => 99, 'raw total sequences' => 10001 }, genotype => { date => 1443015733, pass => 1, expected_sample_name => 'foo', matched_sample_name => 'foo' }, verify_bam_id => { date => 1443015733, pass => 0, freemix => 'foo' } }, 'file_qc_nodes() returned the correct nodes';
+
+my $vrtrack_meta = $schema->vrtrack_metadata($lane8_file);
+is_deeply $vrtrack_meta, { %{$hierarchy_meta}, vrtrack_bam_stats_mode => 'normal', vrtrack_bam_stats_options => '-opt', vrtrack_bam_stats_date => 1443015733, 'vrtrack_bam_stats_reads QC failed' => 99, 'vrtrack_bam_stats_raw total sequences' => 10001, vrtrack_genotype_date => 1443015733, vrtrack_genotype_pass => 1, vrtrack_genotype_expected_sample_name => 'foo', vrtrack_genotype_matched_sample_name => 'foo', vrtrack_verify_bam_id_date => 1443015733, vrtrack_verify_bam_id_pass => 0, vrtrack_verify_bam_id_freemix => 'foo' }, 'vrtrack_metadata() worked';
+
+# also test the pass-through from VRPipe::File to get vrtrack metadata
+$vrfile = VRPipe::File->create(path => '/seq/8/8.bam');
+$vrfile->add_metadata({ sql_meta => 'sql_value' });
+is_deeply $vrfile->metadata(undef, include_vrtrack => 1), { %{$vrtrack_meta}, sql_meta => 'sql_value' }, 'VRPipe::File->metadata(undef, include_vrtrack => 1) worked';
 
 exit;

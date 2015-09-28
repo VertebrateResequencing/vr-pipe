@@ -345,6 +345,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         while (my ($key, $val) = each %{ $node->properties }) {
             $props->{$key} = $val;
         }
+        delete $props->{path};
+        delete $props->{uuid};
+        delete $props->{basename};
         
         my $h = $self->get_sequencing_hierarchy($node);
         while (my ($label, $hnode) = each %{$h}) {
@@ -372,6 +375,22 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         }
         
         return $qc_nodes;
+    }
+    
+    # return both node_and_hierarchy_properties() and file_qc_nodes() metadata
+    # for a file node
+    method vrtrack_metadata ($node) {
+        my $meta = $self->node_and_hierarchy_properties($node);
+        
+        my $qc_nodes = $self->file_qc_nodes($node);
+        while (my ($label, $qc_node) = each %$qc_nodes) {
+            while (my ($key, $val) = each %{ $qc_node->properties }) {
+                next if $key eq 'uuid';
+                $meta->{"vrtrack_${label}_$key"} = $val;
+            }
+        }
+        
+        return $meta;
     }
     
     method add_file (Str|File $path, Str $protocol?) {

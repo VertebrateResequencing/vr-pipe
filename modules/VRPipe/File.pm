@@ -69,6 +69,8 @@ class VRPipe::File extends VRPipe::Persistent {
     
     our %file_type_map = (fastq => 'fq');
     our $config = VRPipe::Config->new();
+    our $global_vrpipe_schema;
+    our $global_vrtrack_schema;
     
     # *** a lot of stuff depends on getting/creating files based on the path
     #     alone. However, with MySQL at least, the search on path is case
@@ -171,6 +173,13 @@ class VRPipe::File extends VRPipe::Persistent {
         builder => '_build_vrpipe_schema',
     );
     
+    has _vrtrack_schema => (
+        is      => 'ro',
+        isa     => 'Object',
+        lazy    => 1,
+        builder => '_build_vrtrack_schema',
+    );
+    
     has _filetype => (
         is      => 'ro',
         isa     => 'Object',
@@ -193,7 +202,13 @@ class VRPipe::File extends VRPipe::Persistent {
     );
     
     method _build_vrpipe_schema {
-        return VRPipe::Schema->create('VRPipe');
+        $global_vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+        return $global_vrpipe_schema;
+    }
+    
+    method _build_vrtrack_schema {
+        $global_vrtrack_schema ||= VRPipe::Schema->create('VRTrack');
+        return $global_vrtrack_schema;
     }
     
     method _build_filetype {
@@ -208,7 +223,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     sub _stat {
         my ($self, $path) = @_;
-        $path ||= $self->path; # optional so that we can call this without a db connection by supplying the path
+        $path ||= $self->path;  # optional so that we can call this without a db connection by supplying the path
         $self->throw("no path!") unless $path;
         
         # in the case of permission denied we don't want to just think the file
@@ -432,7 +447,7 @@ class VRPipe::File extends VRPipe::Persistent {
     
     # speed critical, so sub instead of method
     sub metadata {
-        my ($self, $meta) = @_;
+        my ($self, $meta, %opts) = @_;
         
         if ($meta) {
             $self->keyvallist(VRPipe::KeyValList->get(hash => $meta)->id);
@@ -440,7 +455,19 @@ class VRPipe::File extends VRPipe::Persistent {
         
         if (defined wantarray) {
             my $keyvallist = $self->keyvallist || return {};
-            return $keyvallist->as_hashref;
+            my $meta = $keyvallist->as_hashref;
+            
+            if ($opts{include_vrtrack}) {
+                my $vrtrack   = $self->_vrtrack_schema;
+                my $file_node = $vrtrack->get_file($self->protocolless_path, $self->protocol);
+                my $vrmeta    = $vrtrack->vrtrack_metadata($file_node);
+                
+                while (my ($key, $val) = each %$vrmeta) {
+                    $meta->{$key} = $val;
+                }
+            }
+            
+            return $meta;
         }
     }
     
