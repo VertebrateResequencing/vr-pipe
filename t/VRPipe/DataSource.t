@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 150;
+    use Test::Most tests => 182;
     use VRPipeTest;
     use TestPipelines;
     
@@ -866,9 +866,9 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     is scalar(@filt_elements), 2, 'graph_filter with a 0 value can get both 0 value and unset properties';
 }
 
-# author-only tests for the irods datasource
+# author-only tests for the irods and graph_vrtrack datasources
 SKIP: {
-    my $num_tests = 28;
+    my $num_tests = 60;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
     my $output_root    = get_output_dir('datasource_irods_import_dir');
@@ -1110,6 +1110,368 @@ SKIP: {
     is_deeply [scalar(@filt_elements), $results[0]], [1, { paths => [$local_files[1], $local_files[2]], group => "sampleb" }], 'group_by_metadata_with_warehouse_metadata graph_filter with a 1 value returns a single dataelement with the 2 paths associated with the passing sample';
     
     system("irm -fr $irods_root");
+    
+    # after running the irods datasources we have study 3165 with multiple
+    # samples and cram files that we can test the graph_vrtrack datasource on,
+    # but for a full test we need to fake that we've run npg_cram_parser step
+    # by manually adding simplified Bam_Stats and Genotype nodes to 2 of the
+    # crams
+    my @fake_stats = ({ a => 99, b => 10001, c => 0, d => 1 }, { a => 101, b => 9999, c => 1, d => 0 });
+    foreach my $cram_path ('/seq/15744/15744_6.cram', '/seq/15744/15744_4.cram') {
+        my $cram_node = $schema->get_file($cram_path, 'irods:');
+        my $stats = shift(@fake_stats);
+        
+        foreach my $qc_file ($cram_node->related(outgoing => { type => 'qc_file' })) {
+            my $qc_path = $qc_file->path;
+            
+            if ($qc_path =~ /\.stats$/) {
+                $schema->add(
+                    'Bam_Stats',
+                    {
+                        mode                  => 'normal',
+                        options               => '-opt',
+                        date                  => 1443015733,
+                        'reads QC failed'     => $stats->{a},
+                        'raw total sequences' => $stats->{b}
+                    },
+                    incoming => { type => 'summary_stats', node => $qc_file }
+                );
+            }
+            elsif ($qc_path =~ /\.genotype\.json$/) {
+                $schema->add(
+                    'Genotype',
+                    {
+                        date                 => 1443015733,
+                        pass                 => $stats->{c},
+                        expected_sample_name => 'foo',
+                        matched_sample_name  => 'foo'
+                    },
+                    incoming => { type => 'genotype_data', node => $qc_file }
+                );
+            }
+            elsif ($qc_path =~ /\.verify_bam_id\.json$/) {
+                $schema->add(
+                    'Verify_Bam_ID',
+                    {
+                        date    => 1443015733,
+                        pass    => $stats->{d},
+                        freemix => 'foo'
+                    },
+                    incoming => { type => 'verify_bam_id_data', node => $qc_file }
+                );
+            }
+        }
+    }
+    
+    # to test a parent_filter we'll also set some qc fail info on some samples
+    @fake_stats = (1, 0, 1, undef, 1, 0, 1, 0);
+    my $study_node = $schema->get('Study', { id => 3165 });
+    foreach my $sample_node (sort { $a->id <=> $b->id } $study_node->related(outgoing => { type => 'member' })) {
+        my $failed = shift(@fake_stats);
+        next unless defined $failed;
+        $sample_node->qc_failed($failed);
+    }
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => {}
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and no other options';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_1.cram', 'irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_3.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_5.cram', 'irods:/seq/15744/15744_6.cram', 'irods:/seq/15744/15744_7.cram', 'irods:/seq/15744/15744_8.cram'], 8], 'the correct irods files were returned in the correct dataelements';
+    
+    $expected_file_meta = {
+        gender_gender       => 'U',
+        gender_source       => 'sequencescape',
+        lane_lane           => 1,
+        sample_qc_failed    => 1,
+        alignment           => 1,
+        expected_md5        => 'b02005ae2e76ed683741c72f174ff636',
+        id_run              => 15744,
+        is_paired_read      => 1,
+        lane                => '15744_1',
+        library             => 'HiSeqX_NX_Titration_NA19239_A 13237749',
+        library_id          => 13237749,
+        md5                 => 'b02005ae2e76ed683741c72f174ff636',
+        reads               => 457093492,
+        reference           => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa',
+        sample              => 'HiSeqX_NX_Titration_NA19239_A',
+        sample_created_date => '2015-03-12 08:49:11',
+        sample_id           => 2247339,
+        study               => 'HX Test Plan',
+        study_id            => 3165,
+        study_title         => 'HX Test Plan',
+        target              => 1,
+        total_reads         => 457093492
+    };
+    my $example_cram_vrfile = VRPipe::File->get(path => '/seq/15744/15744_1.cram', protocol => 'irods:');
+    is_deeply $example_cram_vrfile->metadata, $expected_file_meta, 'the metadata on one of the cram files was correct';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { parent_filter => 'Sample#qc_failed#0' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a parent filter';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_6.cram', 'irods:/seq/15744/15744_8.cram'], 4], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { parent_filter => 'Sample#qc_failed#0,Sample#created_date#1426150152' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and 2 parent filters';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_6.cram'], 3], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'stats#raw total sequences#>#10000' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a stats qc filter';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_6.cram'], 1], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'genotype#pass#=#1' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a genotype qc filter';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_4.cram'], 1], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'verifybamid#pass#=#1' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a verifybamid qc filter';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_6.cram'], 1], 'the correct irods files were returned in the correct dataelements';
+    
+    $example_cram_vrfile = $schema->get_file('/seq/15744/15744_2.cram', 'irods:');
+    $example_cram_vrfile->add_properties({ target => 0 });
+    $example_cram_vrfile = $schema->get_file('/seq/15744/15744_7.cram', 'irods:');
+    $example_cram_vrfile->remove_property('target');
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'file#target#=#1' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a file qc filter';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_1.cram', 'irods:/seq/15744/15744_3.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_5.cram', 'irods:/seq/15744/15744_6.cram', 'irods:/seq/15744/15744_8.cram'], 6], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'stats#raw total sequences#>#10000,stats#reads QC failed#<#100,genotype#pass#=#1,verifybamid#pass#=#1,file#target#=#1' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and multiple qc filters that together match no files';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [[], 0], 'no irods files were returned in zero dataelements, as expected';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { qc_filter => 'stats#raw total sequences#>#9998,stats#reads QC failed#<#102,genotype#pass#=#1,verifybamid#pass#=#0,file#target#=#1' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and multiple qc filters that together match 1 file';
+    
+    @results       = ();
+    $element_count = 0;
+    foreach my $element (@{ get_elements($ds) }) {
+        $element_count++;
+        push(@results, $element->paths);
+    }
+    is_deeply [\@results, $element_count], [['irods:/seq/15744/15744_4.cram'], 1], 'the correct irods files were returned in the correct dataelements';
+    
+    # metadata corresponding to what we filtered on should be set on the file
+    $expected_file_meta = {
+        'study_id'                  => '3165',
+        'reads'                     => '787414252',
+        'gender_source'             => 'sequencescape',
+        'is_paired_read'            => '1',
+        'library_id'                => '13237752',
+        'library'                   => 'HiSeqX_NX_Titration_NA19239_D 13237752',
+        'study_title'               => 'HX Test Plan',
+        'stats_raw total sequences' => '9999',
+        'target'                    => '1',
+        'reference'                 => '/lustre/scratch109/srpipe/references/Homo_sapiens/1000Genomes_hs37d5/all/bwa0_6/hs37d5.fa',
+        'alignment'                 => '1',
+        'gender_gender'             => 'U',
+        'sample'                    => 'HiSeqX_NX_Titration_NA19239_D',
+        'expected_md5'              => 'bd229470c44887e9a19f2a41533d5c8e',
+        'study'                     => 'HX Test Plan',
+        'lane'                      => '15744_4',
+        'sample_created_date'       => '2015-03-12 08:49:12',
+        'verifybamid_pass'          => '0',
+        'total_reads'               => '787414252',
+        'id_run'                    => '15744',
+        'stats_reads QC failed'     => '101',
+        'lane_lane'                 => '4',
+        'genotype_pass'             => '1',
+        'sample_id'                 => '2247342',
+        'md5'                       => 'bd229470c44887e9a19f2a41533d5c8e'
+    };
+    $example_cram_vrfile = VRPipe::File->get(path => '/seq/15744/15744_4.cram', protocol => 'irods:');
+    is_deeply $example_cram_vrfile->metadata, $expected_file_meta, 'the metadata on one of the cram files was correct';
+    
+    my $male = $schema->get('Gender', { gender => 'M' });
+    foreach my $path ('/seq/15744/15744_2.cram', '/seq/15744/15744_3.cram', '/seq/15744/15744_6.cram') {
+        my $cram = $schema->get_file($path, 'irods:');
+        my $sample = $cram->closest('VRTrack', 'Sample', direction => 'incoming');
+        $sample->relate_to($male, 'gender', replace => 1);
+    }
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { group_by_metadata => 'Sample' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a group on sample';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_1.cram'], ['irods:/seq/15744/15744_2.cram'], ['irods:/seq/15744/15744_3.cram'], ['irods:/seq/15744/15744_4.cram'], ['irods:/seq/15744/15744_5.cram'], ['irods:/seq/15744/15744_6.cram'], ['irods:/seq/15744/15744_7.cram'], ['irods:/seq/15744/15744_8.cram']], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { group_by_metadata => 'Study' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a group on study';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_1.cram', 'irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_3.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_5.cram', 'irods:/seq/15744/15744_6.cram', 'irods:/seq/15744/15744_7.cram', 'irods:/seq/15744/15744_8.cram']], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { group_by_metadata => 'Gender' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a group on gender';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_1.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_5.cram', 'irods:/seq/15744/15744_7.cram', 'irods:/seq/15744/15744_8.cram'], ['irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_3.cram', 'irods:/seq/15744/15744_6.cram']], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { group_by_metadata => 'Study,Gender' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a group on study and gender';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_1.cram', 'irods:/seq/15744/15744_4.cram', 'irods:/seq/15744/15744_5.cram', 'irods:/seq/15744/15744_7.cram', 'irods:/seq/15744/15744_8.cram'], ['irods:/seq/15744/15744_2.cram', 'irods:/seq/15744/15744_3.cram', 'irods:/seq/15744/15744_6.cram']], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => { group_by_metadata => 'Sample,Gender' }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method and a group on sample and gender';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_1.cram'], ['irods:/seq/15744/15744_2.cram'], ['irods:/seq/15744/15744_3.cram'], ['irods:/seq/15744/15744_4.cram'], ['irods:/seq/15744/15744_5.cram'], ['irods:/seq/15744/15744_6.cram'], ['irods:/seq/15744/15744_7.cram'], ['irods:/seq/15744/15744_8.cram']], 'the correct irods files were returned in the correct dataelements';
+    
+    ok $ds = VRPipe::DataSource->create(
+        type    => 'graph_vrtrack',
+        method  => 'lanelet_crams',
+        source  => 'Study#id#3165',
+        options => {
+            group_by_metadata => 'Gender',
+            qc_filter         => 'stats#raw total sequences#>#9998,stats#reads QC failed#<#102,file#target#=#1'
+        }
+      ),
+      'could create a graph_vrtrack datasource with lanelet_crams method, grouped on gender and with multiple filters';
+    
+    @results = ();
+    foreach my $element (@{ get_elements($ds) }) {
+        push(@results, [$element->paths]);
+    }
+    is_deeply \@results, [['irods:/seq/15744/15744_4.cram'], ['irods:/seq/15744/15744_6.cram']], 'the correct irods files were returned in the correct dataelements';
 }
 
 # test a special vrtrack test database; these tests are meant for the author
