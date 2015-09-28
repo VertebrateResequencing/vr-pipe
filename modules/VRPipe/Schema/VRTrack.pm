@@ -356,6 +356,24 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $props;
     }
     
+    # returns a hashref where keys are lc(label) and values are a qc node related
+    # to the input node, where qc nodes are Bam_Stats, Genotype, Verify_Bam_ID
+    # and Header_Mistakes (if they exist)
+    method file_qc_nodes ($node) {
+        my $cypher     = "MATCH (file) WHERE id(file) = {file}.id OPTIONAL MATCH (file)-[:qc_file]->()-[:genotype_data]->(g) OPTIONAL MATCH (file)-[:qc_file]->()-[:summary_stats]->(s) OPTIONAL MATCH (file)-[:qc_file]->()-[:verify_bam_id_data]->(v) OPTIONAL MATCH (file)-[:qc_file]->()-[:header_mistakes]->(h) RETURN g,s,v,h";
+        my $graph      = $self->graph;
+        my $graph_data = $graph->_run_cypher([[$cypher, { file => { id => $node->node_id } }]]);
+        
+        my $qc_nodes = {};
+        foreach my $node (@{ $graph_data->{nodes} }) {
+            my $label = $node->{label};
+            bless($node, "VRPipe::Schema::VRTrack::$label");
+            $qc_nodes->{ lc($label) } = $node;
+        }
+        
+        return $qc_nodes;
+    }
+    
     method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
