@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 164;
+    use Test::Most tests => 165;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -20,6 +20,7 @@ $sample = $schema->add('Sample', { name => 's1', public_name => 'public_sone' })
 is_deeply [$sample->{id}, $sample->{properties}], [$orig_sample_id, { name => 's1', public_name => 'public_sone' }], 'add() twice on the same unique property does an update with labels that keep their history';
 $sample = $schema->add('Sample', { name => 's1', public_name => 'public_s1' });
 is_deeply [$sample->{id}, $sample->{properties}, $sample->changed()], [$orig_sample_id, { name => 's1', public_name => 'public_s1' }, { public_name => ['public_sone', 'public_s1'] }], 'add() again on the same unique property with a changed property does really update it, and we can find out what the previous value was';
+is $sample->unique_property, 's1', 'unique_property() works';
 
 # Sample is marked to store history but EBI_Submission is not, so repeat some of
 # the above tests to cover both code paths

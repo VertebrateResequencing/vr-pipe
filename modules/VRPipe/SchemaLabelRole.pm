@@ -109,6 +109,21 @@ role VRPipe::SchemaLabelRole {
         return $graph->node_property($self, $property);
     }
     
+    method unique_property {
+        my @uniques = $self->unique_properties();
+        if (@uniques == 1) {
+            return $graph->node_property($self, $uniques[0]);
+        }
+        else {
+            my @vals;
+            foreach my $unique (sort @uniques) {
+                my $val = $graph->node_property($self, $unique);
+                push(@vals, "$unique=$val");
+            }
+            return join(',', @vals);
+        }
+    }
+    
     method properties (Bool :$flatten_parents = 0) {
         return $graph->node_properties($self, flatten_parents => $flatten_parents);
     }
