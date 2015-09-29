@@ -210,7 +210,7 @@ is_deeply [[sort map { $_->name() } @second_queue], [sort map { $_->node_id() } 
 is_deeply [$history[0]->{properties}->{public_name}, $history[1]->{properties}->{public_name}], ['enqueue1_public_b', 'enqueue1_public_a'], 'history was maintained on a node updated via dispatch_queue()';
 
 # test search()
-my @samples = $schema->search('Sample', key => 'name', regex => '.+queue\d+');
+my @samples = $schema->search('Sample', { name => '.+queue\d+' });
 is scalar(@samples), 3, 'search() worked';
 is_deeply [sort map { $_->name() } @samples], ['enqueue1', 'enqueue2', 'enqueue3'], 'search() returned the correct blessed objects';
 

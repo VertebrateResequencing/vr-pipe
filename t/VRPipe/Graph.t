@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 97;
+    use Test::Most tests => 99;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -147,7 +147,7 @@ push(@root_ids, $graph->node_id($study));
 $graph->relate($study, $jane, type => 'has_participant');
 $graph->add_schema(namespace => 'OtherNS', label => 'Workplace', unique => [qw(name)], indexed => []);
 my $workplace = $graph->add_node(namespace => 'OtherNS', label => 'Workplace', properties => { name => 'Sanger' });
-$graph->add_schema(namespace => 'OtherNS', label => 'Individual', unique => [qw(name)], indexed => []);
+$graph->add_schema(namespace => 'OtherNS', label => 'Individual', unique => [qw(name)], indexed => [qw(foo)]);
 my @props;
 
 for (1 .. 1000) {
@@ -240,10 +240,18 @@ $node = $graph->get_node_by_id($graph->node_id($step_result));
 is_deeply $node->{properties}, { uuid => $uuid, foo => 'baz', lemur => 'lamella' }, 'get_node_by_id() worked';
 
 # we can search using regexes
-@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', key => 'name', regex => 'Person\d+');
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person\d+' });
 is scalar(@nodes), 1050, 'get_nodes_by_regex() worked';
-@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', key => 'name', regex => 'Person1.+');
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person1.+' });
 is scalar(@nodes), 161, 'get_nodes_by_regex() worked with a different regex';
+foreach my $i (1 .. 5) {
+    my $node = $nodes[$i - 1];
+    $graph->node_add_properties($node, { foo => 'Bar' . $i });
+}
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person1.+', foo => 'Bar\d+' });
+is scalar(@nodes), 5, 'get_nodes_by_regex() worked with 2 regexs';
+@nodes = $graph->get_nodes_by_regex(namespace => 'OtherNS', label => 'Individual', properties => { name => 'Person1.+', foo => 'Bar1' });
+is scalar(@nodes), 1, 'get_nodes_by_regex() worked with a regex and a literal';
 
 # usually you can have node related to an unlimited number of other nodes,
 # but sometimes you want it to only connect to a single node of a certain type,

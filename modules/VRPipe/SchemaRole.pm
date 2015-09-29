@@ -43,7 +43,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014, 2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -355,9 +355,11 @@ role VRPipe::SchemaRole {
         return $self->_get_and_bless_nodes($label, 'get_nodes', $properties ? ($properties) : ());
     }
     
-    method search (Str $label!, Str :$key!, Str :$regex!) {
+    # property values supplied in $properties can be regexes; they can't be in
+    # get()
+    method search (Str $label!, HashRef $properties!) {
         my $namespace = $self->namespace;
-        my @nodes = $self->graph->get_nodes_by_regex(namespace => $namespace, label => $label, key => $key, regex => $regex);
+        my @nodes = $self->graph->get_nodes_by_regex(namespace => $namespace, label => $label, properties => $properties);
         
         # bless the nodes into the appropriate class
         foreach my $node (@nodes) {
