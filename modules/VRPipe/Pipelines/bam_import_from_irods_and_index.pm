@@ -52,7 +52,7 @@ class VRPipe::Pipelines::bam_import_from_irods_and_index with VRPipe::PipelineRo
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'basenames' },
-            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'aln_files' },
+            { from_step => 1, to_step => 2, from_key => 'local_files', to_key => 'bam_files' },
         );
     }
 }

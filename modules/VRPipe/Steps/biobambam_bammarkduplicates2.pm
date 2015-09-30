@@ -43,7 +43,7 @@ class VRPipe::Steps::biobambam_bammarkduplicates2 with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            aln_files => VRPipe::StepIODefinition->create(
+            bam_files => VRPipe::StepIODefinition->create(
                 type        => 'aln',                                          # cram or bam
                 max_files   => -1,
                 description => '1 or more coordinate sorted BAM or CRAM files',
@@ -79,7 +79,7 @@ class VRPipe::Steps::biobambam_bammarkduplicates2 with VRPipe::StepRole {
             $cpus = $output_threads if ($output_threads && $output_threads > $cpus);
             my $req = $self->new_requirements(memory => 8000, time => 1, cpus => $cpus);
             
-            foreach my $aln (@{ $self->inputs->{aln_files} }) {
+            foreach my $aln (@{ $self->inputs->{bam_files} }) {
                 my $basename = $aln->basename;
                 $basename =~ s/\.(cr|b)am$//;
                 my $markdup_file = $self->output_file(
