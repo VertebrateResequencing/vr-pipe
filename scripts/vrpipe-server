@@ -782,6 +782,10 @@ sub start_server {
             my ($env, $method) = @_;
             $backend->psgi_nonblocking_json_response($graph, \&qc, $env, $method);
         },
+        '/qcgrind_lane_status_update/(.+)$' => sub {
+            my ($env, $arg) = @_;
+            $backend->psgi_nonblocking_json_response($graph, \&qcgrind_lane_status_update, $env, $arg);
+        },
         '/rest/authenticate' => sub {
             $backend->psgi_nonblocking_json_response($graph, \&authenticate_via_pam, shift);
         },
@@ -1818,6 +1822,28 @@ sub qc {
     }
     else {
         $data = { errors => ["Invalid qc method '$method'"] };
+    }
+    
+    return $data;
+}
+
+sub qcgrind_lane_status_update {
+    my (undef, $arg) = @_;
+    my ($lane, $status) = split(/\//, $arg);
+    
+    my $data;
+    if ($lane && $status) {
+        my $lane_node = $vrtrack->get("Lane", { unique => $lane });
+        if ($lane_node) {
+            $lane_node->qcgrind_qc_status($status);
+            $data = { success => "Lane $lane qcgrind_qc_status set to $status" };
+        }
+        else {
+            $data = { errors => ["Lane $lane not found in graph db"] };
+        }
+    }
+    else {
+        $data = { errors => ["Invalid url path $arg"] };
     }
     
     return $data;
