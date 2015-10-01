@@ -59,7 +59,7 @@ class VRPipe::Pipelines::bam_merge_and_mark_duplicates with VRPipe::PipelineRole
     method behaviour_definitions {
         (
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
-            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 },
+            { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 },
         );
     }
 }
