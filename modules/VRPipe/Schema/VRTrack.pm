@@ -90,10 +90,11 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 keep_history => 1
             },
             {
-                label        => 'Lane',
-                unique       => [qw(unique)],                             # to be unique but still have correct relationships, this will need to be based on file basename
-                required     => [qw(lane)],
-                indexed      => [qw(lane run total_reads is_paired_read)],
+                label    => 'Lane',
+                unique   => [qw(unique)],                                               # to be unique but still have correct relationships, this will need to be based on file basename
+                required => [qw(lane)],
+                indexed  => [qw(lane run total_reads is_paired_read qcgrind_qc_status)],
+                # qcgrind_qc_status is set by qcgrind and is one of (passed failed investigate gt_pending pending); not set should be treated as pending
                 keep_history => 1
             },
             {
