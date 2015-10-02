@@ -240,6 +240,7 @@ sub handle_datasources {
                                 # the elements call will queue up states to be
                                 # triggered; vrpipe-server will take care of
                                 # those
+                                $ds->debug($debug) if $debug;
                                 my $e_after_pager = $ds->elements;
                                 unless ($e_after_pager) {
                                     # we changed to having 0 dataelements
