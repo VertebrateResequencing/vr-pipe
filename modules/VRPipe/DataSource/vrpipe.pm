@@ -465,12 +465,14 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
         my ($krs, $gfs, $vrpipe_graph_schema, $graph) = $self->_parse_filters($filter, $graph_filter);
         
         my @complete_list;
+        my $sanity = 0;
         foreach my $sources ($vrpipe_sources, $iiae_sources) {
             foreach my $setup_id (sort keys %{$sources}) {
                 my $num_steps     = $sources->{$setup_id}->{total_steps};
                 my $total_active  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
                 my $num_complete  = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
                 my $num_withdrawn = VRPipe::DataElementState->search({ pipelinesetup => $setup_id, completed_steps => { '>=', $num_steps }, 'dataelement.withdrawn' => 1 }, { join => 'dataelement' });
+                $sanity += $num_complete;
                 
                 my $pass_filter = -1;
                 if ($filter || $graph_filter) {
@@ -488,6 +490,15 @@ class VRPipe::DataSource::vrpipe with VRPipe::DataSourceVRPipeRole {
                 push @complete_list, ($total_active, $num_complete, $num_withdrawn, $pass_filter);
             }
         }
+        
+        # it's possible for things to go wonky and for our current md5 to be
+        # up to date, yet we have 0 elements; avoid the md5s matching so that
+        # we'll do a full update again
+        my $current = VRPipe::DataElement->search({ datasource => $self->_datasource_id, withdrawn => 0 });
+        if ($sanity > 0 && $current == 0) {
+            push(@complete_list, 1 + int(rand(100000 - 1)));
+        }
+        
         my $digest = md5_hex join(',', @complete_list);
         return $digest;
     }
