@@ -263,8 +263,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         my $desired_qc_file_suffixes = join('|', @desired_qc_file_suffixes) if @desired_qc_file_suffixes;
         my $desired_qc_file_regex = qr/(\S+(?:$desired_qc_file_suffixes))/ if $desired_qc_file_suffixes;
         
-        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control, $taxon_id, $created, $gender, $internal_id);
-        my ($study_sth, $study_title, $study_ac, $study_id_sth, $warehouse_study_id);
+        my ($sample_sth, $public_name, $donor_id, $supplier_name, $control,            $taxon_id,        $created,        $gender,            $internal_id);
+        my ($study_sth,  $study_title, $study_ac, $study_id_sth,  $warehouse_study_id, $donor_study_sth, $donor_study_id, $donor_study_title, $donor_study_ac);
         my $vrtrack;
         if ($add_metadata_from_warehouse && $ENV{WAREHOUSE_DATABASE} && $ENV{WAREHOUSE_HOST} && $ENV{WAREHOUSE_PORT} && $ENV{WAREHOUSE_USER}) {
             my $dbh = DBI->connect(
@@ -319,6 +319,13 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $study_id_sth = $dbh->prepare($sql);
             $study_id_sth->execute;
             $study_id_sth->bind_col(1, \$warehouse_study_id);
+            
+            # we all need to know all the studies that all the samples of a
+            # donor belong to
+            $sql             = q[select st.internal_id,st.name,st.accession_number from current_samples s join current_study_samples ss on ss.sample_internal_id = s.internal_id join current_studies st on ss.study_internal_id = st.internal_id where s.donor_id = ? group by st.internal_id];
+            $donor_study_sth = $dbh->prepare($sql);
+            $donor_study_sth->execute;
+            $donor_study_sth->bind_columns(\($donor_study_id, $donor_study_title, $donor_study_ac));
             
             $vrtrack = VRPipe::Schema->create('VRTrack');
             $vrtrack_group ||= 'all_studies';
@@ -522,7 +529,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # my @times;
         
         my $tt = time();
-        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache);
+        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache, %done_donors);
         my $order = 1;
         foreach my $query (@queries) {
             my $t                         = time();
@@ -690,7 +697,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 my $desired = $1;
                                 foreach my $i (0 .. $#study_titles) {
                                     my $title = $study_titles[$i];
-                                    if ($title == $desired) {
+                                    if ($title eq $desired) {
                                         $meta->{study_id_preferred} = $study_ids[$i];
                                         last;
                                     }
@@ -895,18 +902,33 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             }
                             
                             my $donor;
-                            if (defined $meta->{sample_cohort}) {
-                                $donor = $vrtrack->add('Donor', { id => $meta->{sample_cohort} });
+                            my $donor_uuid = $meta->{sample_cohort} if exists $meta->{sample_cohort};
+                            if (defined $donor_uuid && !exists $done_donors{$donor_uuid}) {
+                                $donor = $vrtrack->add('Donor', { id => $donor_uuid });
                                 
-                                # clear any old study to donor rels before
-                                # adding the current ones
+                                # this $sample's donor can belong to more
+                                # studies than the donor itself does, but we
+                                # still want to remove all current ones incase
+                                # a donor and all it's samples have been removed
+                                # from a study
                                 foreach my $study ($donor->closest('VRTrack', 'Study', direction => 'incoming', all => 1)) {
                                     $study->divorce_from($donor, 'member');
                                 }
                                 
-                                foreach my $study (@studies) {
+                                # now we run sql to get all the studies of all
+                                # the donor's samples (this takes a few seconds
+                                # since donor id isn't indexed in the warehouse
+                                # db, hence we only do this when necessary)
+                                undef $donor_study_id;
+                                undef $donor_study_title;
+                                undef $donor_study_ac;
+                                $donor_study_sth->execute($donor_uuid);
+                                while ($donor_study_sth->fetch) {
+                                    my $study = $vrtrack->add('Study', { id => "$donor_study_id", name => "$donor_study_title", $donor_study_ac ? (accession => "$donor_study_ac") : () }, incoming => { type => 'has', node => $group });
                                     $study->relate_to($donor, 'member', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
                                 }
+                                
+                                $done_donors{$donor_uuid} = 1;
                             }
                             
                             my $sample_created_date;

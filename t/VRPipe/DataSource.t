@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 182;
+    use Test::Most tests => 183;
     use VRPipeTest;
     use TestPipelines;
     
@@ -705,10 +705,11 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     get_elements($fofn_ds);
     is $fofn_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'fofn changed marker unchanged after completing 1 ps1 element';
     $ps2_element_count = @{ get_elements($vrpipe_ds) };
-    is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker changed after completing 1 ps1 element';
+    isnt $vrpipe_ds->_changed_marker, 'a7b73b4704ae4e75ebd94cc9ab43141a', 'vrpipe changed marker changed after completing 1 ps1 element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, 'acc9847ff1fb7d835175a233de398040', 'group changed marker changed after completing 1 ps1 element';
+    my $group_change_marker = $group_ds->_changed_marker;
+    isnt $group_change_marker, '94bc93ad88f62c61a16b2ecc44e6702a', 'group changed marker changed after completing 1 ps1 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are incomplete, ps3 has no elements';
     
     # complete a single ps2 dataelement
@@ -718,7 +719,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     is $vrpipe_ds->_changed_marker, 'c7329a97a6906d3fa562aa07d62fcb04', 'vrpipe changed marker unchanged after completing its element';
     is $ps2_element_count, 1, 'since ps1 has completed 1 element, ps2 has 1 element';
     $ps3_element_count = @{ get_elements($group_ds) };
-    is $group_ds->_changed_marker, '5117e85f2294cbdeb107186d80d7d9ec', 'group changed marker changed after completing 1 ps2 element';
+    isnt $group_ds->_changed_marker, $group_change_marker, 'group changed marker changed after completing 1 ps2 element';
     is $ps3_element_count, 0, 'since ps1 and ps2 are still incomplete, ps3 has no elements';
     
     # complete all of ps1, then trigger all 3 setups simultaneously
@@ -826,8 +827,10 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     
     # test that the include_in_all_elements datasource update when the include
     # setup(s) change
-    is $iiae_ds->_changed_marker, 'd47a47b55efab92995dde298dd54706d', 'ps5 changed marker starts as expected';
-    is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0';
+    my $iiae_ds_changed_marker = $iiae_ds->_changed_marker;
+    ok $iiae_ds_changed_marker, 'ps5 changed marker starts with some value';
+    is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 due to the transition from 0 elements to non-0';
+    is $iiae_ds->_source_instance->_has_changed, 0, '_has_changed returns 0 following no further changes';
     $de_to_withdraw->withdrawn(1);
     $de_to_withdraw->update;
     is $iiae_ds->_source_instance->_has_changed, 1, '_has_changed returns 1 after withdrawing one of the include_in_all_elements setup elements';
