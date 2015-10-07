@@ -196,6 +196,10 @@ class VRPipe::Persistent::Graph {
         }
     }
     
+    sub _global_label {
+        return $global_label;
+    }
+    
     sub _run_cypher {
         my ($self, $array, $args) = @_;
         my $return_schema_nodes  = $args->{return_schema_nodes};
@@ -994,8 +998,6 @@ class VRPipe::Persistent::Graph {
     # direction is 'incoming' or 'outgoing'. Undef means undirected
     # properties is [['key', 'value', 0], [ ... ]], where third value is a booleon which if true means the value is treated as a regex
     method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, ArrayRef[ArrayRef] :$properties?, Int :$depth = 100, Bool :$all = 0) {
-        # this plugin needs to be installed in Neo4J first:
-        # https://github.com/VertebrateResequencing/vrpipe_neo4j_plugin
         my $start_id = $start_node->{id};
         my $dir      = $direction ? "&direction=$direction" : '';
         my $prop     = '';
@@ -1010,7 +1012,14 @@ class VRPipe::Persistent::Graph {
             my $props = join('%40%40%40', @props);
             $prop = "&properties=$props";
         }
-        my $pluginurl = "$url/v1/service/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop";
+        
+        return $self->_call_vrpipe_neo4j_plugin("/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop", namespace => $namespace, label => $label);
+    }
+    
+    method _call_vrpipe_neo4j_plugin (Str $path!, Str :$namespace!, Str :$label?) {
+        # this plugin needs to be installed in Neo4J first:
+        # https://github.com/VertebrateResequencing/vrpipe_neo4j_plugin
+        my $pluginurl = "$url/v1/service$path";
         
         my $data;
         foreach my $try_num (1 .. 20) {
@@ -1039,7 +1048,10 @@ class VRPipe::Persistent::Graph {
         my @nodes;
         if ($data && ref($data) eq 'HASH') {
             while (my ($nid, $props) = each %{$data}) {
-                push(@nodes, { id => int($nid), namespace => $namespace, label => $label, properties => $props });
+                my $this_label = delete $props->{neo4j_label};
+                $this_label ||= $label;
+                $this_label || $self->throw("No label supplied, and none returned by the plugin");
+                push(@nodes, { id => int($nid), namespace => $namespace, label => $this_label, properties => $props });
             }
         }
         
