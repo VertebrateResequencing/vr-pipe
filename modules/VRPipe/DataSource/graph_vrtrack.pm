@@ -181,68 +181,99 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         $schema ||= VRPipe::Schema->create("VRTrack");
         
         my @lanes;
-        if ($label eq 'Lane') {
-            foreach my $val (@vals) {
+        foreach my $val (@vals) {
+            my @these_lanes;
+            if ($label eq 'Lane') {
                 my $lane = $schema->get('Lane', { $property => $val });
-                push(@lanes, $lane) if $lane;
+                @these_lanes = ($lane) if $lane;
             }
-        }
-        else {
-            foreach my $val (@vals) {
+            else {
                 my $node = $schema->get($label, { $property => $val });
                 $node || next;
-                my @these_lanes = $node->closest('VRTrack', 'Lane', direction => 'outgoing', all => 1);
-                push(@lanes, @these_lanes) if @these_lanes;
+                @these_lanes = $node->closest('VRTrack', 'Lane', direction => 'outgoing', all => 1);
             }
-        }
-        
-        my @files = ();
-        LANE: foreach my $lane (sort { $a->unique cmp $b->unique } @lanes) {
-            my $file;
-            foreach my $lane_file ($lane->related(outgoing => { namespace => 'VRPipe', label => 'FileSystemElement' })) {
-                if ($lane_file->basename =~ /\.cram$/) {
-                    $file = $lane_file;
-                    last;
-                }
-            }
-            $file || next;
             
-            my $hierarchy = $schema->get_sequencing_hierarchy($file);
-            my @grouping;
-            foreach my $label (sort keys %$hierarchy) {
-                my $node = $hierarchy->{$label};
-                if (exists $parent_filters{$label}) {
-                    foreach my $filter (@{ $parent_filters{$label} }) {
+            my $passed = 0;
+            my $failed = 0;
+            LANE: foreach my $lane (@these_lanes) {
+                if (exists $parent_filters{lane}) {
+                    foreach my $filter (@{ $parent_filters{lane} }) {
                         my ($property, $value) = @$filter;
-                        my $actual_val = $node->property($property);
+                        my $actual_val = $lane->property($property);
                         
                         if (!defined $actual_val && !$value) {
                             # allow a desired 0 to match an unspecified node
                             # property
+                            $failed++;
                             next;
                         }
                         
                         if (!defined $actual_val || "$actual_val" ne "$value") {
+                            $failed++;
                             next LANE;
                         }
                     }
                 }
                 
-                while (my ($key, $val) = each %{ $node->properties }) {
-                    $file->{hierarchy}->{"${label}_$key"} = $val;
+                my $file;
+                foreach my $lane_file ($lane->related(outgoing => { namespace => 'VRPipe', label => 'FileSystemElement' })) {
+                    if ($lane_file->basename =~ /\.cram$/) {
+                        $file = $lane_file;
+                        last;
+                    }
+                }
+                unless ($file) {
+                    $failed++;
+                    next;
                 }
                 
-                if (exists $group_on{$label}) {
-                    my $unique_val = $node->unique_property();
-                    push(@grouping, "$label:$unique_val");
+                my $hierarchy = $schema->get_sequencing_hierarchy($file);
+                
+                my @grouping;
+                foreach my $label (sort keys %$hierarchy) {
+                    my $node = $hierarchy->{$label};
+                    if ($label ne 'lane' && exists $parent_filters{$label}) {
+                        foreach my $filter (@{ $parent_filters{$label} }) {
+                            my ($property, $value) = @$filter;
+                            my $actual_val = $node->property($property);
+                            
+                            if (!defined $actual_val && !$value) {
+                                $failed++;
+                                next;
+                            }
+                            
+                            if (!defined $actual_val || "$actual_val" ne "$value") {
+                                $failed++;
+                                next LANE;
+                            }
+                        }
+                    }
+                    
+                    while (my ($key, $val) = each %{ $node->properties }) {
+                        $file->{hierarchy}->{"${label}_$key"} = $val;
+                    }
+                    
+                    if (exists $group_on{$label}) {
+                        my $unique_val = $node->unique_property();
+                        push(@grouping, "$label:$unique_val");
+                    }
                 }
+                
+                if (@grouping) {
+                    $file->{group} = join(';', @grouping);
+                }
+                
+                push(@lanes, [$lane, $file]);
+                $passed++;
             }
             
-            if (@grouping) {
-                $file->{group} = join(';', @grouping);
-            }
-            
-            push(@files, $file);
+            my $extra = $failed ? " ($failed lanes failed the parent filter)" : '';
+            $self->debug_log("graph_vrtrack got $passed lanes$extra for source node $label#$property#$val\n");
+        }
+        
+        my @files = ();
+        LANE: foreach my $ref (sort { $a->[0]->unique cmp $b->[0]->unique } @lanes) {
+            push(@files, $ref->[1]);
         }
         
         return \@files;
