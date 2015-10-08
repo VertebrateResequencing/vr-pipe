@@ -777,27 +777,16 @@ class VRPipe::Persistent::Graph {
     # the relevant labels and with the given relationship type.
     # properties option are properties to set on the relationship itself.
     method relate (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type!, HashRef :$properties?, Bool :$selfish = 0, Bool :$replace = 0) {
-        my @cypher;
-        
-        if ($selfish) {
-            my $labels = $self->_labels($start_node->{namespace}, $start_node->{label});
-            push(@cypher, ["MATCH (a)<-[r:$type]-(b:$labels) WHERE id(a) = $end_node->{id} AND id(b) <> $start_node->{id} DELETE r"]);
-        }
-        
-        if ($replace) {
-            my $labels = $self->_labels($end_node->{namespace}, $end_node->{label});
-            push(@cypher, ["MATCH (a)-[r:$type]->(b:$labels) WHERE id(a) = $start_node->{id} AND id(b) <> $end_node->{id} DELETE r"]);
-        }
-        
-        my $r_props = '';
+        my $prop = '';
         if ($properties) {
-            my $map = $self->_param_map($properties, 'param');
-            $r_props = " SET r = $map";
+            my $props_as_arrayref = [];
+            while (my ($key, $val) = each %$properties) {
+                push(@$props_as_arrayref, [$key, $val]);
+            }
+            $prop = $self->_props_to_plugin_str($props_as_arrayref);
         }
-        
-        push(@cypher, ["MATCH (a),(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} MERGE (a)-[r:$type]->(b)$r_props RETURN r", $r_props ? ({ 'param' => $properties }) : ()]);
-        
-        return @{ $self->_run_cypher(\@cypher)->{relationships} };
+        my $rel = $self->_call_vrpipe_neo4j_plugin("/relate/$start_node->{id}/$type/$end_node->{id}?selfish=$selfish&replace=$replace$prop");
+        return $rel;
     }
     
     # each hashref in $spec_list is { from => { id }|{ namespace, label, properties }, to => {...}, type => '...', properties => {} }
@@ -1000,23 +989,33 @@ class VRPipe::Persistent::Graph {
     method closest_nodes_with_label (HashRef|Object $start_node!, Str $namespace!, Str $label!, Str :$direction?, ArrayRef[ArrayRef] :$properties?, Int :$depth = 100, Bool :$all = 0) {
         my $start_id = $start_node->{id};
         my $dir      = $direction ? "&direction=$direction" : '';
-        my $prop     = '';
+        my $prop     = $self->_props_to_plugin_str($properties, 1);
+        return $self->_call_vrpipe_neo4j_plugin("/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop", namespace => $namespace, label => $label);
+    }
+    
+    method _props_to_plugin_str (Maybe[ArrayRef[ArrayRef]] $properties?, Bool $allow_for_regexes?) {
+        my $prop = '';
         if ($properties) {
             my @props;
             foreach my $prop_array (@$properties) {
                 my ($key, $val, $regex) = @$prop_array;
-                my $type = $regex ? 'regex' : 'literal';
                 $val = uri_escape($val);
-                push(@props, "$type\%40_\%40$key\%40_\%40$val");
+                
+                if ($allow_for_regexes) {
+                    my $type = $regex ? 'regex' : 'literal';
+                    push(@props, "$type\%40_\%40$key\%40_\%40$val");
+                }
+                else {
+                    push(@props, "$key\%40_\%40$val");
+                }
             }
             my $props = join('%40%40%40', @props);
             $prop = "&properties=$props";
         }
-        
-        return $self->_call_vrpipe_neo4j_plugin("/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop", namespace => $namespace, label => $label);
+        return $prop;
     }
     
-    method _call_vrpipe_neo4j_plugin (Str $path!, Str :$namespace!, Str :$label?) {
+    method _call_vrpipe_neo4j_plugin (Str $path!, Str :$namespace?, Str :$label?) {
         # this plugin needs to be installed in Neo4J first:
         # https://github.com/VertebrateResequencing/vrpipe_neo4j_plugin
         my $pluginurl = "$url/v1/service$path";
@@ -1048,10 +1047,21 @@ class VRPipe::Persistent::Graph {
         my @nodes;
         if ($data && ref($data) eq 'HASH') {
             while (my ($nid, $props) = each %{$data}) {
-                my $this_label = delete $props->{neo4j_label};
-                $this_label ||= $label;
-                $this_label || $self->throw("No label supplied, and none returned by the plugin");
-                push(@nodes, { id => int($nid), namespace => $namespace, label => $this_label, properties => $props });
+                my $type = delete $props->{neo4j_type};
+                if ($type) {
+                    # the return value is actually a relationship, not a node
+                    my $start = delete $props->{neo4j_startNode};
+                    my $end   = delete $props->{neo4j_endNode};
+                    $self->throw("Relationship $nid didn't have both start and end node specified!") unless ($start && $end);
+                    push(@nodes, { id => int($nid), properties => $props, type => $type, startNode => int($start), endNode => int($end) });
+                }
+                else {
+                    $namespace || $self->throw("No namespace supplied, and we received a node");
+                    my $this_label = delete $props->{neo4j_label};
+                    $this_label ||= $label;
+                    $this_label || $self->throw("No label supplied, and none returned by the plugin");
+                    push(@nodes, { id => int($nid), namespace => $namespace, label => $this_label, properties => $props });
+                }
             }
         }
         
