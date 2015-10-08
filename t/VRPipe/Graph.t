@@ -108,7 +108,7 @@ is $graph->node_property($closest, 'name'), 'Study of Disease_xyz', 'closest_nod
 $closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'incoming');
 is $closest, undef, 'closest_nodes_with_label(incoming) returns nothing if searching for something that does not exist';
 $closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing');
-is $graph->node_property($closest, 'name'), 'Lane1', 'closest_nodes_with_label(outgoing) worked';
+like $graph->node_property($closest, 'name'), qr/Lane[12]/, 'closest_nodes_with_label(outgoing) worked';
 my @closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing', all => 1);
 is_deeply [sort map { $graph->node_property($_, 'name') } @closest], [qw(Lane1 Lane2)], 'closest_nodes_with_label(all => 1) worked';
 @closest = $graph->closest_nodes_with_label($john, 'VRTrack', 'Lane', direction => 'outgoing', all => 1, properties => [['foo', 'bar']]);
