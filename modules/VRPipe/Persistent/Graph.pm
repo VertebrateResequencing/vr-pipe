@@ -839,10 +839,22 @@ class VRPipe::Persistent::Graph {
     
     # delete all relationships between 2 nodes, optionally limited by type
     method divorce (HashRef|Object $start_node!, HashRef|Object $end_node!, Str :$type?) {
-        $type ||= '';
-        $type &&= ':' . $type;
-        my $cypher = "MATCH (a)-[rel$type]-(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} DELETE rel";
-        $self->_run_cypher([[$cypher]]);
+        $self->mass_divorce([[$start_node, $end_node, $type ? ($type) : ()]]);
+    }
+    
+    # each member of $spec_list is [$start_node, $end_node, $type], where $type
+    # is optional
+    method mass_divorce (ArrayRef $spec_list!) {
+        my @cypher;
+        
+        foreach my $spec (@$spec_list) {
+            my ($start_node, $end_node, $type) = @$spec;
+            $type ||= '';
+            $type &&= ':' . $type;
+            push(@cypher, ["MATCH (a)-[rel$type]-(b) WHERE id(a) = $start_node->{id} AND id(b) = $end_node->{id} DELETE rel"]);
+        }
+        
+        $self->_run_cypher(\@cypher);
     }
     
     method relationship_set_properties (HashRef $rel!, HashRef $properties!) {
