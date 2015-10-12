@@ -87,7 +87,7 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
                 my $pdfile  = $self->output_file(output_key => 'plot_file', basename => "$sample.pdf", type => 'any', metadata => { $sample_key => $sample });
                 
                 my @outfiles = ($profile, $logfile, $pdfile);
-                my $cmd      = $self->r_cmd_prefix . " $phantompeak_script -rf -savp -c=" . $input_bam->path . " -odir=" . $profile->dir . " -out=$sample > $sample.log";
+                my $cmd      = $self->r_cmd_prefix . " $phantompeak_script -rf -savp=$sample.pdf -c=" . $input_bam->path . " -odir=" . $profile->dir . " -out=$sample > $sample.log";
                 my $this_cmd = "use VRPipe::Steps::phantompeakqualtools; VRPipe::Steps::phantompeakqualtools->compute_and_add_metadata(q[$cmd], samtools => q[$samtools_exe]);";
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
