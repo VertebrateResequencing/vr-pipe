@@ -227,16 +227,22 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
         }
         
         #Proportion of fragments in peaks (FrIP): first-cut metric for the success of the immunoprecipitation
-        my $samtools_filter;
+        my $reads_filter;
+        my $unique_fragment_filter;
         if ($input_bam->metadata->{paired}) {
-            $samtools_filter = "-f 3";
+            $reads_filter           = "-f 3";
+            $unique_fragment_filter = "-f 67";
         }
         else {
-            $samtools_filter = "-F 4";
+            $reads_filter = $unique_fragment_filter = "-F 4";
         }
-        my $FRIP = `$samtools view -b $samtools_filter $bamfile | $bedtools intersect -abam stdin -b $peakfile -bed -wa -u -sorted | cut -f 4 | sed 's/#.*//' | sort | uniq | wc -l`;
-        chomp($FRIP);
-        $input_bam->add_metadata({ FRIP => $FRIP });
+        my $fragments_in_peaks = `$samtools view -b $reads_filter $bamfile | $bedtools intersect -abam stdin -b $peakfile -bed -wa -u -sorted | cut -f 4 | sed 's/#.*//' | sort | uniq | wc -l`;
+        my $unique_fragments   = `$samtools view $unique_fragment_filter -c $bamfile`;
+        chomp($fragments_in_peaks);
+        chomp($unique_fragments);
+        my $FRiP = $fragments_in_peaks / $unique_fragments;
+        $input_bam->add_metadata({ fragments_in_peaks => $fragments_in_peaks });
+        $input_bam->add_metadata({ FRiP               => $FRiP });
     
     }
 
