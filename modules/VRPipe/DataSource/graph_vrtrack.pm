@@ -49,6 +49,8 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     use Digest::MD5 qw(md5_hex);
     
     our $schema;
+    our @metadata_keys_to_check_for_changes = qw(library library_id id_run sample sample_accession_number sample_id reference md5 donor_id public_name sample_public_name sample_cohort sample_control);
+    our @comps = (['sample', 'sample_name'], ['is_paired_read', 'lane_is_paired_read'], ['library', 'library_name'], ['id_run', 'lane_run'], ['study', 'study_name'], ['study_title', 'study_name']);
     
     has '_cached_files' => (
         is        => 'rw',
@@ -434,7 +436,6 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             delete $new_metadata->{uuid};
             delete $new_metadata->{basename};
             delete $new_metadata->{"gender_source_gender_md5"};
-            my @comps = (['sample', 'sample_name'], ['is_paired_read', 'lane_is_paired_read'], ['library', 'library_name'], ['id_run', 'lane_run'], ['study', 'study_name'], ['study_title', 'study_name']);
             foreach my $comp (@comps) {
                 my ($keep, $delete) = @$comp;
                 if (defined $new_metadata->{$keep} && defined $new_metadata->{$delete} && $new_metadata->{$keep} eq $new_metadata->{$delete}) {
@@ -453,10 +454,10 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 
                 my @changed;
                 if ($current_metadata && keys %$current_metadata) {
-                    while (my ($key, $val) = each %$current_metadata) {
-                        next unless defined $val;
+                    foreach my $key (@metadata_keys_to_check_for_changes) {
+                        next unless defined $current_metadata->{$key};
                         next unless defined $new_metadata->{$key};
-                        if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
+                        if (my $diff = $self->_vals_different($current_metadata->{$key}, $new_metadata->{$key})) {
                             push(@changed_details, $diff);
                         }
                     }
