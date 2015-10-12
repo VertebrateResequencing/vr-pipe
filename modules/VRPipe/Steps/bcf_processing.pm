@@ -131,8 +131,8 @@ class VRPipe::Steps::bcf_processing with VRPipe::StepRole {
                 }
                 $out_meta->{source_vcf} = $in_vcf->path;
                 my $basename = $in_vcf->basename;
-                $basename =~ s/\.[bv]cf$//;
-                my $suffix = $cmd_line =~ /\$output_vcf/ ? 'vcf' : 'bcf';
+                $basename =~ s/\.[bv]cf(\.gz)?$//;
+                my $suffix = $cmd_line =~ /\$output_vcf/ ? 'vcf.gz' : 'bcf';
                 my $out_vcf     = $self->output_file(sub_dir => $sub_dir, output_key => 'processed_vcf_files', basename => "$basename.$suffix", type => $suffix, metadata => $out_meta);
                 my @out_files   = ($out_vcf);
                 my $input_path  = $in_vcf->path;
