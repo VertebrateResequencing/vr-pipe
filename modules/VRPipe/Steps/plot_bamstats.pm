@@ -115,13 +115,14 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-coverage.png', type => 'bin');
                 push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Coverage' });
                 
-                $self->output_file(temporary => 1, basename => $prefix . '-indel-dist.gp', type => 'txt');
-                $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-indel-dist.png', type => 'bin');
-                push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Indel distribution' });
-                
-                $self->output_file(temporary => 1, basename => $prefix . '-indel-cycles.gp', type => 'txt');
-                $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-indel-cycles.png', type => 'bin');
-                push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Indels per cycle' });
+                if ($vr_stats->properties->{'number of insertions'} > 0 && $vr_stats->properties->{'number of deletions'} > 0) {
+                    $self->output_file(temporary => 1, basename => $prefix . '-indel-dist.gp', type => 'txt');
+                    $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-indel-dist.png', type => 'bin');
+                    push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Indel distribution' });
+                    $self->output_file(temporary => 1, basename => $prefix . '-indel-cycles.gp', type => 'txt');
+                    $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-indel-cycles.png', type => 'bin');
+                    push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Indels per cycle' });
+                }
                 
                 if ($vr_stats->properties->{'options'} =~ /(?<!\S)-r(?!\S)/) {
                     $self->output_file(temporary => 1, basename => $prefix . '-mism-per-cycle.gp', type => 'txt');

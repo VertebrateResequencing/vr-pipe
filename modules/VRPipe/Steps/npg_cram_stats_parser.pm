@@ -166,7 +166,6 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
         }
         
         my $date = time();
-        
         if ($stats_graph_node) {
             # parse the stats file (don't use our bamcheck parser so we just
             # store whatever new or changed field is in the stats file)
@@ -174,6 +173,8 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             my %stats = ();
             my $mode  = 'normal';
             my $opts;
+            my $insertion_counts = 0;
+            my $deletion_counts  = 0;
             while (<$fh>) {
                 if (/^# The command line was:\s+stats\s+(.+)/) {
                     $opts = $1;
@@ -196,8 +197,14 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                         $stats{'targeted total sequences'} = delete $stats{'raw total sequences'};
                     }
                 }
+                elsif (/^ID\s+(\S+)\s+(\S+)\s+(\S+)/) {
+                    $insertion_counts += $2;
+                    $deletion_counts  += $3;
+                }
             }
             $stats_graph_node->close;
+            $stats{'number of insertions'} = $insertion_counts;
+            $stats{'number of deletions'}  = $deletion_counts;
             
             unless ($mode eq 'rmdup') {
                 # when not using -d we can still add some rmdup stats
