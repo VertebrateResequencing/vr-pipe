@@ -81,13 +81,14 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
             );
             
             foreach my $input_bam (@{ $self->inputs->{bam_files} }) {
-                my $sample  = $input_bam->metadata->{$sample_key};
-                my $profile = $self->output_file(output_key => 'text_files', basename => "$sample", type => 'txt', metadata => { $sample_key => $sample });
-                my $logfile = $self->output_file(output_key => 'text_files', basename => "$sample.log", type => 'txt', metadata => { $sample_key => $sample });
-                my $pdfile  = $self->output_file(output_key => 'plot_file', basename => "$sample.pdf", type => 'any', metadata => { $sample_key => $sample });
-                
+                my $sample   = $input_bam->metadata->{$sample_key};
+                my $profile  = $self->output_file(output_key => 'text_files', basename => "$sample", type => 'txt', metadata => { $sample_key => $sample });
+                my $logfile  = $self->output_file(output_key => 'text_files', basename => "$sample.log", type => 'txt', metadata => { $sample_key => $sample });
+                my $pdfile   = $self->output_file(output_key => 'plot_file', basename => "$sample.pdf", type => 'any', metadata => { $sample_key => $sample });
+                my $outdir   = $profile->dir;
+                my $bam      = $input_bam->path;
                 my @outfiles = ($profile, $logfile, $pdfile);
-                my $cmd      = $self->r_cmd_prefix . " $phantompeak_script -rf -savp=$sample.pdf -c=" . $input_bam->path . " -odir=" . $profile->dir . " -tmpdir=" . $profile->dir . " -out=$sample > $sample.log";
+                my $cmd      = $self->r_cmd_prefix . " $phantompeak_script -rf -savp=$sample.pdf -tmpdir=$outdir -c=$bam -odir=$outdir -out=$sample > $sample.log";
                 my $this_cmd = "use VRPipe::Steps::phantompeakqualtools; VRPipe::Steps::phantompeakqualtools->compute_and_add_metadata(q[$cmd], samtools => q[$samtools_exe]);";
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
