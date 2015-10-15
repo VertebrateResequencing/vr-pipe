@@ -912,81 +912,86 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             
                             my $donor;
                             my $donor_uuid = $meta->{sample_cohort} if exists $meta->{sample_cohort};
-                            if (defined $donor_uuid && !exists $done_donors{$donor_uuid}) {
-                                $donor = $vrtrack->add('Donor', { id => $donor_uuid });
-                                
-                                # since donor_id isn't indexed in
-                                # current_samples, we do a 1-time pull of all
-                                # sample rows in the table (that have donor_id
-                                # set)
-                                unless ($ran_sample_donor_sth) {
-                                    undef $sample_donor_sample;
-                                    undef $sample_donor_donor;
-                                    $sample_donor_sth->execute();
-                                    while ($sample_donor_sth->fetch) {
-                                        $donor_to_samples{"$sample_donor_donor"}->{"$sample_donor_sample"} = 1;
-                                    }
-                                    $ran_sample_donor_sth = 1;
-                                }
-                                
-                                # find out all the studies that all the donor's
-                                # samples belong to
-                                my @study_details;
-                                my %good_studies;
-                                foreach my $internal_id (keys %{ $donor_to_samples{$donor_uuid} }) {
-                                    undef $warehouse_study_id;
-                                    $study_id_sth->execute($internal_id);
-                                    while ($study_id_sth->fetch) {
-                                        undef $study_title;
-                                        undef $study_ac;
-                                        $study_sth->execute($warehouse_study_id);
-                                        $study_sth->fetch;
-                                        push(@study_details, ["$warehouse_study_id", "$study_title", $study_ac ? ("$study_ac") : ()]);
-                                        $good_studies{"$warehouse_study_id"} = 1;
-                                    }
-                                }
-                                
-                                # a donor and all it's samples have been removed
-                                # from a study; now that we know the correct set
-                                # of studies we can remove bad links and add
-                                # missing ones
-                                my (@divorce_args, %already_linked_studies);
-                                foreach my $study ($donor->closest('VRTrack', 'Study', direction => 'incoming', all => 1, depth => 1)) {
-                                    my $sid = $study->id;
-                                    if (exists $good_studies{$sid}) {
-                                        $already_linked_studies{$sid} = 1;
-                                    }
-                                    else {
-                                        push(@divorce_args, [$study, $donor, 'member']);
-                                    }
-                                }
-                                $graph->mass_divorce(\@divorce_args) if @divorce_args;
-                                
-                                foreach my $sd (@study_details) {
-                                    next if exists $already_linked_studies{ $sd->[0] };
+                            if (defined $donor_uuid) {
+                                unless (exists $done_donors{$donor_uuid}) {
+                                    $donor = $vrtrack->add('Donor', { id => $donor_uuid });
                                     
-                                    my $study_title = $sd->[1] || '[no study title]';
-                                    my $done_studies_key = 'id:' . $sd->[0] . ':name:' . $study_title . ':ac:' . ($sd->[2] ? $sd->[2] : '') . ':group:' . $vrtrack_group;
-                                    my $study;
-                                    if (exists $done_studies{$done_studies_key}) {
-                                        $study = $done_studies{$done_studies_key};
-                                    }
-                                    else {
-                                        $study = $vrtrack->add('Study', { id => $sd->[0], name => $study_title, $sd->[2] ? (accession => $sd->[2]) : () }, incoming => { type => 'has', node => $group });
-                                        $done_studies{$done_studies_key} = $study;
+                                    # since donor_id isn't indexed in
+                                    # current_samples, we do a 1-time pull of all
+                                    # sample rows in the table (that have donor_id
+                                    # set)
+                                    unless ($ran_sample_donor_sth) {
+                                        undef $sample_donor_sample;
+                                        undef $sample_donor_donor;
+                                        $sample_donor_sth->execute();
+                                        while ($sample_donor_sth->fetch) {
+                                            $donor_to_samples{"$sample_donor_donor"}->{"$sample_donor_sample"} = 1;
+                                        }
+                                        $ran_sample_donor_sth = 1;
                                     }
                                     
-                                    my $relate_args = { from => $study, to => $donor, type => 'member' };
-                                    if ($preferred_study && $study->node_id == $preferred_study->node_id) {
-                                        $relate_args->{properties} = $study_relate_to_props{properties};
-                                        push(@$rel_args_with_props, $relate_args);
+                                    # find out all the studies that all the donor's
+                                    # samples belong to
+                                    my @study_details;
+                                    my %good_studies;
+                                    foreach my $internal_id (keys %{ $donor_to_samples{$donor_uuid} }) {
+                                        undef $warehouse_study_id;
+                                        $study_id_sth->execute($internal_id);
+                                        while ($study_id_sth->fetch) {
+                                            undef $study_title;
+                                            undef $study_ac;
+                                            $study_sth->execute($warehouse_study_id);
+                                            $study_sth->fetch;
+                                            push(@study_details, ["$warehouse_study_id", "$study_title", $study_ac ? ("$study_ac") : ()]);
+                                            $good_studies{"$warehouse_study_id"} = 1;
+                                        }
                                     }
-                                    else {
-                                        push(@$rel_args, $relate_args);
+                                    
+                                    # a donor and all it's samples have been removed
+                                    # from a study; now that we know the correct set
+                                    # of studies we can remove bad links and add
+                                    # missing ones
+                                    my (@divorce_args, %already_linked_studies);
+                                    foreach my $study ($donor->closest('VRTrack', 'Study', direction => 'incoming', all => 1, depth => 1)) {
+                                        my $sid = $study->id;
+                                        if (exists $good_studies{$sid}) {
+                                            $already_linked_studies{$sid} = 1;
+                                        }
+                                        else {
+                                            push(@divorce_args, [$study, $donor, 'member']);
+                                        }
                                     }
+                                    $graph->mass_divorce(\@divorce_args) if @divorce_args;
+                                    
+                                    foreach my $sd (@study_details) {
+                                        next if exists $already_linked_studies{ $sd->[0] };
+                                        
+                                        my $study_title = $sd->[1] || '[no study title]';
+                                        my $done_studies_key = 'id:' . $sd->[0] . ':name:' . $study_title . ':ac:' . ($sd->[2] ? $sd->[2] : '') . ':group:' . $vrtrack_group;
+                                        my $study;
+                                        if (exists $done_studies{$done_studies_key}) {
+                                            $study = $done_studies{$done_studies_key};
+                                        }
+                                        else {
+                                            $study = $vrtrack->add('Study', { id => $sd->[0], name => $study_title, $sd->[2] ? (accession => $sd->[2]) : () }, incoming => { type => 'has', node => $group });
+                                            $done_studies{$done_studies_key} = $study;
+                                        }
+                                        
+                                        my $relate_args = { from => $study, to => $donor, type => 'member' };
+                                        if ($preferred_study && $study->node_id == $preferred_study->node_id) {
+                                            $relate_args->{properties} = $study_relate_to_props{properties};
+                                            push(@$rel_args_with_props, $relate_args);
+                                        }
+                                        else {
+                                            push(@$rel_args, $relate_args);
+                                        }
+                                    }
+                                    
+                                    $done_donors{$donor_uuid} = $donor;
                                 }
-                                
-                                $done_donors{$donor_uuid} = 1;
+                                else {
+                                    $donor = $done_donors{$donor_uuid};
+                                }
                             }
                             
                             my $sample;
