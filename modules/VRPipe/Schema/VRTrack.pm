@@ -514,7 +514,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $db    = $graph->_global_label;
         my $args  = '';
         if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|passed|selected|pending)$/) {
-            $args = "?sample=$new->[0]&status=&& $new->[1]";
+            $args = "?sample=$new->[0]&status=$new->[1]";
             if ($new->[2]) {
                 $args .= "&reason=$new->[2]";
             }
