@@ -497,6 +497,41 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return [sort { $b->{properties}->{created_date} cmp $a->{properties}->{created_date} || $a->{properties}->{public_name} cmp $b->{properties}->{public_name} } values $nodes{Sample}];
     }
     
+    # this is mainly for vrtrack_qc/index.html, but it lets you get all
+    # VRTrack nodes with a certain label, optionally limited to those that
+    # belong to your supplied groups, studies, donors or samples (supplied as
+    # node ids separated by commas). Donor and Sample nodes will have the
+    # extra info that get_node_by_id_with_extra_info() adds to them.
+    method nodes_of_label (Str $label!, ArrayRef[Int] :$groups?, ArrayRef[Int] :$studies?, ArrayRef[Int] :$donors?, ArrayRef[Int] :$samples?) {
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        my $args  = '';
+        if ($groups) {
+            $args = "?groups=" . join(',', @$groups);
+            if ($studies) {
+                $args .= "&studies=" . join(',', @$studies);
+                $args .= "&donors=" . join(',', @$donors) if $donors;
+                $args .= "&samples=" . join(',', @$samples) if $samples;
+            }
+        }
+        my @nodes = $graph->_call_vrpipe_neo4j_plugin_and_parse("/vrtrack_nodes/$db/$label$args", namespace => 'VRTrack', label => $label);
+        
+        # sort by epoch and convert to ymd
+        my $key = $label eq 'Donor' ? 'last_sample_added_date' : ($label eq 'Sample' ? 'created_date' : undef);
+        if ($key) {
+            @nodes = sort { (defined $b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> (defined $a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            foreach my $node (@nodes) {
+                if (defined $node->{properties}->{$key}) {
+                    $node->{properties}->{$key} = DateTime->from_epoch(epoch => $node->{properties}->{$key})->ymd;
+                }
+            }
+        }
+        
+        return \@nodes;
+    }
+    
+    # adds extra info to Donor (example_sample and last_sample_added_date) and
+    # Sample (donor and study ids) nodes
     method get_node_by_id_with_extra_info (Str $label!, Int $id!) {
         my $graph = $self->graph;
         my $db    = $graph->_global_label;

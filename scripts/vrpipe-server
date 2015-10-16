@@ -1666,97 +1666,21 @@ sub qc {
     elsif ($method eq 'nodes_of_label') {
         my $label = $args->{label};
         if ($label) {
-            my $cypher_labels = $vrtrack->cypher_labels($label);
+            $data = $vrtrack->nodes_of_label(
+                $label,
+                $args->{groups}  ? (groups  => $args->{groups})  : (),
+                $args->{studies} ? (studies => $args->{studies}) : (),
+                $args->{donors}  ? (donors  => $args->{donors})  : (),
+                $args->{samples} ? (samples => $args->{samples}) : ()
+            );
             
-            my $cypher;
-            my $groups = $args->{groups};
-            if ($groups) {
-                my $params       = { group => { ids => $groups } };
-                my $group_labels = $vrtrack->cypher_labels('Group');
-                my $match        = "MATCH (group:$group_labels) WHERE id(group) IN {group}.ids";
-                
-                my $studies  = $args->{studies};
-                my $previous = 'group';
-                my ($donors, $samples);
-                if ($studies) {
-                    $params->{study}->{ids} = $studies;
-                    my $study_labels = $vrtrack->cypher_labels('Study');
-                    $match .= " MATCH (group)-->(study:$study_labels) WHERE id(study) IN {study}.ids";
-                    $previous = 'study';
-                    
-                    $donors = $args->{donors};
-                    if ($donors) {
-                        $params->{donor}->{ids} = $donors;
-                        my $donor_labels = $vrtrack->cypher_labels('Donor');
-                        $match .= " MATCH ($previous)-->(donor:$donor_labels) WHERE id(donor) IN {donor}.ids";
-                        $previous = 'donor';
-                    }
-                    
-                    $samples = $args->{samples};
-                    if ($samples) {
-                        $params->{sample}->{ids} = $samples;
-                        my $sample_labels = $vrtrack->cypher_labels('Sample');
-                        $match .= " MATCH ($previous)-->(sample:$sample_labels) WHERE id(sample) IN {sample}.ids";
-                        $previous = 'sample';
+            if ($label eq 'Sample') {
+                # remove properties for a nicer table to display
+                foreach my $node (@$data) {
+                    foreach my $prop (qw(id supplier_name accession consent control aberrant_chrs donor_node_id donor_id study_id study_node_id)) {
+                        delete $node->{properties}->{$prop};
                     }
                 }
-                
-                my $donor_special;
-                if ($label eq 'Donor') {
-                    # donor's just have meaningless ids; user will always want
-                    # to see the donor's control sample public name and the
-                    # most recent created_date of its member samples, so we will
-                    # add those as psuedo properties on the donor nodes; first
-                    # adjust the cypher to get the donor's samples
-                    my $dtsmc = $vrtrack->donor_to_sample_match_cypher('donor');
-                    $donor_special = "WITH donor $dtsmc";
-                }
-                
-                my $query;
-                if ($label eq 'Donor' && $donors) {
-                    $query = $donor_special;
-                }
-                elsif ($label eq 'Sample' && $samples) {
-                    $query = 'RETURN sample';
-                }
-                else {
-                    my $min_d = $args->{min_depth} || 1;
-                    my $max_d = $args->{max_depth} || 1;
-                    my $depth = "$min_d..$max_d";
-                    my $return = 'RETURN n';
-                    if ($donor_special) {
-                        $donor_special =~ s/donor/n/g;
-                        $return = $donor_special;
-                    }
-                    
-                    $query = "MATCH ($previous)-[*$depth]->(n:$cypher_labels) $return";
-                }
-                
-                $cypher = ["$match $query", $params];
-            }
-            else {
-                $cypher = ["MATCH (n:$cypher_labels) RETURN n"];
-            }
-            
-            my $graph_data = $graph->_run_cypher([$cypher]);
-            if ($label eq 'Donor') {
-                # we have sample nodes related to our donor nodes; figure out
-                # which samples belong to which donors, then add the relevant
-                # sample properties to the donor node
-                $data = $vrtrack->add_sample_info_to_donors($graph_data);
-            }
-            else {
-                if ($label eq 'Sample') {
-                    # convert created_date property from epoch to ymd
-                    foreach my $sample (@{ $graph_data->{nodes} }) {
-                        if (defined $sample->{properties}->{created_date}) {
-                            my $dt = DateTime->from_epoch(epoch => $sample->{properties}->{created_date});
-                            $sample->{properties}->{created_date} = $dt->ymd;
-                        }
-                    }
-                }
-                
-                $data = $graph_data->{nodes};
             }
         }
         else {
