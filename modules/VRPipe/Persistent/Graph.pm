@@ -1025,12 +1025,35 @@ class VRPipe::Persistent::Graph {
             $prop = "&properties=$props";
         }
         
-        return $self->_call_vrpipe_neo4j_plugin("/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop", namespace => $namespace, label => $label);
+        return $self->_call_vrpipe_neo4j_plugin_and_parse("/closest/$global_label\%7C$namespace\%7C$label/to/$start_id?depth=$depth&all=$all$dir$prop", namespace => $namespace, label => $label);
     }
     
-    method _call_vrpipe_neo4j_plugin (Str $path!, Str :$namespace!, Str :$label?) {
+    method _call_vrpipe_neo4j_plugin_and_parse (Str $path!, Str :$namespace!, Str :$label?) {
+        my $data = $self->_call_vrpipe_neo4j_plugin($path);
+        
+        my @nodes;
+        if ($data && ref($data) eq 'HASH') {
+            while (my ($nid, $props) = each %{$data}) {
+                my $this_label = delete $props->{neo4j_label};
+                $this_label ||= $label;
+                $this_label || $self->throw("No label supplied, and none returned by the plugin");
+                push(@nodes, { id => int($nid), namespace => $namespace, label => $this_label, properties => $props });
+            }
+        }
+        
+        if (@nodes) {
+            if (wantarray) {
+                return @nodes;
+            }
+            return $nodes[0];
+        }
+        return;
+    }
+    
+    sub _call_vrpipe_neo4j_plugin {
         # this plugin needs to be installed in Neo4J first:
         # https://github.com/VertebrateResequencing/vrpipe_neo4j_plugin
+        my ($self, $path) = @_;
         my $pluginurl = "$url/v1/service$path";
         
         my $data;
@@ -1057,23 +1080,7 @@ class VRPipe::Persistent::Graph {
             }
         }
         
-        my @nodes;
-        if ($data && ref($data) eq 'HASH') {
-            while (my ($nid, $props) = each %{$data}) {
-                my $this_label = delete $props->{neo4j_label};
-                $this_label ||= $label;
-                $this_label || $self->throw("No label supplied, and none returned by the plugin");
-                push(@nodes, { id => int($nid), namespace => $namespace, label => $this_label, properties => $props });
-            }
-        }
-        
-        if (@nodes) {
-            if (wantarray) {
-                return @nodes;
-            }
-            return $nodes[0];
-        }
-        return;
+        return $data;
     }
     
     method root_nodes {
