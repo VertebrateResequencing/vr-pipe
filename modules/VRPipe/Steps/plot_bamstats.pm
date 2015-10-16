@@ -132,6 +132,12 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 
                 $self->output_file(temporary => 1, basename => $prefix . '.html', type => 'txt');
                 
+                # first remove any old plots still attached to the stats file
+                my @existing_plots = $vrstats_file->related(outgoing => { type => 'bamstats_plot' });
+                foreach my $plot (@existing_plots) {
+                    $vrstats_file->divorce_from($plot);
+                }
+                
                 foreach my $params (@vr_plot_params) {
                     my $path = delete $params->{path};
                     $self->relate_input_to_output($vrstats_file, 'bamstats_plot', $path, $params);
@@ -149,7 +155,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
             bamstats_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamstats, with a caption in the metadata',
-                min_files   => 11,
+                min_files   => 8,
                 max_files   => -1
             )
         };
