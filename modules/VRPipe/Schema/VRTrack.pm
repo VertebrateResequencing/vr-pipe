@@ -498,29 +498,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     }
     
     method get_node_by_id_with_extra_info (Str $label!, Int $id!) {
-        my $graph = $self->graph();
-        my $node;
-        if ($label eq 'Donor') {
-            # add some sample properties to the donor
-            my $cypher = "MATCH (donor) WHERE id(donor) = {param}.donor_id ";
-            $cypher .= $self->donor_to_sample_match_cypher('donor');
-            my $graph_data = $graph->_run_cypher([[$cypher, { param => { donor_id => $id } }]]);
-            my $data = $self->add_sample_info_to_donors($graph_data);
-            $node = $data->[0];
-        }
-        elsif ($label eq 'Sample') {
-            # add some donor and study properties to the sample
-            my $cypher = "MATCH (sample) WHERE id(sample) = {param}.sample_id ";
-            $cypher .= $self->sample_extra_info_match_cypher('sample');
-            my $graph_data = $graph->_run_cypher([[$cypher, { param => { sample_id => $id } }]]);
-            my $data = $self->add_extra_info_to_samples($graph_data);
-            $node = $data->[0];
-        }
-        else {
-            $self->throw("label $label not supported by node_by_id_with_extra_info");
-        }
-        
-        return $node;
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        return $graph->_call_vrpipe_neo4j_plugin_and_parse("/get_node_with_extra_info/$db/$id", namespace => 'VRTrack', label => $label);
     }
     
     # get all qc-related stuff associated with a donor and its samples. Also
@@ -535,8 +515,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $args  = '';
         if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|passed|selected|pending)$/) {
             $args = "?sample=$new->[0]&status=&& $new->[1]";
-            if ($args->[2]) {
-                $args .= "&reason=$args->[2]";
+            if ($new->[2]) {
+                $args .= "&reason=$new->[2]";
             }
         }
         my $data = $graph->_call_vrpipe_neo4j_plugin("/donor_qc/$db/$user/$donor$args");
