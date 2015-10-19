@@ -566,7 +566,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $donor_details = $data->{donor_details};
         
         # copy number by chr plot
-        push(@results, { type => 'copy_number_plot', plot => $donor_details->{copy_number_by_chromosome_plot} });
+        push(@results, { type => 'copy_number_plot', plot => $donor_details->{copy_number_by_chromosome_plot} }) if defined $donor_details->{copy_number_by_chromosome_plot};
         
         # pluritest plots
         my @pluritest_plot_results;
