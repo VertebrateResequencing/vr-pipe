@@ -119,7 +119,11 @@ class VRPipe::Steps::vrtrack_populate_from_graph_db extends VRPipe::Steps::vrtra
                 $meta->{irods_analysis_files} = $file_meta->{irods_analysis_files};
             }
         }
-        $self->meta_to_lane(db => $db, file => $file, meta => $meta, lane => $lane, $storage_dir ? (storage_dir => $storage_dir) : ());
+        my $lane_added = $self->meta_to_lane(db => $db, file => $file, meta => $meta, lane => $lane, $storage_dir ? (storage_dir => $storage_dir) : ());
+        
+        unless ($lane_added) {
+            $self->throw("Unable to add lane $lane to database $db, probably because " . $file->path . " had no reads");
+        }
         
         # create/update mapstats and graphs
         my %plot_files;

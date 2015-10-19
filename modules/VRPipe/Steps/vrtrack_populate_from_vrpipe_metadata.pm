@@ -102,9 +102,9 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         }
         $file->disconnect;
         
-        if ($type =~ /bam|cram/ && $meta->{total_reads} < 1000) {
-            # ignore ~empty bam files
-            return 1;
+        if ($type =~ /bam|cram/ && $meta->{total_reads} < 1) {
+            # ignore empty bam files
+            return 0;
         }
         
         # we can't populate vrtrack without some essential metadata
@@ -386,6 +386,8 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
         unless ($worked) {
             $self->throw($vrtrack->{transaction_error});
         }
+        
+        return 1;
     }
 }
 
