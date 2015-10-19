@@ -458,12 +458,13 @@ class VRPipe::File extends VRPipe::Persistent {
             my $meta = $keyvallist->as_hashref;
             
             if ($opts{include_vrtrack}) {
-                my $vrtrack   = $self->_vrtrack_schema;
+                my $vrtrack = $self->_vrtrack_schema;
                 my $file_node = $vrtrack->get_file($self->protocolless_path, $self->protocol);
-                my $vrmeta    = $vrtrack->vrtrack_metadata($file_node);
-                
-                while (my ($key, $val) = each %$vrmeta) {
-                    $meta->{$key} = $val;
+                if ($file_node) {
+                    my $vrmeta = $vrtrack->vrtrack_metadata($file_node);
+                    while (my ($key, $val) = each %$vrmeta) {
+                        $meta->{$key} = $val;
+                    }
                 }
             }
             
