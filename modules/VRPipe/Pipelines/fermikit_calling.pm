@@ -44,14 +44,14 @@ class VRPipe::Pipelines::fermikit_calling with VRPipe::PipelineRole {
     
     method step_names {
         (
-            'fasta_index',           #1
-            'sequence_dictionary',   #2
-            'bwa_index',             #3
-            'bwa_mem_align_unitigs', #4
-            'bam_sort',              #5
-            'unitig_pileup_calling', #6
-            'unitig_abreak_calling', #7
-            # 'filter_unitig_pileup_calls', #8
+            'fasta_index',                #1
+            'sequence_dictionary',        #2
+            'bwa_index',                  #3
+            'bwa_mem_align_unitigs',      #4
+            'bam_sort',                   #5
+            'unitig_pileup_calling',      #6
+            'unitig_abreak_calling',      #7
+            'filter_unitig_pileup_calls', #8
         );
     }
     
@@ -62,7 +62,7 @@ class VRPipe::Pipelines::fermikit_calling with VRPipe::PipelineRole {
             { from_step => 4, to_step => 5, from_key => 'bwa_mem_bam_files', to_key => 'bam_files' },
             { from_step => 5, to_step => 6, from_key => 'coord_sorted_bam_files', to_key => 'bam_files' },
             { from_step => 4, to_step => 7, from_key => 'bwa_mem_bam_files', to_key => 'name_sorted_bam_files' },
-            # { from_step => 6, to_step => 8, from_key => 'unitig_pileup_vcf_files', to_key => 'vcf_files' },
+            { from_step => 6, to_step => 8, from_key => 'unitig_pileup_vcf_files', to_key => 'vcf_files' },
         );
     }
     
