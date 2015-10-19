@@ -3,12 +3,13 @@ use strict;
 use warnings;
 use File::Copy;
 use Path::Class;
+use File::Which;
 
 BEGIN {
     use Test::Most tests => 4;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES)],
-        required_exe => [qw(samtools bfc ropebwt2 fermi2 htsbox bwa vcf-sort)]
+        required_exe => [qw(samtools bfc ropebwt2 fermi2 htsbox bwa vcf-sort bcftools k8)]
     );
     use TestPipelines;
 }
@@ -75,6 +76,7 @@ VRPipe::PipelineSetup->create(
         htsbox_exe                        => 'htsbox',
         htsbox_pileup_options             => '-Ccu',
         htsbox_abreak_options             => '-bcu',
+        hapdip                            => '/software/vertres/bin-external/hapdip.js',
         fasta_index_memory                => 500,
         sequence_dictionary_memory        => 500,
         bwa_index_memory                  => 500,
@@ -103,14 +105,14 @@ foreach my $suffix (qw(fai dict bwt sa amb ann pac)) {
 
 my @calling_files;
 @output_subdirs = output_subdirs(2, 2);
-push(@calling_files, file(@output_subdirs, '4_bwa_mem_align_unitigs', qq[0.unitig.bam]));
-push(@calling_files, file(@output_subdirs, '5_bam_sort',              qq[0.unitig.sorted.bam]));
-push(@calling_files, file(@output_subdirs, '6_unitig_pileup_calling', qq[pileup.vcf.gz]));
-push(@calling_files, file(@output_subdirs, '6_unitig_pileup_calling', qq[pileup.vcf.gz.tbi]));
-push(@calling_files, file(@output_subdirs, '7_unitig_abreak_calling', qq[0.unitig.vcf.gz]));
-push(@calling_files, file(@output_subdirs, '7_unitig_abreak_calling', qq[0.unitig.vcf.gz.tbi]));
-# push(@calling_files, file(@output_subdirs, '8_filter_unitig_pileup_calls', qq[pileup.vcf.gz]));
-# push(@calling_files, file(@output_subdirs, '8_filter_unitig_pileup_calls', qq[pileup.vcf.gz.tbi]));
+push(@calling_files, file(@output_subdirs, '4_bwa_mem_align_unitigs',      qq[0.unitig.bam]));
+push(@calling_files, file(@output_subdirs, '5_bam_sort',                   qq[0.unitig.sorted.bam]));
+push(@calling_files, file(@output_subdirs, '6_unitig_pileup_calling',      qq[pileup.vcf.gz]));
+push(@calling_files, file(@output_subdirs, '6_unitig_pileup_calling',      qq[pileup.vcf.gz.tbi]));
+push(@calling_files, file(@output_subdirs, '7_unitig_abreak_calling',      qq[0.unitig.vcf.gz]));
+push(@calling_files, file(@output_subdirs, '7_unitig_abreak_calling',      qq[0.unitig.vcf.gz.tbi]));
+push(@calling_files, file(@output_subdirs, '8_filter_unitig_pileup_calls', qq[pileup.vcf.gz]));
+push(@calling_files, file(@output_subdirs, '8_filter_unitig_pileup_calls', qq[pileup.vcf.gz.tbi]));
 
 ok handle_pipeline(@assembly_files, @ref_files, @calling_files), 'fermikit pipelines created expected output files';
 
