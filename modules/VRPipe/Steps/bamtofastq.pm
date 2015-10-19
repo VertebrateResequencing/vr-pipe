@@ -103,6 +103,18 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => 500, time => 1);
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
+                # out inputs definition ensures that at least 1 input bam has
+                # avg_read_length metadata, needed for the following
+                # split_fastq_outs to work, but it's possible others do not
+                # if our input comes from samtools_split_by_readgroup step, and
+                # the input to that was a bam where some of the readgroups in
+                # the header don't actually have any reads in the file.
+                # Anyway, we just skip inputs that don't have the metadata
+                # (and therefore likely have no reads, since the step prior to
+                # this should have been bam_metadata, guaranteeing we have this
+                # metadata where possible).
+                next unless $bam->meta_value('avg_read_length');
+                
                 my $source_bam = $bam->path->stringify;
                 my @fq_files = VRPipe::Steps::bamtofastq->split_fastq_outs(split_dir => $self->output_root, bam => $source_bam, chunk_size => $chunk_size, suffix => $fastq_suffix);
                 my @outfiles;
