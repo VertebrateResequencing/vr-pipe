@@ -79,6 +79,21 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             return;
         }
         
+        # we also want to prevent some other process trying to start_from_scratch
+        # us while we're in the middle of working, and we also don't want
+        # anything to trigger us while we're working, so we set a lock
+        my $lock_key = "des_start_from_scratch." . $self->id;
+        my $im       = $self->_in_memory;
+        unless ($im->lock($lock_key)) {
+            $im->block_until_unlocked($lock_key);
+            $self->pipelinesetup->log_event("DataElementState->start_from_scratch, but a start_from_scratch had already started for this dataelementstate, so we let that run instead of doing it ourselves.", dataelement => $self->dataelement->id);
+            #*** strictly speaking the other process could have started from
+            # scratch different steps to what we would have done, but that's an
+            # edge case on this edge case and I don't think it will ever come
+            # up...
+            return;
+        }
+        
         my $do_our_steps = 0;
         my %step_numbers;
         if ($step_numbers && @$step_numbers > 0) {
@@ -149,9 +164,11 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
             $anti_repeat_store->{ $self->id } = 1;
         }
         
+        $im->unlock($lock_key);
+        
         # queue ourselves to be triggered again (vrpipe-server will look after
         # this)
-        $self->_in_memory->enqueue('trigger', $self->pipelinesetup->id . ':' . $self->dataelement->id);
+        $im->enqueue('trigger', $self->pipelinesetup->id . ':' . $self->dataelement->id);
         
         $self->pipelinesetup->log_event("DataElementState->start_from_scratch set completed_steps to 0 and will now return", dataelement => $self->dataelement->id);
     }

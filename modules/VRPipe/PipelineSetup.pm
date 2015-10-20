@@ -250,6 +250,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $error_message;
         my $max_redos = $num_steps;
         my %cached_sameas;
+        my $im = $self->_in_memory;
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
                 my $element         = $estate->dataelement;
@@ -266,6 +267,16 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 unless ($debug || $estate->lock) {
                     warn " estate $esid is being triggered by another process, will skip it\n";
                     next;
+                }
+                
+                # wait until after any currently running start_from_scratch has
+                # finished, then reload ourselves to get the correct completed
+                # steps count
+                my $des_sfs_lock_key = "des_start_from_scratch.$esid";
+                if ($im->locked($des_sfs_lock_key)) {
+                    $im->block_until_unlocked($des_sfs_lock_key);
+                    $estate->reselect_values_from_db;
+                    redo;
                 }
                 
                 my $sm_error;
@@ -360,7 +371,7 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                                                         $self->log_event("Completed setup with $num_states DataElements");
                                                         my $name = $self->name;
                                                         my $long = "\nTo remind yourself about this setup, do:\n\$ vrpipe-status --setup $setup_id\n\nTo get easy access to the output files, use vrpipe-output. eg:\n\$ vrpipe-output --setup $setup_id --output_with_input --basename_as_output\n\nIf this setup is now really complete (you won't be adding any more data to the datasource in future), please run:\n\$ vrpipe-setup --setup $setup_id --deactivate\n";
-                                                        $self->_in_memory->log("Setup $setup_id ($name) has completed for $num_states DataElements", email_to => [$self->user], subject => "Setup $setup_id has completed", long_msg => $long);
+                                                        $im->log("Setup $setup_id ($name) has completed for $num_states DataElements", email_to => [$self->user], subject => "Setup $setup_id has completed", long_msg => $long);
                                                     }
                                                 }
                                             }
