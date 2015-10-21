@@ -1707,6 +1707,17 @@ sub qc {
         my $donor = $args->{donor};
         if ($donor) {
             $data = $vrtrack->donor_qc($donor, $auth_user, [$args->{new_qc_sample}, $args->{new_qc_status}, $args->{new_qc_reason}]);
+            
+            # remove loh calls since they're not looked at any more, and if there
+            # are lots of them they can cause the javascript on the webpage to
+            # to take a really long time to process
+            my @data;
+            foreach my $data_ref (@$data) {
+                unless ($data_ref->{type} eq 'loh_calls') {
+                    push(@data, $data_ref);
+                }
+            }
+            $data = \@data;
         }
         else {
             $data = { errors => ["donor node id must be supplied to donor_qc()"] };
