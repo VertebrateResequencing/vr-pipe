@@ -42,6 +42,7 @@ use VRPipe::Base;
 class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     use DateTime;
     use Sort::Naturally;
+    use URI::Escape;
     
     my $vrpipe_schema;
     my %pluri_type_to_order = (pluripotency => 1,     novelty => 2,     pluripotency_vs_novelty => 3,       clustering => 4,       intensity => 5);
@@ -335,29 +336,56 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # returns a hashref where keys are lc(label) and values are a qc node related
     # to the input node, where qc nodes are Bam_Stats, Genotype, Verify_Bam_ID
     # and Header_Mistakes (if they exist)
-    method file_qc_nodes ($node) {
-        my $cypher     = "MATCH (file) WHERE id(file) = {file}.id OPTIONAL MATCH (file)-[:qc_file]->()-[:genotype_data]->(g) OPTIONAL MATCH (file)-[:qc_file]->()-[:summary_stats]->(s) OPTIONAL MATCH (file)-[:qc_file]->()-[:verify_bam_id_data]->(v) OPTIONAL MATCH (file)-[:qc_file]->()-[:header_mistakes]->(h) RETURN g,s,v,h";
-        my $graph      = $self->graph;
-        my $graph_data = $graph->_run_cypher([[$cypher, { file => { id => $node->node_id } }]]);
+    method file_qc_nodes (Object :$node?, File|Str :$path, Str :$protocol) {
+        my $nodes = $self->_call_plugin_file_qc($node, $path, $protocol);
         
         my $qc_nodes = {};
-        foreach my $node (@{ $graph_data->{nodes} }) {
-            my $label = $node->{label};
-            bless($node, "VRPipe::Schema::VRTrack::$label");
-            $qc_nodes->{ lc($label) } = $node;
+        foreach my $label (qw(bam_stats genotype verify_bam_id header_mistakes)) {
+            my $node = $nodes->{$label};
+            if ($node) {
+                $qc_nodes->{$label} = $node;
+            }
         }
         
         return $qc_nodes;
     }
     
+    # to make vrtrack_metadata fast, our plugin takes a file path and returns
+    # all file qc nodes along with the node for the file itself and all the
+    # hierarchy nodes; file_qc_nodes() will take a subset of these, while
+    # vrtrack_metadata() will convert them to a simple metadata hash; neither
+    # actually needs the file node details
+    method _call_plugin_file_qc ($node?, $path?, $protocol?) {
+        if ($node) {
+            $path     = $node->protocolless_path;
+            $protocol = $node->protocol;
+        }
+        
+        $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+        my $root = uri_escape($vrpipe_schema->protocol_to_root($protocol));
+        $path = uri_escape($path);
+        
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        my %nodes;
+        foreach my $node ($graph->_call_vrpipe_neo4j_plugin_and_parse("/vrtrack_file_qc/$db/$root/$path", namespace => 'VRTrack')) {
+            my $label = $node->{label};
+            next if $label eq 'FileSystemElement';
+            bless $node, "VRPipe::Schema::VRTrack::$label";
+            $nodes{ lc($label) } = $node;
+        }
+        
+        return \%nodes;
+    }
+    
     # return both node_and_hierarchy_properties() and file_qc_nodes() metadata
     # for a file node
-    method vrtrack_metadata ($node) {
-        my $meta = $self->node_and_hierarchy_properties($node);
+    method vrtrack_metadata (Object :$node?, File|Str :$path, Str :$protocol) {
+        my $meta = {};
         
-        my $qc_nodes = $self->file_qc_nodes($node);
-        while (my ($label, $qc_node) = each %$qc_nodes) {
-            while (my ($key, $val) = each %{ $qc_node->properties }) {
+        my $nodes = $self->_call_plugin_file_qc($node, $path, $protocol);
+        while (my ($label, $node) = each %$nodes) {
+            while (my ($key, $val) = each %{ $node->properties }) {
                 next if $key eq 'uuid';
                 $meta->{"vrtrack_${label}_$key"} = $val;
             }

@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 169;
+    use Test::Most tests => 170;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -478,15 +478,18 @@ $schema->add(
     incoming => { type => 'verify_bam_id_data', node => $qc_file }
 );
 
-my $qc_nodes = $schema->file_qc_nodes($lane8_file);
+my $qc_nodes = $schema->file_qc_nodes(node => $lane8_file);
 my %qc_props = map { $_ => $qc_nodes->{$_}->properties } keys %{$qc_nodes};
 delete $qc_props{bam_stats}->{uuid};
 delete $qc_props{genotype}->{uuid};
 delete $qc_props{verify_bam_id}->{uuid};
 is_deeply \%qc_props, { bam_stats => { mode => 'normal', options => '-opt', date => 1443015733, 'reads QC failed' => 99, 'raw total sequences' => 10001 }, genotype => { date => 1443015733, pass => 1, expected_sample_name => 'foo', matched_sample_name => 'foo' }, verify_bam_id => { date => 1443015733, pass => 0, freemix => 'foo' } }, 'file_qc_nodes() returned the correct nodes';
 
-my $vrtrack_meta = $schema->vrtrack_metadata($lane8_file);
-is_deeply $vrtrack_meta, { %{$hierarchy_meta}, vrtrack_bam_stats_mode => 'normal', vrtrack_bam_stats_options => '-opt', vrtrack_bam_stats_date => 1443015733, 'vrtrack_bam_stats_reads QC failed' => 99, 'vrtrack_bam_stats_raw total sequences' => 10001, vrtrack_genotype_date => 1443015733, vrtrack_genotype_pass => 1, vrtrack_genotype_expected_sample_name => 'foo', vrtrack_genotype_matched_sample_name => 'foo', vrtrack_verify_bam_id_date => 1443015733, vrtrack_verify_bam_id_pass => 0, vrtrack_verify_bam_id_freemix => 'foo' }, 'vrtrack_metadata() worked';
+my $vrtrack_meta = $schema->vrtrack_metadata(node => $lane8_file);
+my $expected_vrtrack_meta = { %{$hierarchy_meta}, vrtrack_bam_stats_mode => 'normal', vrtrack_bam_stats_options => '-opt', vrtrack_bam_stats_date => 1443015733, 'vrtrack_bam_stats_reads QC failed' => 99, 'vrtrack_bam_stats_raw total sequences' => 10001, vrtrack_genotype_date => 1443015733, vrtrack_genotype_pass => 1, vrtrack_genotype_expected_sample_name => 'foo', vrtrack_genotype_matched_sample_name => 'foo', vrtrack_verify_bam_id_date => 1443015733, vrtrack_verify_bam_id_pass => 0, vrtrack_verify_bam_id_freemix => 'foo' };
+is_deeply $vrtrack_meta, $expected_vrtrack_meta, 'vrtrack_metadata() worked';
+$vrtrack_meta = $schema->vrtrack_metadata(path => $lane8_file->protocolless_path, protocol => $lane8_file->protocol);
+is_deeply $vrtrack_meta, $expected_vrtrack_meta, 'vrtrack_metadata() worked when supplied path and protocol';
 
 # also test the pass-through from VRPipe::File to get vrtrack metadata
 $vrfile = VRPipe::File->create(path => '/seq/8/8.bam');

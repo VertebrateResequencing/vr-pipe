@@ -242,25 +242,7 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str|File] $paths!, Str :$protocol?, Bool :$return_cypher = 0, Bool :$only_get = 0) {
         my $return_leaves = defined wantarray();
         
-        my $encryped_protocol;
-        if ($protocol && $protocol ne 'file:/') {
-            # encrypt everything past the first colon in case it contains a
-            # password
-            my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
-            $text ||= '';
-            $text &&= $config->crypter->encrypt_hex($text);
-            $encryped_protocol = $pro . ':' . $text;
-        }
-        else {
-            $encryped_protocol = 'file:';
-        }
-        
-        # root node, which is / for local disc, and something like
-        # ftp://user:password@ftpserver:port/ for other protocols
-        my $root_basename = '/';
-        if ($encryped_protocol ne 'file:') {
-            $root_basename = $encryped_protocol . $root_basename;
-        }
+        my $root_basename = $self->protocol_to_root($protocol);
         
         my @cypher;
         foreach my $path (@$paths) {
@@ -332,6 +314,30 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
         else {
             $graph->_run_cypher(\@cypher);
         }
+    }
+    
+    method protocol_to_root (ClassName|Object $self: Maybe[Str] $protocol?) {
+        my $encryped_protocol;
+        if ($protocol && $protocol ne 'file:/') {
+            # encrypt everything past the first colon in case it contains a
+            # password
+            my ($pro, $text) = $protocol =~ /^([^:]+):(.*)/;
+            $text ||= '';
+            $text &&= $config->crypter->encrypt_hex($text);
+            $encryped_protocol = $pro . ':' . $text;
+        }
+        else {
+            $encryped_protocol = 'file:';
+        }
+        
+        # root node, which is / for local disc, and something like
+        # ftp://user:password@ftpserver:port/ for other protocols
+        my $root_basename = '/';
+        if ($encryped_protocol ne 'file:') {
+            $root_basename = $encryped_protocol . $root_basename;
+        }
+        
+        return $root_basename;
     }
     
     method path_to_filesystemelement (ClassName|Object $self: Str|File $path, Str :$protocol?, Bool :$only_get = 0) {

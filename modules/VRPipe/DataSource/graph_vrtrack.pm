@@ -319,7 +319,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         my @files;
         if (keys %filters) {
             FILE: foreach my $file (@$input_files) {
-                my $qc_nodes = $schema->file_qc_nodes($file);
+                my $qc_nodes = $schema->file_qc_nodes(node => $file);
                 my %seen_types;
                 while (my ($label, $qc_node) = each %$qc_nodes) {
                     my $type;
