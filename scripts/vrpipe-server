@@ -53,6 +53,7 @@ my $cmdline = VRPipe::Interface::CmdLine->new(
         ['foreground|f',          'Do not daemonize - the server will run in the foreground, logging to STDERR'],
         ['farm=s',                'Discover and dispatch submissions to the job scheduler identified by the supplied name (only 1 server can dispatch to each farm)'],
         ['max_submissions|m=i',   'The maximum number of submissions to dispatch to the farm when in --farm mode (default is unlimited)'],
+	['max_processes|p=i',     'The maximum number of vrpipe-server processes to run simultaneously (default is 10 or the number of cores on the machine, whichever is higher)'],
         ['only_specified_setups', 'In --farm mode, normally any PipelineSetups that have no farm configured will be run on a random farm, so potentially via this server; turning this option on means this server will only handle setups configured for this farm'],
         [],
         ['debug', 'turn lots of debugging output on']
@@ -64,6 +65,7 @@ my $deployment            = $cmdline->opts('deployment');
 my $foreground            = $cmdline->opts('foreground');
 my $farm                  = $cmdline->opts('farm');
 my $max_subs              = $cmdline->opts('max_submissions');
+my $max_procs             = $cmdline->opts('max_processes');
 my $only_specified_setups = $cmdline->opts('only_specified_setups') || 0;
 my $debug                 = $cmdline->opts('debug');
 my $scheduler;
@@ -191,7 +193,27 @@ sub start_server {
     my $cwd = getcwd();
     $backend->daemonize unless $foreground;
     
-    $AnyEvent::Util::MAX_FORKS = Sys::CPU::cpu_count();
+    # Start out with max_forks equal to the number of cores on the machine
+    my $max_forks = Sys::CPU::cpu_count();
+    if ($max_procs) {
+	# --max_processes specified on command-line
+	# use that to set max_forks unless it is insanely low
+	$max_forks = $max_procs - 1;
+	if ($max_forks <= 2) {
+	    $cmdline->error("Specified --max_processes ${max_procs} but that would limit the server to $max_forks simultaneous forks, which will severely limit function. Setting max_forks to 3 for sanity.");
+	    $max_forks = 3;
+	}
+    }
+    else {
+	# --max_processes not specified, ensure default allows at least 10
+	# processes (9 simultaneous forks from the main process)
+	if ($max_forks < 9) {
+	    $max_forks = 9;
+	}
+    }
+    $cmdline->output("Setting the maximum simultaneous forks to $max_forks");
+    $AnyEvent::Util::MAX_FORKS = $max_forks;
+
     my $timer_interval             = $deployment eq 'production' ? 30  : 5;
     my $setup_state_timer_interval = $deployment eq 'production' ? 900 : 60;
     my $inter_message_time         = 3600;
