@@ -88,17 +88,31 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 my $bam_meta   = $bam->metadata;
                 my $recal_base = $bam_base;
                 $recal_base =~ s/bam$/recal.bam/;
+                my @outfiles;
                 my $recal_bam_file = $self->output_file(
                     output_key => 'recalibrated_bam_files',
                     basename   => $recal_base,
                     type       => 'bam',
                     metadata   => $bam_meta
                 );
+                push @outfiles, $recal_bam_file;
+                
+                unless ($recal_opts =~ m/--disable_bam_indexing/) {
+                    my $index_base = $recal_base;
+                    $index_base =~ s/bam$/bai/;
+                    push @outfiles,
+                      $self->output_file(
+                        output_key => 'recalibrated_bam_index_files',
+                        basename   => $index_base,
+                        type       => 'bin',
+                        metadata   => $bam_meta
+                      );
+                }
                 
                 my $temp_dir = $options->{tmp_dir} || $recal_bam_file->dir;
                 
                 my $this_cmd = $self->gatk_prefix($req->memory, $temp_dir) . qq[ -T TableRecalibration -R $ref -recalFile ] . $recal_file->path . qq[ -I ] . $bam->path . qq[ -o ] . $recal_bam_file->path . qq[ $recal_opts];
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_recalibrate_quality_scores', 'recal_and_check', [$this_cmd, $req, { output_files => [$recal_bam_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_recalibrate_quality_scores', 'recal_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
@@ -109,6 +123,12 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
                 type        => 'bam',
                 max_files   => -1,
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
+            ),
+            recalibrated_bam_index_files => VRPipe::StepIODefinition->create(
+                type        => 'bin',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'index file for the bqsr recalibrated bam file'
             )
         };
     }
@@ -122,7 +142,7 @@ class VRPipe::Steps::bam_recalibrate_quality_scores extends VRPipe::Steps::gatk 
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
     }
     
     method recal_and_check (ClassName|Object $self: Str $cmd_line) {
