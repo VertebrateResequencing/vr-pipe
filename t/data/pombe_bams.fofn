@@ -1,0 +1,3 @@
+path	lane	library	sample	study	center	reads	platform
+t/data/7369_5#30.bam	7369_5#30	LIB1	SAMPLE1	ERP001017	SC	6000	ILLUMINA
+t/data/7369_5#31.bam	7369_5#31	LIB1	SAMPLE1	ERP001017	SC	6000	ILLUMINA
