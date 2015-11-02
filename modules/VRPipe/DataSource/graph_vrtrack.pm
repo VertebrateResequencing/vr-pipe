@@ -69,7 +69,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     
     method method_description (Str $method) {
         if ($method eq 'lanelet_crams') {
-            return "An element will correspond to the cram file directly related to one of the lane nodes that is a child of the parent node(s) defined in the source. The group_by_metadata option will first group lanes together if they share parent nodes that you specify here; options are: Library, Sample, Study, Taxon, Gender and Alignment (the reference), and you can specify more than 1, separated by commas (all must be shared by members of a group). The parent_filter option is a string of the form 'Label#propery#value'; multiple filters can be separated by commas. The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify Sample#qc_failed#0 to only have files related to samples that have not been qc failed. The qc_filter option lets you filter on properties of the file itself or on properties of certain qc-related nodes that are children of the file and may be created by some downstream analysis; these are specified in the form 'psuedoLabel#property#operator#value', and multiple of these can be separated by commas. An example might be 'stats#sequences#>#10000,stats#reads QC failed#<#1000,genotype#pass#=#1,verifybamid#=#1,file#manual_qc#=#1,file#vrtrack_qc_passed#=#1' to only use cram files with more than 10000 total sequences and fewer than 1000 qc failed reads (according to the Bam_Stats node), with a genotype status of 'pass' (from the Genotype node), a 'pass' from the verify bam id process (from the Verify_Bam_ID node) and with manual_qc and vrtrack_qc_passed metadata set to 1 on the node representing the cram file itself. If you have an example cram file path, you can see all available labels, properties and values you might want to filter on using 'vrpipe-fileinfo --path /irods/path_to.cram --vrtrack_metadata'";
+            return "An element will correspond to the cram file directly related to one of the lane nodes that is a child of the parent node(s) defined in the source. The group_by_metadata option will first group lanes together if they share parent nodes that you specify here; options are: Library, Sample, Study, Taxon, Gender and Alignment (the reference), and you can specify more than 1, separated by commas (all must be shared by members of a group). The parent_filter option is a string of the form 'Label#propery#value'; multiple filters can be separated by commas (and having the same Label and property multiple times with different values means the actual value must match one of those values). The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify Sample#qc_failed#0 to only have files related to samples that have not been qc failed. The qc_filter option lets you filter on properties of the file itself or on properties of certain qc-related nodes that are children of the file and may be created by some downstream analysis; these are specified in the form 'psuedoLabel#property#operator#value', and multiple of these can be separated by commas. An example might be 'stats#sequences#>#10000,stats#reads QC failed#<#1000,genotype#pass#=#1,verifybamid#=#1,file#manual_qc#=#1,file#vrtrack_qc_passed#=#1' to only use cram files with more than 10000 total sequences and fewer than 1000 qc failed reads (according to the Bam_Stats node), with a genotype status of 'pass' (from the Genotype node), a 'pass' from the verify bam id process (from the Verify_Bam_ID node) and with manual_qc and vrtrack_qc_passed metadata set to 1 on the node representing the cram file itself. If you have an example cram file path, you can see all available labels, properties and values you might want to filter on using 'vrpipe-fileinfo --path /irods/path_to.cram --vrtrack_metadata'";
         }
         return '';
     }
@@ -174,7 +174,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             foreach my $filter (split(/,/, $parent_filter)) {
                 my ($label, $property, $value) = split(/#/, $filter);
                 $label = lc($label);
-                push(@{ $parent_filters{$label} }, [$property, $value]);
+                push(@{ $parent_filters{$label}->{$property} }, $value);
             }
         }
         
@@ -200,18 +200,23 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             my $failed_no_cram_file  = 0;
             LANE: foreach my $lane (@these_lanes) {
                 if (exists $parent_filters{lane}) {
-                    foreach my $filter (@{ $parent_filters{lane} }) {
-                        my ($property, $value) = @$filter;
+                    foreach my $property (keys %{ $parent_filters{lane} }) {
+                        my @values     = @{ $parent_filters{lane}->{$property} };
                         my $actual_val = $lane->property($property);
                         
-                        if (!defined $actual_val && !$value) {
-                            # allow a desired 0 to match an unspecified node
-                            # property
-                            $failed_parent_filter++;
-                            next;
+                        my $ok = 0;
+                        foreach my $value (@values) {
+                            if (!defined $actual_val && !$value) {
+                                # allow a desired 0 to match an unspecified node
+                                # property
+                                $ok++;
+                            }
+                            elsif (defined $actual_val && "$actual_val" eq "$value") {
+                                $ok++;
+                            }
                         }
                         
-                        if (!defined $actual_val || "$actual_val" ne "$value") {
+                        unless ($ok) {
                             $failed_parent_filter++;
                             next LANE;
                         }
@@ -236,16 +241,21 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 foreach my $label (sort keys %$hierarchy) {
                     my $node = $hierarchy->{$label};
                     if ($label ne 'lane' && exists $parent_filters{$label}) {
-                        foreach my $filter (@{ $parent_filters{$label} }) {
-                            my ($property, $value) = @$filter;
+                        foreach my $property (keys %{ $parent_filters{$label} }) {
+                            my @values     = @{ $parent_filters{$label}->{$property} };
                             my $actual_val = $node->property($property);
                             
-                            if (!defined $actual_val && !$value) {
-                                $failed_parent_filter++;
-                                next;
+                            my $ok = 0;
+                            foreach my $value (@values) {
+                                if (!defined $actual_val && !$value) {
+                                    $ok++;
+                                }
+                                elsif (defined $actual_val && "$actual_val" eq "$value") {
+                                    $ok++;
+                                }
                             }
                             
-                            if (!defined $actual_val || "$actual_val" ne "$value") {
+                            unless ($ok) {
                                 $failed_parent_filter++;
                                 next LANE;
                             }
