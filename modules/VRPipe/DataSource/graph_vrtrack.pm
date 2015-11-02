@@ -195,8 +195,9 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 @these_lanes = $node->closest('VRTrack', 'Lane', direction => 'outgoing', all => 1);
             }
             
-            my $passed = 0;
-            my $failed = 0;
+            my $passed               = 0;
+            my $failed_parent_filter = 0;
+            my $failed_no_cram_file  = 0;
             LANE: foreach my $lane (@these_lanes) {
                 if (exists $parent_filters{lane}) {
                     foreach my $filter (@{ $parent_filters{lane} }) {
@@ -206,12 +207,12 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                         if (!defined $actual_val && !$value) {
                             # allow a desired 0 to match an unspecified node
                             # property
-                            $failed++;
+                            $failed_parent_filter++;
                             next;
                         }
                         
                         if (!defined $actual_val || "$actual_val" ne "$value") {
-                            $failed++;
+                            $failed_parent_filter++;
                             next LANE;
                         }
                     }
@@ -225,7 +226,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                     }
                 }
                 unless ($file) {
-                    $failed++;
+                    $failed_no_cram_file++;
                     next;
                 }
                 
@@ -240,12 +241,12 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                             my $actual_val = $node->property($property);
                             
                             if (!defined $actual_val && !$value) {
-                                $failed++;
+                                $failed_parent_filter++;
                                 next;
                             }
                             
                             if (!defined $actual_val || "$actual_val" ne "$value") {
-                                $failed++;
+                                $failed_parent_filter++;
                                 next LANE;
                             }
                         }
@@ -269,7 +270,9 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 $passed++;
             }
             
-            my $extra = $failed ? " ($failed lanes failed the parent filter)" : '';
+            my @extra = ("$failed_no_cram_file lanes had no cram files") if $failed_no_cram_file;
+            push(@extra, "$failed_parent_filter lanes failed the parent filter") if $failed_parent_filter;
+            my $extra = @extra ? ' (' . join(', ', @extra) . ')' : '';
             $self->debug_log("graph_vrtrack got $passed lanes$extra for source node $label#$property#$val\n");
         }
         
@@ -377,6 +380,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             
             if ($group_by_metadata) {
                 my $group_key = $result->{group};
+                defined $group_key || next;
                 push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
                 $group_hash->{$group_key}->{protocol} = $protocol if defined $protocol;
                 unless (defined $group_hash->{$group_key}->{order}) {
