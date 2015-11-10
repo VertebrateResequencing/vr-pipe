@@ -195,7 +195,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                 elsif (/^SN\s+([^:]+):\s+(\S+)/) {
                     $stats{$1} = $2;
                     
-                    if ($1 eq 'raw total s' && $mode eq 'targeted') {
+                    if ($1 eq 'raw total sequences' && $mode eq 'targeted') {
                         # we don't know the true total number of sequences
                         # in the whole file, only in the targeted regions
                         $stats{'targeted total sequences'} = delete $stats{'raw total sequences'};
