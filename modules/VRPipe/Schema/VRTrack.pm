@@ -353,8 +353,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # to make vrtrack_metadata fast, our plugin takes a file path and returns
     # all file qc nodes along with the node for the file itself and all the
     # hierarchy nodes; file_qc_nodes() will take a subset of these, while
-    # vrtrack_metadata() will convert them to a simple metadata hash; neither
-    # actually needs the file node details
+    # vrtrack_metadata() will convert them to a simple metadata hash
     method _call_plugin_file_qc ($node?, $path?, $protocol?) {
         if ($node) {
             $path     = $node->protocolless_path;
@@ -370,8 +369,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my %nodes;
         foreach my $node ($graph->_call_vrpipe_neo4j_plugin_and_parse("/vrtrack_file_qc/$db/$root/$path", namespace => 'VRTrack')) {
             my $label = $node->{label};
-            next if $label eq 'FileSystemElement';
-            bless $node, "VRPipe::Schema::VRTrack::$label";
+            if ($label eq 'FileSystemElement') {
+                bless $node, "VRPipe::Schema::VRPipe::FileSystemElement";
+            }
+            else {
+                bless $node, "VRPipe::Schema::VRTrack::$label";
+            }
             $nodes{ lc($label) } = $node;
         }
         
@@ -385,9 +388,16 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         my $nodes = $self->_call_plugin_file_qc($node, $path, $protocol);
         while (my ($label, $node) = each %$nodes) {
-            while (my ($key, $val) = each %{ $node->properties }) {
+            while (my ($key, $val) = each %{ $node->{properties} }) {
                 next if $key eq 'uuid';
-                $meta->{"vrtrack_${label}_$key"} = $val;
+                if ($label eq 'filesystemelement') {
+                    next if $key eq 'path';
+                    next if $key eq 'basename';
+                    $meta->{$key} = $val;
+                }
+                else {
+                    $meta->{"vrtrack_${label}_$key"} = $val;
+                }
             }
         }
         
