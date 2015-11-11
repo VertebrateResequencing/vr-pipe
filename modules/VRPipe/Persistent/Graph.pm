@@ -715,31 +715,14 @@ class VRPipe::Persistent::Graph {
         }
     }
     
-    method node_properties (HashRef|Object $node!, Bool :$flatten_parents = 0) {
-        if ($flatten_parents) {
-            unless (exists $node->{parent_properties}) {
-                # get all the node properties of all parent nodes
-                $node->{parent_properties} = {};
-                foreach my $parent ($self->related_nodes($node, incoming => { min_depth => 1, max_depth => 6 })) { # we can't have max_depth 999 since that can kill Neo4J
-                    my $prefix = $parent->{namespace} ne $node->{namespace} ? $parent->{namespace} . '_' : '';
-                    $prefix .= $parent->{label};
-                    $prefix = lc($prefix);
-                    
-                    while (my ($key, $val) = each %{ $parent->{properties} || {} }) {
-                        my $full_key = $prefix . '_' . $key;
-                        $node->{parent_properties}->{$full_key} = $val;                                            #*** we should probably merge and keep multiple vals for same full_key
-                    }
-                }
-            }
-            
-            return { %{ $node->{parent_properties} }, %{ $node->{properties} || {} } };
-        }
-        
+    sub node_properties {
+        my ($self, $node) = @_;
         return $node->{properties} || {};
     }
     
-    method node_property (HashRef|Object $node!, Str $property!, Bool :$check_parents = 0) {
-        my $properties = $self->node_properties($node, flatten_parents => $check_parents);
+    sub node_property {
+        my ($self, $node, $property) = @_;
+        my $properties = $node->{properties} || {};
         return $properties->{$property} if exists $properties->{$property};
         return;
     }

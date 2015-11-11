@@ -100,43 +100,35 @@ ok handle_pipeline(@irods_files, @qc_files), 'bam_import_from_irods_and_qc pipel
 # test that the pipeline stored the summary stats and plots under the
 # VRTrack schema in the graph database, and associated it with the pipelinesetup
 my $vr_imported_bam_file = $schema->get_file($irods_files[3]->stringify);
-my $meta = $vr_imported_bam_file->properties(flatten_parents => 1);
-foreach my $key (qw(datasource_uuid uuid filesystemelement_uuid stepstate_uuid filesystemelement_basename filesystemelement_path dataelement_uuid stepstate_sql_id)) {
-    delete $meta->{$key};
-}
-
+my $meta = $schema->vrtrack_metadata(node => $vr_imported_bam_file);
+delete @{$meta}{qw(vrtrack_genotype_date vrtrack_verify_bam_id_date vrtrack_bam_stats_date)};
 is_deeply $meta,
   {
-    'vrtrack_lane_run'            => '9417',
-    'vrtrack_library_id'          => '6784054',
-    'filesystemelement_target'    => '1',
-    'vrtrack_alignment_reference' => '/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa',
-    'vrtrack_study_id'            => '2547',
-    'vrtrack_taxon_common_name'   => 'Mouse',
-    'vrtrack_sample_name'         => 'MEK_res_4',
-    'vrtrack_sample_id'           => '1571703',
-    'vrtrack_library_center_name' => 'SC',
-    'vrtrack_sample_created_date' => 1361433109,
-    'vrtrack_library_name'        => 'MEK_res_4 6784054',
-    'vrtrack_lane_total_reads'    => '185893',
-    'filesystemelement_manual_qc' => '1',
-    'filesystemelement_md5'       => '8986c7b7fe50b8a102ad445d5f864e55',
-    'vrtrack_study_name'          => 'De novo and acquired resistance to MEK inhibitors',
-    'vrtrack_lane_is_paired_read' => '1',
-    'vrtrack_taxon_id'            => '10090',
-    'vrtrack_study_accession'     => 'ERP002262',
-    'vrtrack_sample_accession'    => 'ERS215819',
-    'pipelinesetup_id'            => '1',
-    'vrtrack_lane_lane'           => '4',
-    'vrtrack_group_name'          => 'all_studies',
-    'vrtrack_lane_unique'         => '9417_4#4.MT',
-    'pipelinesetup_name'          => 'mouse import and qc',
-    'basename'                    => '9417_4#4.MT.bam',
-    'path'                        => "$irods_dir$irods_test_data_dir/9417_4#4.MT.bam",
-    'vrtrack_library_tag'         => 'AGTGGTCA',
-    'pipelinesetup_output_root'   => $output_dir,
-    'vrtrack_library_platform'    => 'ILLUMINA',
-    'pipelinesetup_user'          => scalar(getpwuid($<))
+    'vrtrack_study_name'               => 'De novo and acquired resistance to MEK inhibitors',
+    'vrtrack_lane_run'                 => '9417',
+    'vrtrack_library_id'               => '6784054',
+    'vrtrack_lane_is_paired_read'      => '1',
+    'vrtrack_taxon_id'                 => '10090',
+    'vrtrack_study_accession'          => 'ERP002262',
+    'vrtrack_gender_source'            => 'sequencescape',
+    'vrtrack_sample_accession'         => 'ERS215819',
+    'vrtrack_lane_lane'                => '4',
+    'vrtrack_gender_source_gender_md5' => '9ecf57888094fc84e1dede6870b9031e',
+    'vrtrack_study_id'                 => '2547',
+    'vrtrack_taxon_common_name'        => 'Mouse',
+    'vrtrack_sample_name'              => 'MEK_res_4',
+    'vrtrack_lane_unique'              => '9417_4#4.MT',
+    'vrtrack_gender_gender'            => 'M',
+    'vrtrack_sample_id'                => '1571703',
+    'vrtrack_library_tag'              => 'AGTGGTCA',
+    'vrtrack_sample_created_date'      => '1361433109',
+    'vrtrack_library_center_name'      => 'SC',
+    'vrtrack_lane_total_reads'         => '185893',
+    'vrtrack_library_name'             => 'MEK_res_4 6784054',
+    'vrtrack_library_platform'         => 'ILLUMINA',
+    'target'                           => 1,
+    'manual_qc'                        => 1,
+    'md5'                              => '8986c7b7fe50b8a102ad445d5f864e55'
   },
   'related metadata in graph correct for one of the bam files';
 
@@ -147,7 +139,7 @@ delete $bs_props->{uuid};
 delete $bs_props->{date};
 is_deeply $bam_stats->properties, { "bases trimmed" => "5832", "average quality" => "36.0", "mode" => "normal", "is sorted" => "1", "reads mapped after rmdup" => 166309, "mismatches" => "15501", "reads duplicated" => "19584", "bases of 2X coverage" => 16299, "bases of 10X coverage" => 15510, "bases of 5X coverage" => 16299, "raw total sequences" => 185893, "reads paired" => "185893", "maximum length" => "75", "insert size average" => "203.9", "non-primary alignments" => "0", "reads mapped and paired" => "184802", "reads after rmdup" => 166309, "bases of 1X coverage" => 16301, "bases duplicated" => "1468800", "bases of 50X coverage" => 13337, "average length" => "75", "1st fragments" => "93259", "reads properly paired" => "183082", "options" => "-r $ref_fa -q 20", "outward oriented pairs" => "510", "bases of 100X coverage" => 13085, "bases mapped (cigar)" => "13923850", "reads unmapped" => "0", "bases mapped" => 13941975, "filtered sequences" => "0", "inward oriented pairs" => "91580", "pairs with other orientation" => "0", "sequences" => "185893", "bases after rmdup" => 12473175, "reads MQ0" => "39911", "bases mapped after rmdup" => 12456960, "insert size standard deviation" => "82.2", "pairs on different chromosomes" => "233", "mean coverage" => "413.57", "reads mapped" => 185893, "bases of 20X coverage" => 13950, "error rate" => "1.113270e-03", "last fragments" => "92634", "reads QC failed" => "0", "total length" => 13941975 }, 'the bam_stats node had the correct stats';
 my @plots = $stats_file->related(outgoing => { type => 'bamstats_plot' });
-is scalar(@plots), 12, 'all the plots were attached to the stats file';
+is scalar(@plots), 10, 'all the plots were attached to the stats file';
 
 # test the same thing with no local_root_dir in the datasource, but as an arg
 # to the irods_get_files_by_basename instead
