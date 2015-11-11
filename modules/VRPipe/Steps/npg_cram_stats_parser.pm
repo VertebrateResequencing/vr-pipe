@@ -175,6 +175,10 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             my $opts;
             my $insertion_counts = 0;
             my $deletion_counts  = 0;
+            my @indels_cycles;
+            my @insert_size;
+            my ($short_paired_reads, $normal_paired_reads, $total_paired_reads, $dup_mapped_bases, $tot_mapped_bases);
+            
             while (<$fh>) {
                 if (/^# The command line was:\s+stats\s+(.+)/) {
                     $opts = $1;
@@ -201,10 +205,55 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                     $insertion_counts += $2;
                     $deletion_counts  += $3;
                 }
+                elsif (/^IC\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/) {
+                    my @items = ($2, $3, $4, $5);
+                    push @indels_cycles, \@items;
+                }
+                elsif (/^IS\s+(\S+)\s+(\S+)/) {
+                    my ($is, $pairs_total) = ($1, $2);
+                    my @items = ($1, $2);
+                    push @insert_size, \@items;
+                    next unless $pairs_total;
+                    my $seqlen = $stats{'average length'};
+                    if (($seqlen * 2) > $is) {
+                        $short_paired_reads += $pairs_total;
+                        $dup_mapped_bases += $pairs_total * (($seqlen * 2) - $is);
+                    }
+                    else {
+                        $normal_paired_reads += $pairs_total;
+                    }
+                    $total_paired_reads += $pairs_total;
+                    $tot_mapped_bases += $pairs_total * ($seqlen * 2);
+                }
             }
             $stats_graph_node->close;
+            
             $stats{'number of insertions'} = $insertion_counts;
             $stats{'number of deletions'}  = $deletion_counts;
+            
+            # Calculate median and max of indel fwd/rev cycle counts
+            if (@indels_cycles) {
+                my (@med, @max);
+                for (my $i = 0; $i < 4; $i++) {
+                    my @counts = map  { $$_[$i] } @indels_cycles;
+                    my @sorted = sort { $a <=> $b } @counts;
+                    my $n      = int(scalar @sorted / 2);
+                    push(@med, $sorted[$n]);
+                    push(@max, $sorted[-1]);
+                }
+                $stats{'median of indel cycle counts'} = join(",", @med);
+                $stats{'max of indel cycle counts'}    = join(",", @max);
+            }
+            
+            $stats{'dupl mapped bases'}  = $dup_mapped_bases;
+            $stats{'total mapped bases'} = $tot_mapped_bases;
+            
+            # for quick QC here we pre-compute the number of inserts that
+            # fall within 25% of maximum insert peak and the window around
+            # the max peak that contains 80% of the inserts
+            my ($amount, $range) = $self->insert_size_allowed_amount_and_range(\@insert_size);
+            $stats{'inserts within 25% max peak'}           = $amount;
+            $stats{'peak window containing 80% of inserts'} = $range;
             
             unless ($mode eq 'rmdup') {
                 # when not using -d we can still add some rmdup stats
@@ -370,6 +419,57 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             die "Could not read any content from ", $node->path, "\n";
         }
         return $json->decode($str);
+    }
+    
+    method insert_size_allowed_amount_and_range (ClassName|Object $self: ArrayRef $vals, Num $maxpeak_range = 25, Num $data_amount = 80) {
+        # determine the max peak
+        my $count       = 0;
+        my $imaxpeak    = 0;
+        my $ndata       = scalar @$vals;
+        my $total_count = 0;
+        my $max         = 0;
+        for (my $i = 1; $i < $ndata; $i++) {   # skip IS=0
+            my $xval = $$vals[$i][0];
+            my $yval = $$vals[$i][1];
+            
+            $total_count += $yval;
+            if ($max < $yval) {
+                $imaxpeak = $i;
+                $max      = $yval;
+            }
+        }
+        
+        # see how many reads are within the max peak range
+        $maxpeak_range *= 0.01;
+        $count = 0;
+        for (my $i = 1; $i < $ndata; $i++) { # skip IS=0
+            my $xval = $$vals[$i][0];
+            my $yval = $$vals[$i][1];
+            
+            if ($xval < $$vals[$imaxpeak][0] * (1 - $maxpeak_range)) { next; }
+            if ($xval > $$vals[$imaxpeak][0] * (1 + $maxpeak_range)) { next; }
+            $count += $yval;
+        }
+        my $out_amount = 100 * $count / $total_count;
+        
+        # how big must be the range in order to accommodate the requested amount
+        # of data
+        $data_amount *= 0.01;
+        my $idiff = 0;
+        $count = $$vals[$imaxpeak][1];
+        while ($count / $total_count < $data_amount) {
+            $idiff++;
+            if ($idiff < $imaxpeak)          { $count += $$vals[$imaxpeak - $idiff][1]; } # skip IS=0
+            if ($idiff + $imaxpeak < $ndata) { $count += $$vals[$imaxpeak + $idiff][1]; }
+            
+            # this should never happen, unless $data_range is bigger than 100%
+            if ($idiff > $imaxpeak && $idiff + $imaxpeak >= $ndata) { last; }
+        }
+        my $out_range  = $idiff <= $imaxpeak         ? $$vals[$imaxpeak][0] - $$vals[$imaxpeak - $idiff][0] : $$vals[$imaxpeak][0];
+        my $out_range2 = $idiff + $imaxpeak < $ndata ? $$vals[$imaxpeak + $idiff][0] - $$vals[$imaxpeak][0] : $$vals[-1][0] - $$vals[$imaxpeak][0];
+        if ($out_range2 > $out_range) { $out_range = $out_range2; }
+        $out_range = 100 * $out_range / $$vals[$imaxpeak][0];
+        return ($out_amount, $out_range);
     }
 }
 

@@ -63,7 +63,12 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             vcf_sample_from_metadata => VRPipe::StepOption->create(
                 description => 'if the sample id in the resulting vcf header matches metadata with key x, but you want it to match the value from key y, provide x:y; separate multiple y keys with + symbols - values will be joined with underscores. This only works with single-sample vcfs',
                 optional    => 1
-            )
+            ),
+            index_output_vcf => VRPipe::StepOption->create(
+                description   => 'boolean; index the output VCF file when true',
+                optional      => 1,
+                default_value => 1
+            ),
         };
     }
     
@@ -90,6 +95,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             my $minimum_records = $options->{minimum_records};
             my $sfm             = $options->{vcf_sample_from_metadata};
             my $post_filter     = $options->{post_calling_vcftools};
+            my $idx_output      = $options->{index_output_vcf};
             $post_filter =~ s/\$bcftools/$bcftools/g;
             
             my $sample_sex_file;
@@ -118,6 +124,12 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 my $temp_samples_path = $self->output_file(basename => $basename . '.samples', type => 'txt', temporary => 1)->path;
                 
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $bcf_meta);
+                my @outfiles = ($vcf_file);
+                if ($idx_output) {
+                    my $vcf_index = $self->output_file(output_key => 'vcf_index_files', basename => $basename . '.vcf.gz.csi', type => 'idx', metadata => $bcf_meta);
+                    push @outfiles, $vcf_index;
+                }
+                
                 my $vcf_path = $vcf_file->path;
                 my $cmd_line = qq[$bcftools $calling_command $call_opts $samples_option $temp_samples_path $bcf_path $output > $vcf_path];
                 
@@ -125,8 +137,9 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 my $args   = qq['$cmd_line', '$temp_samples_path', source_file_ids => ['$bcf_id'], female_ploidy => '$female_ploidy', male_ploidy => '$male_ploidy', assumed_sex => '$assumed_sex'];
                 $args .= qq[, sample_sex_file => '$sample_sex_file'] if $sample_sex_file;
                 $args .= qq[, vcf_sample_from_metadata => '$sfm']    if $sfm;
+                $args .= qq[, bcftools_exe => '$bcftools']           if $idx_output;
                 my $cmd = "use VRPipe::Steps::bcf_to_vcf; VRPipe::Steps::bcf_to_vcf->bcftools_call_with_sample_file($args, minimum_records => $minimum_records);";
-                $self->dispatch_vrpipecode($cmd, $req, { output_files => [$vcf_file] });
+                $self->dispatch_vrpipecode($cmd, $req, { output_files => \@outfiles });
             }
             
             $self->set_cmd_summary(
@@ -140,7 +153,10 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
     }
     
     method outputs_definition {
-        return { vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a .vcf.gz file for each input bcf file') };
+        return {
+            vcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a .vcf.gz file for each input bcf file'),
+            vcf_index_files => VRPipe::StepIODefinition->create(type => 'idx', min_files => 0,  max_files   => -1, description => 'output CSI index for the vcf file')
+        };
     }
     
     method post_process_sub {
@@ -155,7 +171,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         return 0;            # meaning unlimited
     }
     
-    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Str :$vcf_sample_from_metadata?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F', Int :$minimum_records = 0) {
+    method bcftools_call_with_sample_file (ClassName|Object $self: Str $cmd_line!, Str|File $sample_ploidy_path, ArrayRef[Int] :$source_file_ids!, Str|File :$sample_sex_file?, Str :$vcf_sample_from_metadata?, Int :$female_ploidy!, Int :$male_ploidy!, Str :$assumed_sex = 'F', Int :$minimum_records = 0, Str :$bcftools_exe?) {
         my @input_files = map { VRPipe::File->get(id => $_) } @$source_file_ids;
         
         # find out the samples contained in the input files
@@ -241,6 +257,10 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         $output_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         $output_file->update_stats_from_disc(retries => 3);
+        
+        if ($bcftools_exe) {
+            system(qq[$bcftools_exe index -c $output_path]) && $self->throw("failed to index the output file [$bcftools_exe index -c $output_path]");
+        }
         
         my $ft = VRPipe::FileType->create('vcf', { file => $output_path });
         unless ($ft->num_header_lines > 0) {
