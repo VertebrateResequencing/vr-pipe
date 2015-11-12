@@ -5,7 +5,7 @@ use Parallel::ForkManager;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 99;
+    use Test::Most tests => 94;
     use VRPipeTest;
     use_ok('VRPipe::Persistent::Graph');
 }
@@ -209,13 +209,6 @@ is scalar(@{ $data->{nodes} }), 1070, 'no problems returning lots of nodes';
 my $encoded = $graph->json_encode($data);
 my $decoded = $graph->json_decode($encoded);
 is scalar(@{ $decoded->{nodes} }), 1070, 'json_encode/decode successfully roundtrips on lots of nodes';
-
-# test the check_parents option to node_property
-is $graph->node_property($image, 'vrtrack_lane_name'), undef, 'by default, parent properties are not available';
-is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties just gives image details';
-is $graph->node_property($image, 'vrtrack_lane_name', check_parents => 1), 'Lane1', 'in check_parents mode we can access a lane detail';
-is_deeply $graph->node_properties($image), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png' }, 'node_properties still just gives image details';
-is_deeply $graph->node_properties($image, flatten_parents => 1), { path => file(qw(t data qcgraph.png))->absolute->stringify, type => 'png', stepresult_uuid => $uuid, vrtrack_lane_name => 'Lane1', vrtrack_library_name => 'Library1', vrtrack_sample_sanger_id => 'sanger1', vrtrack_sample_public_name => 'public1', vrtrack_sample_uuid => 'uuuuu', vrtrack_individual_name => 'John', vrtrack_study_name => 'Study of Disease_xyz' }, 'in flatten_parents mode we see all parental properties';
 
 # we can change existing properties and add new ones and remove them
 $graph->node_add_properties($step_result, { foo => 'bar', cat => 'dog' });

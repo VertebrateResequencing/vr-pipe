@@ -105,33 +105,32 @@ role VRPipe::SchemaLabelRole {
         return $im->locked($lock_key, by_me => 1);
     }
     
-    method property (Str $property) {
-        return $graph->node_property($self, $property);
+    sub property {
+        my ($self, $property) = @_;
+        my $properties = $self->{properties} || {};
+        return $properties->{$property} if exists $properties->{$property};
+        return;
     }
     
-    method unique_property {
+    sub unique_property {
+        my $self    = shift;
         my @uniques = $self->unique_properties();
         if (@uniques == 1) {
-            return $graph->node_property($self, $uniques[0]);
+            return $self->{properties}->{ $uniques[0] };
         }
         else {
             my @vals;
             foreach my $unique (sort @uniques) {
-                my $val = $graph->node_property($self, $unique);
+                my $val = $self->{properties}->{$unique};
                 push(@vals, "$unique=$val");
             }
             return join(',', @vals);
         }
     }
     
-    method properties (Bool :$flatten_parents = 0) {
-        return $graph->node_properties($self, flatten_parents => $flatten_parents);
-    }
-    
-    method parent_property (Str $property) {
-        my $properties = $self->properties(flatten_parents => 1);
-        return $properties->{$property} if exists $properties->{$property};
-        return;
+    sub properties {
+        my $self = shift;
+        return $self->{properties} || {};
     }
     
     method add_properties (HashRef $properties!, Bool :$replace = 0) {

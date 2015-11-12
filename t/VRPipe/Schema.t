@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 170;
+    use Test::Most tests => 168;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -56,11 +56,9 @@ is $lib1->name, 'libone', 'auto-generated property method worked to set';
 $lib1 = $schema->get('Library', { id => 'l1' });
 is $lib1->name, 'libone', 'the set was really in the database';
 
-is_deeply $lib1->properties(flatten_parents => 1), { id => 'l1', name => 'libone', sample_name => 's1', sample_public_name => 'public_s1', center_name => 'sanger1' }, 'properties() method worked with flatten_parents';
 $lib1->add_properties({ name => 'lib1', tag => 'ATG' });
 $lib1 = $schema->get('Library', { id => 'l1' });
 is_deeply $lib1->properties(), { id => 'l1', name => 'lib1', center_name => 'sanger1', tag => 'ATG', }, 'add_properties() method worked';
-is $lib1->parent_property('sample_name'), 's1', 'parent_property() worked';
 
 throws_ok { $sample->add_properties({ foo  => 'bar' }) } qr/Property 'foo' supplied, but that isn't defined in the schema for VRTrack::Sample/,           'add_properties() throws when given an invalid property';
 throws_ok { $sample->add_properties({ name => 'bar' }) } qr/Property 'name' supplied, but that's unique for schema VRTrack::Sample and can't be changed/, 'add_properties() throws when given a unique property';
