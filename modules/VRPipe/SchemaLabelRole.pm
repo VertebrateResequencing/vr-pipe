@@ -222,6 +222,10 @@ role VRPipe::SchemaLabelRole {
         $self->{properties} = $hash->{properties};
     }
     
+    # incoming/outgoing/undirected hash refs are {min_depth, max_depth, type,
+    # namespace, label, properties}, where the later 3 are result node specs and
+    # with depths defaulting to 1 and others defaulting to undef; none supplied
+    # defaults to undirected {min_depth => 1, max_depth => 1}.
     method related (HashRef :$outgoing?, HashRef :$incoming?, HashRef :$undirected?) {
         my @nodes = $graph->related_nodes($self, $outgoing ? (outgoing => $outgoing) : (), $incoming ? (incoming => $incoming) : (), $undirected ? (undirected => $undirected) : ());
         
