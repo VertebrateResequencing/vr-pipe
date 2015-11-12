@@ -282,7 +282,7 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
         if (defined $auto_qc_error_rate) {
             my $max = $auto_qc_error_rate;
             $status = 1;
-            my $error_rate = $mapstats->error_rate;
+            my $error_rate = sprintf("%0.6f", $mapstats->error_rate);
             $reason = "The error rate is lower than $max ($error_rate).";
             if ($error_rate > $max) {
                 $status = 0;
