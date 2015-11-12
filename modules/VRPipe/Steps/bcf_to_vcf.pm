@@ -126,7 +126,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $bcf_meta);
                 my @outfiles = ($vcf_file);
                 if ($idx_output) {
-                    my $vcf_index = $self->output_file(output_key => 'vcf_index_files', basename => $basename . '.vcf.gz.csi', type => 'idx', metadata => $bcf_meta);
+                    my $vcf_index = $self->output_file(output_key => 'vcf_index_files', basename => $basename . '.vcf.gz.tbi', type => 'bin', metadata => $bcf_meta);
                     push @outfiles, $vcf_index;
                 }
                 
@@ -155,7 +155,7 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
     method outputs_definition {
         return {
             vcf_files       => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a .vcf.gz file for each input bcf file'),
-            vcf_index_files => VRPipe::StepIODefinition->create(type => 'idx', min_files => 0,  max_files   => -1, description => 'output CSI index for the vcf file')
+            vcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', min_files => 0,  max_files   => -1, description => 'output tbi index for the vcf file')
         };
     }
     
@@ -258,10 +258,6 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         $output_file->update_stats_from_disc(retries => 3);
         
-        if ($bcftools_exe) {
-            system(qq[$bcftools_exe index -c $output_path]) && $self->throw("failed to index the output file [$bcftools_exe index -c $output_path]");
-        }
-        
         my $ft = VRPipe::FileType->create('vcf', { file => $output_path });
         unless ($ft->num_header_lines > 0) {
             $output_file->unlink;
@@ -316,6 +312,9 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
             $self->throw("Output VCF has $output_records data lines, fewer than required minimum $minimum_records");
         }
         else {
+            if ($bcftools_exe) {
+                system(qq[$bcftools_exe index -ft $output_path]) && $self->throw("failed to index the output file [$bcftools_exe index -ft $output_path]");
+            }
             return 1;
         }
     }
