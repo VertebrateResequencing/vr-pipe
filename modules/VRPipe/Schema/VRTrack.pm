@@ -172,6 +172,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 allow_anything => 1
             },
             {
+                label          => 'Auto_QC',
+                unique         => [qw(uuid)],
+                required       => [qw(date pass)],
+                allow_anything => 1
+            },
+            {
                 label          => 'Header_Mistakes',
                 unique         => [qw(uuid)],
                 required       => [qw(num_mistakes)],
@@ -340,7 +346,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $nodes = $self->_call_plugin_file_qc($node, $path, $protocol);
         
         my $qc_nodes = {};
-        foreach my $label (qw(bam_stats genotype verify_bam_id header_mistakes)) {
+        foreach my $label (qw(bam_stats genotype auto_qc verify_bam_id header_mistakes)) {
             my $node = $nodes->{$label};
             if ($node) {
                 $qc_nodes->{$label} = $node;
