@@ -348,14 +348,15 @@ class VRPipe::Steps::vrtrack_auto_qc extends VRPipe::Steps::vrtrack_update {
                     $status = 0;
                     $reason = sprintf "Fail library, less than %.1f%% of the inserts are within %.1f%% of max peak (%.2f%%).", $within_peak, $peak_win, $amount;
                 }
-                push @qc_status, { test => $test, status => 1, reason => $reason };
+                push @qc_status, { test => $test, status => $status, reason => $reason };
                 
+                $status = 1;
                 $reason = sprintf "%.1f%% of inserts are contained within %.1f%% of the max peak (%.2f%%).", $within_peak, $peak_win, $range;
                 if ($range > $peak_win) {
                     $status = 0;
                     $reason = sprintf "Fail library, %.1f%% of inserts are not within %.1f%% of the max peak (%.2f%%).", $within_peak, $peak_win, $range;
                 }
-                push @qc_status, { test => 'Insert size (rev)', status => 1, reason => $reason };
+                push @qc_status, { test => 'Insert size (rev)', status => $status, reason => $reason };
                 
                 $lib_to_update = VRTrack::Library->new_by_field_value($vrtrack, 'library_id', $vrlane->library_id()) or $self->throw("No vrtrack library for lane $lane?");
                 $lib_status = $status ? 'passed' : 'failed';
