@@ -406,16 +406,28 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     }
     
     method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
+        my $source_path;
         unless (ref($source)) {
             $source = $self->path_to_filesystemelement($source, $protocol ? (protocol => $protocol) : (), only_get => 1);
             $source || return;
+            $source_path = $source;
+        }
+        else {
+            $source_path = $source->protocolless_path;
         }
         
+        # move the source node from it's old dir to the new one and change
+        # its properties
         my $file = file($dest);
         $self->throw("$dest must be absolute") unless $file->is_absolute;
         my $dir = $self->path_to_filesystemelement($file->dir->stringify, $protocol ? (protocol => $protocol) : ());
         $dir->relate_to($source, 'contains', selfish => 1);
         $source->add_properties({ basename => $file->basename, path => $dest });
+        
+        # create a new node at the old location and link it to the moved source
+        # node, so we keep a record that it used to be there
+        my $old = $self->path_to_filesystemelement($source_path, $protocol ? (protocol => $protocol) : ());
+        $source->relate_to($old, "moved_from");
         
         return $source;
     }
