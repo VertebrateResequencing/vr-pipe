@@ -299,7 +299,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     method get_sequencing_hierarchy ($node, Bool :$just_preferred_study = 0) {
         my $start = $node->closest('VRTrack', 'Lane', direction => 'incoming');
         $start ||= $node->closest('VRTrack', 'Section', direction => 'incoming');
-        $start || return;
+        $start ||= $node;          # allow for $node being a csv file directly attached to sample
         my $start_node_id = $start->node_id;
         
         my $graph = $self->graph;
