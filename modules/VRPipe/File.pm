@@ -458,8 +458,27 @@ class VRPipe::File extends VRPipe::Persistent {
             my $meta = $keyvallist->as_hashref;
             
             if ($opts{include_vrtrack}) {
-                my $vrtrack = $self->_vrtrack_schema;
-                my $vrmeta = $vrtrack->vrtrack_metadata(path => $self->protocolless_path, protocol => $self->protocol);
+                my $vrtrack  = $self->_vrtrack_schema;
+                my $path     = $self->protocolless_path;
+                my $protocol = $self->protocol;
+                my $vrmeta   = $vrtrack->vrtrack_metadata(path => $path, protocol => $protocol);
+                
+                unless ($vrmeta && keys %$vrmeta) {
+                    # graph db may be unaware of a file move; check that now
+                    my $orig = $self->original;
+                    if ($orig ne $self) {
+                        my $orig_path     = $orig->protocolless_path;
+                        my $orig_protocol = $orig->protocol;
+                        $vrmeta = $vrtrack->vrtrack_metadata(path => $orig_path, protocol => $orig_protocol);
+                        
+                        if ($vrmeta && keys %$vrmeta) {
+                            my $vrpipe_schema = $self->_vrpipe_schema;
+                            my $source = $vrtrack->get_file($orig_path, $orig_protocol);
+                            $vrpipe_schema->move_filesystemelement($source, $path->stringify, protocol => $protocol);
+                        }
+                    }
+                }
+                
                 while (my ($key, $val) = each %$vrmeta) {
                     $meta->{$key} = $val;
                 }
