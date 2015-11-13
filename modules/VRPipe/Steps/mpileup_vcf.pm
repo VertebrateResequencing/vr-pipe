@@ -169,7 +169,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $vcf_file = $self->output_file(output_key => 'vcf_files', basename => $basename . '.vcf.gz', type => 'vcf', metadata => $vcf_meta);
             my @outfiles = ($vcf_file);
             if ($idx_output) {
-                my $vcf_index = $self->output_file(output_key => 'vcf_index_files', basename => $basename . '.vcf.gz.csi', type => 'idx', metadata => $vcf_meta);
+                my $vcf_index = $self->output_file(output_key => 'vcf_index_files', basename => $basename . '.vcf.gz.tbi', type => 'bin', metadata => $vcf_meta);
                 push @outfiles, $vcf_index;
             }
             my $temp_samples_path = $self->output_file(basename => $basename . '.samples', type => 'txt', temporary => 1)->path;
@@ -194,7 +194,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
     method outputs_definition {
         return {
             vcf_files => VRPipe::StepIODefinition->create(type => 'vcf', max_files => -1, description => 'a vcf file for each set of one or more input bams'),
-            vcf_index_files => VRPipe::StepIODefinition->create(type => 'idx', min_files => 0, max_files => -1, description => 'output CSI index for the vcf file')
+            vcf_index_files => VRPipe::StepIODefinition->create(type => 'bin', min_files => 0, max_files => -1, description => 'output tbi index for the vcf file')
         };
     }
 }
