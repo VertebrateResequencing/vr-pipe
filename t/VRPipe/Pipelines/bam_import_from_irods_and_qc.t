@@ -47,9 +47,9 @@ foreach my $basename ('9417_4#1.MT.cram', '9417_4#2.MT.cram', '9417_4#3.MT.cram'
 }
 is $in_db, 4, 'the bams are in the graph database';
 
-my %related = map { $_->label() => $_ } $vr_file->related(incoming => { max_depth => 10 });
-my @expected_related = ('/lustre/scratch109/srpipe/references/Mus_musculus/GRCm38/all/bwa/Mus_musculus.GRCm38.68.dna.toplevel.fa', '9417_4#4.MT', 6784054, 'MEK_res_4', 10090, 2547, 'all_studies');
-is_deeply [$related{Alignment}->reference(), $related{Lane}->unique(), $related{Library}->id(), $related{Sample}->name(), $related{Taxon}->id(), $related{Study}->id(), $related{Group}->name(), scalar(keys %related)], [@expected_related, 8], 'the related hierarchy of a bam is correct in the graph database';
+my $related = $schema->get_sequencing_hierarchy($vr_file);
+my @expected_related = ('9417_4#4.MT', 6784054, 'MEK_res_4', 10090, 2547, 'M');
+is_deeply [$related->{lane}->unique(), $related->{library}->id(), $related->{sample}->name(), $related->{taxon}->id(), $related->{study}->id(), $related->{gender}->gender(), scalar(keys %$related)], [@expected_related, 6], 'the sequencing hierarchy of a bam is correct in the graph database';
 
 # setup pipeline
 ok my $import_qc_pipeline = VRPipe::Pipeline->create(name => 'bam_import_from_irods_and_qc'), 'able to get the bam_import_from_irods_and_qc pipeline';
