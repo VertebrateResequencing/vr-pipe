@@ -251,9 +251,11 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             # for quick QC here we pre-compute the number of inserts that
             # fall within 25% of maximum insert peak and the window around
             # the max peak that contains 80% of the inserts
-            my ($amount, $range) = $self->insert_size_allowed_amount_and_range(\@insert_size);
-            $stats{'inserts within 25% max peak'}           = $amount;
-            $stats{'peak window containing 80% of inserts'} = $range;
+            if (@insert_size) {
+                my ($amount, $range) = $self->insert_size_allowed_amount_and_range(\@insert_size);
+                $stats{'inserts within 25% max peak'}           = $amount;
+                $stats{'peak window containing 80% of inserts'} = $range;
+            }
             
             unless ($mode eq 'rmdup') {
                 # when not using -d we can still add some rmdup stats
@@ -438,6 +440,8 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                 $max      = $yval;
             }
         }
+        
+        return unless $total_count;
         
         # see how many reads are within the max peak range
         $maxpeak_range *= 0.01;
