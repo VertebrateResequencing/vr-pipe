@@ -302,7 +302,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # study, taxon, gender, donor), as a hashref keyed on lowercased node label.
     # For microarray data you could instead get (section, beadchip) instead of
     # lane and library
-    method get_sequencing_hierarchy ($node, Bool :$just_preferred_study = 0) {
+    method get_sequencing_hierarchy ($node) {
         my $start = $node->closest('VRTrack', 'Lane', direction => 'incoming');
         $start ||= $node->closest('VRTrack', 'Section', direction => 'incoming');
         $start ||= $node;          # allow for $node being a csv file directly attached to sample
