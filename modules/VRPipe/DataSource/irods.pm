@@ -553,7 +553,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $f_skip_qc      = 0;
             my $f_skip_meta    = 0;
             my $f_count_actual = 0;
-            my $is_sections;
             FILE: foreach my $file_hash (@$irods_files_with_metadata) {
                 my $collection = $file_hash->{dir};
                 my $basename   = $file_hash->{basename};
@@ -797,19 +796,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     #my $gtod = [gettimeofday];
                     my $graph_file = $vrtrack->get_file($path, 'irods:');
                     #$times[0] += tv_interval($gtod);
-                    
-                    if ($graph_file) {
-                        my $thing;
-                        if (!$is_sections) {
-                            ($thing) = $graph_file->related(incoming => { type => 'aligned', namespace => 'VRTrack', label => 'Lane' });
-                            if (!defined $is_sections) {
-                                $is_sections = defined $thing ? 0 : 1;
-                            }
-                        }
-                        if ($is_sections) {
-                            ($thing) = $graph_file->related(incoming => { type => 'processed', namespace => 'VRTrack', label => 'Section' });
-                        }
-                    }
                     
                     if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1, $vrtrack))) {
                         my $already_in_graph = 0;
