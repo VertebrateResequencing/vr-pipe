@@ -314,7 +314,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $study_sth->execute;
             $study_sth->bind_columns(\($study_title, $study_ac));
             
-            # we don't trust irods metadata for the study id, so will query it
+            # we want all the studies the sample belongs to, which can be more
+            # than the study mentioned in irods metadata
             $sql          = q[select study_internal_id from current_study_samples where sample_internal_id = ?];
             $study_id_sth = $dbh->prepare($sql);
             $study_id_sth->execute;
@@ -335,9 +336,16 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         my %files;
         my @queries;
-        if ($raw_query !~ /\s/ && -e $raw_query) {
+        if ($raw_query !~ /\s/ || -e $raw_query) {
             # it's a file containing multiple queries
-            my $file = VRPipe::File->create(path => $raw_query);
+            my ($file) = VRPipe::File->search({ path => $raw_query });
+            if (!$file) {
+                $file = VRPipe::File->create(path => $raw_query);
+            }
+            else {
+                $file = $file->resolve;
+            }
+            
             my $fh = $file->openr;
             while (<$fh>) {
                 chomp;
@@ -531,7 +539,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         # my @times;
         
         my $tt = time();
-        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache, %done_donors, %donor_to_samples, %done_studies, $rel_args, $rel_args_with_props, %done_samples);
+        my (%analysis_to_cols, %col_dates, %analysis_files, %analyses, %collections, %ils_cache, %done_donors, %donor_to_samples, %done_studies, $rel_args, %done_samples);
         my $ran_sample_donor_sth = 0;
         my $order                = 1;
         foreach my $query (@queries) {
@@ -545,6 +553,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             my $f_skip_qc      = 0;
             my $f_skip_meta    = 0;
             my $f_count_actual = 0;
+            my $is_sections;
             FILE: foreach my $file_hash (@$irods_files_with_metadata) {
                 my $collection = $file_hash->{dir};
                 my $basename   = $file_hash->{basename};
@@ -610,6 +619,8 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 }
                 
                 # grab extra info from the warehouse database if requested
+                my $all_study_details = [];
+                my $experiment_study_details;
                 if ($sample_sth) {
                     undef $public_name;
                     undef $donor_id;
@@ -647,12 +658,14 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         }
                     }
                     
-                    # override irods study_id with warehouse study_id, and
-                    # set study_title
+                    # get study details from warehouse (including studies the
+                    # sample and cohort belong to, not just the cram file's
+                    # study)
                     if (defined $internal_id) {
                         undef $warehouse_study_id;
                         $study_id_sth->execute($internal_id);
                         my (@study_ids, @study_titles, @study_acs);
+                        my $experiment_study_id = $meta->{study_id};
                         while ($study_id_sth->fetch) {
                             push(@study_ids, "$warehouse_study_id");
                             
@@ -660,57 +673,54 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             undef $study_ac;
                             $study_sth->execute($warehouse_study_id);
                             $study_sth->fetch;
+                            my $title = '';
+                            my $ac    = '';
                             if ($study_title) {
-                                push(@study_titles, "$study_title");
+                                $title = "$study_title";
+                                push(@study_titles, $title);
                                 $study_ac ||= ''; # ac isn't always set in warehouse
-                                push(@study_acs, "$study_ac");
+                                $ac = "$study_ac";
+                                push(@study_acs, $ac);
+                            }
+                            
+                            if ($experiment_study_id == $warehouse_study_id) {
+                                $experiment_study_details = [$experiment_study_id, $title, $ac];
                             }
                         }
                         
-                        # because we most likely want to populate VRTrack
-                        # based on this metadata, and VRTrack can't cope
-                        # with multiple study_ids per sample, we'll check
-                        # the source to see if we wanted just a single study
-                        # and make note of that one
-                        my $preferred_i;
-                        if (@study_ids > 1) {
-                            $meta->{study_id} = \@study_ids;
-                            
-                            if ($query =~ /study_id\s+=\s+(\d+)/) {
-                                my $desired = $1;
-                                foreach my $i (0 .. $#study_ids) {
-                                    my $id = $study_ids[$i];
-                                    if ($id == $desired) {
-                                        $meta->{study_id_preferred} = $desired;
-                                        $preferred_i = $i;
-                                        last;
-                                    }
-                                }
+                        unless ($experiment_study_details) {
+                            # it's possible for the experiment to belong to a
+                            # study that it's sample does not belong to; we
+                            # still need to get the title and ac from warehouse
+                            # for consistency
+                            undef $study_title;
+                            undef $study_ac;
+                            $study_sth->execute($experiment_study_id);
+                            $study_sth->fetch;
+                            my $title = '';
+                            my $ac    = '';
+                            if ($study_title) {
+                                $title = "$study_title";
+                                $study_ac ||= '';
+                                $ac = "$study_ac";
                             }
-                        }
-                        else {
-                            $meta->{study_id} = $study_ids[0];
+                            
+                            $experiment_study_details = [$experiment_study_id, $title, $ac];
                         }
                         
-                        if (@study_titles > 1) {
-                            $meta->{study_title}            = \@study_titles;
-                            $meta->{study_accession_number} = \@study_acs;
-                            
-                            if ($query =~ /study\s+=\s+["']([^"']+)["']/) {
-                                my $desired = $1;
-                                foreach my $i (0 .. $#study_titles) {
-                                    my $title = $study_titles[$i];
-                                    if ($title eq $desired) {
-                                        $meta->{study_id_preferred} = $study_ids[$i];
-                                        last;
-                                    }
-                                }
-                            }
+                        $meta->{study_title} = $experiment_study_details->[1];
+                        $meta->{study} = $experiment_study_details->[1] if defined $meta->{study};
+                        if ($experiment_study_details->[2] && defined $meta->{study_accession_number}) {
+                            $meta->{study_accession_number} = $experiment_study_details->[2];
                         }
                         else {
-                            $meta->{study_title} = $study_titles[0];
-                            $meta->{study_accession_number} = $study_acs[0] if $study_acs[0];
+                            delete $meta->{study_accession_number};
                         }
+                        
+                        $all_study_details = [\@study_ids, \@study_titles, \@study_acs];
+                    }
+                    else {
+                        $experiment_study_details = [$meta->{study_id}, $meta->{study_title} || '', $meta->{study_accession_number} || ''];
                     }
                     
                     # another Sanger-specific thing is if we had an
@@ -787,6 +797,19 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                     #my $gtod = [gettimeofday];
                     my $graph_file = $vrtrack->get_file($path, 'irods:');
                     #$times[0] += tv_interval($gtod);
+                    
+                    if ($graph_file) {
+                        my $thing;
+                        if (!$is_sections) {
+                            ($thing) = $graph_file->related(incoming => { type => 'aligned', namespace => 'VRTrack', label => 'Lane' });
+                            if (!defined $is_sections) {
+                                $is_sections = defined $thing ? 0 : 1;
+                            }
+                        }
+                        if ($is_sections) {
+                            ($thing) = $graph_file->related(incoming => { type => 'processed', namespace => 'VRTrack', label => 'Section' });
+                        }
+                    }
                     
                     if (!$graph_file || (my $changes = $self->_file_changed($path, $meta, $local_root_dir, 1, $vrtrack))) {
                         my $already_in_graph = 0;
@@ -869,44 +892,43 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 }
                             }
                             
-                            # general
+                            # group
                             my $group = $vrtrack->add('Group', { name => $vrtrack_group });
-                            my (@studies, $preferred_study, %study_relate_to_props);
-                            my @study_ids = ref $meta->{study_id} ? @{ $meta->{study_id} } : ($meta->{study_id});
-                            my @study_titles = ($meta->{study_title} && ref $meta->{study_title}) ? @{ $meta->{study_title} } : ($meta->{study_title} || $meta->{study});
-                            my @study_acs = ($meta->{study_accession_number} && ref $meta->{study_accession_number}) ? @{ $meta->{study_accession_number} } : ($meta->{study_accession_number});
-                            my $preferred_study_id = delete $meta->{study_id_preferred};
-                            foreach my $i (0 .. $#study_ids) {
-                                my $study_title = $study_titles[$i] || '[no study title]';
-                                my $done_studies_key = 'id:' . $study_ids[$i] . ':name:' . $study_title . ':ac:' . ($study_acs[$i] ? $study_acs[$i] : '') . ':group:' . $vrtrack_group;
-                                if (exists $done_studies{$done_studies_key}) {
-                                    push(@studies, $done_studies{$done_studies_key});
-                                }
-                                else {
-                                    my $study_node = $vrtrack->add('Study', { id => $study_ids[$i], name => $study_title, $study_acs[$i] ? (accession => $study_acs[$i]) : () }, incoming => { type => 'has', node => $group });
-                                    push(@studies, $study_node);
-                                    $done_studies{$done_studies_key} = $study_node;
-                                }
-                                
-                                if (defined $preferred_study_id && $preferred_study_id == $study_ids[$i]) {
-                                    $preferred_study = $studies[-1];
-                                    %study_relate_to_props = (properties => { preferred => 1 });
-                                    
-                                    # in VRPipe::File metadata we'll just store the
-                                    # preferred details; this is inline with old
-                                    # behaviour, is probably what the user expects,
-                                    # and avoids problems if you're grouping on
-                                    # study_id and then your sample gets added to a
-                                    # new study
-                                    $meta->{study_id}    = $study_ids[$i];
-                                    $meta->{study_title} = $study_titles[$i];
-                                    $meta->{study}       = $study_titles[$i] if defined $meta->{study};
-                                    if ($study_acs[$i] && defined $meta->{study_accession_number}) {
-                                        $meta->{study_accession_number} = $study_acs[$i];
+                            
+                            # study; create/get all study nodes that our sample
+                            # belongs to, then get the one our experiment
+                            # belongs to
+                            my (@study_ids, @study_titles, @study_acs, @studies, $experiment_study);
+                            my ($experiment_study_id, $experiment_study_title, $experiement_study_ac) = @$experiment_study_details;
+                            if ($all_study_details && @$all_study_details) {
+                                my ($study_ids, $study_titles, $study_acs) = @$all_study_details;
+                                @study_ids    = @$study_ids;
+                                @study_titles = @$study_titles;
+                                @study_acs    = @$study_acs;
+                                foreach my $i (0 .. $#study_ids) {
+                                    my $study_title = $study_titles[$i] || '[no study title]';
+                                    my $done_studies_key = 'id:' . $study_ids[$i] . ':name:' . $study_title . ':ac:' . ($study_acs[$i] ? $study_acs[$i] : '') . ':group:' . $vrtrack_group;
+                                    if (exists $done_studies{$done_studies_key}) {
+                                        push(@studies, $done_studies{$done_studies_key});
                                     }
                                     else {
-                                        delete $meta->{study_accession_number};
+                                        my $study_node = $vrtrack->add('Study', { id => $study_ids[$i], name => $study_title, $study_acs[$i] ? (accession => $study_acs[$i]) : () }, incoming => { type => 'has', node => $group });
+                                        push(@studies, $study_node);
+                                        $done_studies{$done_studies_key} = $study_node;
                                     }
+                                    if ($experiment_study_id == $study_ids[$i]) {
+                                        $experiment_study = $studies[-1];
+                                    }
+                                }
+                            }
+                            
+                            unless ($experiment_study) {
+                                my $done_studies_key = 'id:' . $experiment_study_id . ':name:' . $experiment_study_title . ':ac:' . ($experiement_study_ac ? $experiement_study_ac : '') . ':group:' . $vrtrack_group;
+                                if (exists $done_studies{$done_studies_key}) {
+                                    $experiment_study = $done_studies{$done_studies_key};
+                                }
+                                else {
+                                    $experiment_study = $vrtrack->add('Study', { id => $experiment_study_id, name => $experiment_study_title, $experiement_study_ac ? (accession => $experiement_study_ac) : () }, incoming => { type => 'has', node => $group });
                                 }
                             }
                             
@@ -977,14 +999,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                             $done_studies{$done_studies_key} = $study;
                                         }
                                         
-                                        my $relate_args = { from => $study, to => $donor, type => 'member' };
-                                        if ($preferred_study && $study->node_id == $preferred_study->node_id) {
-                                            $relate_args->{properties} = $study_relate_to_props{properties};
-                                            push(@$rel_args_with_props, $relate_args);
-                                        }
-                                        else {
-                                            push(@$rel_args, $relate_args);
-                                        }
+                                        push(@$rel_args, { from => $study, to => $donor, type => 'member' });
                                     }
                                     
                                     $done_donors{$donor_uuid} = $donor;
@@ -1027,15 +1042,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 
                                 foreach my $study (@studies) {
                                     next if exists $already_linked_studies{ $study->id };
-                                    
-                                    my $relate_args = { from => $study, to => $sample, type => 'member' };
-                                    if ($preferred_study && $study->node_id == $preferred_study->node_id) {
-                                        $relate_args->{properties} = $study_relate_to_props{properties};
-                                        push(@$rel_args_with_props, $relate_args);
-                                    }
-                                    else {
-                                        push(@$rel_args, $relate_args);
-                                    }
+                                    push(@$rel_args, { from => $study, to => $sample, type => 'member' });
                                 }
                                 
                                 my $sex = 'U'; # unknown
@@ -1085,7 +1092,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 $done_samples{ $meta->{sample} } = $sample;
                             }
                             
-                            $graph_file->add_properties({ manual_qc => $meta->{manual_qc}, target => $meta->{target}, md5 => $meta->{md5} });
+                            $graph_file->add_properties({
+                                    manual_qc => $meta->{manual_qc},
+                                    target    => $meta->{target},
+                                    md5       => $meta->{md5},
+                                    # we don't model sequenom|fluidgm properly, so need to just store that hierarchy metadata on the file so it isn't lost
+                                    defined $meta->{sequenom_plate} ? (sequenom_plate => $meta->{sequenom_plate}, sequenom_plex => $meta->{sequenom_plex}, sequenom_well => $meta->{sequenom_well}) : (),
+                                    defined $meta->{fluidigm_plate} ? (fluidigm_plate => $meta->{fluidigm_plate}, fluidigm_plex => $meta->{fluidigm_plex}, fluidigm_well => $meta->{fluidigm_well}) : ()
+                                }
+                            );
                             my $file_connected = 0;
                             my $unique         = file($path)->basename;
                             $unique =~ s/\.gz$//;
@@ -1113,6 +1128,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 if ($library) {
                                     $library->relate_to($lane, 'sequenced', selfish => 1);
                                 }
+                                
+                                if ($experiment_study) {
+                                    $lane->relate_to($experiment_study, 'created_for', replace => 1);
+                                }
                             }
                             
                             if ($meta->{alignment} && defined $meta->{reference}) {
@@ -1137,7 +1156,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 }
                                 
                                 foreach my $study (@studies) {
-                                    $study->relate_to($beadchip, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                    $study->relate_to($beadchip, 'has');
                                 }
                                 
                                 if (defined $meta->{beadchip_section}) {
@@ -1145,6 +1164,10 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                     $beadchip->relate_to($section, 'section', selfish => 1);
                                     $section->relate_to($graph_file, 'processed', selfish => 1);
                                     $file_connected = 1;
+                                    
+                                    if ($experiment_study) {
+                                        $section->relate_to($experiment_study, 'created_for', replace => 1);
+                                    }
                                 }
                             }
                             
@@ -1164,7 +1187,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 }
                                 
                                 foreach my $study (@studies) {
-                                    $study->relate_to($plate, 'has', ($preferred_study && $study->node_id == $preferred_study->node_id) ? (%study_relate_to_props) : ());
+                                    $study->relate_to($plate, 'has');
                                 }
                                 
                                 if (defined $meta->{infinium_well}) {
@@ -1175,13 +1198,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             
                             unless ($file_connected) {
                                 $sample->relate_to($graph_file, 'processed');
+                                
+                                if ($experiment_study) {
+                                    $graph_file->relate_to($experiment_study, 'created_for', replace => 1);
+                                }
                             }
                             
-                            foreach my $these_rel_args ($rel_args, $rel_args_with_props) {
-                                if (defined $these_rel_args && @$these_rel_args >= 500) {
-                                    $graph->create_mass_relationships($these_rel_args);
-                                    $these_rel_args = [];
-                                }
+                            if (defined $rel_args && @$rel_args >= 500) {
+                                $graph->create_mass_relationships($rel_args);
+                                $rel_args = [];
                             }
                         }
                     }
@@ -1203,11 +1228,9 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 $f_count_actual++;
             }
             
-            foreach my $these_rel_args ($rel_args, $rel_args_with_props) {
-                if (defined $these_rel_args && @$these_rel_args) {
-                    $graph->create_mass_relationships($these_rel_args);
-                    $these_rel_args = [];
-                }
+            if (defined $rel_args && @$rel_args) {
+                $graph->create_mass_relationships($rel_args);
+                $rel_args = [];
             }
             
             $e = time() - $t;
