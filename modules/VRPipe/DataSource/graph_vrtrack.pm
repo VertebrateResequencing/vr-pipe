@@ -189,6 +189,10 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 my $lane = $schema->get('Lane', { $property => $val });
                 @these_lanes = ($lane) if $lane;
             }
+            elsif ($label eq 'Study') {
+                my $study = $schema->get('Study', { $property => $val });
+                @these_lanes = $study->related(incoming => { type => 'created_for', namespace => 'VRTrack', label => 'Lane' });
+            }
             else {
                 my $node = $schema->get($label, { $property => $val });
                 $node || next;
@@ -240,6 +244,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 my @grouping;
                 foreach my $label (sort keys %$hierarchy) {
                     my $node = $hierarchy->{$label};
+                    
                     if ($label ne 'lane' && exists $parent_filters{$label}) {
                         foreach my $property (keys %{ $parent_filters{$label} }) {
                             my @values     = @{ $parent_filters{$label}->{$property} };
@@ -280,7 +285,8 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 $passed++;
             }
             
-            my @extra = ("$failed_no_cram_file lanes had no cram files") if $failed_no_cram_file;
+            my @extra = ();
+            @extra = ("$failed_no_cram_file lanes had no cram files") if $failed_no_cram_file;
             push(@extra, "$failed_parent_filter lanes failed the parent filter") if $failed_parent_filter;
             my $extra = @extra ? ' (' . join(', ', @extra) . ')' : '';
             $self->debug_log("graph_vrtrack got $passed lanes$extra for source node $label#$property#$val\n");
@@ -385,6 +391,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     method lanelet_crams (Defined :$handle!, Str :$group_by_metadata?, Str :$parent_filter?, Str :$qc_filter?) {
         my $did = $self->_datasource_id;
         my (@element_args, $group_hash, $group_order_i);
+        my $t = time();
         foreach my $result ($self->_all_files()) {
             my $protocol = $result->{protocol};
             
@@ -401,7 +408,6 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $protocol ? (protocol => $protocol) : () } });
             }
         }
-        warn "lanelet_crams called _all_files and will now _create_elements for ", scalar(@element_args), " elements\n" if $self->debug;
         
         if ($group_by_metadata) {
             foreach my $group (sort { $group_hash->{$a}->{order} <=> $group_hash->{$b}->{order} } keys %$group_hash) {
@@ -410,6 +416,9 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group, $protocol ? (protocol => $protocol) : () } });
             }
         }
+        
+        my $e = time() - $t;
+        warn "lanelet_crams called _all_files ($e seconds) and will now _create_elements for ", scalar(@element_args), " elements\n" if $self->debug;
         
         $self->_create_elements(\@element_args);
     }
