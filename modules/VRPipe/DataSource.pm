@@ -245,6 +245,35 @@ class VRPipe::DataSource extends VRPipe::Persistent {
             warn "generated ", scalar(@des_args), " new dataelements, will now create the states for them\n" if $debug;
             VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
             
+            # in some odd circumstance we can have missed creating states for
+            # elements, so make sure the count matches
+            my $des_pager = VRPipe::DataElementState->get_column_values_paged('dataelement.id', { 'dataelement.datasource' => $self->id, 'dataelement.withdrawn' => 0 }, { join => 'dataelement' });
+            my $total_des = $des_pager->total_entries;
+            $pager = VRPipe::DataElement->get_column_values_paged('id', { datasource => $self->id, withdrawn => 0 });
+            my $total_de = $pager->total_entries;
+            if ($total_des != ($total_de * scalar(@setup_ids))) {
+                my %done_de;
+                while (my $eids = $des_pager->next) {
+                    foreach my $eid (@$eids) {
+                        $done_de{$eid} = 1;
+                    }
+                }
+                
+                @des_args = ();
+                while (my $eids = $pager->next) {
+                    foreach my $eid (@$eids) {
+                        next if $done_de{$eid};
+                        
+                        foreach my $setup_id (@setup_ids) {
+                            push(@des_args, { pipelinesetup => $setup_id, dataelement => $eid });
+                            push(@enqueue_args, [$setup_id, $eid]);
+                        }
+                    }
+                }
+                warn "creating missing dataelementstates\n" if $debug;
+                VRPipe::DataElementState->bulk_create_or_update(@des_args) if @des_args;
+            }
+            
             # queue up these new de to be triggered (vrpipe-server will do
             # something with these); we don't queue des ids because we don't
             # know them, and that's because it's much faster for the above call
