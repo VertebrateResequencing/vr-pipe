@@ -109,6 +109,11 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 foreach my $key (sort keys %$meta) {
                     my $val = $meta->{$key};
                     next unless defined $val;
+                    
+                    if (ref($val)) {
+                        $val = join(',', @$val);
+                    }
+                    
                     # limit to printable ascii so md5_hex subroutine will work
                     $val =~ tr/\x20-\x7f//cd;
                     $data .= "|$key:$val|";
@@ -121,6 +126,8 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         my $digest = md5_hex $data;
         return $digest;
     }
+    
+    use Time::HiRes qw(gettimeofday tv_interval);
     
     method _get_files {
         return $self->_cached_files if $self->_cached;
@@ -161,12 +168,17 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     }
     
     method _get_cram_nodes (Str $source, Maybe[Str] $group_by_metadata?, Maybe[Str] $parent_filter?) {
+        my @times;
+        
+        my $t = [gettimeofday];
         # Study#id#3165
         my ($label, $property, $vals) = split(/#/, $source);
         my @vals = split(/,/, $vals);
         unless ($label && $property && @vals) {
             $self->throw("Invalid source: $source");
         }
+        $times[0] += tv_interval($t);
+        $t = [gettimeofday];
         
         my %parent_filters;
         if ($parent_filter) {
@@ -179,12 +191,16 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         }
         
         my %group_on = map { lc($_) => 1 } split(/,/, $group_by_metadata) if $group_by_metadata;
+        $times[1] += tv_interval($t);
+        $t = [gettimeofday];
         
         $schema ||= VRPipe::Schema->create("VRTrack");
+        $times[2] += tv_interval($t);
         
         my @lanes;
         foreach my $val (@vals) {
             my @these_lanes;
+            $t = [gettimeofday];
             if ($label eq 'Lane') {
                 my $lane = $schema->get('Lane', { $property => $val });
                 @these_lanes = ($lane) if $lane;
@@ -198,11 +214,14 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 $node || next;
                 @these_lanes = $node->closest('VRTrack', 'Lane', direction => 'outgoing', all => 1);
             }
+            $times[3] += tv_interval($t);
+            $t = [gettimeofday];
             
             my $passed               = 0;
             my $failed_parent_filter = 0;
             my $failed_no_cram_file  = 0;
             LANE: foreach my $lane (@these_lanes) {
+                $t = [gettimeofday];
                 if (exists $parent_filters{lane}) {
                     foreach my $property (keys %{ $parent_filters{lane} }) {
                         my @values     = @{ $parent_filters{lane}->{$property} };
@@ -226,6 +245,8 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                         }
                     }
                 }
+                $times[4] += tv_interval($t);
+                $t = [gettimeofday];
                 
                 my $file;
                 foreach my $lane_file ($lane->related(outgoing => { namespace => 'VRPipe', label => 'FileSystemElement' })) {
@@ -238,12 +259,19 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                     $failed_no_cram_file++;
                     next;
                 }
+                $times[5] += tv_interval($t); # 40s
+                $t = [gettimeofday];
                 
                 my $hierarchy = $schema->get_sequencing_hierarchy($file);
+                $times[6] += tv_interval($t); # 40s
+                $t = [gettimeofday];
                 
                 my @grouping;
                 foreach my $label (sort keys %$hierarchy) {
+                    my $ti   = [gettimeofday];
                     my $node = $hierarchy->{$label};
+                    $times[7] += tv_interval($ti);
+                    $ti = [gettimeofday];
                     
                     if ($label ne 'lane' && exists $parent_filters{$label}) {
                         foreach my $property (keys %{ $parent_filters{$label} }) {
@@ -266,16 +294,22 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                             }
                         }
                     }
+                    $times[8] += tv_interval($ti);
+                    $ti = [gettimeofday];
                     
                     while (my ($key, $val) = each %{ $node->properties }) {
                         $file->{hierarchy}->{"${label}_$key"} = $val;
                     }
+                    $times[9] += tv_interval($ti);
+                    $ti = [gettimeofday];
                     
                     if (exists $group_on{$label}) {
                         my $unique_val = $node->unique_property();
                         push(@grouping, "$label:$unique_val");
                     }
+                    $times[10] += tv_interval($ti);
                 }
+                $times[11] += tv_interval($t);
                 
                 if (@grouping) {
                     $file->{group} = join(';', @grouping);
@@ -292,10 +326,14 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             $self->debug_log("graph_vrtrack got $passed lanes$extra for source node $label#$property#$val\n");
         }
         
+        $t = [gettimeofday];
         my @files = ();
         LANE: foreach my $ref (sort { $a->[0]->unique cmp $b->[0]->unique } @lanes) {
             push(@files, $ref->[1]);
         }
+        $times[12] += tv_interval($t);
+        
+        #warn "_get_cram_nodes times: (@times)\n"; # 60s unaccounted for
         
         return \@files;
     }
@@ -430,6 +468,9 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         my $files = $self->_get_files();
         $self->_clear_cache;
         
+        #warn "in _all_files after _get_files\n";
+        my @times;
+        
         my @results;
         my $anti_repeat_store = {};
         foreach my $file (@$files) {
@@ -441,9 +482,14 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 }
             }
             
+            my $t             = [gettimeofday];
             my $file_abs_path = delete $new_metadata->{path};
             $file_abs_path ||= $file->protocolless_path;
+            $times[0] += tv_interval($t);
+            $t = [gettimeofday];
             my $protocol = $file->protocol;
+            $times[1] += tv_interval($t); # 40s
+            $t = [gettimeofday];
             
             # consider type to be any if not defined in the file metadata; if
             # not a VRPipe filetype it will be treated as an any
@@ -466,7 +512,12 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 }
             }
             
+            $times[2] += tv_interval($t);
+            $t = [gettimeofday];
             my ($vrfile) = VRPipe::File->search({ path => $file_abs_path, $protocol ? (protocol => $protocol) : () });
+            $times[3] += tv_interval($t); # 20s
+            $t = [gettimeofday];
+            
             my @changed_details;
             if ($vrfile) {
                 # detect metadata changes
@@ -496,9 +547,13 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             else {
                 $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ());
             }
+            $times[4] += tv_interval($t); # 60s
+            $t = [gettimeofday];
             
             # if there was no metadata this will add metadata to the file.
             $vrfile->add_metadata($new_metadata, replace_data => 0);
+            $times[5] += tv_interval($t); # 190s!!
+            $t = [gettimeofday];
             
             my $result_hash = { paths => [$file_abs_path], protocol => $protocol, defined $file->{group} ? (group => $file->{group}) : () };
             if (@changed_details) {
@@ -507,8 +562,10 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 delete $result_hash->{changed};
             }
             push(@results, $result_hash);
+            $times[6] += tv_interval($t);
         }
         
+        #warn "_all_files returning @times\n";
         return @results;
     }
 }
