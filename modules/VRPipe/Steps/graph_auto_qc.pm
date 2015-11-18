@@ -198,10 +198,12 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
             }
             elsif ($qc_nodes->{Genotype}) {
                 my $genotype    = $qc_nodes->{Genotype}->properties;
+                my $expected    = $genotype->{'expected_sample_name'};
+                my $found       = $genotype->{'matched_sample_name'};
                 my $match_count = $genotype->{'match_count'};
                 my $snp_count   = $genotype->{'common_snp_count'};
                 my $concordance = $match_count / $snp_count;
-                if ($genotype->{'expected_sample_name'} eq $genotype->{'matched_sample_name'}) {
+                if ($expected eq $found) {
                     if ($concordance > $auto_qc_genotype_min_concordance && $snp_count > $auto_qc_genotype_min_sites) {
                         $gstatus = "confirmed";
                     }
@@ -212,6 +214,8 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
                 else {
                     $gstatus = "unknown";
                 }
+                my $gt_status = "status=$gstatus expected=$expected found=$found concordance=$concordance";
+                $bam_file->add_metadata({ gtype_analysis => $gt_status });
             }
             if ($gstatus) {
                 $status = 1;
