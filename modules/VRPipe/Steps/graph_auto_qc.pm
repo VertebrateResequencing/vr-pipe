@@ -39,7 +39,7 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
     method options_definition {
         return {
             auto_qc_gtype_regex => VRPipe::StepOption->create(
-                description   => 'If the bam_genotype_checking pipeline was run, providing a gtype_analysis metadata key, provide a regular expression to choose acceptable status values',
+                description   => 'A regular expression to choose acceptable genotype status values',
                 optional      => 1,
                 default_value => '^confirmed'
             ),
@@ -83,6 +83,16 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
                 optional      => 1,
                 default_value => '8'
             ),
+            auto_qc_genotype_min_concordance => VRPipe::StepOption->create(
+                description   => 'Minimum concordance to be used when applying genotype check status',
+                optional      => 1,
+                default_value => 0.94
+            ),
+            auto_qc_genotype_min_sites => VRPipe::StepOption->create(
+                description   => 'Minimum number of sites for the data to be used in the genotype analysis',
+                optional      => 1,
+                default_value => 0
+            ),
         };
     }
     
@@ -123,7 +133,7 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
                     $self->throw("file " . $file->path . " lacks lane metadata");
                 }
                 
-                my $cmd = "use VRPipe::Steps::graph_auto_qc; VRPipe::Steps::graph_auto_qc->auto_qc(bam => q[$path], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, auto_qc_max_ic_above_median => $opts->{auto_qc_max_ic_above_median} );";
+                my $cmd = "use VRPipe::Steps::graph_auto_qc; VRPipe::Steps::graph_auto_qc->auto_qc(bam => q[$path], lane => q[$lane], auto_qc_gtype_regex => q[$opts->{auto_qc_gtype_regex}], auto_qc_mapped_base_percentage => $opts->{auto_qc_mapped_base_percentage}, auto_qc_duplicate_read_percentage => $opts->{auto_qc_duplicate_read_percentage}, auto_qc_mapped_reads_properly_paired_percentage => $opts->{auto_qc_mapped_reads_properly_paired_percentage}, auto_qc_error_rate => $opts->{auto_qc_error_rate}, auto_qc_max_ins_to_del_ratio => $opts->{auto_qc_max_ins_to_del_ratio}, auto_qc_min_ins_to_del_ratio => $opts->{auto_qc_min_ins_to_del_ratio}, auto_qc_overlapping_base_duplicate_percent => $opts->{auto_qc_overlapping_base_duplicate_percent}, auto_qc_max_ic_above_median => $opts->{auto_qc_max_ic_above_median}, auto_qc_genotype_min_concordance => $opts->{auto_qc_genotype_min_concordance}, auto_qc_genotype_min_sites => $opts->{auto_qc_genotype_min_sites} );";
                 $self->dispatch_vrpipecode($cmd, $req);
             }
         };
@@ -145,7 +155,7 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
         return 0;            # meaning unlimited
     }
     
-    method auto_qc (ClassName|Object $self: Str|File :$bam!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?,  Num :$auto_qc_max_ic_above_median? ) {
+    method auto_qc (ClassName|Object $self: Str|File :$bam!, Str :$lane!, Str :$auto_qc_gtype_regex?, Num :$auto_qc_mapped_base_percentage?, Num :$auto_qc_duplicate_read_percentage?, Num :$auto_qc_mapped_reads_properly_paired_percentage?, Num :$auto_qc_error_rate?, Num :$auto_qc_max_ins_to_del_ratio?, Num :$auto_qc_min_ins_to_del_ratio?, Num :$auto_qc_overlapping_base_duplicate_percent?,  Num :$auto_qc_max_ic_above_median?,  Num :$auto_qc_genotype_min_concordance?,  Num :$auto_qc_genotype_min_sites? ) {
         my $bam_file = VRPipe::File->get(path => $bam);
         my $meta = $bam_file->metadata;
         
@@ -178,11 +188,30 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
         
         # genotype check results
         if (defined $auto_qc_gtype_regex) {
-            # use gtype info from bam_genotype_checking pipeline, if present
+            # gtype_analysis metadata key must exist if the
+            # bam_genotype_checking pipeline was run; otherwise,
+            # if it doesn't exist, use the genotype data from graph db.
             my $gstatus;
             my $gtype_analysis = $meta->{gtype_analysis};
             if ($gtype_analysis) {
                 ($gstatus) = $gtype_analysis =~ /status=(\S+) expected=(\S+) found=(\S+) (?:ratio|concordance)=(\S+)/;
+            }
+            elsif ($qc_nodes->{Genotype}) {
+                my $genotype    = $qc_nodes->{Genotype}->properties;
+                my $match_count = $genotype->{'match_count'};
+                my $snp_count   = $genotype->{'common_snp_count'};
+                my $concordance = $match_count / $snp_count;
+                if ($genotype->{'expected_sample_name'} eq $genotype->{'matched_sample_name'}) {
+                    if ($concordance > $auto_qc_genotype_min_concordance && $snp_count > $auto_qc_genotype_min_sites) {
+                        $gstatus = "confirmed";
+                    }
+                    else {
+                        $gstatus = "unconfirmed";
+                    }
+                }
+                else {
+                    $gstatus = "unknown";
+                }
             }
             if ($gstatus) {
                 $status = 1;
