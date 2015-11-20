@@ -44,7 +44,8 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
             samtools_exe                   => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                            optional => 1, default_value => 'samtools'),
             samtools_addreplacerg_options  => VRPipe::StepOption->create(description => 'options to samtools addreplacerg excluding -r and -R; set to "-O cram" to output CRAM',                                                  optional => 1, default_value => '-O bam'),
             readgroup_sm_from_metadata_key => VRPipe::StepOption->create(description => 'The SM of the readgroup will come from metadata associated with the CRAM; this option chooses which metadata key to get the value from', optional => 1, default_value => 'sample'),
-            readgroup_ds_from_metadata_key => VRPipe::StepOption->create(description => 'The DS of the readgroup will come from metadata associated with the CRAM; this option chooses which metadata key to get the value from', optional => 1, default_value => 'study')
+            readgroup_ds_from_metadata_key => VRPipe::StepOption->create(description => 'The DS of the readgroup will come from metadata associated with the CRAM; this option chooses which metadata key to get the value from', optional => 1, default_value => 'study'),
+            readgroup_lb_from_metadata_key => VRPipe::StepOption->create(description => 'The LB of the readgroup will come from metadata associated with the CRAM; this option chooses which metadata key to get the value from', optional => 1, default_value => 'library')
         };
     }
     
@@ -81,12 +82,13 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
     
     method body_sub {
         return sub {
-            my $self       = shift;
-            my $options    = $self->options;
-            my $samtools   = $options->{samtools_exe};
-            my $arrg_opts  = $options->{samtools_addreplacerg_options};
-            my $sample_key = $options->{readgroup_sm_from_metadata_key};
-            my $study_key  = $options->{readgroup_ds_from_metadata_key};
+            my $self        = shift;
+            my $options     = $self->options;
+            my $samtools    = $options->{samtools_exe};
+            my $arrg_opts   = $options->{samtools_addreplacerg_options};
+            my $sample_key  = $options->{readgroup_sm_from_metadata_key};
+            my $study_key   = $options->{readgroup_ds_from_metadata_key};
+            my $library_key = $options->{readgroup_lb_from_metadata_key};
             
             my $suffix     = $arrg_opts =~ m/-O\s*cram/ ? 'cram'      : 'bam';
             my $suffix_idx = $arrg_opts =~ m/-O\s*cram/ ? 'cram.crai' : 'bam.bai';
@@ -116,7 +118,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
                     type       => "bin"
                 );
                 $self->output_file(basename => qq[$basename.header], type => 'txt', temporary => 1);
-                my $rg_line    = $self->rg_line_from_metadata($file, sample_key => $sample_key, study_key => $study_key);
+                my $rg_line    = $self->rg_line_from_metadata($file, sample_key => $sample_key, study_key => $study_key, library_key => $library_key);
                 my $input_bam  = $file->path;
                 my $output_bam = $rg_added_bam_file->path;
                 my $this_cmd   = "use VRPipe::Steps::samtools_add_readgroup; VRPipe::Steps::samtools_add_readgroup->add_rg_and_check(in_path => q[$input_bam], out_path => q[$output_bam], samtools => q[$samtools], arrg_opts => q[$arrg_opts], rg_line => q[$rg_line]);";
@@ -153,7 +155,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
         return 0;
     }
     
-    method rg_line_from_metadata (ClassName|Object $self: VRPipe::File $file!, Str :$sample_key = 'sample', Str :$study_key = 'study') {
+    method rg_line_from_metadata (ClassName|Object $self: VRPipe::File $file!, Str :$sample_key = 'sample', Str :$study_key = 'study', Str :$library_key = 'library') {
         use VRPipe::Steps::samtools_add_readgroup;
         
         # @RG ID CN DS DT FO KS LB PG PI PL PM PU SM
@@ -170,7 +172,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
         
         my $lane    = $self->command_line_safe_string($meta->{lane});
         my $rgline  = "\@RG\\tID:" . $meta->{lane};
-        my $library = $self->command_line_safe_string($meta->{library} || $rg_info{LB} || '');
+        my $library = $self->command_line_safe_string($meta->{$library_key} || $rg_info{LB} || '');
         $rgline .= "\\tLB:$library" if $library;
         my $platform = $self->command_line_safe_string($meta->{platform} || $rg_info{PL} || 'ILLUMINA');
         $rgline .= "\\tPL:$platform" if $platform;
