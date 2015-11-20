@@ -179,10 +179,9 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
         }
         
         # we'll always fail if the npg status is failed
-        my $vrpipe     = VRPipe::Schema->create("VRPipe");
-        my $graph_node = $vrpipe->get('File', { path => $bam });
-        my $npg_status = $graph_node->property('manual_qc') || $meta->{npg_qc_status};
-        if ($npg_status && $npg_status eq 'fail') {
+        my $vrtrack_metadata = $schema->vrtrack_metadata(node => $file_graph_node);
+        my $npg_status = $vrtrack_metadata->{manual_qc} || $meta->{manual_qc};
+        unless ($npg_status) {
             push @qc_status, { test => 'NPG QC status check', status => 0, reason => 'The lane failed the NPG QC check, so we auto-fail as well since this data will not be auto-submitted to EGA/ENA.' };
         }
         
