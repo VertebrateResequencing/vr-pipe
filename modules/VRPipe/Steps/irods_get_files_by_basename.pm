@@ -34,6 +34,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
+    use VRPipe::Schema;
+    
+    our $schema;
+    
     method _build_irods_exes {
         return { iget => 'iget', iquest => 'iquest', ichksum => 'ichksum' };
     }
@@ -149,6 +153,14 @@ class VRPipe::Steps::irods_get_files_by_basename extends VRPipe::Steps::irods {
                     # symlink our existing output file to the pipeline output
                     # dir so that if this step is restarted, we won't delete it
                     my $ofile = $self->output_file(output_key => 'local_files', basename => $output_basename, type => $output_type, metadata => $meta);
+                    
+                    # relate source file to dest file in the graph database
+                    $schema ||= VRPipe::Schema->create('VRPipe');
+                    my $source_graph_node = $schema->get('File', { path => $file->protocolless_path, protocol => $file->protocol });
+                    if ($source_graph_node) {
+                        $self->relate_input_to_output($source_graph_node, 'imported', $out_abs_path->stringify);
+                    }
+                    
                     VRPipe::File->create(path => $out_abs_path)->symlink($ofile);
                 }
             }
