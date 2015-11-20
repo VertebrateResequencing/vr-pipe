@@ -323,7 +323,7 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
             if ($bam_stats->{'reads paired'} == 0) {
                 push @qc_status, { test => $test, status => 0, reason => 'Zero paired reads, yet flagged as paired' };
             }
-            elsif ($bam_stats->{'insert size average'} == 0 || !$bam_stats->{'insert size'}) {
+            elsif ($bam_stats->{'insert size average'} == 0) {
                 push @qc_status, { test => $test, status => 0, reason => 'The insert size not available, yet flagged as paired' };
             }
             else {
@@ -351,6 +351,9 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
                         $reason = sprintf "Fail library, %.1f%% of inserts are not within %.1f%% of the max peak (%.2f%%).", 80, 25, $range;
                     }
                     push @qc_status, { test => 'Insert size (rev)', status => $status, reason => $reason };
+                }
+                else {
+                    push @qc_status, { test => $test, status => 0, reason => 'The insert size not available, yet flagged as paired' };
                 }
             }
         }
