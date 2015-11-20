@@ -172,7 +172,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
         my $rgline  = "\@RG\\tID:" . $meta->{lane};
         my $library = $self->command_line_safe_string($meta->{library} || $rg_info{LB} || '');
         $rgline .= "\\tLB:$library" if $library;
-        my $platform = $self->command_line_safe_string($meta->{platform} || $rg_info{PL} || '');
+        my $platform = $self->command_line_safe_string($meta->{platform} || $rg_info{PL} || 'ILLUMINA');
         $rgline .= "\\tPL:$platform" if $platform;
         my $platform_unit = $self->command_line_safe_string($meta->{platform_unit} || $rg_info{PU} || $meta->{lane});
         $rgline .= "\\tPU:$platform_unit" if $platform_unit;
