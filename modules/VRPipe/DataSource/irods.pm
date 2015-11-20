@@ -216,7 +216,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         
         # get the current files and their metadata and stringify it all
         my $t = time();
-        $self->_force_from_scratch(1) if $current_checksum eq 'undef'; # we'll force doing all the graph db stuff following a touch
+        $self->_force_from_scratch(1) if ($current_checksum && $current_checksum eq 'undef'); # we'll force doing all the graph db stuff following a touch
         my $files = $self->_get_irods_files_and_metadata($self->_open_source(), $options->{file_query}, $local_root_dir, $add_metadata_from_warehouse, $required_metadata, $vrtrack_group, $require_qc_files, $desired_qc_files, $graph_filter, $filter_after_grouping);
         my $e = time() - $t;
         $self->debug_log("irods _get_irods_files_and_metadata call took $e seconds\n");
