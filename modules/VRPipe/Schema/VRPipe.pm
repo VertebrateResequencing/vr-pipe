@@ -408,9 +408,9 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     method move_filesystemelement (ClassName|Object $self: Str|Object $source, Str $dest, Str :$protocol?) {
         my $source_path;
         unless (ref($source)) {
+            $source_path = $source;
             $source = $self->path_to_filesystemelement($source, $protocol ? (protocol => $protocol) : (), only_get => 1);
             $source || return;
-            $source_path = $source;
         }
         else {
             $source_path = $source->protocolless_path;
