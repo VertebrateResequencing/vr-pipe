@@ -276,6 +276,10 @@ role VRPipe::SchemaLabelRole {
             if (wantarray) {
                 return @nodes;
             }
+            
+            if (@nodes > 1) {
+                @nodes = sort { $a->{id} <=> $b->{id} } @nodes;
+            }
             return $nodes[0];
         }
         return;

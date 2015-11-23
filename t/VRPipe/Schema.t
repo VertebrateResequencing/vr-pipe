@@ -134,7 +134,7 @@ my ($r) = @{ $graph->related($lib1, undef, undef, { type => 'sequenced' })->{rel
 is $r->{properties}->{machine}, 'big_one', 'relate_to(properties => {}) worked';
 
 my $closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing');
-like $closest->id, qr/l[12]/, 'closest(outgoing) worked';
+like $closest->id, qr/l[1234]/, 'closest(outgoing) worked';
 my @closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1);
 is_deeply [sort map { $_->id } @closest], ['l1', 'l2', 'l3', 'l4'], 'closest(all) worked';
 @closest = $sample->closest('VRTrack', 'Library', direction => 'outgoing', all => 1, properties => [['center_name', 'sanger']]);
