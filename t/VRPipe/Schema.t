@@ -222,11 +222,11 @@ ok $rel->can("basename"), 'the FSE node is fully functional, with a basename met
 is $rel->property('foo'), 'bar', 'and the property() method works as well, useful for allow_anything properties';
 
 # test some VRPipe-specific things
-my $vrpipe = VRPipe::Schema->create('VRPipe');
-my @paths  = ('/foo/a/cat.txt', '/foo/b/cat.txt', '/foo/a/dog.txt');
-my @files  = $vrpipe->get_or_store_filesystem_paths(\@paths);
-my %got    = map { $vrpipe->filesystemelement_to_path($_) => 1 } @files;
-is_deeply \%got, { '/foo/a/cat.txt' => 1, '/foo/b/cat.txt' => 1, '/foo/a/dog.txt' => 1 }, 'get_or_store_file_paths() and file_to_path() worked correctly';
+my $vrpipe       = VRPipe::Schema->create('VRPipe');
+my @paths        = ('/foo/a/cat.txt', '/foo/b/cat.txt', '/foo/a/dog.txt');
+my @files        = $vrpipe->get_or_store_filesystem_paths(\@paths);
+my @stored_paths = map { $vrpipe->filesystemelement_to_path($_) } @files;
+is_deeply \@stored_paths, ['/foo/a/cat.txt', '/foo/b/cat.txt', '/foo/a/dog.txt'], 'get_or_store_file_paths() and file_to_path() worked correctly';
 my $dog_uuid = $files[2]->uuid;
 my $llama = $vrpipe->move_filesystemelement($files[2], '/foo/b/llama.txt');
 is_deeply [$llama->uuid, $vrpipe->filesystemelement_to_path($llama)], [$dog_uuid, '/foo/b/llama.txt'], 'move_filesystemelement() worked';
