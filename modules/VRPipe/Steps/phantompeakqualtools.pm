@@ -125,6 +125,9 @@ class VRPipe::Steps::phantompeakqualtools extends VRPipe::Steps::r {
     
     method compute_and_add_metadata (ClassName|Object $self: Str $cmd_line, Str :$samtools!) {
         my ($input, $out_dir, $out) = $cmd_line =~ /-c=(\S+) -odir=(\S+) -out=(\S+)/;
+        unless ($out) {
+            $self->throw("File $input does not have sample_metadata_key given in the options.");
+        }
         my $input_bam = VRPipe::File->get(path => $input);
         my $out_file  = VRPipe::File->get(path => "$out_dir/$out");
         
