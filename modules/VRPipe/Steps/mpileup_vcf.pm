@@ -92,6 +92,7 @@ class VRPipe::Steps::mpileup_vcf extends VRPipe::Steps::bcf_to_vcf {
             my $post_filter     = $options->{post_calling_vcftools};
             my $sfm             = $options->{vcf_sample_from_metadata};
             my $idx_output      = $options->{index_output_vcf};
+            $post_filter =~ s/\$bcftools/$bcftools/g;
             
             my $reference_fasta = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $reference_fasta->is_absolute;
