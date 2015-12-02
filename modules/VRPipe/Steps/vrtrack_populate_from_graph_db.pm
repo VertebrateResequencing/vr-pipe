@@ -63,12 +63,11 @@ class VRPipe::Steps::vrtrack_populate_from_graph_db extends VRPipe::Steps::vrtra
     method populate_lane_from_file (ClassName|Object $self: Str :$db!, Int :$file!, Str|Dir :$storage_dir?) {
         $file = VRPipe::File->get(id => $file);
         
-        my $schema = VRPipe::Schema->create("VRPipe");
-        my $graph_file = $schema->get('File', { path => $file->protocolless_path, protocol => $file->protocol });
+        my $schema = VRPipe::Schema->create("VRTrack");
+        my $graph_file = $schema->get_file($file->protocolless_path, $file->protocol);
         $self->throw($file->path . " was not in the graph db") unless $graph_file;
         
         # create/update lane hierarchy
-        $schema = VRPipe::Schema->create("VRTrack");
         my $hierarchy = $schema->get_sequencing_hierarchy($graph_file) || $self->throw($graph_file->path . " had no associated lane");
         my $props;
         while (my ($label, $node) = each %{$hierarchy}) {
@@ -127,7 +126,8 @@ class VRPipe::Steps::vrtrack_populate_from_graph_db extends VRPipe::Steps::vrtra
         
         # create/update mapstats and graphs
         my %plot_files;
-        my ($bs) = sort { $b->date <=> $a->date } $graph_file->related(outgoing => { namespace => "VRTrack", label => "Bam_Stats", max_depth => 4 });
+        my $qc_nodes = $schema->file_qc_nodes(node => $graph_file);
+        my $bs = $qc_nodes->{bam_stats};
         $self->throw("No Bam_Stats node found related to " . $graph_file->path) unless $bs;
         my ($bs_file) = $bs->related(incoming => { type => "summary_stats" });
         $self->throw("No stats file node found related to Bam_Stats node for " . $graph_file->path) unless $bs_file;
