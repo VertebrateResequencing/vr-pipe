@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012 Genome Research Limited.
+Copyright (c) 2012,2015 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -167,8 +167,8 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
             unless ($caption) {
                 # modern steps don't store stuff in ->metadata(); check the
                 # graph db instead
-                $schema ||= VRPipe::Schema->create("VRPipe");
-                my $plot_graph_node = $schema->get('File', { path => $file->path->stringify });
+                $schema ||= VRPipe::Schema->create("VRTrack");
+                my $plot_graph_node = $schema->get_file($file->path->stringify);
                 $caption = $schema->graph->node_property($plot_graph_node, "caption") if $plot_graph_node;
             }
             unless ($caption) {
@@ -182,49 +182,40 @@ class VRPipe::Steps::vrtrack_update_mapstats extends VRPipe::Steps::vrtrack_upda
         my $meta_key_prefix = $targets_mode ? 'targeted_' : '';
         unless (defined $meta->{ $meta_key_prefix . 'bases_mapped_c' }) {
             # check the graph db for the stats
-            $schema ||= VRPipe::Schema->create("VRPipe");
-            my $bam_graph_node = $schema->get('File', { path => $bam_file->path->stringify });
+            $schema ||= VRPipe::Schema->create("VRTrack");
+            my $bam_graph_node = $schema->get_file($bam_file->path->stringify);
             if ($bam_graph_node) {
-                my ($stats_node) = $schema->graph->related_nodes(
-                    $bam_graph_node,
-                    outgoing => {
-                        namespace => 'VRTrack',
-                        label     => 'Bam_Stats',
-                        max_depth => 3
-                    }
-                );
+                my $qc_meta = $schema->vrtrack_metadata(path => $bam_file->path->stringify);
                 
-                if ($stats_node) {
-                    my $graph = $schema->graph;
-                    
-                    $meta->{ $meta_key_prefix . 'filtered_reads' } = $graph->node_property($stats_node, 'filtered sequences');
+                if ($qc_meta && defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
+                    $meta->{ $meta_key_prefix . 'filtered_reads' } = $qc_meta->{'vrtrack_bam_stats_filtered sequences'};
                     #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
-                    $meta->{ $meta_key_prefix . 'reads' }              = $graph->node_property($stats_node, 'sequences') || $graph->node_property($stats_node, 'raw total sequences');
-                    $meta->{ $meta_key_prefix . 'bases' }              = $graph->node_property($stats_node, 'total length');
-                    $meta->{ $meta_key_prefix . 'reads_mapped' }       = $graph->node_property($stats_node, 'reads mapped');
-                    $meta->{ $meta_key_prefix . 'reads_paired' }       = $graph->node_property($stats_node, 'reads paired');
-                    $meta->{ $meta_key_prefix . 'bases_mapped_c' }     = $graph->node_property($stats_node, 'bases mapped (cigar)');
-                    $meta->{ $meta_key_prefix . 'error_rate' }         = $graph->node_property($stats_node, 'error rate');
-                    $meta->{ $meta_key_prefix . 'rmdup_reads_mapped' } = $graph->node_property($stats_node, 'reads mapped after rmdup');
-                    $meta->{ $meta_key_prefix . 'rmdup_bases_mapped' } = $graph->node_property($stats_node, 'bases mapped after rmdup');
-                    $meta->{ $meta_key_prefix . 'bases_trimmed' }      = $graph->node_property($stats_node, 'bases trimmed');
-                    $meta->{ $meta_key_prefix . 'mean_insert_size' }   = $graph->node_property($stats_node, 'insert size average');
-                    $meta->{ $meta_key_prefix . 'sd_insert_size' }     = $graph->node_property($stats_node, 'insert size standard deviation');
+                    $meta->{ $meta_key_prefix . 'reads' }              = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
+                    $meta->{ $meta_key_prefix . 'bases' }              = $qc_meta->{'vrtrack_bam_stats_total length'};
+                    $meta->{ $meta_key_prefix . 'reads_mapped' }       = $qc_meta->{'vrtrack_bam_stats_reads mapped'};
+                    $meta->{ $meta_key_prefix . 'reads_paired' }       = $qc_meta->{'vrtrack_bam_stats_reads paired'};
+                    $meta->{ $meta_key_prefix . 'bases_mapped_c' }     = $qc_meta->{'vrtrack_bam_stats_bases mapped (cigar)'};
+                    $meta->{ $meta_key_prefix . 'error_rate' }         = $qc_meta->{'vrtrack_bam_stats_error rate'};
+                    $meta->{ $meta_key_prefix . 'rmdup_reads_mapped' } = $qc_meta->{'vrtrack_bam_stats_reads mapped after rmdup'};
+                    $meta->{ $meta_key_prefix . 'rmdup_bases_mapped' } = $qc_meta->{'vrtrack_bam_stats_bases mapped after rmdup'};
+                    $meta->{ $meta_key_prefix . 'bases_trimmed' }      = $qc_meta->{'vrtrack_bam_stats_bases trimmed'};
+                    $meta->{ $meta_key_prefix . 'mean_insert_size' }   = $qc_meta->{'vrtrack_bam_stats_insert size average'};
+                    $meta->{ $meta_key_prefix . 'sd_insert_size' }     = $qc_meta->{'vrtrack_bam_stats_insert size standard deviation'};
                     
                     if ($targets_mode) {
                         foreach my $cov (1, 2, 5, 10, 20, 50, 100) {
-                            $meta->{"targeted_bases_of_${cov}X_coverage"} = $graph->node_property($stats_node, "bases of ${cov}X coverage");
+                            $meta->{"targeted_bases_of_${cov}X_coverage"} = $qc_meta->{"vrtrack_bam_stats_bases of ${cov}X coverage"};
                         }
                         #*** not sure what these look like in the samtools stats file
                         # $meta->{targeted_mean_coverage} = $graph->node_property($stats_node, '');
                         # $meta->{targeted_bases_mapped_c} = $graph->node_property($stats_node, '');
                     }
                     
-                    $meta->{bases}           = $graph->node_property($stats_node, 'total length');
-                    $meta->{reads}           = $graph->node_property($stats_node, 'raw total sequences');
-                    $meta->{paired}          = $graph->node_property($stats_node, 'reads properly paired') ? 1 : 0;
-                    $meta->{avg_read_length} = $graph->node_property($stats_node, 'average length');
-                    $meta->{npg_qc_status} = $bam_graph_node->property('manual_qc') ? 1 : 0;
+                    $meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};
+                    $meta->{reads}           = $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
+                    $meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                    $meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
+                    $meta->{npg_qc_status}   = $qc_meta->{'manual_qc'} ? 1 : 0;
                 }
             }
             
