@@ -208,7 +208,7 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
         
         # sort and generate desired output
         my @history;
-        foreach my $group_node_id (sort { $b <=> $a } keys %groups) {
+        foreach my $group_node_id (keys %groups) {
             my $property_nodes            = $groups{$group_node_id};
             my $property_group_properties = $nodes{$group_node_id}->{properties};
             my $properties                = {};
@@ -225,6 +225,10 @@ class VRPipe::Schema::PropertiesWithHistory with VRPipe::SchemaRole {
             }
             push(@history, { properties => $properties, timestamp => $property_group_properties->{timestamp}, group_uuid => $property_group_properties->{uuid} });
         }
+        
+        # we sort on uuid, since node ids can get reused so do not indicate
+        # a timeline, while timestamp is only to the nearest second
+        @history = sort { $b->{group_uuid} cmp $a->{group_uuid} } @history;
         
         return @history;
     }
