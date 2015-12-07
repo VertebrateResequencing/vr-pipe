@@ -236,7 +236,7 @@ class VRPipe::Persistent::Graph {
                     # neo4j server may be down during a backup, so we'll wait a
                     # a few mins for it to come back
                     warn "retrying cypher [$example_cypher] due to: [$code] $message\n";
-                    sleep(2 * $try_num);
+                    sleep(3 * $try_num);
                     next;
                 }
                 
@@ -255,7 +255,7 @@ class VRPipe::Persistent::Graph {
                     warn "retrying cypher [$example_cypher] due to: [$code] $message\n";
                     
                     if ($message =~ /connection/i) {
-                        sleep(2 * $try_num);
+                        sleep(3 * $try_num);
                     }
                     else {
                         sleep(1);
@@ -1041,26 +1041,29 @@ class VRPipe::Persistent::Graph {
         
         my $data;
         foreach my $try_num (1 .. 20) {
-            eval {
-                my $tx = $ua->get($pluginurl => $ua_headers);
-                my $res = $tx->success;
-                unless ($res) {
-                    my $err = $tx->error;
-                    $self->throw("Failed to connect to '$pluginurl': [$err->{code}] $err->{message}");
+            my ($tx, $res);
+            eval { $tx = $ua->get($pluginurl => $ua_headers); };
+            $res = $tx->success if $tx;
+            unless ($res) {
+                my $err  = $tx->error;
+                my $code = $err->{code};
+                $code ||= 'no error code';
+                my $message = $err->{message};
+                $message ||= $@ || '(no message)';
+                
+                if ($message =~ /connection/i) {
+                    # neo4j server may be down during a backup, so we'll wait a
+                    # a few mins for it to come back
+                    warn "retrying [:GET $pluginurl] due to: [$code] $message\n";
+                    sleep(3 * $try_num);
+                    next;
                 }
-                $data = $json->decode($res->body);
-            };
-            if ($@) {
-                if ($try_num == 20) {
-                    die $@;
-                }
-                else {
-                    sleep($try_num * 2);
-                }
+                
+                $self->throw("[$code] [$pluginurl] $message");
             }
-            else {
-                last;
-            }
+            
+            $data = $json->decode($res->body);
+            last;
         }
         
         return $data;
