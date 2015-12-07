@@ -8,7 +8,7 @@ BEGIN {
     use Test::Most tests => 6;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES GATK GATK2 JAVA7)],
-        required_exe => [qw(java samtools bamstreamingmarkduplicates bammarkduplicates)]
+        required_exe => [qw(java samtools bammarkduplicates)]
     );
     use TestPipelines;
 }
@@ -20,7 +20,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels bam_count_covariates bam_recalibrate_quality_scores samtools_merge_and_streaming_mark_duplicates);
+my @expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels bam_count_covariates bam_recalibrate_quality_scores samtools_merge_and_bam_mark_duplicates);
 is_deeply \@s_names, \@expected_step_names, 'the pipelines have the correct steps';
 
 my $res_dir = dir($output_dir, 'resources');
@@ -72,10 +72,9 @@ ok $pipeline = VRPipe::Pipeline->create(name => 'bam_improvement_gatk_v2_merge_a
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-@expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels gatk_base_recalibrator gatk_print_reads_with_bqsr samtools_merge_and_streaming_mark_duplicates);
+@expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels gatk_base_recalibrator gatk_print_reads_with_bqsr samtools_merge_and_bam_mark_duplicates);
 is_deeply \@s_names, \@expected_step_names, 'the pipelines have the correct steps';
 
-# bamstreamingmarkduplicates fails on bam files coming from GATK v2.x bqsr, so with v2.x and above we use bammarkduplicates instead.
 VRPipe::PipelineSetup->create(
     name       => 'bam improvement and merge GATK v2',
     datasource => VRPipe::DataSource->create(
@@ -87,17 +86,15 @@ VRPipe::PipelineSetup->create(
     output_root => $output_dir,
     pipeline    => $pipeline,
     options     => {
-        java_exe                           => $ENV{JAVA7},
-        samtools_exe                       => 'samtools',
-        gatk_path                          => $ENV{GATK2},
-        reference_fasta                    => file(qw(t data pombe_ref.fa))->absolute->stringify,
-        known_indels_for_realignment       => "-known $known_indels",
-        bam_realignment_options            => '-LOD 0.4 -model KNOWNS_ONLY -compress 0',
-        base_recalibrator_options          => "-l INFO -knownSites $known_sites -cov CycleCovariate -cov ContextCovariate",
-        print_reads_options                => '-l INFO',
-        bamstreamingmarkduplicates_exe     => 'bammarkduplicates',
-        bamstreamingmarkduplicates_options => '',
-        cleanup                            => 0,
+        java_exe                     => $ENV{JAVA7},
+        samtools_exe                 => 'samtools',
+        gatk_path                    => $ENV{GATK2},
+        reference_fasta              => file(qw(t data pombe_ref.fa))->absolute->stringify,
+        known_indels_for_realignment => "-known $known_indels",
+        bam_realignment_options      => '-LOD 0.4 -model KNOWNS_ONLY -compress 0',
+        base_recalibrator_options    => "-l INFO -knownSites $known_sites -cov CycleCovariate -cov ContextCovariate",
+        print_reads_options          => '-l INFO',
+        cleanup                      => 0,
     }
 );
 
