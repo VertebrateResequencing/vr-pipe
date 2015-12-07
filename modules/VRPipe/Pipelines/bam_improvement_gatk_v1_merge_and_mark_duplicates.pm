@@ -45,12 +45,12 @@ class VRPipe::Pipelines::bam_improvement_gatk_v1_merge_and_mark_duplicates with 
     
     method step_names {
         (
-            'samtools_add_readgroup',                       #1
-            'gatk_target_interval_creator',                 #2
-            'bam_realignment_around_known_indels',          #3
-            'bam_count_covariates',                         #4
-            'bam_recalibrate_quality_scores',               #5
-            'samtools_merge_and_streaming_mark_duplicates', #6
+            'samtools_add_readgroup',                 #1
+            'gatk_target_interval_creator',           #2
+            'bam_realignment_around_known_indels',    #3
+            'bam_count_covariates',                   #4
+            'bam_recalibrate_quality_scores',         #5
+            'samtools_merge_and_bam_mark_duplicates', #6
         );
     }
     

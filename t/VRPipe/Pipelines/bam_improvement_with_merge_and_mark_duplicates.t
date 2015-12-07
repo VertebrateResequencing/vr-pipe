@@ -5,10 +5,10 @@ use File::Copy;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 5;
+    use Test::Most tests => 6;
     use VRPipeTest (
         required_env => [qw(VRPIPE_TEST_PIPELINES GATK GATK2 JAVA7)],
-        required_exe => [qw(java samtools bamstreamingmarkduplicates)]
+        required_exe => [qw(java samtools bammarkduplicates)]
     );
     use TestPipelines;
 }
@@ -20,7 +20,7 @@ my @s_names;
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-my @expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels bam_count_covariates bam_recalibrate_quality_scores samtools_merge_and_streaming_mark_duplicates);
+my @expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels bam_count_covariates bam_recalibrate_quality_scores samtools_merge_and_bam_mark_duplicates);
 is_deeply \@s_names, \@expected_step_names, 'the pipelines have the correct steps';
 
 my $res_dir = dir($output_dir, 'resources');
@@ -72,33 +72,32 @@ ok $pipeline = VRPipe::Pipeline->create(name => 'bam_improvement_gatk_v2_merge_a
 foreach my $stepmember ($pipeline->step_members) {
     push(@s_names, $stepmember->step->name);
 }
-@expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels gatk_base_recalibrator gatk_print_reads_with_bqsr samtools_merge_and_streaming_mark_duplicates);
+@expected_step_names = qw(samtools_add_readgroup gatk_target_interval_creator bam_realignment_around_known_indels gatk_base_recalibrator gatk_print_reads_with_bqsr samtools_merge_and_bam_mark_duplicates);
 is_deeply \@s_names, \@expected_step_names, 'the pipelines have the correct steps';
 
-#Commented this out for now as step 6 fails due to biobambam not accepting the test bam files coming from GATK bqsr (apparently bqsr v2.x does not assign correct type Z to some tags)
-# VRPipe::PipelineSetup->create(
-#     name       => 'bam improvement and merge GATK v2',
-#     datasource => VRPipe::DataSource->create(
-#         type    => 'fofn_with_metadata',
-#         method  => 'grouped_by_metadata',
-#         source  => $fofn_file->path->stringify,
-#         options => { metadata_keys => 'library' }
-#     ),
-#     output_root => $output_dir,
-#     pipeline    => $pipeline,
-#     options     => {
-#         java_exe                    => $ENV{JAVA7},
-#         samtools_exe                => 'samtools',
-#         gatk_path                   => $ENV{GATK2},
-#         reference_fasta             => file(qw(t data pombe_ref.fa))->absolute->stringify,
-#         known_indels_for_realignment => "-known $known_indels",
-#         bam_realignment_options      => '-LOD 0.4 -model KNOWNS_ONLY -compress 0',
-#         base_recalibrator_options    => "-l INFO -knownSites $known_sites -cov ReadGroupCovariate -cov QualityScoreCovariate -cov CycleCovariate -cov ContextCovariate",
-#         print_reads_options          => '-l INFO',
-#         cleanup                     => 0,
-#     }
-# );
+VRPipe::PipelineSetup->create(
+    name       => 'bam improvement and merge GATK v2',
+    datasource => VRPipe::DataSource->create(
+        type    => 'fofn_with_metadata',
+        method  => 'grouped_by_metadata',
+        source  => $fofn_file->path->stringify,
+        options => { metadata_keys => 'library' }
+    ),
+    output_root => $output_dir,
+    pipeline    => $pipeline,
+    options     => {
+        java_exe                     => $ENV{JAVA7},
+        samtools_exe                 => 'samtools',
+        gatk_path                    => $ENV{GATK2},
+        reference_fasta              => file(qw(t data pombe_ref.fa))->absolute->stringify,
+        known_indels_for_realignment => "-known $known_indels",
+        bam_realignment_options      => '-LOD 0.4 -model KNOWNS_ONLY -compress 0',
+        base_recalibrator_options    => "-l INFO -knownSites $known_sites -cov CycleCovariate -cov ContextCovariate",
+        print_reads_options          => '-l INFO',
+        cleanup                      => 0,
+    }
+);
 
-# ok handle_pipeline(), 'bam_improvement_gatk_v2_merge_and_mark_duplicates pipeline ran okay';
+ok handle_pipeline(), 'bam_improvement_gatk_v2_merge_and_mark_duplicates pipeline ran okay';
 
 finish;
