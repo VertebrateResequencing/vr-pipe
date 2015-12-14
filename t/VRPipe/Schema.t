@@ -4,7 +4,7 @@ use warnings;
 use Path::Class;
 
 BEGIN {
-    use Test::Most tests => 168;
+    use Test::Most tests => 169;
     use VRPipeTest;
     use_ok('VRPipe::Schema');
     use_ok('VRPipe::File');
@@ -493,5 +493,14 @@ is_deeply $vrtrack_meta, $expected_vrtrack_meta, 'vrtrack_metadata() worked when
 $vrfile = VRPipe::File->create(path => '/seq/8/8.bam');
 $vrfile->add_metadata({ sql_meta => 'sql_value' });
 is_deeply $vrfile->metadata(undef, include_vrtrack => 1), { %{$vrtrack_meta}, sql_meta => 'sql_value' }, 'VRPipe::File->metadata(undef, include_vrtrack => 1) worked';
+
+# we had a bug where very many file gets would fall over; test that now
+@paths = ();
+for (1 .. 2000) {
+    push(@paths, "/a/really/quite/deeply/nested/directory/structure/holding/file/outputs/$_.txt");
+}
+@files = $vrpipe->get_or_store_filesystem_paths(\@paths);
+@stored_paths = map { $vrpipe->filesystemelement_to_path($_) } @files;
+is_deeply \@stored_paths, \@paths, 'get_or_store_file_paths() and file_to_path() worked correctly given very many files';
 
 exit;

@@ -242,30 +242,49 @@ class VRPipe::Schema::VRPipe with VRPipe::SchemaRole {
     # paths, indicating the files are not on the local filesystem.
     method get_or_store_filesystem_paths (ClassName|Object $self: ArrayRef[Str|File] $paths!, Str :$protocol?, Bool :$return_cypher = 0, Bool :$only_get = 0) {
         my @abs_paths;
+        my @path_sets;
+        my $path_set        = [];
+        my $path_set_length = 0;
         foreach my $path (@$paths) {
             my $file       = file($path);
             my @components = $file->components();
             $self->throw("$path must be absolute") unless shift(@components) eq '';
             push(@abs_paths, $path);
+            
+            $path_set_length += length($path);
+            if ($path_set_length <= 2000) {
+                push(@$path_set, $path);
+            }
+            else {
+                push(@path_sets, $path_set);
+                $path_set        = [$path];
+                $path_set_length = length($path);
+            }
+        }
+        if (@$path_set) {
+            push(@path_sets, $path_set);
         }
         
-        my $root          = $self->protocol_to_root($protocol);
-        my $escaped_root  = uri_escape($root);
-        my $escaped_paths = uri_escape(join('///', @abs_paths));
-        
-        my $db = $graph->_global_label;
+        my $root         = $self->protocol_to_root($protocol);
+        my $escaped_root = uri_escape($root);
+        my $db           = $graph->_global_label;
         my @nodes;
         my %node_path_to_index;
-        foreach my $node ($graph->_call_vrpipe_neo4j_plugin_and_parse("/get_or_store_filesystem_paths/$db/$escaped_root/$escaped_paths?only_get=$only_get", namespace => 'VRPipe', label => 'FileSystemElement')) {
-            bless $node, "VRPipe::Schema::VRPipe::FileSystemElement";
-            $node->{root_basename} = $protocol || 'file:/';
-            my $pro = 'file';
-            if ($protocol) {
-                ($pro) = $protocol =~ /^([^:]+):.*/;
+        
+        foreach $path_set (@path_sets) {
+            my $escaped_paths = uri_escape(join('///', @$path_set));
+            
+            foreach my $node ($graph->_call_vrpipe_neo4j_plugin_and_parse("/get_or_store_filesystem_paths/$db/$escaped_root/$escaped_paths?only_get=$only_get", namespace => 'VRPipe', label => 'FileSystemElement')) {
+                bless $node, "VRPipe::Schema::VRPipe::FileSystemElement";
+                $node->{root_basename} = $protocol || 'file:/';
+                my $pro = 'file';
+                if ($protocol) {
+                    ($pro) = $protocol =~ /^([^:]+):.*/;
+                }
+                $node->{pro} = $pro;
+                push(@nodes, $node);
+                $node_path_to_index{ $node->{properties}->{path} } = $#nodes;
             }
-            $node->{pro} = $pro;
-            push(@nodes, $node);
-            $node_path_to_index{ $node->{properties}->{path} } = $#nodes;
         }
         
         # nodes are returned via hash from plugin, so order has been lost, but
