@@ -41,6 +41,11 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 'samtools'
             ),
+            bam_reheader_overwrite_RGline => VRPipe::StepOption->create(
+                description   => 'by default bam_reheader step constructs a new RG line from file metadata (assuming lanelet bams). set this option to 0 to override the default and keep the original RG line(s)',
+                optional      => 1,
+                default_value => 1
+            ),
             header_comment_file => VRPipe::StepOption->create(description => 'path to your file containing SAM comment lines to include in the header', optional => 1)
         };
     }
@@ -79,12 +84,14 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
             my $options   = $self->options;
             my $samtools  = $options->{samtools_exe};
             my $dict_path = $self->inputs->{dict_file}->[0]->path;
-            my $comment   = '';
+            my $args      = '';
             if ($options->{header_comment_file}) {
                 my $comment_path = file($options->{header_comment_file});
                 $self->throw("header_comment_file must be an absolute path if it is supplied") unless $comment_path->is_absolute;
-                $comment .= ", comment => q[$comment_path]";
+                $args .= ", comment => q[$comment_path]";
             }
+            my $overwrite_RGline = $options->{bam_reheader_overwrite_RGline};
+            $args .= ", overwrite_RGline => q[$overwrite_RGline]";
             
             my $req = $self->new_requirements(memory => 1000, time => 1);
             my $step_state = $self->step_state->id;
@@ -107,7 +114,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
                     temporary => 1
                 );
                 
-                my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]$comment);";
+                my $this_cmd = "use VRPipe::Steps::bam_reheader; VRPipe::Steps::bam_reheader->reheader_and_check(samtools => q[$samtools], dict => q[$dict_path], output => q[$headed_bam_path], step_state => $step_state, bam => q[$bam_path]$args);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$headed_bam_file, $header_file] });
             }
         };
@@ -149,7 +156,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         return 0;          # meaning unlimited
     }
     
-    method reheader_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, Str|File :$bam!, Str|File :$comment?) {
+    method reheader_and_check (ClassName|Object $self: Str|File :$samtools!, Str|File :$dict!, Str|File :$output!, Persistent :$step_state!, Str|File :$bam!, Str|File :$comment?, Str :$overwrite_RGline = 1) {
         # make a nice sam header
         my $header_file = VRPipe::File->get(path => $output . '.header');
         my $header_path = $header_file->path;
@@ -188,7 +195,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         
         # construct the RG lines from the bam metadata if the lane metadata is present
         # otherwise copy the RG lines from the existing header
-        if (defined $existing_meta->{lane} && !($existing_meta->{lane} =~ /,/)) {
+        if (defined $existing_meta->{lane} && !($existing_meta->{lane} =~ /,/) && $overwrite_RGline) {
             print $hfh "\@RG\tID:" . $existing_meta->{lane};
             if (defined $existing_meta->{library}) {
                 print $hfh "\tLB:" . $existing_meta->{library};
