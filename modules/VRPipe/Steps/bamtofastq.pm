@@ -312,6 +312,15 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             $extra_meta{ $out_file->id }->{bases} = $these_bases;
         }
         
+        # trim the existing metadata
+        foreach my $meta_key (keys %$bam_meta) {
+            foreach (qw(bases reads)) {
+                if ($meta_key =~ /$_/) {
+                    delete $bam_meta->{$meta_key};
+                }
+            }
+        }
+        
         # add/correct metadata
         foreach my $out_file (@out_files) {
             my $extra = $extra_meta{ $out_file->id } || next;
@@ -319,7 +328,8 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             $out_file->add_metadata({
                     bases           => $extra->{bases},
                     reads           => $extra->{reads},
-                    avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads})
+                    avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads}),
+                    %{$bam_meta}
                 },
                 replace_data => 1
             );

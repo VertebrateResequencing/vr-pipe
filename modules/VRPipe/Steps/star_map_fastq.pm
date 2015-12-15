@@ -119,47 +119,44 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             foreach my $lane (keys %fastqs) {
                 my @fqs = map { $_->path } @{ $fastqs{$lane} };
                 my $fq_meta = $self->common_metadata($fastqs{$lane});
+                # trim the existing metadata
+                foreach my $meta_key (keys %$fq_meta) {
+                    foreach (qw(bases reads)) {
+                        if ($meta_key =~ /$_/) {
+                            delete $fq_meta->{$meta_key};
+                        }
+                    }
+                }
                 # add metadata and construct readgroup info
                 my $bam_meta = {
                     lane   => $lane,
                     paired => 1,
+                    %{$fq_meta}
                 };
                 my $rg_arg = 'ID:' . $lane;
                 if (defined $fq_meta->{library}) {
                     my $lb = $fq_meta->{library};
-                    $bam_meta->{library} = $lb;
                     $rg_arg .= ' LB:' . $self->command_line_safe_string($lb);
                 }
                 if (defined $fq_meta->{$star_sample}) {
                     my $sm = $fq_meta->{$star_sample};
-                    $bam_meta->{sample} = $sm;
                     $rg_arg .= ' SM:' . $self->command_line_safe_string($sm);
                 }
                 if (defined $fq_meta->{insert_size}) {
                     my $pi = $fq_meta->{insert_size};
-                    $bam_meta->{insert_size} = $pi;
                     $rg_arg .= ' PI:' . sprintf("%0.0f", $pi);
                 }
                 if (defined $fq_meta->{center_name}) {
                     my $cn = $fq_meta->{center_name};
-                    $bam_meta->{center_name} = $cn;
                     $rg_arg .= ' CN:' . $self->command_line_safe_string($cn);
                 }
                 if (defined $fq_meta->{platform}) {
                     my $pl = $fq_meta->{platform};
-                    $bam_meta->{platform} = $pl;
                     $rg_arg .= ' PL:' . $self->command_line_safe_string($pl);
                 }
                 if (defined $fq_meta->{study}) {
                     my $ds = $fq_meta->{study};
-                    $bam_meta->{study} = $ds;
                     $rg_arg .= ' DS:' . $self->command_line_safe_string($ds);
-                }
-                if (defined $fq_meta->{analysis_group}) {
-                    $bam_meta->{analysis_group} = $fq_meta->{analysis_group};
-                }
-                if (defined $fq_meta->{population}) {
-                    $bam_meta->{population} = $fq_meta->{population};
                 }
                 
                 my $bam_file = $self->output_file(output_key => 'bam_files', basename => "Aligned.out.bam", type => 'bam', metadata => $bam_meta);
