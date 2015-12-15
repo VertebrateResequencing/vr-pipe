@@ -301,7 +301,7 @@ class VRPipe::StepState extends VRPipe::Persistent {
             # them
             unless ($only_failed) {
                 foreach my $sof ($self->_output_files) {
-                    #$self->pipelinesetup->log_event("$log_self call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
+                    $self->pipelinesetup->log_event("$log_self call deleting StepOutputFile row for " . $sof->file->path, stepstate => $self->id, dataelement => $self->dataelement->id);
                     $sof->delete;
                 }
             }

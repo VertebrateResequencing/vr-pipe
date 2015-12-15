@@ -321,7 +321,7 @@ sub handle_dataelementstates {
         my $setup = $des->pipelinesetup;
         warn "will trigger setup ", $setup->id, ", de ", $des->dataelement->id, "\n" if $debug;
         my $err = $setup->trigger(dataelement => $des->dataelement, debug => $debug);
-        $im->log("A dataelementstates handler triggered setup " . $setup->id . ", dataelement " . $des->dataelement->id . '.');
+        $im->log("A dataelementstates handler triggered setup " . $setup->id . ", dataelement " . $des->dataelement->id . '.' . ($err ? " (but there was an error: $err)" : ' (and it worked)'));
         
         my $sid     = $setup->id;
         my $step    = $des->completed_steps + 1;
