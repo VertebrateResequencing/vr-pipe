@@ -28,7 +28,6 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::FrontEnd;
 use Path::Class;
-use Text::Table;
 
 my $frontend = VRPipe::FrontEnd->new(
     description => "Get information on files created by VRPipe - what pipeline created them, and what metadata they have.",
@@ -677,14 +676,13 @@ foreach my $fid (sort { $a <=> $b } keys %files) {
                     $m = $meta;
                 }
                 
-                my $t = Text::Table->new();
-                $t->load(map { [$_, ref($m->{$_}) ? ('[' . join(', ', @{ $m->{$_} }) . ']') : ($m->{$_})] } sort keys %$m);
-                
                 my @results;
-                foreach my $line ($t->table) {
-                    push(@results, "\t\t$line");
+                foreach my $key (sort keys %$m) {
+                    my $val = $m->{$key};
+                    $val = '[' . join(', ', @$val) . ']' if ref($val);
+                    push(@results, "\t\t$key => $val");
                 }
-                $result = "\n" . join('', @results);
+                $result = "\n" . join("\n", @results);
             }
         }
         
