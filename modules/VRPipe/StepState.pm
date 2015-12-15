@@ -338,7 +338,10 @@ class VRPipe::StepState extends VRPipe::Persistent {
         
         # now unlink the output files
         foreach my $file (@files_to_unlink) {
-            $file->unlink;
+            my $worked = $file->unlink;
+            unless ($worked) {
+                warn "Could not delete: ", $file->path, "\n";
+            }
         }
         
         unless ($no_trigger) {
