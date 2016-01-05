@@ -118,7 +118,7 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                 );
                 my $gtypex_path = $gtypex_file->path;
                 my $cmd         = qq[$bcftools_exe gtcheck -g $genotypes_file_path $gtcheck_opts $vcf_path > $gtypex_path];
-                $self->dispatch([$cmd, $req, { output_files => [$gtypex_file] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bcftools_gtcheck', 'run_bcftools_gtcheck', [$cmd, $req, { output_files => [$gtypex_file] }]);
             }
         };
     }
@@ -144,6 +144,17 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
     
     method max_simultaneous {
         return 0;
+    }
+    
+    method run_bcftools_gtcheck (ClassName|Object $self: Str $cmd_line) {
+        my ($output_path) = $cmd_line =~ /> (\S+)$/;
+        my $out_file = VRPipe::File->get(path => $output_path);
+        my $out_meta = $out_file->metadata;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        unless ($out_meta->{expected_sample}) {
+            $out_file->unlink;
+            $self->throw("cmd [$cmd_line] failed because output file $output_path does not have the required metadata key expected_sample");
+        }
     }
 }
 
