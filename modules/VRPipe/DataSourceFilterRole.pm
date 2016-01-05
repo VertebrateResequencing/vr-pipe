@@ -127,24 +127,15 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
             my $passes = 0;
             foreach my $gf (@$gfs) {
                 my ($namespace, $label, $prop, $value) = @$gf;
-                my @nodes = $file_node->closest($namespace, $label, direction => 'incoming', all => 1, $value ? (properties => [[$prop, $value]]) : ());
+                my $node = $file_node->closest($namespace, $label, direction => 'incoming', all => 0, $value ? (properties => [[$prop, $value]]) : ());
                 #*** this could be optimised by grouping on $label and passing multiple properties at once...
                 
-                if (@nodes) {
+                if ($node) {
                     unless ($value) {
-                        # we didn't restrict nodes to those that have $prop set
-                        # so that we can now test all the nodes to see if they
-                        # either have $prop set to 0, or don't have $prop set at
-                        # all
-                        my $ok = 0;
-                        foreach my $node (@nodes) {
-                            $ok++ unless $graph->node_property($node, $prop);
-                        }
-                        
-                        # we reverse the normal logic and say all nodes must
-                        # have a false/unset value, instead of only 1 node
-                        # having a true value
-                        if ($ok == @nodes) {
+                        # we didn't restrict closest to nodes that have $prop
+                        # set so that we can now test if it has $prop set to 0,
+                        # or don't have $prop set at all
+                        unless ($graph->node_property($node, $prop)) {
                             $passes++;
                         }
                         else {
