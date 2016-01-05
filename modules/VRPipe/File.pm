@@ -588,6 +588,14 @@ class VRPipe::File extends VRPipe::Persistent {
         
         my $worked = $path->remove;
         $self->update_stats_from_disc;
+        
+        # check it didn't fail to work just because it had already been deleted
+        if (!$worked && !$self->e) {
+            if (-e $path->dir) {
+                $worked = 1;
+            }
+        }
+        
         if ($worked) {
             $self->_lines(undef);
             $self->parent(undef);
