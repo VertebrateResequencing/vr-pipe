@@ -318,6 +318,7 @@ foreach my $lane_name (@lane_names) {
     
     @{ $actual_auto_qc_data{$lane_name} }   = sort { $a cmp $b } @{ $actual_auto_qc_data{$lane_name} };
     @{ $expected_auto_qc_data{$lane_name} } = sort { $a cmp $b } @{ $expected_auto_qc_data{$lane_name} };
+    splice(@{ $expected_auto_qc_data{$lane_name} }, 9, 0, "NPG QC status check:\tFAILED\t # The lane failed the NPG QC check, so we auto-fail as well since this data will not be auto-submitted to EGA/ENA.\n");
 }
 
 is_deeply \%actual_auto_qc_data, \%expected_auto_qc_data, 'auto qc pipeline generated the expected autoqc on vrtrack showing why the lanes passed';
