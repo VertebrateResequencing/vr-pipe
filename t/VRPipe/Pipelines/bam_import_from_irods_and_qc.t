@@ -36,16 +36,16 @@ my $results = 0;
 foreach my $element (@{ get_elements($ds) }) {
     $results++;
 }
-is $results, 4, 'got correct number of bams from irods datasource';
+is $results, 4, 'got correct number of crams from irods datasource';
 
 my $in_db = 0;
 my $vr_file;
 my $irods_test_data_dir = '/uk10k/home/sb10#Sanger1/vrpipe_irods_test_data';
 foreach my $basename ('9417_4#1.MT.cram', '9417_4#2.MT.cram', '9417_4#3.MT.cram', '9417_4#4.MT.cram') {
-    $vr_file = $schema->get_file("$irods_dir/$irods_test_data_dir/$basename");
+    $vr_file = $schema->get_file("$irods_dir$irods_test_data_dir/$basename");
     $in_db++ if $vr_file;
 }
-is $in_db, 4, 'the bams are in the graph database';
+is $in_db, 4, 'the crams are in the graph database';
 
 my $related = $schema->get_sequencing_hierarchy($vr_file);
 my @expected_related = ('9417_4#4.MT', 6784054, 'MEK_res_4', 10090, 2547, 'M');
