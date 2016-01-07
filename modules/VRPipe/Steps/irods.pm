@@ -182,15 +182,14 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # correct permissions, just in case
         chmod 0664, $dest;
         
-        my $meta;
+        my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
         if ($converted_cram_to_bam) {
             # we can't confirm based on md5, so check based on num records
             # (this number may not exist outside Sanger, and within Sanger it
             #  does not include secondary or supplementary reads, so we do no
             #  check if not present and need greater than or equal the
             #  number of reads expected)
-            my $actual = $dest_file->num_records;
-            $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+            my $actual   = $dest_file->num_records;
             my $expected = $meta->{total_reads};
             if ($expected && ($expected > $actual)) {
                 $dest_file->unlink;
@@ -206,9 +205,16 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
         }
         
+        if (defined $meta->{reads} && defined $meta->{total_reads} && $meta->{reads} != $meta->{total_reads}) {
+            if (!$add_metadata) {
+                $dest_file->add_metadata({ reads => $meta->{total_reads} }, replace_data => 1);
+            }
+            else {
+                $meta->{reads} = $meta->{total_reads};
+            }
+        }
+        
         if ($add_metadata) {
-            $meta ||= $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
-            
             # correct the md5 if we converted the file
             if ($converted_cram_to_bam && defined $meta->{md5}) {
                 $dest_file->update_md5();
