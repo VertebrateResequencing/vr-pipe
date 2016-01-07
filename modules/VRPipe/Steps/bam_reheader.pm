@@ -333,7 +333,7 @@ class VRPipe::Steps::bam_reheader with VRPipe::StepRole {
         $headed_bam_file->update_stats_from_disc(retries => 3);
         my $actual_lines = $headed_bam_file->lines;
         
-        if ($actual_lines == $expected_lines) {
+        if ($actual_lines >= $expected_lines) {
             return 1;
         }
         elsif ($reads) {
