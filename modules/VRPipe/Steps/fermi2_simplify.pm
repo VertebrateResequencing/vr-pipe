@@ -66,14 +66,21 @@ class VRPipe::Steps::fermi2_simplify with VRPipe::StepRole {
                 $prefix =~ s/\.(fq|fastq)(\.gz)?//;
                 my $simple_unitigs = $self->output_file(output_key => 'simplified_unitigs', basename => "$prefix.fq.gz", type => 'fq', metadata => $utigs->metadata);
                 my $this_cmd = "$fermi2_exe simplify $fermi2_opts " . $utigs->path . " | gzip -1 > " . $simple_unitigs->path;
-                $self->dispatch([$this_cmd, $req, { output_files => [$simple_unitigs] }]);
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::fermi2_simplify', 'simplify_and_check', [$this_cmd, $req, { output_files => [$simple_unitigs] }]);
             }
         };
     }
     
     method outputs_definition {
         return {
-            simplified_unitigs => VRPipe::StepIODefinition->create(type => 'fq', description => 'fastq file containing the fermi2 simplified unitigs', max_files => -1),
+            simplified_unitigs => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                max_files   => -1,
+                description => 'fastq file containing the fermi2 simplified unitigs',
+                metadata    => {
+                    reads => 'total number of reads (sequences)',
+                }
+            ),
         };
     }
     
@@ -86,7 +93,26 @@ class VRPipe::Steps::fermi2_simplify with VRPipe::StepRole {
     }
     
     method max_simultaneous {
-        return 0;            # meaning unlimited
+        return 0;          # meaning unlimited
+    }
+    
+    method simplify_and_check (ClassName|Object $self: Str $cmd_line) {
+        my ($fq_path) = $cmd_line =~ /> (\S+)$/;
+        $fq_path || $self->throw("cmd_line [$cmd_line] was not contructed as expected");
+        
+        my $fq_file = VRPipe::File->get(path => $fq_path);
+        
+        $fq_file->disconnect;
+        system($cmd_line) && $self->throw("failed to run [$cmd_line]");
+        
+        $fq_file->update_stats_from_disc(retries => 3);
+        my $reads = $fq_file->num_records;
+        
+        $self->throw("cmd [$cmd_line] failed because $reads records were generated in the output fastq file") unless $reads;
+        
+        $fq_file->add_metadata({ reads => $reads }, replace_data => 1);
+        
+        return 1;
     }
 }
 

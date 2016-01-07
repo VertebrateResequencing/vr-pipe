@@ -64,7 +64,7 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                     analysis_group => 'project analysis group',
                     population     => 'sample population',
                     # bases          => 'total number of base pairs',
-                    # reads          => 'total number of reads (sequences)',
+                    reads    => 'total number of reads (sequences)',
                     optional => ['lane', 'library', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
             )
@@ -103,8 +103,8 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
             
             my $idx = 0;
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
-                my $fq_meta  = $fq->metadata;
-                my $bam_meta = {};
+                my $fq_meta = $fq->metadata;
+                my $bam_meta = { reads => $fq_meta->{reads} };
                 
                 # add metadata and construct RG line
                 my $rg_line;
@@ -186,7 +186,7 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                     # analysis_group => 'project analysis group',
                     # population     => 'sample population',
                     # bases          => 'total number of base pairs',
-                    # reads          => 'total number of reads (sequences)',
+                    reads => 'total number of reads (sequences)',
                     # optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
             )

@@ -47,6 +47,7 @@ VRPipe::PipelineSetup->create(
         fermi2_assemble_options                 => '-l 71 -m 113 -t 4',
         fermi2_simplify_options                 => '',
         cleanup                                 => 0,
+        delete_fmd_index                        => 0,
         bfc_error_correct_memory                => 2000,
         bfc_filter_error_corrected_reads_memory => 2000,
         fmd_index_memory                        => 2000,
