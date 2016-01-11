@@ -143,9 +143,9 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         }
         
         # each start_over() call will have set completed_steps(<something>) on
-        # us, but we need it at the highest step we didn't start_over
-        $self->completed_steps($steps_to_scratch[0] ? ($steps_to_scratch[0] - 1) : 0);
-        $self->update;
+        # us, but we'll set it to the true count based on the stepstates of our
+        # element
+        $self->update_completed_steps;
         
         # If this data element was used as the source of another dataelement, we want to also restart those dataelements
         my @children;
@@ -165,6 +165,7 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         }
         
         $im->unlock($lock_key);
+        $self->update_completed_steps;
         
         # queue ourselves to be triggered again (vrpipe-server will look after
         # this)
@@ -231,6 +232,34 @@ class VRPipe::DataElementState extends VRPipe::Persistent {
         
         my @step_nums = sort { $a <=> $b } keys %step_nums;
         return @step_nums;
+    }
+    
+    method update_completed_steps {
+        my $setup        = $self->pipelinesetup;
+        my $pipeline     = $setup->pipeline;
+        my @step_members = $pipeline->step_members;
+        my $element      = $self->dataelement;
+        
+        my $really_completed = 0;
+        foreach my $member (@step_members) {
+            my ($state) = VRPipe::StepState->search({
+                    stepmember    => $member,
+                    dataelement   => $element,
+                    pipelinesetup => $setup
+                }
+            );
+            
+            if ($state && $state->complete == 1) {
+                $really_completed++;
+            }
+            else {
+                last;
+            }
+        }
+        if ($self->completed_steps != $really_completed) {
+            $self->completed_steps($really_completed);
+            $self->update;
+        }
     }
 }
 

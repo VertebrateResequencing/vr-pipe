@@ -253,9 +253,14 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
         my $im = $self->_in_memory;
         while (my $estates = $pager->next) {
             foreach my $estate (@$estates) {
-                my $element         = $estate->dataelement;
+                my $element = $estate->dataelement;
+                my $esid    = $estate->id;
+                
+                # completed_steps() can be wrong (how?!), so double-check
+                # with the stepstates
+                $estate->update_completed_steps;
+                
                 my $completed_steps = $estate->completed_steps;
-                my $esid            = $estate->id;
                 warn " working on estate $esid, which has completed $completed_steps / $num_steps\n" if $debug;
                 next if $completed_steps == $num_steps;
                 
@@ -272,11 +277,19 @@ class VRPipe::PipelineSetup extends VRPipe::Persistent {
                 # wait until after any currently running start_from_scratch has
                 # finished, then reload ourselves to get the correct completed
                 # steps count
-                my $des_sfs_lock_key = "des_start_from_scratch.$esid";
+                my $des_sfs_lock_key     = "des_start_from_scratch.$esid";
+                my $started_from_scratch = 0;
                 if ($im->locked($des_sfs_lock_key)) {
                     $im->block_until_unlocked($des_sfs_lock_key);
                     $estate->reselect_values_from_db;
+                    $started_from_scratch = 1;
                     redo;
+                }
+                
+                # but again, don't trust completed_steps() after a start_from_scratch
+                if ($started_from_scratch) {
+                    $estate->update_completed_steps;
+                    $completed_steps = $estate->completed_steps;
                 }
                 
                 my $sm_error;

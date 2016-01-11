@@ -129,8 +129,13 @@ else {
             }
             
             if ($failed) {
-                my $pipeline = $setup->pipeline;
+                my $pipeline     = $setup->pipeline;
+                my @step_members = $pipeline->step_members;
                 foreach my $estate (@estates) {
+                    # we want the stepstate for the next incomplete step, but
+                    # we don't trust completed_steps()
+                    $estate->update_completed_steps;
+                    
                     my @sms = VRPipe::StepMember->search({ step_number => ($estate->completed_steps + 1), pipeline => $pipeline->id });
                     
                     my $step_member;
@@ -145,9 +150,7 @@ else {
                     my ($sstate) = VRPipe::StepState->search({ stepmember => $step_member, dataelement => $estate->dataelement, pipelinesetup => $setup });
                     $sstate || next;
                     if ($sstate->complete) {
-                        $estate->completed_steps($estate->completed_steps + 1);
-                        $estate->update;
-                        redo;
+                        $frontend->die_with_error("The completion state of dataelement ", $estate->dataelement->id, " changed while we were looking at it. Try your command again.");
                     }
                     
                     my $found = VRPipe::Submission->search({ retries => $retries, '_failed' => 1, stepstate => $sstate->submission_search_id });
