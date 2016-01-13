@@ -312,15 +312,6 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             $extra_meta{ $out_file->id }->{bases} = $these_bases;
         }
         
-        # trim the existing metadata
-        foreach my $meta_key (keys %$bam_meta) {
-            foreach (qw(bases reads)) {
-                if ($meta_key =~ /$_/) {
-                    delete $bam_meta->{$meta_key};
-                }
-            }
-        }
-        
         # add/correct metadata
         foreach my $out_file (@out_files) {
             my $extra = $extra_meta{ $out_file->id } || next;
@@ -328,8 +319,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             $out_file->add_metadata({
                     bases           => $extra->{bases},
                     reads           => $extra->{reads},
-                    avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads}),
-                    %{$bam_meta}
+                    avg_read_length => sprintf("%0.2f", $extra->{bases} / $extra->{reads})
                 },
                 replace_data => 1
             );
@@ -440,7 +430,7 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
         my $paired     = $meta->{paired};
         my $source_bam = $bam_file->path->stringify;
         my $fastq_meta = { source_bam => $source_bam };
-        foreach my $key (qw(lane insert_size mean_insert_size library sample center_name platform study split_sequence population continent chrom from to individual project species public_name sample_accession_number)) {
+        foreach my $key (qw(lane insert_size mean_insert_size manual_qc library library_id center_name platform platform_unit study study_id study_name study_title study_accession study_accession_number split_sequence population continent chrom from to individual project reference species public_name sample sample_id sample_accession sample_accession_number sample_cohort sample_control sample_consent sample_public_name sample_supplier_name donor_id gender_gender gender_source sample_gender sample_created_date)) {
             if (defined $meta->{$key}) {
                 $fastq_meta->{$key} = $meta->{$key};
             }
