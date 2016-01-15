@@ -253,6 +253,11 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
         
         my $actual_reads = $bam_file->num_records;
         $bam_file->add_metadata({ reads => $actual_reads });
+        my $avg_read_length = $bam_file->metadata->{avg_read_length};
+        if ($avg_read_length) {
+            my $bases = $avg_read_length * $actual_reads;
+            $bam_file->add_metadata({ bases => $bases });
+        }
         
         if ($cmd_line =~ /outSAMunmapped\s+Within/) {
             if ($actual_reads == $expected_reads) {
