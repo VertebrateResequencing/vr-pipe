@@ -110,6 +110,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
             $self->set_cmd_summary(VRPipe::StepCmdSummary->create(exe => 'STAR', version => 0, summary => 'STAR --genomeDir ' . $ref->dir . ' --readFilesIn fastqs ' . $star_map_opts));
             
             my %fastqs;
+            my $paired = 0;
             foreach my $fq (@{ $self->inputs->{fastq_files} }) {
                 my $meta = $fq->metadata;
                 next if ($meta->{paired} == 0); #STAR can only handle the input of 2 paired-end fastqs
@@ -119,6 +120,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 }
                 else {
                     push @{ $fastqs{$lane} }, $fq;
+                    $paired = 1;
                 }
             }
             
@@ -136,7 +138,7 @@ class VRPipe::Steps::star_map_fastq with VRPipe::StepRole {
                 # add metadata and construct readgroup info
                 my $bam_meta = {
                     lane   => $lane,
-                    paired => 1,
+                    paired => $paired,
                     %{$fq_meta}
                 };
                 my $rg_arg = 'ID:' . $lane;
