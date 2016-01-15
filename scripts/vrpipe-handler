@@ -455,7 +455,7 @@ sub handle_submissions {
     # every so often we'll check on our submission to see how it is doing.
     # if we don't have one, we'll grab one from the redis queue
     my $timer_interval = $deployment eq 'production' ? 60 : 5;
-    my ($submission, $job, $job_start_time, $working);
+    my ($submission, $job, $job_start_time, $working, $running_different_req);
     
     my $handled_submissions = 0;
     my $watcher;
@@ -571,7 +571,13 @@ sub handle_submissions {
                     # we do not update $req, so that once this $submission has
                     # finished we should think that we've run out of time and
                     # kill ourselves, keeping vrpipe-server's estimation of how
-                    # many handlers per req are running nice and accurate
+                    # many handlers per req are running nice and accurate.
+                    # However, while we're still running this sub of a different
+                    # req, server will not spawn enough handlers for other new
+                    # subs with our original req, so we need to tell it what's
+                    # going on:
+                    $running_different_req = $submission->id;
+                    $im->enqueue("switched_req." . $req_id, $submission->id);
                 }
                 else {
                     $im->debug("sub " . $submission->id . " job " . $job->id . " hasn't ended yet");
@@ -588,6 +594,11 @@ sub handle_submissions {
         unless ($submission) {
             eval {
                 $im->debug("have no sub");
+                
+                if ($running_different_req) {
+                    $im->dequeue("switched_req." . $req_id, $running_different_req);
+                    undef $running_different_req;
+                }
                 
                 if (time() >= $end_time) {
                     return exit_handler("There is not enough time to start working on a new submission", @watchers);

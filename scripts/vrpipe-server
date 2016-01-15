@@ -682,6 +682,26 @@ sub start_server {
                             }
                         }
                         
+                        # some handlers may have started running for a req_id,
+                        # but are currently running a sub of a different req_id,
+                        # so we need to adjust the req_counts
+                        while (my ($req_id, $count) = each %req_counts) {
+                            foreach my $sub_id ($im->queue("switched_req." . $req_id)) {
+                                my $switched_sub = VRPipe::Submission->get(id => $sub_id);
+                                if ($switched_sub->done || $switched_sub->failed) {
+                                    $im->dequeue("switched_req." . $req_id, $sub_id);
+                                    next;
+                                }
+                                
+                                $count++;
+                                my $other_req_id = $switched_sub->requirements->id;
+                                if (exists $req_counts{$other_req_id}) {
+                                    $req_counts{$other_req_id}--;
+                                }
+                            }
+                            $req_counts{$req_id} = $count;
+                        }
+                        
                         # scale the counts according to $max_subs
                         #*** and eventually, we should have a priority system
                         #    where a particular setup can have higher priority
@@ -879,41 +899,8 @@ sub _get_steplimit {
         $step_limit = $step_limits->{$step_id};
     }
     else {
-        # figure out what the step limit is, if any,
-        # by checking the config of every incomplete
-        # & active setup that uses the step
-        my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
-        if (@setups) {
-            my $step_name = $step->name;
-            foreach my $setup (@setups) {
-                unless (exists $completed_setups->{ $setup->id }) {
-                    $completed_setups->{ $setup->id } = $setup->currently_complete;
-                }
-                next if $completed_setups->{ $setup->id };
-                my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
-                if (!defined $step_limit || $setup_limit < $step_limit) {
-                    $step_limit = $setup_limit;
-                }
-            }
-        }
-        if (!defined $step_limit) {
-            # also check the step itself for a limit
-            $step_limit = $step->max_simultaneous;
-        }
-        $step_limits->{$step_id} = $step_limit || 0;
-        
-        if ($step_limit) {
-            # see how many of this step are currently
-            # running, globally
-            my $pager = VRPipe::Submission->search_paged({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0 }, { join => { stepstate => 'stepmember' }, prefetch => 'job' });
-            my $count = 0;
-            while (my $subs = $pager->next) {
-                foreach my $sub (@$subs) {
-                    $count++ if $sub->job->is_alive;
-                }
-            }
-            $step_counts->{$step_id} = $count;
-        }
+        $step_limit = $step->current_step_limit($step_counts, $completed_setups);
+        $step_limits->{$step_id} = $step_limit;
     }
     
     return $step_limit;
