@@ -735,17 +735,20 @@ sub exit_handler {
 
 sub kill_remaining_children {
     my $ppt = Proc::ProcessTable->new(cache_ttys => 1);
-    my $pgrp;
-    foreach my $p (@{ $ppt->table }) {
-        if ($p->pid == $$) {
-            $pgrp = $p->pgrp;
-            last;
-        }
+    my %all_processes = map { $_->pid => $_ } @{ $ppt->table };
+    
+    my %parents = ($$ => 1);
+    my $parent = $all_processes{$$}->ppid;
+    while ($parent) {
+        $parents{$parent} = 1;
+        $parent = $all_processes{$parent}->ppid;
     }
-    foreach my $p (@{ $ppt->table }) {
+    
+    my $pgrp = $all_processes{$$}->pgrp;
+    foreach my $p (values %all_processes) {
         next unless $p->pgrp == $pgrp;
         my $pid = $p->pid;
-        next if $pid == $$;
+        next if exists $parents{$pid};
         killfam "KILL", $pid;
     }
 }
