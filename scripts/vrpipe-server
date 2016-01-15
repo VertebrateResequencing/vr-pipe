@@ -685,7 +685,10 @@ sub start_server {
                         # some handlers may have started running for a req_id,
                         # but are currently running a sub of a different req_id,
                         # so we need to adjust the req_counts
-                        while (my ($req_id, $count) = each %req_counts) {
+                        foreach my $req_id (keys %req_counts) {
+                            my $count = $req_counts{$req_id};
+                            $count ||= 0; # below we delete keys from %req_counts, so this possible
+                            
                             foreach my $sub_id ($im->queue("switched_req." . $req_id)) {
                                 my $switched_sub = VRPipe::Submission->get(id => $sub_id);
                                 if ($switched_sub->done || $switched_sub->failed) {
@@ -702,7 +705,10 @@ sub start_server {
                                     }
                                 }
                             }
-                            $req_counts{$req_id} = $count;
+                            
+                            if ($count > 0) {
+                                $req_counts{$req_id} = $count;
+                            }
                         }
                         
                         # scale the counts according to $max_subs
