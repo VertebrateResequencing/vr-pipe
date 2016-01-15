@@ -396,6 +396,36 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         return $status || 'UNKNOWN';               # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
     
+    method sid_details (Str $sid, Int $aid) {
+        my $id = $aid ? qq{"$sid\[$aid\]"} : $sid;
+        
+        open(my $bfh, "bjobs -l $id |") || $self->warn("Could not call bjobs -l $id");
+        my $details;
+        if ($bfh) {
+            while (<$bfh>) {
+                if (/[Ss]tarted on <([^>]+)>/) {
+                    $details->{host} = $1;
+                }
+                elsif (/The CPU time used is (\d+) seconds/i) {
+                    $details->{cpu_time} = $1;
+                }
+                elsif (/IDLE_FACTOR\(cputime\/runtime\):\s+(\S+)/) {
+                    $details->{idle_factor} = $1;
+                }
+                elsif (/MEM:\s+([\d\.]+)\s+([GMKT])/) {
+                    $details->{memory} = "$1 ${2}B";
+                }
+                elsif (/PGID: (\d+);\s+PIDs:\s+([\d\s]+)$/) {
+                    $details->{pgid} = $1;
+                    $details->{pids} = [split(/\s+/, $2)];
+                }
+            }
+            close($bfh) || $self->warn("Could not call bjobs -l $id");
+        }
+        
+        return $details;
+    }
+    
     method run_time (PositiveInt $sid, Int $aid) {
         my $id = $aid ? qq{"$sid\[$aid\]"} : $sid; # when aid is 0, it was not a job array
         

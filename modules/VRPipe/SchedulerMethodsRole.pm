@@ -73,6 +73,7 @@ role VRPipe::SchedulerMethodsRole {
     requires 'get_1based_index';
     requires 'kill_sids';
     requires 'sid_status';
+    requires 'sid_details';
     requires 'command_status';
     requires 'run_time';
     

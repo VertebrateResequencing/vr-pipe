@@ -266,6 +266,10 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
         return $status || 'UNKNOWN'; # *** needs to return a word in a defined vocabulary suitable for all schedulers
     }
     
+    method sid_details (Str $sid, Int $aid) {
+        $self->throw("sid_details not yet implemented for sge scheduler");
+    }
+    
     method run_time (PositiveInt $sid, Int $aid) {
         # sadly something like 'qstat -j $sid.$aid' only gives a submission
         # time, showing info for all members of the array. We'll have to parse

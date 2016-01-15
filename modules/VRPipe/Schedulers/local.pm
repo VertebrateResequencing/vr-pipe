@@ -352,6 +352,10 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
         return $processes ? 'RUN' : 'UNKNOWN';
     }
     
+    method sid_details (Str $sid, Int $aid) {
+        $self->throw("sid_details not yet implemented for local scheduler");
+    }
+    
     method _handler_processes (Str $sid, PositiveInt :$pid?, Bool :$match_pgid?, PositiveInt :$pgid?, Str :$cmd?) {
         my ($ip, $this_pgid) = $self->_sid_to_ip_pgid($sid);
         
