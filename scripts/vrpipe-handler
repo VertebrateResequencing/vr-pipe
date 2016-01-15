@@ -596,7 +596,7 @@ sub handle_submissions {
                 $im->debug("have no sub");
                 
                 if ($running_different_req) {
-                    $im->dequeue("switched_req." . $req_id, $running_different_req);
+                    $im->dequeue("switched_req." . $req_id, [$running_different_req]);
                     undef $running_different_req;
                 }
                 

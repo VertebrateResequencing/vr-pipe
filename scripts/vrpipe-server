@@ -689,7 +689,7 @@ sub start_server {
                             foreach my $sub_id ($im->queue("switched_req." . $req_id)) {
                                 my $switched_sub = VRPipe::Submission->get(id => $sub_id);
                                 if ($switched_sub->done || $switched_sub->failed) {
-                                    $im->dequeue("switched_req." . $req_id, $sub_id);
+                                    $im->dequeue("switched_req." . $req_id, [$sub_id]);
                                     next;
                                 }
                                 
