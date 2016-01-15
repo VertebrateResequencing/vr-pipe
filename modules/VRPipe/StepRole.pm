@@ -1215,6 +1215,48 @@ role VRPipe::StepRole {
         
         $self->result_nodes([$output_file]);
     }
+    
+    method current_step_limit (HashRef $step_counts?, HashRef $completed_setups?) {
+        # figure out what the step limit is, if any, by checking the config of
+        # every incomplete & active setup that uses the step
+        my $step_limit;
+        my $step_id = $self->id;
+        my @setups = VRPipe::PipelineSetup->search({ active => 1, 'step.id' => $step_id }, { join => { 'pipeline' => { 'stepmembers' => 'step' } } });
+        $completed_setups ||= {};
+        if (@setups) {
+            my $step_name = $self->name;
+            foreach my $setup (@setups) {
+                unless (exists $completed_setups->{ $setup->id }) {
+                    $completed_setups->{ $setup->id } = $setup->currently_complete;
+                }
+                next if $completed_setups->{ $setup->id };
+                my $setup_limit = $setup->options->{ $step_name . '_max_simultaneous' } || next;
+                if (!defined $step_limit || $setup_limit < $step_limit) {
+                    $step_limit = $setup_limit;
+                }
+            }
+        }
+        if (!defined $step_limit) {
+            # also check the step itself for a limit
+            $step_limit = $self->max_simultaneous;
+        }
+        $step_limit ||= 0;
+        
+        if ($step_limit && $step_counts) {
+            # see how many of this step are currently
+            # running, globally
+            my $pager = VRPipe::Submission->search_paged({ 'stepmember.step' => $step_id, '_done' => 0, '_failed' => 0 }, { join => { stepstate => 'stepmember' }, prefetch => 'job' });
+            my $count = 0;
+            while (my $subs = $pager->next) {
+                foreach my $sub (@$subs) {
+                    $count++ if $sub->job->is_alive;
+                }
+            }
+            $step_counts->{$step_id} = $count;
+        }
+        
+        return $step_limit;
+    }
 }
 
 1;
