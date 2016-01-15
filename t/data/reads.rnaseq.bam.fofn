@@ -1,0 +1,2 @@
+path	avg_read_length	paired	reads	bases
+t/data/reads.rnaseq.bam	50	1	20000	100000
