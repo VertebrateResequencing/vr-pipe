@@ -697,6 +697,9 @@ sub start_server {
                                 my $other_req_id = $switched_sub->requirements->id;
                                 if (exists $req_counts{$other_req_id}) {
                                     $req_counts{$other_req_id}--;
+                                    if ($req_counts{$other_req_id} < 0) {
+                                        delete $req_counts{$other_req_id};
+                                    }
                                 }
                             }
                             $req_counts{$req_id} = $count;
