@@ -690,8 +690,8 @@ sub start_server {
                             $count ||= 0; # below we delete keys from %req_counts, so this possible
                             
                             foreach my $sub_id ($im->queue("switched_req." . $req_id)) {
-                                my $switched_sub = VRPipe::Submission->get(id => $sub_id);
-                                if ($switched_sub->done || $switched_sub->failed) {
+                                my ($switched_sub) = VRPipe::Submission->search({ id => $sub_id });
+                                if (!$switched_sub || $switched_sub->done || $switched_sub->failed) {
                                     $im->dequeue("switched_req." . $req_id, [$sub_id]);
                                     next;
                                 }
