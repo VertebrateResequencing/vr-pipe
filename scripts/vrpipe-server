@@ -577,7 +577,7 @@ sub start_server {
                                 cmd   => $shcmd,
                                 count => $num_handlers_needed,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
-                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600, cpus => $handler_cpus)
+                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
                             );
                         }
                         
