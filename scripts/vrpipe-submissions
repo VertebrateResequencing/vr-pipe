@@ -217,31 +217,15 @@ foreach my $sub (@subs) {
                 else {
                     my $cmd = $handler_cmd;
                     $cmd =~ s/req_id/$req_id/;
-                    my ($scheduled_cmd_count, $running_sidaids) = $scheduler_obj->command_status(cmd => $cmd);
+                    my ($scheduled_cmd_count, $running_sidaids, $pending_sidaids, $other_sidaids) = $scheduler_obj->command_status(cmd => $cmd);
                     
-                    my ($run, $pend, $other);
-                    foreach my $sid_aid ($running_sidaids) {
-                        my ($sid, $aid) = $sid_aid =~ /^(\d+)\[(\d+)\]/;
-                        
-                        my $status = $scheduler_obj->sid_status($sid, $aid);
-                        if ($status eq 'RUN') {
-                            $run++;
-                        }
-                        elsif ($status eq 'PEND') {
-                            $pend++;
-                        }
-                        else {
-                            $other++;
-                        }
-                    }
-                    
-                    $handlers_running = [$scheduled_cmd_count, $running_sidaids, $run, $pend, $other];
+                    $handlers_running = [$scheduled_cmd_count, $running_sidaids, scalar(@$running_sidaids), scalar(@$pending_sidaids), scalar(@$other_sidaids)];
                     $handler_counts{$req_id} = $handlers_running;
                 }
                 
-                my $sched_running = $handlers_running->[2] || 0;
-                my $sched_pending = $handlers_running->[3] || 0;
-                my $sched_other   = $handlers_running->[4] || 0;
+                my $sched_running = $handlers_running->[2];
+                my $sched_pending = $handlers_running->[3];
+                my $sched_other   = $handlers_running->[4];
                 
                 my $needed;
                 if (exists $req_needed_counts{$req_id}) {
