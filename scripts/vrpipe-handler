@@ -54,11 +54,28 @@ my $cmdline = VRPipe::FrontEnd->new(
         ['datasource=i',       'when --debug is on and you are in --mode datasources, you can make it only look at a given datasource',             { persistent_object => 'DataSource' }],
         ['dataelementstate=i', 'when --debug is on and you are in --mode dataelementstates, you can make it only look at a given dataelementstate', { persistent_object => 'DataElementState' }],
         ['submission=i',       'when --debug is on and you are in --mode submissions, you can make it only look at the given Submission',           { persistent_object => 'Submission' }],
+        ['max_processes|p=i',  'The maximum number of processes to run simultaneously (default is half the number of cores on the machine)'],
     ]
 );
 
+my $max_procs = $cmdline->opts('max_processes');
 my $max_forks = int(Sys::CPU::cpu_count() / 2);
-$max_forks ||= 1;
+if ($max_procs) {
+    # --max_processes specified on command-line
+    # use that to set max_forks unless it is insanely low
+    $max_forks = $max_procs - 1;
+    if ($max_forks <= 2) {
+        $cmdline->error("Specified --max_processes ${max_procs} but that would limit the handler to $max_forks simultaneous forks, which will severely limit function. Setting max_forks to 3 for sanity.");
+        $max_forks = 3;
+    }
+}
+else {
+    # --max_processes not specified, ensure default is at least 3
+    if ($max_forks < 3) {
+        $max_forks = 3;
+    }
+}
+
 my $farm = $cmdline->opts('farm') || $cmdline->die_with_error("--farm is required");
 
 # initialize the VRPipe backend

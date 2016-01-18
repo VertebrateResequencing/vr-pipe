@@ -280,6 +280,8 @@ sub start_server {
     # set up the submission management system if we're supposed to
     my ($farm_server, $farm_watcher, $handler_path, $still_working, $scheduler_watcher, %setup_watchers, %currently_unstalling);
     my $fork_alarm_time = $deployment eq 'production' ? 3600 : 900;
+    my $half_cpus       = int(Sys::CPU::cpu_count()) / 2;
+    my $handler_cpus    = $max_procs ? ($max_procs < 4 ? 4 : $max_procs) : ($half_cpus < 4 ? 4 : $half_cpus);
     if ($farm) {
         # every 30s we'll update which PipelineSetups we'll handle, and also
         # submit handlers to the farm and assign submissions to those handlers
@@ -499,7 +501,7 @@ sub start_server {
                         # to the t directory when testing, we will cd to the git
                         # root first for scheduler that need to
                         my $ds_handler_queue = 'ds_for_handlers.' . $farm;
-                        my $shcmd            = "$handler_path --mode datasources --farm $farm";
+                        my $shcmd            = "$handler_path --mode datasources --farm $farm --max_processes $handler_cpus";
                         my %ds_queued;
                         my %grabbed;
                         my %ds_wanted;
@@ -575,7 +577,7 @@ sub start_server {
                                 cmd   => $shcmd,
                                 count => $num_handlers_needed,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
-                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600)
+                                requirements => VRPipe::Requirements->create(memory => 2900, time => 3600, cpus => $handler_cpus)
                             );
                         }
                         
@@ -593,7 +595,7 @@ sub start_server {
                         
                         $num_handlers_needed = 0;
                         $max_handlers        = 25;
-                        $shcmd               = "$handler_path --mode dataelementstates --farm $farm";
+                        $shcmd               = "$handler_path --mode dataelementstates --farm $farm --max_processes $handler_cpus";
                         if ($triggers_queued) {
                             my ($already_running) = $scheduler->command_status(cmd => $shcmd, max => $max_handlers);
                             if ($already_running) {
@@ -613,7 +615,7 @@ sub start_server {
                                 count      => $num_handlers_needed,
                                 global_max => $max_handlers,
                                 $deployment eq 'testing' ? (cwd => $cwd) : (),
-                                requirements => VRPipe::Requirements->create(memory => 2000, time => 1)
+                                requirements => VRPipe::Requirements->create(memory => 2000, time => 1, cpus => $handler_cpus)
                             );
                         }
                         
