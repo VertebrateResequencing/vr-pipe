@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2011-2012 Genome Research Limited.
+Copyright (c) 2011-2014, 2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -218,19 +218,38 @@ foreach my $sub (@subs) {
                     my $cmd = $handler_cmd;
                     $cmd =~ s/req_id/$req_id/;
                     my ($scheduled_cmd_count, $running_sidaids) = $scheduler_obj->command_status(cmd => $cmd);
-                    $handlers_running = [$scheduled_cmd_count, $running_sidaids];
+                    
+                    my ($run, $pend, $other);
+                    foreach my $sid_aid ($running_sidaids) {
+                        my ($sid, $aid) = $sid_aid =~ /^(\d+)\[(\d+)\]/;
+                        
+                        my $status = $scheduler_obj->sid_status($sid, $aid);
+                        if ($status eq 'RUN') {
+                            $run++;
+                        }
+                        elsif ($status eq 'PEND') {
+                            $pend++;
+                        }
+                        else {
+                            $other++;
+                        }
+                    }
+                    
+                    $handlers_running = [$scheduled_cmd_count, $running_sidaids, $run, $pend, $other];
                     $handler_counts{$req_id} = $handlers_running;
                 }
                 
-                my $sched_running = $handlers_running->[0];
-                
-                my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $scheduler_obj->id, 'pipelinesetup.controlling_farm' => $pending, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, requirements => $req_id }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+                my $sched_running = $handlers_running->[2] || 0;
+                my $sched_pending = $handlers_running->[3] || 0;
+                my $sched_other   = $handlers_running->[4] || 0;
                 
                 my $needed;
                 if (exists $req_needed_counts{$req_id}) {
                     $needed = $req_needed_counts{$req_id};
                 }
                 else {
+                    my $sub_pager = VRPipe::Submission->search_paged({ '_done' => 0, -or => [-and => ['_failed' => 1, retries => { '<' => 3 }], '_failed' => 0], scheduler => $scheduler_obj->id, 'pipelinesetup.controlling_farm' => $pending, 'pipelinesetup.active' => 1, 'dataelement.withdrawn' => 0, requirements => $req_id }, { join => { stepstate => ['pipelinesetup', 'dataelement'] }, prefetch => ['requirements', 'job', { stepstate => { stepmember => 'step' } }] });
+                    
                     while (my $subs = $sub_pager->next(no_resetting => 1)) {
                         foreach my $req_sub (@$subs) {
                             my $sub_id = $req_sub->id;
@@ -296,6 +315,14 @@ foreach my $sub (@subs) {
                         
                         $checked_handlers{$req_id} = [$explained, $sub->id];
                     }
+                }
+                elsif ($sched_pending && $needed > $sched_running) {
+                    $frontend->output("vrpipe-handlers that could run this submission have been submitted to your job scheduler, but $sched_pending are still pending (while $sched_running are running other submissions).");
+                    $explained = 1;
+                }
+                elsif ($sched_other && $needed > $sched_running) {
+                    $frontend->output("vrpipe-handlers that could run this submission have been submitted to your job scheduler, but $sched_other are not running (while $sched_running are running other submissions).");
+                    $explained = 1;
                 }
             }
             
