@@ -466,7 +466,7 @@ class VRPipe::Schedulers::local with VRPipe::SchedulerMethodsRole {
             }
         }
         
-        return ($count, \@running_sid_aids);
+        return ($count, \@running_sid_aids, [], []);
     }
     
     method _cluster_ips (Str $queue?) {

@@ -474,9 +474,12 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
         # ended.
         my $count            = 0;
         my @running_sid_aids = ();
+        my @pending_sid_aids = ();
+        my @other_sid_aids   = ();
         my @to_kill;
         my $job_name_prefix = $self->_job_name($cmd);
         open(my $bfh, "bjobs -w |") || $self->warn("Could not call bjobs -w");
+        
         if ($bfh) {
             while (<$bfh>) {
                 if (my ($sid, $status, $job_name) = $_ =~ /^(\d+)\s+\S+\s+(\S+)\s+\S+\s+\S+\s+\S+\s+($job_name_prefix\S+)/) {
@@ -494,6 +497,12 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
                     elsif ($max && $count > $max) {
                         push(@to_kill, $aid ? qq["$sid_aid"] : $sid);
                     }
+                    elsif ($status eq 'PEND') {
+                        push(@pending_sid_aids, $sid_aid);
+                    }
+                    else {
+                        push(@other_sid_aids, $sid_aid);
+                    }
                 }
             }
             close($bfh) || $self->warn("Could not call bjobs -w");
@@ -503,7 +512,7 @@ class VRPipe::Schedulers::lsf with VRPipe::SchedulerMethodsRole {
             system("bkill @to_kill");
         }
         
-        return ($count, \@running_sid_aids);
+        return ($count, \@running_sid_aids, \@pending_sid_aids, \@other_sid_aids);
     }
 }
 

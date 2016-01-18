@@ -309,9 +309,12 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
         # name, so we parse the -xml output
         my $count            = 0;
         my @running_sid_aids = ();
+        my @pending_sid_aids = ();
+        my @other_sid_aids   = ();
         my @to_kill;
         my $job_name_prefix = $self->_job_name($cmd);
         open(my $qfh, "qstat -g d -xml |") || $self->warn("Could not open pipe to qstat -g d -xml");
+        
         if ($qfh) {
             my ($matching_job_name, $state, $sid, $aid);
             while (<$qfh>) {
@@ -341,6 +344,12 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
                     elsif ($max && $count > $max) {
                         push(@to_kill, $aid ? "$sid.$aid" : $sid);
                     }
+                    elsif ($state eq 'qw' || $state eq 't') {
+                        push(@pending_sid_aids, $sid_aid);
+                    }
+                    else {
+                        push(@other_sid_aids, $sid_aid);
+                    }
                     
                     $matching_job_name = 0;
                     undef $state;
@@ -355,7 +364,7 @@ class VRPipe::Schedulers::sge with VRPipe::SchedulerMethodsRole {
             system("qdel @to_kill");
         }
         
-        return ($count, \@running_sid_aids);
+        return ($count, \@running_sid_aids, \@pending_sid_aids, \@other_sid_aids);
     }
 }
 
