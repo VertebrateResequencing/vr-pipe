@@ -9,11 +9,13 @@ VRPipe::FileType::hts - hts filetype base class
 
 =head1 DESCRIPTION
 
-*** more documentation to come
+Filetype detection is done using Inline C code that uses the htslib library,
+which you need to have compiled and the main directory (containing include and
+lib subdirectories) pointed to by the HTSLIB environment variable.
 
 =head1 AUTHOR
 
-Shane McCarthy <sm15@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
@@ -40,9 +42,14 @@ use VRPipe::Base;
 class VRPipe::FileType::hts with VRPipe::FileTypeRole {
     my $htsfile_exe = file($ENV{HTSLIB}, 'bin', 'htsfile');
     
+    use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{HTSLIB}/include" => LIBS => "-L$ENV{HTSLIB}/lib -lhts -lz" => CCFLAGS => '';
+    
     method hts_file_type {
-        my $path = $self->file;
-        return `$htsfile_exe $path | cut -f2`;
+        my $format = $self->_c_hts_file_type($self->file->stringify);
+        if ($format =~ /^Failed/) {
+            $self->throw($format . $self->file->stringify);
+        }
+        return $format;
     }
     
     method num_records {
@@ -94,6 +101,32 @@ class VRPipe::FileType::hts with VRPipe::FileTypeRole {
             return 0;
         }
     }
+    
+    use Inline C => <<'END_C';
+
+#include "htslib/hfile.h"
+#include "htslib/hts.h"
+
+// code lifted from htslib htsfile.c authored by John Marshall
+
+char* _c_hts_file_type(SV* self, char* path) {
+    htsFormat fmt;
+    hFILE *fp = hopen(path, "r");
+    if (fp == NULL) {
+        return "Failed to open ";
+    }
+    
+    if (hts_detect_format(fp, &fmt) < 0) {
+        hclose_abruptly(fp);
+        return "Failed to detect a format in ";
+    }
+    
+    char *description = hts_format_description(&fmt);
+    return description;
+}
+
+END_C
+
 }
 
 1;
