@@ -894,8 +894,14 @@ class VRPipe::File extends VRPipe::Persistent {
         # if all of them share the same job, return the first one
         my %jobs;
         foreach my $ss (@sss) {
-            foreach my $sub ($ss->submissions) {
-                $jobs{ $sub->job->id }++;
+            # we don't call $ss->submissions, because that doesn't prefetch
+            # the submission's job, and so is too slow
+            if (my $other_state = $ss->same_submissions_as) {
+                $ss = $other_state;
+            }
+            
+            foreach my $jid (VRPipe::Submission->get_column_values('job', { stepstate => $ss->id })) {
+                $jobs{$jid}++;
             }
         }
         while (my ($jid, $count) = each %jobs) {
