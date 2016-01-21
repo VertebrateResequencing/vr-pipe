@@ -517,10 +517,10 @@ role VRPipe::StepRole {
                 # any more)
                 if (!$ignore_s && $check_s && !$inputs_mode) {
                     # double-check incase the step did not update_stats_from_disc
-                    my $actual_s   = $resolved->check_file_size_on_disc();
+                    my $actual_s   = $resolved->check_file_size_on_disc(); # this is one of the slowest parts of the loop
                     my $resolved_s = $resolved->s;
                     if ((defined $actual_s && defined $resolved_s && $actual_s != $resolved_s) || (!defined $actual_s && $resolved_s) || (defined $actual_s && !defined $resolved_s)) {
-                        $resolved->update_stats_from_disc(keep_stat_cache => 1);
+                        $resolved->update_stats_from_disc(keep_stat_cache => 1); #*** if filesystem is wonky, we can stall here and alarm doesn't help :(
                     }
                     $file->update_stats_from_disc(keep_stat_cache => 1) unless $resolved->id == $file->id;
                 }
@@ -616,7 +616,7 @@ role VRPipe::StepRole {
             return ([1], ["'$key' was defined as an output of step " . $self->step_state->stepmember->step_number . " (" . $self->step_state->stepmember->step->name . "), yet no output file was made with that output_key (either the Step is not correctly written, or the database failed to update correctly when the Step was parsed)"]);
         }
         
-        warn "      , will call _missing()\n" if $debug;
+        warn "      will call _missing()\n" if $debug;
         return $self->_missing($hash, $defs);
     }
     
@@ -815,13 +815,54 @@ role VRPipe::StepRole {
         if ($ok) {
             warn "     post_process_sub returned ok, will check missing_output_files\n" if $debug;
             my ($missing, $messages) = $self->missing_output_files;
-            warn "     - will unlink_temp_files\n" if $debug;
-            $stepstate->unlink_temp_files;
+            
+            # due to possible weirdness in triggering twice at the same time,
+            # one process could have just unlinked all temp files and thought
+            # things were fine, while the next process finds they're missing
+            # and causes a start_over, which we want to avoid. So we special
+            # case all the missing files being temp files
+            my $temp_files = $stepstate->temp_files;
+            if (scalar(@$temp_files) == scalar(@$missing)) {
+                warn "     - it looks like all temp files are missing, will confirm...\n" if $debug;
+                my %temp;
+                foreach my $file (@$temp_files) {
+                    $temp{ $file->path->stringify } = 1;
+                }
+                
+                my $ok = 1;
+                foreach my $missing (@$missing) {
+                    unless (exists $temp{$missing}) {
+                        $ok = 0;
+                        last;
+                    }
+                }
+                
+                if ($ok) {
+                    warn "     - confirmed; will consider this ok\n" if $debug;
+                    $missing = [];
+                }
+                else {
+                    warn "     - will unlink_temp_files, since not all missing are temp files\n" if $debug;
+                    $stepstate->unlink_temp_files;
+                }
+            }
+            else {
+                warn "     - will unlink_temp_files\n" if $debug;
+                $stepstate->unlink_temp_files;
+            }
+            
             if (@$missing) {
                 $stepstate->pipelinesetup->log_event("Calling StepState->start_over because post_process had a problem with the output files: " . join("\n", @$messages), stepstate => $our_ss_id, dataelement => $stepstate->dataelement->id);
                 $stepstate->start_over;
                 $error = "There was a problem with the output files, so the stepstate was started over:\n" . join("\n", @$messages);
-                warn "     - $error\n" if $debug;
+                if ($debug) {
+                    if (length $error > 1000) {
+                        warn "     - There was a problem with the output files (eg. $messages->[0]), so the stepstate was started over\n";
+                    }
+                    else {
+                        warn "     - $error\n";
+                    }
+                }
             }
             else {
                 warn "     no missing output files, will handle file ownership\n" if $debug;
@@ -831,7 +872,9 @@ role VRPipe::StepRole {
                 my $ps    = $stepstate->pipelinesetup;
                 my $group = $ps->unix_group;
                 if ($group) {
+                    my $t    = time();
                     my $hash = $self->outputs;
+                    delete $hash->{temp};
                     my @paths;
                     while (my ($key, $val) = each %$hash) {
                         foreach my $file (@$val) {
@@ -840,13 +883,6 @@ role VRPipe::StepRole {
                             my $oss = $file->output_by(1);
                             $oss || next;
                             next unless $oss->id == $our_ss_id;
-                            
-                            # later on we don't need to do anything to files
-                            # that don't exist, and trying to stat a
-                            # non-existant file causes us to die and possibly
-                            # result in an infinite-restart loop!
-                            $file->reselect_values_from_db;
-                            $file->e || next;
                             
                             my $path = $file->path;
                             if (-l $path) {
@@ -907,6 +943,9 @@ role VRPipe::StepRole {
                         }
                         chmod 0755, keys %dirs; # -rwxrwxr-x
                     }
+                    
+                    my $e = time() - $t;
+                    warn "     handling file ownership took $e seconds\n" if $debug;
                 }
                 
                 return;
