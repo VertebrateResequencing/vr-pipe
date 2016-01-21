@@ -1172,8 +1172,8 @@ sub status {
                                         my %ss;
                                         
                                         my %started;
-                                        foreach my $cols (@{ VRPipe::Submission->get_column_values(['stepstate.id', '_failed', 'job.start_time', 'job.end_time', 'me.id'], \%search_args, \%extra_args) }) {
-                                            my ($ss_id, $failed, $started, $ended, $s_id) = @$cols;
+                                        foreach my $cols (@{ VRPipe::Submission->get_column_values(['stepstate.id', '_failed', 'job.start_time', 'job.end_time'], \%search_args, \%extra_args) }) {
+                                            my ($ss_id, $failed, $started, $ended) = @$cols;
                                             $ss{$ss_id} = 1;
                                             $had_subs = 1;
                                             
