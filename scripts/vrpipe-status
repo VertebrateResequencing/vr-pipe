@@ -70,7 +70,7 @@ elsif ($user) {
 my $r = $cmdline->rest_query($page, $method, $args);
 
 # print out desired info on each setup
-$r = $cmdline->rest_query($page, 'get_setups', { setups => $r->{ids} });
+$r = $cmdline->rest_query($page, 'get_setups', { setups => $r->{ids}, list => $list });
 
 foreach my $data (@$r) {
     # --- Pipeline Setup 'merge mouse exome lung ERP001055 bam files' (id 764 for user sb10) ---

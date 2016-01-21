@@ -1054,6 +1054,7 @@ sub status {
     }
     elsif ($method eq 'get_setups') {
         my $setups = $args->{setups};
+        my $list   = $args->{list};
         if ($setups) {
             my (@setups, %pipeline_details, %step_details, %datasource_details);
             foreach my $id (sort { $a <=> $b } @$setups) {
@@ -1143,142 +1144,147 @@ sub status {
                     else {
                         my $num_incomplete = $incomplete_pager->total_entries;
                         if ($num_incomplete) {
-                            my %status_hash;
-                            my $fully_complete = $num_elements - $num_incomplete;
-                            $status_hash{$num_steps} = $fully_complete if $fully_complete;
-                            my $num_steps_complete = $fully_complete * $num_steps;
-                            while (my $incompletes = $incomplete_pager->next) {
-                                foreach my $es (@$incompletes) {
-                                    my $completed_steps = $es->completed_steps;
-                                    $num_steps_complete += $completed_steps;
-                                    $status_hash{$completed_steps}++;
-                                }
+                            if ($list) {
+                                $setup_data->{status} = 'incomplete';
                             }
-                            
-                            my $had_subs = 0;
-                            my $failed   = 0;
-                            my $unknown  = 0;
-                            foreach my $step_num (sort { $a <=> $b } keys %status_hash) {
-                                my $completed_els = $status_hash{$step_num};
-                                if ($step_num < $num_steps) {
-                                    my $pager = VRPipe::Submission->search_paged({ '_done' => 0, 'stepstate.pipelinesetup' => $setup->id, 'stepmember.step_number' => $step_num + 1, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => ['dataelement', 'stepmember'] }, prefetch => ['job', 'stepstate'] });
-                                    my %sss;
-                                    my %ss;
-                                    while (my $subs = $pager->next(no_resetting => 1)) {
-                                        foreach my $sub (@$subs) {
-                                            $had_subs = 1;
-                                            my $sub_state;
-                                            if ($sub->done) {
-                                                $sub_state = 'complete';
-                                            }
-                                            else {
-                                                $sub_state = $sub->failed ? 'failed' : 'scheduled';
-                                                if ($sub_state eq 'scheduled') {
-                                                    my $job = $sub->job;
-                                                    $sub_state = $job->end_time ? 'processing' : ($job->is_alive ? 'running' : 'pending');
-                                                }
-                                            }
-                                            my $ss_id = $sub->stepstate->id;
-                                            $sss{$sub_state}->{$ss_id}++;
-                                            $ss{$ss_id} = 1;
-                                        }
-                                    }
-                                    
-                                    my $unaccounted_for = $completed_els - scalar(keys %ss);
-                                    if ($unaccounted_for) {
-                                        push(@$progressions, { step => $step_num, num_elements => $unaccounted_for, percent => _percent_rounder((100 / $num_elements) * $unaccounted_for), status => 'unknown', setup => $id });
-                                        $unknown += $unaccounted_for;
-                                    }
-                                    
-                                    foreach my $state (qw(running processing pending failed)) {
-                                        my $ss_hash = $sss{$state} || next;
-                                        my $num_ss = scalar(keys %$ss_hash);
-                                        push(@$progressions, { step => $step_num + 1, num_elements => $num_ss, percent => _percent_rounder((100 / $num_elements) * $num_ss), status => $state, setup => $id });
-                                        $failed += $num_ss if $state eq 'failed';
-                                    }
-                                }
-                                else {
-                                    push(@$progressions, { step => $step_num, num_elements => $completed_els, percent => _percent_rounder((100 / $num_elements) * $completed_els), status => 'complete', setup => $id });
-                                }
-                            }
-                            
-                            my $steps_to_complete = $num_elements * $num_steps;
-                            $setup_data->{progress_percent} = _percent_rounder((100 / $steps_to_complete) * $num_steps_complete);
-                            
-                            my $farm = $setup->controlling_farm;
-                            if ($farm) {
-                                my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
-                                if (!$farm_server) {
-                                    push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm exists.");
-                                }
-                                elsif (!$farm_server->is_alive) {
-                                    #*** this is broken, because dead detection
-                                    # is based on checking ->locked(), which is
-                                    # only asking the local redis server, while
-                                    # the server may be running somewhere
-                                    # physically else and have its own redis
-                                    # server. Detection must be based on a
-                                    # last_lock_time column in db...
-                                    #push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but the server for that farm seems dead.");
-                                }
-                            }
-                            
-                            if ($failed) { #  >= $num_incomplete
-                                #push(@$errors, "It looks like this setup may be STALLED due to repeated failures. Investigate using: vrpipe-submissions --setup " . $setup->id . " --failed");
-                                $setup_data->{status} = 'stalled';
-                            }
-                            elsif ($unknown) {
-                                $setup_data->{status} = 'unknown';
-                            }
-                            
-                            unless ($had_subs) {
-                                # well, what is happening to this setup then? probably we
-                                # have the same submissions as some other setup
-                                $incomplete_pager = $ds->incomplete_element_states($setup, prepare => 0);
-                                my @step_members  = $p->step_members;
-                                my $found_problem = 0;
-                                ESCHECKER: while (my $incompletes = $incomplete_pager->next) {
+                            else {
+                                my %status_hash;
+                                my $fully_complete = $num_elements - $num_incomplete;
+                                $status_hash{$num_steps} = $fully_complete if $fully_complete;
+                                my $num_steps_complete = $fully_complete * $num_steps;
+                                while (my $incompletes = $incomplete_pager->next) {
                                     foreach my $es (@$incompletes) {
-                                        my $element         = $es->dataelement;
                                         my $completed_steps = $es->completed_steps;
-                                        next if $completed_steps == $num_steps;
-                                        
-                                        foreach my $member (@step_members) {
-                                            my $step_number = $member->step_number;
-                                            my ($state) = VRPipe::StepState->search({
-                                                    stepmember    => $member,
-                                                    dataelement   => $element,
-                                                    pipelinesetup => $setup
-                                                }
-                                            );
-                                            next unless $state;
-                                            next if $state->complete;
-                                            
-                                            my @submissions = $state->submissions;
-                                            if (@submissions) {
-                                                my $other_state = $state->same_submissions_as;
-                                                if ($other_state) {
-                                                    my $other_setup = $other_state->pipelinesetup->id;
-                                                    if ($other_setup != $setup->id && $other_state->complete != 1) {
-                                                        push(@$warnings, "This setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
-                                                        $found_problem = 1;
-                                                        last ESCHECKER;
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                # push(@$warnings, "Currently processing step $step_number (" . $member->step->name . "). It's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
-                                                # instead of giving a warning on the setup, user can get the actual error by clicking a progression
-                                                $found_problem = 1;
-                                                last ESCHECKER;
-                                            }
-                                        }
+                                        $num_steps_complete += $completed_steps;
+                                        $status_hash{$completed_steps}++;
                                     }
                                 }
                                 
-                                $setup_data->{status} = 'unknown';
-                                unless ($found_problem) {
-                                    push(@$warnings, "The setup hasn't completed but there are no submissions for it and I can't detect obvious problems; maybe it's in the middle of processing and something will happen soon.");
+                                my $had_subs = 0;
+                                my $failed   = 0;
+                                my $unknown  = 0;
+                                foreach my $step_num (sort { $a <=> $b } keys %status_hash) {
+                                    my $completed_els = $status_hash{$step_num};
+                                    if ($step_num < $num_steps) {
+                                        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, 'stepstate.pipelinesetup' => $setup->id, 'stepmember.step_number' => $step_num + 1, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => ['dataelement', 'stepmember'] }, prefetch => ['job', 'stepstate'] });
+                                        my %sss;
+                                        my %ss;
+                                        while (my $subs = $pager->next(no_resetting => 1)) {
+                                            foreach my $sub (@$subs) {
+                                                $had_subs = 1;
+                                                my $sub_state;
+                                                if ($sub->done) {
+                                                    $sub_state = 'complete';
+                                                }
+                                                else {
+                                                    $sub_state = $sub->failed ? 'failed' : 'scheduled';
+                                                    if ($sub_state eq 'scheduled') {
+                                                        my $job = $sub->job;
+                                                        $sub_state = $job->end_time ? 'processing' : ($job->is_alive ? 'running' : 'pending');
+                                                    }
+                                                }
+                                                my $ss_id = $sub->stepstate->id;
+                                                $sss{$sub_state}->{$ss_id}++;
+                                                $ss{$ss_id} = 1;
+                                            }
+                                        }
+                                        
+                                        my $unaccounted_for = $completed_els - scalar(keys %ss);
+                                        if ($unaccounted_for) {
+                                            push(@$progressions, { step => $step_num, num_elements => $unaccounted_for, percent => _percent_rounder((100 / $num_elements) * $unaccounted_for), status => 'unknown', setup => $id });
+                                            $unknown += $unaccounted_for;
+                                        }
+                                        
+                                        foreach my $state (qw(running processing pending failed)) {
+                                            my $ss_hash = $sss{$state} || next;
+                                            my $num_ss = scalar(keys %$ss_hash);
+                                            push(@$progressions, { step => $step_num + 1, num_elements => $num_ss, percent => _percent_rounder((100 / $num_elements) * $num_ss), status => $state, setup => $id });
+                                            $failed += $num_ss if $state eq 'failed';
+                                        }
+                                    }
+                                    else {
+                                        push(@$progressions, { step => $step_num, num_elements => $completed_els, percent => _percent_rounder((100 / $num_elements) * $completed_els), status => 'complete', setup => $id });
+                                    }
+                                }
+                                
+                                my $steps_to_complete = $num_elements * $num_steps;
+                                $setup_data->{progress_percent} = _percent_rounder((100 / $steps_to_complete) * $num_steps_complete);
+                                
+                                my $farm = $setup->controlling_farm;
+                                if ($farm) {
+                                    my ($farm_server) = VRPipe::FarmServer->search({ farm => $farm });
+                                    if (!$farm_server) {
+                                        push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but no server for that farm exists.");
+                                    }
+                                    elsif (!$farm_server->is_alive) {
+                                        #*** this is broken, because dead detection
+                                        # is based on checking ->locked(), which is
+                                        # only asking the local redis server, while
+                                        # the server may be running somewhere
+                                        # physically else and have its own redis
+                                        # server. Detection must be based on a
+                                        # last_lock_time column in db...
+                                        #push(@$errors, "The setup may be stalled because it is being controlled by the VRPipe server for farm $farm, but the server for that farm seems dead.");
+                                    }
+                                }
+                                
+                                if ($failed) { #  >= $num_incomplete
+                                    #push(@$errors, "It looks like this setup may be STALLED due to repeated failures. Investigate using: vrpipe-submissions --setup " . $setup->id . " --failed");
+                                    $setup_data->{status} = 'stalled';
+                                }
+                                elsif ($unknown) {
+                                    $setup_data->{status} = 'unknown';
+                                }
+                                
+                                unless ($had_subs) {
+                                    # well, what is happening to this setup then? probably we
+                                    # have the same submissions as some other setup
+                                    $incomplete_pager = $ds->incomplete_element_states($setup, prepare => 0);
+                                    my @step_members  = $p->step_members;
+                                    my $found_problem = 0;
+                                    ESCHECKER: while (my $incompletes = $incomplete_pager->next) {
+                                        foreach my $es (@$incompletes) {
+                                            my $element         = $es->dataelement;
+                                            my $completed_steps = $es->completed_steps;
+                                            next if $completed_steps == $num_steps;
+                                            
+                                            foreach my $member (@step_members) {
+                                                my $step_number = $member->step_number;
+                                                my ($state) = VRPipe::StepState->search({
+                                                        stepmember    => $member,
+                                                        dataelement   => $element,
+                                                        pipelinesetup => $setup
+                                                    }
+                                                );
+                                                next unless $state;
+                                                next if $state->complete;
+                                                
+                                                my @submissions = $state->submissions;
+                                                if (@submissions) {
+                                                    my $other_state = $state->same_submissions_as;
+                                                    if ($other_state) {
+                                                        my $other_setup = $other_state->pipelinesetup->id;
+                                                        if ($other_setup != $setup->id && $other_state->complete != 1) {
+                                                            push(@$warnings, "This setup is dependent on work being done by setup $other_setup, so check the status of that to see what's happening.");
+                                                            $found_problem = 1;
+                                                            last ESCHECKER;
+                                                        }
+                                                    }
+                                                }
+                                                else {
+                                                    # push(@$warnings, "Currently processing step $step_number (" . $member->step->name . "). It's possible something has gone wrong with this step and the setup is stalled; you should have received an email with further details in that case.");
+                                                    # instead of giving a warning on the setup, user can get the actual error by clicking a progression
+                                                    $found_problem = 1;
+                                                    last ESCHECKER;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    $setup_data->{status} = 'unknown';
+                                    unless ($found_problem) {
+                                        push(@$warnings, "The setup hasn't completed but there are no submissions for it and I can't detect obvious problems; maybe it's in the middle of processing and something will happen soon.");
+                                    }
                                 }
                             }
                         }
