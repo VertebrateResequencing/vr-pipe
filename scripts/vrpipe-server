@@ -1166,31 +1166,74 @@ sub status {
                                 foreach my $step_num (sort { $a <=> $b } keys %status_hash) {
                                     my $completed_els = $status_hash{$step_num};
                                     if ($step_num < $num_steps) {
-                                        my $pager = VRPipe::Submission->search_paged({ '_done' => 0, 'stepstate.pipelinesetup' => $setup->id, 'stepmember.step_number' => $step_num + 1, 'dataelement.withdrawn' => 0 }, { join => { 'stepstate' => ['dataelement', 'stepmember'] }, prefetch => ['job', 'stepstate'] });
+                                        my %search_args = ('stepstate.pipelinesetup' => $setup->id, 'stepmember.step_number' => $step_num + 1, 'dataelement.withdrawn' => 0, '_done' => 0);
+                                        my %extra_args = (join => ['job', { 'stepstate' => ['dataelement', 'stepmember'] }]);
                                         my %sss;
                                         my %ss;
-                                        while (my $subs = $pager->next(no_resetting => 1)) {
-                                            foreach my $sub (@$subs) {
-                                                $had_subs = 1;
-                                                my $sub_state;
-                                                if ($sub->done) {
-                                                    $sub_state = 'complete';
-                                                }
-                                                else {
-                                                    $sub_state = $sub->failed ? 'failed' : 'scheduled';
-                                                    if ($sub_state eq 'scheduled') {
-                                                        my $job = $sub->job;
-                                                        $sub_state = $job->end_time ? 'processing' : ($job->is_alive ? 'running' : 'pending');
+                                        
+                                        my %started;
+                                        foreach my $cols (@{ VRPipe::Submission->get_column_values(['stepstate.id', '_failed', 'job.start_time', 'job.end_time', 'me.id'], \%search_args, \%extra_args) }) {
+                                            my ($ss_id, $failed, $started, $ended, $s_id) = @$cols;
+                                            $ss{$ss_id} = 1;
+                                            $had_subs = 1;
+                                            
+                                            if ($failed) {
+                                                $sss{failed}->{$ss_id}++;
+                                            }
+                                            else {
+                                                if ($started) {
+                                                    if ($ended) {
+                                                        $sss{processing}->{$ss_id}++;
+                                                    }
+                                                    else {
+                                                        # running? We want to confirm with a
+                                                        # is_alive() call, but don't want to do that
+                                                        # if there's too many running, so we store
+                                                        # for now
+                                                        $started{$ss_id} = 1;
                                                     }
                                                 }
-                                                my $ss_id = $sub->stepstate->id;
-                                                $sss{$sub_state}->{$ss_id}++;
-                                                $ss{$ss_id} = 1;
+                                                elsif (!$ended) {
+                                                    $sss{pending}->{$ss_id}++;
+                                                }
+                                            }
+                                        }
+                                        
+                                        if (keys %started > 1000) {
+                                            # it would take 3+ seconds to check if every job is
+                                            # really running, so we just assume they are
+                                            foreach my $ss_id (keys %started) {
+                                                $sss{running}->{$ss_id}++;
+                                            }
+                                            
+                                            push(@$warnings, "There are too many submissions for setup $id, step $step_num that have started but not yet completed to quickly confirm if they are really running right now\n");
+                                        }
+                                        else {
+                                            my $pager = VRPipe::Submission->search_paged({ %search_args, '_failed' => 0, 'job.start_time' => { '!=', undef }, 'job.end_time' => undef }, { %extra_args, prefetch => ['job', 'stepstate'] });
+                                            
+                                            while (my $subs = $pager->next(no_resetting => 1)) {
+                                                foreach my $sub (@$subs) {
+                                                    # time has passed, so we go through and check
+                                                    # all the states again
+                                                    my $sub_state;
+                                                    if ($sub->done) {
+                                                        $sub_state = 'complete';
+                                                    }
+                                                    else {
+                                                        $sub_state = $sub->failed ? 'failed' : 'scheduled';
+                                                        if ($sub_state eq 'scheduled') {
+                                                            my $job = $sub->job;
+                                                            $sub_state = $job->end_time ? ('processing') : ($job->is_alive ? 'running' : 'pending');
+                                                        }
+                                                    }
+                                                    my $ss_id = $sub->stepstate->id;
+                                                    $sss{$sub_state}->{$ss_id}++;
+                                                }
                                             }
                                         }
                                         
                                         my $unaccounted_for = $completed_els - scalar(keys %ss);
-                                        if ($unaccounted_for) {
+                                        if ($unaccounted_for > 0) {
                                             push(@$progressions, { step => $step_num, num_elements => $unaccounted_for, percent => _percent_rounder((100 / $num_elements) * $unaccounted_for), status => 'unknown', setup => $id });
                                             $unknown += $unaccounted_for;
                                         }
