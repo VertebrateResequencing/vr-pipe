@@ -48,9 +48,12 @@ my $chipseq_setup = VRPipe::PipelineSetup->create(
 
 my @final_files;
 my @sample_names = qw(coxy33_input coxy33_k27ac coxy33_k27me3 coxy33_k4me3);
+my $sub_dir      = 'a';
 foreach my $sample (@sample_names) {
-    push(@final_files, file(output_subdirs(1), '5_bedgraph2bigwig', "${sample}_control_lambda.bdg.bw"));
-    push(@final_files, file(output_subdirs(1), '5_bedgraph2bigwig', "${sample}_treat_pileup.bdg.bw"));
+    push(@final_files, file(output_subdirs(1), '5_bedgraph2bigwig', "$sub_dir/${sample}_treat_pileup.bdg.bw"));
+    ++$sub_dir;
+    push(@final_files, file(output_subdirs(1), '5_bedgraph2bigwig', "$sub_dir/${sample}_control_lambda.bdg.bw"));
+    ++$sub_dir;
 }
 ok handle_pipeline(@final_files), 'chipseq_qc_and_peak_calling pipeline ran ok';
 

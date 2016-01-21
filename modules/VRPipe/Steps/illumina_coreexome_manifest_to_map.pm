@@ -59,6 +59,11 @@ class VRPipe::Steps::illumina_coreexome_manifest_to_map with VRPipe::StepRole {
                 description   => 'path to the sort executable',
                 optional      => 1,
                 default_value => 'sort'
+            ),
+            bcftools_exe => VRPipe::StepOption->create(
+                description   => 'path to the bcftools executable (used by fcr-to-vcf)',
+                optional      => 1,
+                default_value => 'bcftools'
             )
         };
     }
@@ -86,18 +91,19 @@ class VRPipe::Steps::illumina_coreexome_manifest_to_map with VRPipe::StepRole {
             my $fcr_to_vcf = $options->{fcr_to_vcf_exe};
             my $sort       = $options->{sort_exe};
             my $bgzip      = $options->{bgzip_exe};
+            my $bcftools   = $options->{bcftools_exe};
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'fcr-to-vcf',
                     version => 0,
-                    summary => "cat $manifest_file | $fcr_to_vcf -c | $sort -t, -k10,10d -k11,11n | $fcr_to_vcf -M | $bgzip -c > \$output_file"
+                    summary => "cat $manifest_file | $fcr_to_vcf -b $bcftools -c | $sort -t, -k10,10d -k11,11n | $fcr_to_vcf -b $bcftools -M | $bgzip -c > \$output_file"
                 )
             );
             
             my $req = $self->new_requirements(memory => 500, time => 1);
             my $ofile = $self->output_file(output_key => 'map_file', output_dir => $manifest_file->dir, basename => $manifest_file->basename . '.map.tab.gz', type => 'bin', metadata => { manifest_file => $manifest_file })->path;
-            $self->dispatch(["cat $manifest_file | $fcr_to_vcf -c | $sort -t, -k10,10d -k11,11n | $fcr_to_vcf -M | $bgzip -c > $ofile", $req, { block_and_skip_if_ok => 1 }]);
+            $self->dispatch(["cat $manifest_file | $fcr_to_vcf -b $bcftools -c | $sort -t, -k10,10d -k11,11n | $fcr_to_vcf -b $bcftools -M | $bgzip -c > $ofile", $req, { block_and_skip_if_ok => 1 }]);
         };
     }
     
