@@ -99,36 +99,24 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                     summary => "macs2 callpeak -B -t \$ChIP.bam -c \$Control.bam -n \$sample_name \$macs2_options"
                 )
             );
-            
-            my @input_bams = @{ $self->inputs->{bam_files} };
-            my %input_bams;
-            foreach my $bam_file (@input_bams) {
-                my $sample = $bam_file->metadata->{$sample_key};
-                if (exists $input_bams{$sample}) {
-                    $self->throw("two bam files with the same sample $sample metadata: $input_bams{$sample}\t$bam_file not allowed!");
-                }
-                else {
-                    $input_bams{$sample} = $bam_file;
-                }
-            }
-            
             my $control_bam;
-            foreach my $sample (keys %input_bams) {
+            foreach my $input_bam (@{ $self->inputs->{bam_files} }) {
+                my $sample = $input_bam->metadata->{$sample_key};
                 if ($sample =~ /$control_regex/i) {
-                    $control_bam = $input_bams{$sample}->path;
+                    $control_bam = $input_bam->path;
                 }
             }
-            
+            my $sub_dir      = 'a';
             my $r_cmd_prefix = $self->r_cmd_prefix;
             foreach my $input_bam (@{ $self->inputs->{bam_files} }) {
                 my $sample = $input_bam->metadata->{$sample_key};
                 
-                my $xls_file        = $self->output_file(output_key => 'xls_file',  basename => "${sample}_peaks.xls",        type => 'txt', metadata => { $sample_key => $sample });
-                my $narrowPeak_file = $self->output_file(output_key => 'bed_files', basename => "${sample}_peaks.narrowPeak", type => 'txt', metadata => { $sample_key => $sample });
-                my $broadPeak_file  = $self->output_file(output_key => 'bed_files', basename => "${sample}_peaks.broadPeak",  type => 'txt', metadata => { $sample_key => $sample });
-                my $gappedPeak_file = $self->output_file(output_key => 'bed_files', basename => "${sample}_peaks.gappedPeak", type => 'txt', metadata => { $sample_key => $sample });
-                my $R_script        = $self->output_file(output_key => 'r_file',    basename => "${sample}_model.r",          type => 'txt', metadata => { $sample_key => $sample });
-                my $pdf_file        = $self->output_file(output_key => 'plot_file', basename => "${sample}_model.pdf",        type => 'any', metadata => { $sample_key => $sample });
+                my $xls_file        = $self->output_file(sub_dir => $sub_dir, output_key => 'xls_file',  basename => "${sample}_peaks.xls",        type => 'txt', metadata => { $sample_key => $sample });
+                my $narrowPeak_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bed_files', basename => "${sample}_peaks.narrowPeak", type => 'txt', metadata => { $sample_key => $sample });
+                my $broadPeak_file  = $self->output_file(sub_dir => $sub_dir, output_key => 'bed_files', basename => "${sample}_peaks.broadPeak",  type => 'txt', metadata => { $sample_key => $sample });
+                my $gappedPeak_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bed_files', basename => "${sample}_peaks.gappedPeak", type => 'txt', metadata => { $sample_key => $sample });
+                my $R_script        = $self->output_file(sub_dir => $sub_dir, output_key => 'r_file',    basename => "${sample}_model.r",          type => 'txt', metadata => { $sample_key => $sample });
+                my $pdf_file        = $self->output_file(sub_dir => $sub_dir, output_key => 'plot_file', basename => "${sample}_model.pdf",        type => 'any', metadata => { $sample_key => $sample });
                 my @outfiles = ($xls_file, $narrowPeak_file, $broadPeak_file, $gappedPeak_file, $R_script, $pdf_file);
                 
                 my $macs2_options = "";
@@ -146,15 +134,16 @@ class VRPipe::Steps::macs_callpeak extends VRPipe::Steps::r {
                 }
                 
                 #output files when $macs2_options=~/-B|-bdg/:
-                my $bedGraph1_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_pileup.bdg",   type => 'txt', metadata => { $sample_key => $sample });
-                my $bedGraph2_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_control_lambda.bdg", type => 'txt', metadata => { $sample_key => $sample });
-                #my $bedGraph3_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_pvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
-                #my $bedGraph4_file = $self->output_file(output_key => 'bdg_files', basename => "${sample}_treat_qvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
+                my $bedGraph1_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bdg_files', basename => "${sample}_treat_pileup.bdg",   type => 'txt', metadata => { $sample_key => $sample });
+                my $bedGraph2_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bdg_files', basename => "${sample}_control_lambda.bdg", type => 'txt', metadata => { $sample_key => $sample });
+                #my $bedGraph3_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bdg_files', basename => "${sample}_treat_pvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
+                #my $bedGraph4_file = $self->output_file(sub_dir => $sub_dir, output_key => 'bdg_files', basename => "${sample}_treat_qvalue.bdg", type => 'txt', metadata => {$sample_key => $sample});
                 push(@outfiles, ($bedGraph1_file, $bedGraph2_file)); #,$bedGraph3_file,$bedGraph4_file));
                 my $req      = $self->new_requirements(memory => 2000, time => 1);
                 my $bam_path = $input_bam->path;
                 my $this_cmd = "use VRPipe::Steps::macs_callpeak; VRPipe::Steps::macs_callpeak->run_macs2( macs2 => q[$macs2_exe], samtools => q[$samtools_exe], bedtools => q[$bedtools_exe], control => q[$control_bam], bamfile => q[$bam_path], macs2_options => q[$macs2_options], sample => q[$sample], peakfile => q[$peak_file], r_cmd_prefix => q[$r_cmd_prefix]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
+                ++$sub_dir;
             }
         };
     }

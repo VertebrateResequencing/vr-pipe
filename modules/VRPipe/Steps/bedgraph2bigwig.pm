@@ -76,13 +76,14 @@ class VRPipe::Steps::bedgraph2bigwig with VRPipe::StepRole {
                     summary => "$bedGraphToBigWig \$input_bedGraph chrom.sizes \$output_BigWig"
                 )
             );
-            
+            my $sub_dir = 'a';
             foreach my $input_bedGraph (@{ $self->inputs->{bdg_files} }) {
-                my $output_BigWig = $self->output_file(output_key => 'bigwig_files', basename => $input_bedGraph->basename . ".bw", type => 'bin');
+                my $output_BigWig = $self->output_file(sub_dir => $sub_dir, output_key => 'bigwig_files', basename => $input_bedGraph->basename . ".bw", type => 'bin');
                 my @outfiles      = ($output_BigWig);
                 my $this_cmd      = qq[$bedGraphToBigWig ] . $input_bedGraph->path . qq[ $options->{reference_index} ] . $output_BigWig->path . qq [ $options->{bedGraphToBigWig_options}];
                 my $req           = $self->new_requirements(memory => 2000, time => 1);
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bedgraph2bigwig', 'convert_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
+                ++$sub_dir;
             }
         };
     }
