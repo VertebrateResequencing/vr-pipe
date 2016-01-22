@@ -626,16 +626,22 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         # first create a mapping of all sample names to some basic props, and
         # get the control sample
-        my (%name_to_basic_props, $control_sample_name);
+        my (%name_to_basic_props, $control_sample_name, %study_counts);
         while (my ($node_id, $sample_props) = each %$sample_details) {
-            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}];
+            my %in_studies = map { $_ => 1 } split(/,/, $sample_props->{study_ids});
+            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}, \%in_studies];
             
             if ($sample_props->{control} == 1) {
                 if (!$control_sample_name || $sample_props->{qc_status} ne 'failed') {
                     $control_sample_name = $sample_props->{public_name} . '_' . $sample_props->{name};
                 }
             }
+            
+            foreach my $study_id (keys %in_studies) {
+                $study_counts{$study_id}++;
+            }
         }
+        my ($biggest_study) = sort { $study_counts{$b} <=> $study_counts{$a} } keys %study_counts;
         
         my (%done, %cnv_plot_paths);
         foreach my $sample_node_id (sort { $sample_details->{$b}->{control} <=> $sample_details->{$a}->{control} || $sample_details->{$a}->{public_name} cmp $sample_details->{$b}->{public_name} || $sample_details->{$a}->{name} cmp $sample_details->{$b}->{name} } keys %{$sample_details}) {
@@ -643,7 +649,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my $this_name        = $sample_props->{name};
             my $this_public_name = $sample_props->{public_name};
             my $this_control     = $sample_props->{control};
-            my $this_study_ids   = $sample_props->{study_ids};
+            my $this_study_ids   = $name_to_basic_props{$this_name}->[5];
+            my $in_biggest_study = exists $this_study_ids->{$biggest_study};
             my %common_results   = (sample_name => $this_name, sample_public_name => $this_public_name);
             
             # status
@@ -677,13 +684,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     my $other_sample_props = $name_to_basic_props{$other_sample};
                     next if $other_sample_props->[4] eq 'failed';
                     
-                    my $other_study_ids = $other_sample_props->[2];
-                    my $other_public    = $other_sample_props->[0];
-                    if ($other_study_ids ne $this_study_ids) {
+                    my $other_study_ids  = $other_sample_props->[5];
+                    my $other_in_biggest = exists $other_study_ids->{$biggest_study};
+                    my $both_in_biggest  = $in_biggest_study && $other_in_biggest;
+                    my $other_public     = $other_sample_props->[0];
+                    unless ($both_in_biggest) {
                         next unless $other_public eq $this_public_name;
                     }
                     
-                    push(@disc_results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample1_name => $this_name, sample1_public_name => $this_public_name, sample1_control => $this_control, sample1_node_id => $sample_node_id, sample2_name => $other_sample, sample2_public_name => $other_public, sample2_control => $other_sample_props->[1], sample2_study => $other_study_ids, sample2_node_id => $other_sample_props->[3], study_sort => $other_study_ids eq $this_study_ids ? 1 : 2 });
+                    push(@disc_results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample1_name => $this_name, sample1_public_name => $this_public_name, sample1_control => $this_control, sample1_node_id => $sample_node_id, sample2_name => $other_sample, sample2_public_name => $other_public, sample2_control => $other_sample_props->[1], sample2_study => $other_study_ids, sample2_node_id => $other_sample_props->[3], study_sort => $both_in_biggest ? 1 : 2 });
                 }
                 $done{$type}->{$this_name} = 1;
             }
