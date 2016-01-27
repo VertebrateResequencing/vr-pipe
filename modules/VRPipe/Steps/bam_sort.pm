@@ -13,7 +13,7 @@ Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2015 Genome Research Limited.
+Copyright (c) 2015-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -62,6 +62,20 @@ class VRPipe::Steps::bam_sort extends VRPipe::Steps::bam_name_sort {
             my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4 * $mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfault happy
             my $memory = $req->memory;
             
+            my $version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+            my $legacy = 0;
+            if ($version =~ /^0\./ || $version =~ /^1\.1/ || $version =~ /^1\.2/) {
+                $legacy = 1;
+            }
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'samtools',
+                    version => $version,
+                    summary => $legacy ? qq[samtools $opts \$input_path \$out_prefix"] : qq[samtools $opts -T \$tmp_prefix -o \$output_path \$input_path]
+                )
+            );
+            
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $in_base  = $bam->basename;
                 my $out_base = $in_base;
@@ -72,7 +86,7 @@ class VRPipe::Steps::bam_sort extends VRPipe::Steps::bam_name_sort {
                 
                 my $out_prefix = $sort_bam_file->path;
                 $out_prefix =~ s/\.bam$//;
-                my $this_cmd = "$samtools $opts " . $bam->path . " $out_prefix";
+                my $this_cmd = $legacy ? "$samtools $opts " . $bam->path . " $out_prefix" : "$samtools $opts -T $out_prefix -o $out_prefix.bam " . $bam->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_name_sort', 'sort_and_check', [$this_cmd, $req, { output_files => [$sort_bam_file] }]);
             }
         };
