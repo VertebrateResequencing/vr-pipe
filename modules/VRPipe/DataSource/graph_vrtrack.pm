@@ -59,6 +59,13 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         predicate => '_cached',
     );
     
+    has '_cached_msg' => (
+        is        => 'rw',
+        isa       => 'Str',
+        clearer   => '_clear_cached_msg',
+        predicate => '_msg_is_cached',
+    );
+    
     method description {
         return "Use an the VRTrack schema in the graph database to extract information from";
     }
@@ -69,7 +76,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     
     method method_description (Str $method) {
         if ($method eq 'lanelet_crams') {
-            return "An element will correspond to the cram file directly related to one of the lane nodes that is a child of the parent node(s) defined in the source. The group_by_metadata option will first group lanes together if they share parent nodes that you specify here; options are: Library, Sample, Study, Taxon, Gender and Alignment (the reference), and you can specify more than 1, separated by commas (all must be shared by members of a group). The parent_filter option is a string of the form 'Label#propery#value'; multiple filters can be separated by commas (and having the same Label and property multiple times with different values means the actual value must match one of those values). The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify Sample#qc_failed#0 to only have files related to samples that have not been qc failed. The qc_filter option lets you filter on properties of the file itself or on properties of certain qc-related nodes that are children of the file and may be created by some downstream analysis; these are specified in the form 'psuedoLabel#property#operator#value', and multiple of these can be separated by commas. An example might be 'stats#sequences#>#10000,stats#reads QC failed#<#1000,genotype#pass#=#1,verifybamid#=#1,file#manual_qc#=#1,file#vrtrack_qc_passed#=#1' to only use cram files with more than 10000 total sequences and fewer than 1000 qc failed reads (according to the Bam_Stats node), with a genotype status of 'pass' (from the Genotype node), a 'pass' from the verify bam id process (from the Verify_Bam_ID node) and with manual_qc and vrtrack_qc_passed metadata set to 1 on the node representing the cram file itself. If you have an example cram file path, you can see all available labels, properties and values you might want to filter on using 'vrpipe-fileinfo --path /irods/path_to.cram --vrtrack_metadata'";
+            return "An element will correspond to the cram file directly related to one of the lane nodes that is a child of the parent node(s) defined in the source. The group_by_metadata option will first group lanes together if they share parent nodes that you specify here; options are: Library, Sample, Study, Taxon, Gender and Alignment (the reference), and you can specify more than 1, separated by commas (all must be shared by members of a group). The parent_filter option is a string of the form 'Label#propery#value'; multiple filters can be separated by commas (and having the same Label and property multiple times with different values means the actual value must match one of those values). The filter will look for an exact match to a property of a node that the file's node is descended from, eg. specify Sample#qc_failed#0 to only have files related to samples that have not been qc failed. The qc_filter option lets you filter on properties of the file itself or on properties of certain qc-related nodes that are children of the file and may be created by some downstream analysis; these are specified in the form 'psuedoLabel#property#operator#value', and multiple of these can be separated by commas. An example might be 'stats#sequences#>#10000,stats#reads QC failed#<#1000,genotype#pass#=#1,verifybamid#pass#=#1,file#manual_qc#=#1,file#vrtrack_qc_passed#=#1' to only use cram files with more than 10000 total sequences and fewer than 1000 qc failed reads (according to the Bam_Stats node), with a genotype status of 'pass' (from the Genotype node), a 'pass' from the verify bam id process (from the Verify_Bam_ID node) and with manual_qc and vrtrack_qc_passed metadata set to 1 on the node representing the cram file itself. If you have an example cram file path, you can see all available labels, properties and values you might want to filter on using 'vrpipe-fileinfo --path /irods/path_to.cram --vrtrack_metadata'";
         }
         return '';
     }
@@ -79,11 +86,18 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
     }
     
     method _has_changed {
-        my $old      = $self->_changed_marker;
+        my $old = $self->_changed_marker;
+        $old ||= 'undef';
         my $checksum = $self->_graph_query_checksum;
         $self->_changed_marker($checksum);
-        $old || return 1;
-        return ($checksum ne $old) ? 1 : 0;
+        if ($checksum ne $old) {
+            if ($self->_msg_is_cached) {
+                $self->debug_log($self->_cached_msg);
+                $self->_clear_cached_msg;
+            }
+            return 1;
+        }
+        return 0;
     }
     
     method _update_changed_marker {
@@ -127,37 +141,105 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         return $digest;
     }
     
-    use Time::HiRes qw(gettimeofday tv_interval);
-    
     method _get_files {
         return $self->_cached_files if $self->_cached;
         
-        my $source            = $self->source;
-        my $options           = $self->options;
+        my $source  = $self->source;
+        my $options = $self->options;
+        my $method  = $self->method;
+        my $ext;
+        if ($method =~ /cram/) {
+            $ext = '.cram';
+        }
+        else {
+            $self->throw("$method not implemented properly");
+        }
         my $group_by_metadata = $options->{group_by_metadata};
         my $parent_filter     = $options->{parent_filter};
         my $qc_filter         = $options->{qc_filter};
         
-        $self->debug_log("graph_vrtrack datasource will do the graph query for parent node(s) $source\n");
+        warn "graph_vrtrack datasource will do the graph query for parent node(s) $source\n" if $self->debug;
         
-        # get the cram nodes that match source
+        # get the cram nodes that match source by querying the neo4j plugin;
+        # this does everything but grouping
         my $t = time();
-        my $files = $self->_get_cram_nodes($source, $group_by_metadata, $parent_filter);
-        # this doesn't do any grouping, but ensures the files have that kind of
-        # node to group on, and adds necessary group metadata to the file nodes
-        # as $node->{group}. It also adds standard hierarchy metadata as
-        # $node->{hierarchy}. It doesn't return files that fail parent_filter
+        $schema ||= VRPipe::Schema->create("VRTrack");
+        my $search_stats = {};
+        my $files        = $schema->vrtrack_files(
+            $source,
+            $ext,
+            search_stats => $search_stats,
+            $parent_filter ? (parent_filter => $parent_filter) : (),
+            $qc_filter     ? (qc_filter     => $qc_filter)     : ()
+        );
         my $e = time() - $t;
-        $self->debug_log("graph_vrtrack _get_cram_nodes() call took $e seconds\n");
         
-        # do additional filtering if requested
-        if ($qc_filter) {
-            $t = time();
-            $files = $self->_qc_filter($files, $qc_filter);
-            # files now have an additional {qc_meta} hash key containing just
-            # the qc properties we've filtered on
-            $e = time() - $t;
-            $self->debug_log("graph_vrtrack _qc_filter() call took $e seconds for " . scalar(@$files) . " files\n");
+        # now we'll ensure the files have the desired group nodes to group on,
+        # and add necessary group metadata to the file nodes as $node->{group}
+        my $failed_no_group_node = 0;
+        if ($group_by_metadata) {
+            # first figure out what hierarchy keys form our group
+            my %label_to_unique = map { $_->{label} => $_->{unique} } @{ $schema->schema_definitions };
+            my @hierarchy_keys;
+            my %hkey_to_label;
+            foreach my $label (split(/,/, $group_by_metadata)) {
+                my $unique_props = $label_to_unique{$label};
+                
+                $label = lc($label);
+                foreach my $unique (@$unique_props) {
+                    my $hkey = $label . '_' . $unique;
+                    push(@hierarchy_keys, $hkey);
+                    $hkey_to_label{$hkey} = $label;
+                }
+            }
+            
+            # now go through each file and add the group info; we build a new
+            # array in case any don't have a hierarchy node we're supposed to
+            # group on
+            my @group_files;
+            GFILE: foreach my $file (@$files) {
+                my $hierarchy = $file->{hierarchy};
+                
+                my @grouping;
+                foreach my $hkey (@hierarchy_keys) {
+                    my $uval = $hierarchy->{$hkey};
+                    
+                    unless (defined $uval) {
+                        $failed_no_group_node++;
+                        next GFILE;
+                    }
+                    
+                    push(@grouping, $hkey_to_label{$hkey} . ':' . $uval);
+                }
+                
+                $file->{group} = join(';', @grouping);
+                
+                push(@group_files, $file);
+            }
+            
+            if ($failed_no_group_node) {
+                $files = \@group_files;
+            }
+        }
+        
+        # generate a logging message that we'll only print in debug mode here,
+        # or later on if things actually changed
+        my @extra               = ();
+        my $failed_no_cram_file = $search_stats->{'failed no cram file'};
+        @extra = ("$failed_no_cram_file lanes had no cram files") if $failed_no_cram_file;
+        my $failed_qc_filter = $search_stats->{'failed qc filter'};
+        push(@extra, "$failed_qc_filter lanes failed the qc filter") if $failed_qc_filter;
+        my $failed_parent_filter = $search_stats->{'failed parent filter'};
+        push(@extra, "$failed_parent_filter lanes failed the parent filter") if $failed_parent_filter;
+        push(@extra, "$failed_no_group_node lanes could not be grouped so were excluded") if $failed_no_group_node;
+        my $extra = @extra ? ' (' . join(', ', @extra) . ')' : '';
+        my $msg = "graph_vrtrack got $search_stats->{passed} lanes$extra for source $source (search took $e seconds)\n";
+        
+        if ($self->debug) {
+            warn $msg;
+        }
+        else {
+            $self->_cached_msg($msg);
         }
         
         # cache the files
@@ -165,265 +247,6 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         $self->_cached_files($files);
         
         return $files;
-    }
-    
-    method _get_cram_nodes (Str $source, Maybe[Str] $group_by_metadata?, Maybe[Str] $parent_filter?) {
-        my @times;
-        
-        my $t = [gettimeofday];
-        # Study#id#3165
-        my ($label, $property, $vals) = split(/#/, $source);
-        my @vals = split(/,/, $vals);
-        unless ($label && $property && @vals) {
-            $self->throw("Invalid source: $source");
-        }
-        $times[0] += tv_interval($t);
-        $t = [gettimeofday];
-        
-        my %parent_filters;
-        if ($parent_filter) {
-            # Sample#qc_failed#0,Sample#created_date#1426150152
-            foreach my $filter (split(/,/, $parent_filter)) {
-                my ($label, $property, $value) = split(/#/, $filter);
-                $label = lc($label);
-                push(@{ $parent_filters{$label}->{$property} }, $value);
-            }
-        }
-        
-        my %group_on = map { lc($_) => 1 } split(/,/, $group_by_metadata) if $group_by_metadata;
-        $times[1] += tv_interval($t);
-        $t = [gettimeofday];
-        
-        $schema ||= VRPipe::Schema->create("VRTrack");
-        $times[2] += tv_interval($t);
-        
-        my @lanes;
-        foreach my $val (@vals) {
-            my @these_lanes;
-            $t = [gettimeofday];
-            if ($label eq 'Lane') {
-                my $lane = $schema->get('Lane', { $property => $val });
-                @these_lanes = ($lane) if $lane;
-            }
-            elsif ($label eq 'Study') {
-                my $study = $schema->get('Study', { $property => $val });
-                @these_lanes = $study->related(incoming => { type => 'created_for', namespace => 'VRTrack', label => 'Lane' });
-            }
-            else {
-                my $node = $schema->get($label, { $property => $val });
-                $node || next;
-                @these_lanes = $node->closest('VRTrack', 'Lane', direction => 'outgoing', all => 1);
-            }
-            $times[3] += tv_interval($t);
-            $t = [gettimeofday];
-            
-            my $passed               = 0;
-            my $failed_parent_filter = 0;
-            my $failed_no_cram_file  = 0;
-            LANE: foreach my $lane (@these_lanes) {
-                $t = [gettimeofday];
-                if (exists $parent_filters{lane}) {
-                    foreach my $property (keys %{ $parent_filters{lane} }) {
-                        my @values     = @{ $parent_filters{lane}->{$property} };
-                        my $actual_val = $lane->property($property);
-                        
-                        my $ok = 0;
-                        foreach my $value (@values) {
-                            if (!defined $actual_val && !$value) {
-                                # allow a desired 0 to match an unspecified node
-                                # property
-                                $ok++;
-                            }
-                            elsif (defined $actual_val && "$actual_val" eq "$value") {
-                                $ok++;
-                            }
-                        }
-                        
-                        unless ($ok) {
-                            $failed_parent_filter++;
-                            next LANE;
-                        }
-                    }
-                }
-                $times[4] += tv_interval($t);
-                $t = [gettimeofday];
-                
-                my $file;
-                foreach my $lane_file ($lane->related(outgoing => { namespace => 'VRPipe', label => 'FileSystemElement' })) {
-                    if ($lane_file->basename =~ /\.cram$/) {
-                        $file = $lane_file;
-                        last;
-                    }
-                }
-                unless ($file) {
-                    $failed_no_cram_file++;
-                    next;
-                }
-                $times[5] += tv_interval($t); # 40s
-                $t = [gettimeofday];
-                
-                my $hierarchy = $schema->get_sequencing_hierarchy($file);
-                $times[6] += tv_interval($t); # 40s
-                $t = [gettimeofday];
-                
-                my @grouping;
-                foreach my $label (sort keys %$hierarchy) {
-                    my $ti   = [gettimeofday];
-                    my $node = $hierarchy->{$label};
-                    $times[7] += tv_interval($ti);
-                    $ti = [gettimeofday];
-                    
-                    if ($label ne 'lane' && exists $parent_filters{$label}) {
-                        foreach my $property (keys %{ $parent_filters{$label} }) {
-                            my @values     = @{ $parent_filters{$label}->{$property} };
-                            my $actual_val = $node->property($property);
-                            
-                            my $ok = 0;
-                            foreach my $value (@values) {
-                                if (!defined $actual_val && !$value) {
-                                    $ok++;
-                                }
-                                elsif (defined $actual_val && "$actual_val" eq "$value") {
-                                    $ok++;
-                                }
-                            }
-                            
-                            unless ($ok) {
-                                $failed_parent_filter++;
-                                next LANE;
-                            }
-                        }
-                    }
-                    $times[8] += tv_interval($ti);
-                    $ti = [gettimeofday];
-                    
-                    while (my ($key, $val) = each %{ $node->properties }) {
-                        $file->{hierarchy}->{"${label}_$key"} = $val;
-                    }
-                    $times[9] += tv_interval($ti);
-                    $ti = [gettimeofday];
-                    
-                    if (exists $group_on{$label}) {
-                        my $unique_val = $node->unique_property();
-                        push(@grouping, "$label:$unique_val");
-                    }
-                    $times[10] += tv_interval($ti);
-                }
-                $times[11] += tv_interval($t);
-                
-                if (@grouping) {
-                    $file->{group} = join(';', @grouping);
-                }
-                
-                push(@lanes, [$lane, $file]);
-                $passed++;
-            }
-            
-            my @extra = ();
-            @extra = ("$failed_no_cram_file lanes had no cram files") if $failed_no_cram_file;
-            push(@extra, "$failed_parent_filter lanes failed the parent filter") if $failed_parent_filter;
-            my $extra = @extra ? ' (' . join(', ', @extra) . ')' : '';
-            $self->debug_log("graph_vrtrack got $passed lanes$extra for source node $label#$property#$val\n");
-        }
-        
-        $t = [gettimeofday];
-        my @files = ();
-        LANE: foreach my $ref (sort { $a->[0]->unique cmp $b->[0]->unique } @lanes) {
-            push(@files, $ref->[1]);
-        }
-        $times[12] += tv_interval($t);
-        
-        #warn "_get_cram_nodes times: (@times)\n"; # 60s unaccounted for
-        
-        return \@files;
-    }
-    
-    method _qc_filter (ArrayRef $input_files, Str $qc_filter) {
-        # stats#raw total sequences#>#10000,stats#reads QC failed#<#100,genotype#pass#=#1,verifybamid#pass#=#1,file#target#=#1
-        my %filters;
-        my $had_file_filter = 0;
-        foreach my $filter (split(/,/, $qc_filter)) {
-            my ($type, $property, $operator, $value) = split(/#/, $filter);
-            $type = lc($type);
-            if ($operator eq '=' || $operator eq '==') {
-                $operator = 'eq';
-            }
-            
-            if ($type eq 'file') {
-                $had_file_filter = 1;
-                my @ok_files;
-                foreach my $file (@$input_files) {
-                    my $actual_val = $file->property($property);
-                    
-                    if (!defined $actual_val && !$value && $operator eq 'eq') {
-                        push(@ok_files, $file);
-                        next;
-                    }
-                    
-                    next if !defined $actual_val;
-                    
-                    if (eval("$actual_val $operator $value")) {
-                        push(@ok_files, $file);
-                    }
-                }
-                $input_files = \@ok_files;
-                next;
-            }
-            
-            push(@{ $filters{$type} }, [$property, $operator, $value]);
-        }
-        
-        my @files;
-        if (keys %filters) {
-            FILE: foreach my $file (@$input_files) {
-                my $qc_nodes = $schema->file_qc_nodes(node => $file);
-                my %seen_types;
-                while (my ($label, $qc_node) = each %$qc_nodes) {
-                    my $type;
-                    if ($label eq 'bam_stats') {
-                        $type = 'stats';
-                    }
-                    elsif ($label eq 'verify_bam_id') {
-                        $type = 'verifybamid';
-                    }
-                    else {
-                        $type = $label;
-                    }
-                    
-                    my $filters = defined $filters{$type} ? $filters{$type} : next;
-                    $seen_types{$type} = 1;
-                    
-                    foreach my $filter (@$filters) {
-                        my ($property, $operator, $value) = @$filter;
-                        my $actual_val = $qc_node->property($property);
-                        
-                        if (!defined $actual_val && !$value && $operator eq 'eq') {
-                            # the property isn't defined on the qc node, but since
-                            # user wants a false value, we consider this a match
-                            $file->{qc_meta}->{"${type}_$property"} = $actual_val;
-                            next;
-                        }
-                        
-                        next FILE if !defined $actual_val;
-                        
-                        unless (eval("$actual_val $operator $value")) {
-                            next FILE;
-                        }
-                        
-                        $file->{qc_meta}->{"${type}_$property"} = $actual_val;
-                    }
-                }
-                
-                next unless scalar(keys %seen_types) == scalar(keys %filters);
-                
-                push(@files, $file);
-            }
-        }
-        elsif ($had_file_filter) {
-            return $input_files;
-        }
-        
-        return \@files;
     }
     
     method lanelet_crams (Defined :$handle!, Str :$group_by_metadata?, Str :$parent_filter?, Str :$qc_filter?) {
@@ -468,9 +291,6 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         my $files = $self->_get_files();
         $self->_clear_cache;
         
-        #warn "in _all_files after _get_files\n";
-        my @times;
-        
         my @results;
         my $anti_repeat_store = {};
         foreach my $file (@$files) {
@@ -482,18 +302,14 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 }
             }
             
-            my $t             = [gettimeofday];
             my $file_abs_path = delete $new_metadata->{path};
             $file_abs_path ||= $file->protocolless_path;
-            $times[0] += tv_interval($t);
-            $t = [gettimeofday];
             my $protocol = $file->protocol;
-            $times[1] += tv_interval($t); # 40s
-            $t = [gettimeofday];
             
             # consider type to be any if not defined in the file metadata; if
             # not a VRPipe filetype it will be treated as an any
             my $type = delete $new_metadata->{type};
+            $type ||= delete $file->{type};
             $type ||= 'any';
             
             # tweak the metadata for compatibility with certain steps
@@ -512,17 +328,14 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 }
             }
             
-            $times[2] += tv_interval($t);
-            $t = [gettimeofday];
             my ($vrfile) = VRPipe::File->search({ path => $file_abs_path, $protocol ? (protocol => $protocol) : () });
-            $times[3] += tv_interval($t); # 20s
-            $t = [gettimeofday];
             
             my @changed_details;
+            my $has_new_meta = 0;
             if ($vrfile) {
                 # detect metadata changes
                 $vrfile = $vrfile->original;
-                my $current_metadata = $vrfile->metadata;
+                my $current_metadata = $vrfile->metadata; #*** this is the slowest part of this method... why?!
                 
                 delete $new_metadata->{sample_created_date} if defined $current_metadata->{sample_created_date};
                 
@@ -543,17 +356,26 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                         delete $new_metadata->{$delete};
                     }
                 }
+                
+                if ($current_metadata) {
+                    foreach my $key (keys %$new_metadata) {
+                        if (!defined $current_metadata->{$key}) {
+                            $has_new_meta = 1;
+                            last;
+                        }
+                    }
+                }
             }
             else {
                 $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ());
             }
-            $times[4] += tv_interval($t); # 60s
-            $t = [gettimeofday];
             
-            # if there was no metadata this will add metadata to the file.
-            $vrfile->add_metadata($new_metadata, replace_data => 0);
-            $times[5] += tv_interval($t); # 190s!!
-            $t = [gettimeofday];
+            # if there was no current metadata this will add new metadata to the
+            # file (we have the $has_new_meta check because just running this
+            # blindly takes over a minute for 1000s of files!)
+            if ($has_new_meta) {
+                $vrfile->add_metadata($new_metadata, replace_data => 0);
+            }
             
             my $result_hash = { paths => [$file_abs_path], protocol => $protocol, defined $file->{group} ? (group => $file->{group}) : () };
             if (@changed_details) {
@@ -562,10 +384,8 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
                 delete $result_hash->{changed};
             }
             push(@results, $result_hash);
-            $times[6] += tv_interval($t);
         }
         
-        #warn "_all_files returning @times\n";
         return @results;
     }
 }
