@@ -410,6 +410,70 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $meta;
     }
     
+    # graph_vrtrack datasource needs to get all the cram files under a point
+    # in the hierarchy, along with their hierarchy and some qc metadata; we have
+    # a service in the plugin to do this quickly (using combos of above methods
+    # is too slow), which returns a simple hash which we'll interpret in to FSE
+    # objects with the additional info put in the hash
+    # $source is like Study#id#123,456,789
+    # $ext is like .cram
+    # $parent_filter is like Sample#qc_failed#0
+    # $qc_filter is like stats#sequences#>#10000,genotype#pass#=#1,verifybamid#pass#=#1,file#manual_qc#=#1
+    # $search_stats is an empty hash ref that will be filled with search stats
+    method vrtrack_files (Str $source, Str $ext, Str :$parent_filter?, Str :$qc_filter?, HashRef :$search_stats?) {
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        my @args;
+        if ($parent_filter) {
+            push(@args, 'parent_filter=' . uri_escape($parent_filter));
+        }
+        if ($qc_filter) {
+            push(@args, 'qc_filter=' . uri_escape($qc_filter));
+        }
+        my $args = '';
+        if (@args) {
+            $args = '?' . join('&', @args);
+        }
+        $source = uri_escape($source);
+        
+        my $data = $graph->_call_vrpipe_neo4j_plugin("/vrtrack_alignment_files/$db/$source/$ext$args");
+        
+        my $type = $ext;
+        $type =~ s/^\.//;
+        
+        my @files;
+        if ($data) {
+            my $search = delete $data->{search};
+            if ($search_stats) {
+                while (my ($key, $count) = each %{ $search->{stats} }) {
+                    $search_stats->{$key} += $count;
+                }
+            }
+            
+            # make sure the FSEs I'm about to fake will work
+            $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+            
+            foreach my $path (sort keys %$data) {
+                my $file_info = $data->{$path};
+                my $file      = {
+                    namespace  => 'VRPipe',
+                    label      => 'FileSystemElement',
+                    id         => delete $file_info->{properties}->{node_id},
+                    type       => $type,
+                    properties => $file_info->{properties},
+                    hierarchy  => $file_info->{hierarchy},
+                    defined $file_info->{qc_meta} ? (qc_meta => $file_info->{qc_meta}) : ()
+                };
+                $file->{properties}->{path} = $path;
+                
+                bless $file, 'VRPipe::Schema::VRPipe::FileSystemElement';
+                push(@files, $file);
+            }
+        }
+        
+        return \@files;
+    }
+    
     method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
