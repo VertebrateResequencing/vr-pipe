@@ -429,9 +429,11 @@ if (@setups) {
                                         $current_ds->method($chosen_method);
                                         $current_ds->source($ds_source);
                                         $current_ds->options($chosen_method_args);
-                                        $current_ds->_changed_marker('forced_update');
+                                        $current_ds->_changed_marker('undef');
                                         $current_ds->update;
-                                        $frontend->output("The setup's datasource was altered with the new settings\n\n");
+                                        $frontend->output("The setup's datasource was altered with the new settings, please wait while it is processed...\n");
+                                        $current_ds->elements();
+                                        $frontend->output("Datasource processed, any new dataelements are in place\n\n");
                                     }
                                 }
                             }
@@ -718,6 +720,15 @@ else {
             }
             $frontend->output("All done!");
             $ps->log_event("vrpipe-setup was able to immediately create the dataelementstates and queue their triggers");
+        }
+        else {
+            # for some reason brand new file-based datasources can manage to
+            # never generate their dataelements, and we want new stuff to start
+            # asap, so we go ahead and do that now, even if it takes a while
+            $frontend->output("\nSince the new PipelineSetup uses a new DataSource, I'll process that DataSource right now so things start quicker; please wait...");
+            $ds->elements();
+            $frontend->output("All done!");
+            $ps->log_event("vrpipe-setup was able to immediately create the dataelements for datasource " . $ds->id);
         }
     }
     else {
