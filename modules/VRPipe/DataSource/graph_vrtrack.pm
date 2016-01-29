@@ -183,7 +183,7 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
             my @hierarchy_keys;
             my %hkey_to_label;
             foreach my $label (split(/,/, $group_by_metadata)) {
-                my $unique_props = $label_to_unique{$label};
+                my $unique_props = $label_to_unique{ ucfirst($label) };
                 
                 $label = lc($label);
                 foreach my $unique (@$unique_props) {
