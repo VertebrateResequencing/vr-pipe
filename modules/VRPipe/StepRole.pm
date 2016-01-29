@@ -879,7 +879,9 @@ role VRPipe::StepRole {
                     while (my ($key, $val) = each %$hash) {
                         foreach my $file (@$val) {
                             # but only do this if we were the first to create
-                            # the files
+                            # the files, and they're on local disc
+                            next unless $file->protocol eq 'file:/';
+                            
                             my $oss = $file->output_by(1);
                             $oss || next;
                             next unless $oss->id == $our_ss_id;
