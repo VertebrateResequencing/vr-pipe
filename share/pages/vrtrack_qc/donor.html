@@ -20,6 +20,7 @@
         <!-- Knockout for event handling -->
         <script src="/js/knockout-3.1.0.min.js"></script>
         <script src="/js/knockstrap-0.4.0.min.js"></script>
+        <script src="/js/knockout-switch-case.min.js"></script>
         
         <!-- Some of our own general helper functions -->
         <script src="/js/vrpipe.js"></script>
@@ -73,48 +74,72 @@
                                 </tr>
                             </thead>
                             <tbody data-bind="foreach: donorSampleStatus">
-                                <tr data-bind="css: { danger: qc_status == 'failed', success: qc_status == 'selected' }">
+                                <tr data-bind="css: { danger: qc_status == 'failed', success: qc_status == 'selected' || qc_status == 'freeze' }">
                                     <td data-bind="text: sample_name"></td>
                                     <td data-bind="text: sample_public_name"></td>
                                     <td>
-                                        <!-- ko if: qc_status == 'pending' -->
-                                            <span class="glyphicon glyphicon-hourglass"></span>
-                                        <!-- /ko -->
-                                        <!-- ko if: qc_status == 'passed' -->
-                                            <span class="glyphicon glyphicon-ok-circle" data-bind="popover: { options: { content: 'passed by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
-                                        <!-- /ko -->
-                                        <!-- ko if: qc_status == 'selected' -->
-                                            <span class="glyphicon glyphicon-ok-circle" data-bind="popover: { options: { content: 'selected by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
-                                        <!-- /ko -->
-                                        <!-- ko if: qc_status == 'failed' -->
-                                            <span class="glyphicon glyphicon-remove-circle" data-bind="popover: { options: { content: 'failed by ' + qc_by + ' on ' + qc_time, title: qc_failed_reason, trigger: 'hover' } }"></span>
+                                        <!-- ko switch: qc_status -->
+                                            <!-- ko case: 'defer' -->
+                                                <span class="glyphicon glyphicon-hourglass" data-bind="popover: { options: { content: 'deffered by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                            <!-- /ko -->
+                                            <!-- ko case: 'selected' -->
+                                                <span class="glyphicon glyphicon-ok-circle" data-bind="popover: { options: { content: 'selected by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                            <!-- /ko -->
+                                            <!-- ko case: 'freeze' -->
+                                                <span class="glyphicon glyphicon-ok-circle" data-bind="popover: { options: { content: 'frozen by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                            <!-- /ko -->
+                                            <!-- ko case: 'failed' -->
+                                                <span class="glyphicon glyphicon-remove-circle" data-bind="popover: { options: { content: 'failed by ' + qc_by + ' on ' + qc_time, title: qc_failed_reason, trigger: 'hover' } }"></span>
+                                            <!-- /ko -->
+                                            <!-- ko case: 'pending' -->
+                                                <!-- ko switch -->
+                                                    <!-- ko case: qc_passed_genotyping == "1" -->
+                                                        <span class="glyphicon glyphicon-hourglass" data-bind="popover: { options: { content: 'passed genotyping & microarray by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                                    <!-- /ko -->
+                                                    <!-- ko case: qc_passed_fluidigm == "1" -->
+                                                        <span class="glyphicon glyphicon-hourglass" data-bind="popover: { options: { content: 'passed fluidigm by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                                    <!-- /ko -->
+                                                    <!-- ko case: $else -->
+                                                        <span class="glyphicon glyphicon-hourglass"></span>
+                                                    <!-- /ko -->
+                                                <!-- /ko -->
+                                            <!-- /ko -->
                                         <!-- /ko -->
                                     </td>
                                     <!-- ko if: $parent.donorAdmin()['is_admin'] -->
                                         <td>
                                             <form class="form-inline">
+                                                <div class="checkbox">
+                                                    <label>
+                                                        <input type="checkbox" data-bind="checked: new_qc_passed_fluidigm, click: $parent.changeQCPassFluidigm"> Passed fluidigm
+                                                    </label>
+                                                    <label>
+                                                        <input type="checkbox" data-bind="checked: new_qc_passed_genotyping, enable: new_qc_passed_fluidigm, click: $parent.changeQCPassGenotyping"> <span data-bind="css: { 'text-muted': new_qc_passed_fluidigm() == false }">Passed genotyping & microarray</span>
+                                                    </label>
+                                                </div>
+                                            </form>
+                                            <form class="form-inline">
                                                 <div class="form-group">
                                                     <label class="radio-inline">
-                                                        <input type="radio" name="qcstatus" value="pending" data-bind="checked: new_qc_status" /> pending
+                                                        <input type="radio" name="qcstatus" value="defer" data-bind="checked: new_qc_status, click: $parent.changeQCStatus" /> defer
                                                     </label>
                                                     <label class="radio-inline">
-                                                        <input type="radio" name="qcstatus" value="passed" data-bind="checked: new_qc_status" /> pass
+                                                        <input type="radio" name="qcstatus" value="failed" data-bind="checked: new_qc_status, click: $parent.showFailReasons" /> fail
                                                     </label>
                                                     <label class="radio-inline">
-                                                        <input type="radio" name="qcstatus" value="failed" data-bind="checked: new_qc_status" /> fail
+                                                        <input type="radio" name="qcstatus" value="freeze" data-bind="checked: new_qc_status, click: $parent.changeQCStatus" /> freeze
                                                     </label>
                                                     <label class="radio-inline">
-                                                        <input type="radio" name="qcstatus" value="selected" data-bind="checked: new_qc_status" /> select
+                                                        <input type="radio" name="qcstatus" value="selected" data-bind="checked: new_qc_status, click: $parent.changeQCStatus" /> select
                                                     </label>
-                                                    &nbsp;&nbsp;<input class="btn btn-sm" data-bind="css: { 'btn-danger': new_qc_status() == 'failed', 'btn-success': new_qc_status() == 'selected', 'btn-info': new_qc_status() == 'passed', 'btn-primary': new_qc_status() == 'pending', disabled: (qc_status == 'failed' && new_qc_status() == 'failed') ? (new_qc_failed_reason() == qc_failed_reason) : (new_qc_status() == qc_status) }, click: $parent.changeQCStatus" type="button" value="Submit">
                                                 </div>
-                                            <!-- ko if: new_qc_status() == "failed" -->
+                                                <!-- ko if: new_qc_status() == "failed" || new_qc_status() == "show_failed_reasons" -->
                                                 <br>
                                                 <div class="form-group top-margin">
                                                     <label>Failure reason</label>
-                                                    <select class="form-control" data-bind="options: $parent.donorAdmin()['allowed_fail_reasons'], value: new_qc_failed_reason"></select>
+                                                    <select class="form-control" data-bind="options: $parent.donorAdmin()['allowed_fail_reasons'], value: new_qc_failed_reason, click: $parent.setFailedQCStatus"></select>
                                                 </div>
-                                            <!-- /ko -->
+                                                <!-- /ko -->
                                             </form>
                                         </td>
                                     <!-- /ko -->
@@ -435,6 +460,32 @@
                 // everything on the page
                 self.changeQCStatus = function(sampleStatus) {
                     getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: sampleStatus['new_qc_status'](), new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                }
+                self.showFailReasons = function(sampleStatus) {
+                    sampleStatus['new_qc_status']("show_failed_reasons");
+                }
+                self.setFailedQCStatus = function(sampleStatus) {
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: 'failed', new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                }
+                self.changeQCPassFluidigm = function(sampleStatus) {
+                    var newStatus;
+                    if (sampleStatus['new_qc_passed_fluidigm']()) {
+                        newStatus = "set_passed";
+                    }
+                    else {
+                        newStatus = "unset_passed";
+                    }
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                }
+                self.changeQCPassGenotyping = function(sampleStatus) {
+                    var newStatus;
+                    if (sampleStatus['new_qc_passed_genotyping']()) {
+                        newStatus = "set_passed_genotyping";
+                    }
+                    else {
+                        newStatus = "unset_passed_genotyping";
+                    }
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
                 }
                 
                 // when a sample in the gender table is clicked on, open a
