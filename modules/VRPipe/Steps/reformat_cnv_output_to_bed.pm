@@ -5,7 +5,7 @@ VRPipe::Steps::reformat_cnv_output_to_bed - a step
 
 =head1 DESCRIPTION
 
-reformat quantisnp or penncnv cnv output files to bed format.
+reformat hipsci cnv output files to bed format.
 
 =head1 AUTHOR
 
@@ -36,8 +36,8 @@ use VRPipe::Base;
 class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
     method options_definition {
         return {
-            control_metadata_key => VRPipe::StepOption->create(description => 'metadata key that determines the control sample (1=control, 0=query sample)', optional => 1, default_value => 'sample_control'),
-            cnv_analysis_type    => VRPipe::StepOption->create(description => 'Determines the type of analysis, penncnv or quantisnp',                       optional => 1, default_value => 'penncnv'),
+            cell_control_tag  => VRPipe::StepOption->create(description => 'Tag assigned to the file metadata control parameter to determine that a cell line is a control', optional => 1, default_value => 'Control'),
+            cnv_analysis_type => VRPipe::StepOption->create(description => 'Determines the type of analysis, penncnv or quantisnp',                                          optional => 1, default_value => 'penncnv'),
         };
     }
     
@@ -46,8 +46,8 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
             cnv_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 max_files   => -1,
-                description => 'CNV output files from quantisnp or penncnv pipelines',
-                metadata    => { sample => 'sample name', cnv_analysis_type => 'quantisnp or penncnv' },
+                description => 'Output from hipsci pipeline',
+                metadata    => { sample => 'sample name for cell line', control => 'determine if cell line is control or stem cell', individual => 'cohort id', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
@@ -56,17 +56,19 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
         return sub {
             my $self              = shift;
             my $options           = $self->options;
-            my $control_key       = $options->{control_metadata_key};
+            my $cell_control_tag  = $options->{cell_control_tag};
             my $cnv_analysis_type = $options->{cnv_analysis_type};
             my $req               = $self->new_requirements(memory => 500, time => 1);
             foreach my $cnv_file (@{ $self->inputs->{cnv_files} }) {
-                my $cnv_path = $cnv_file->path;
-                my $meta     = $cnv_file->metadata;
-                my $sample   = $meta->{sample};
-                my $basename = $meta->{$control_key} ? $sample . '_' . $cnv_analysis_type . '_CONTROL.bed' : $sample . '_' . $cnv_analysis_type . '.bed';
-                my $bed_file = $self->output_file(output_key => 'bed_files', basename => "$basename", type => 'txt', metadata => $cnv_file->metadata);
-                my $bed_path = $bed_file->path;
-                my $cmd      = "use VRPipe::Steps::reformat_cnv_output_to_bed; VRPipe::Steps::reformat_cnv_output_to_bed->bed_conversion_output(q[$cnv_path], q[$bed_path], q[$cnv_analysis_type]);";
+                my $cnv_path   = $cnv_file->path;
+                my $meta       = $cnv_file->metadata;
+                my $sample     = $meta->{sample};
+                my $control    = $meta->{control};
+                my $individual = $meta->{individual};
+                my $basename   = $control eq $cell_control_tag ? $individual . '_' . $sample . '_' . $cnv_analysis_type . '_CONTROL.bed' : $individual . '_' . $sample . '_' . $cnv_analysis_type . '.bed';
+                my $bed_file   = $self->output_file(output_key => 'bed_files', basename => "$basename", type => 'txt', metadata => $cnv_file->metadata);
+                my $bed_path   = $bed_file->path;
+                my $cmd        = "use VRPipe::Steps::reformat_cnv_output_to_bed; VRPipe::Steps::reformat_cnv_output_to_bed->bed_conversion_output(q[$cnv_path], q[$bed_path], q[$cnv_analysis_type]);";
                 $self->dispatch_vrpipecode($cmd, $req, { output_files => [$bed_file] });
             }
         };
@@ -77,8 +79,9 @@ class VRPipe::Steps::reformat_cnv_output_to_bed with VRPipe::StepRole {
             bed_files => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'Converted bed format file for CNV comparison',
-                max_files   => -1,
+                max_files   => -1,                                                                                                                                                                 # -1 = As many as you like
                 min_files   => 0,
+                metadata    => { sample => 'sample name for cell line', control => 'determine if cell line is control or stem cell', individual => 'cohort id', analysis_uuid => 'analysis_uuid' },
             )
         };
     }

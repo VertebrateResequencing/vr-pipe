@@ -5,7 +5,7 @@ VRPipe::Steps::quantisnp_detect_cnv - a step
 
 =head1 DESCRIPTION
 
-Detects CNVs using reformatted Genome Studio genotyping fcr files
+Detects CNVs using the Genome Studio genotyping files
 
 =head1 AUTHOR
 
@@ -37,7 +37,6 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
     method options_definition {
         return {
             run_quantisnp_script => VRPipe::StepOption->create(description => 'full path to run_quantisnp2.sh', optional => 0),
-            quantisnp_options    => VRPipe::StepOption->create(description => 'options to run_quantisnp2.sh',   optional => 0, default => "--chr 1:22"),
             v79_dir              => VRPipe::StepOption->create(description => 'full path to v79 dir',           optional => 0),
             levels_file          => VRPipe::StepOption->create(description => 'full path to levels.dat',        optional => 0),
             params_file          => VRPipe::StepOption->create(description => 'full path to params.dat',        optional => 0),
@@ -46,10 +45,11 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
     
     method inputs_definition {
         return {
-            fcr_files_reformatted => VRPipe::StepIODefinition->create(
+            stepTwo_file_input_reformatted_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 max_files   => -1,
-                description => 'Reformatted Genome Studio fcr files containing genotyping data'
+                description => 'Reformatted Genome Studio file containing genotyping data',
+                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
@@ -62,10 +62,10 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
             my $v79_dir                      = $options->{v79_dir};
             my $levels_file                  = $options->{levels_file};
             my $params_file                  = $options->{params_file};
-            my $quantisnp_detect_cnv_options = $options->{quantisnp_options};
+            my $quantisnp_detect_cnv_options = "--chr 1:22";
             my $req                          = $self->new_requirements(memory => 500, time => 1);
             
-            foreach my $reformatted_file (@{ $self->inputs->{fcr_files_reformatted} }) {
+            foreach my $reformatted_file (@{ $self->inputs->{stepTwo_file_input_reformatted_file} }) {
                 my $reformatted_path   = $reformatted_file->path;
                 my $reformat_meta      = $reformatted_file->metadata;
                 my $sample             = $reformat_meta->{sample};
@@ -80,11 +80,12 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
     
     method outputs_definition {
         return {
-            quantisnp_cnv_file => VRPipe::StepIODefinition->create(
+            stepTwo_file_output_quantisnp_cnv_file => VRPipe::StepIODefinition->create(
                 type        => 'txt',
                 description => 'QuantiSNP CNV data',
-                max_files   => -1,
-                min_files   => 0
+                max_files   => -1,                                                                                                                    # -1 = As many as you like
+                min_files   => 0,
+                metadata    => { sample => 'sample name for cell line', storage_path => 'full path to iRODS file', analysis_uuid => 'analysis_uuid' },
             )
         };
     }
@@ -94,7 +95,7 @@ class VRPipe::Steps::quantisnp_detect_cnv with VRPipe::StepRole {
     }
     
     method description {
-        return "Detects CNVs using reformatted Genome Studio fcr files";
+        return "Detects CNVs using the Genome Studio genotyping files";
     }
     
     method max_simultaneous {

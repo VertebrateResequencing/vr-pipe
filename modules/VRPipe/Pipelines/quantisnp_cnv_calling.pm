@@ -53,8 +53,8 @@ class VRPipe::Pipelines::quantisnp_cnv_calling with VRPipe::PipelineRole {
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key   => 'fcr_files' },
-            { from_step => 1, to_step => 2, from_key =>, 'fcr_files_reformatted', to_key => 'fcr_files_reformatted' }
+            { from_step => 0, to_step => 1, to_key => 'stepOne_file_input_GS_file' },                                                              # 1st step takes the gs file as input
+            { from_step => 1, to_step => 2, from_key =>, 'stepOne_file_output_reformatted_file', to_key => 'stepTwo_file_input_reformatted_file' } # 2nd step takes as input the reformat files produced by the first step
         );
     }
     
@@ -63,4 +63,4 @@ class VRPipe::Pipelines::quantisnp_cnv_calling with VRPipe::PipelineRole {
     }
 }
 
-1;                              # needs this to exit correctly as a package
+1;                                                                                                                                                 # needs this to exit correctly as a package
