@@ -551,12 +551,24 @@
                 self.viewColumnNames = ko.computed(function () {
                     if (self.viewNodes().length === 0) return [];
                     var props = [];
-                    var obj = self.viewNodes()[0];
-                    for (var name in obj) {
-                        if (name == 'node_id' || name == 'node_label') {
-                            continue;
+                    
+                    if (self.selectedViewLabel() == 'Donor') {
+                        // put the desired columns in our desired order
+                        props.push('ID');
+                        props.push('Example Sample');
+                        props.push('Sample Creation Date');
+                        props.push('QCToDo(Fluidigm)');
+                        props.push('QCToDo(Genotyping)');
+                        props.push('QCToDo(All)');
+                    }
+                    else {
+                        var obj = self.viewNodes()[0];
+                        for (var name in obj) {
+                            if (name == 'node_id' || name == 'node_label') {
+                                continue;
+                            }
+                            props.push(name);
                         }
-                        props.push(name);
                     }
                     return props;
                 });

@@ -627,7 +627,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # sort by epoch and convert to ymd
         my $key = $label eq 'Donor' ? 'last_sample_added_date' : ($label eq 'Sample' ? 'created_date' : undef);
         if ($key) {
-            @nodes = sort { (defined $b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> (defined $a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            if ($label eq 'Donor') {
+                # additionally sort by qc progress
+                @nodes =
+                  sort { ($b->{properties}->{qc_unresolved} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved} ? 1 : 0) || ($b->{properties}->{qc_unresolved_fluidigm} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved_fluidigm} ? 1 : 0) || ($b->{properties}->{qc_unresolved_genotyping} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved_genotyping} ? 1 : 0) || ($b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> ($a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            }
+            else {
+                @nodes = sort { (defined $b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> (defined $a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            }
+            
             foreach my $node (@nodes) {
                 if (defined $node->{properties}->{$key}) {
                     $node->{properties}->{$key} = DateTime->from_epoch(epoch => $node->{properties}->{$key})->ymd;
