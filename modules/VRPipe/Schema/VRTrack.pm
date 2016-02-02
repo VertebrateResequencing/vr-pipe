@@ -82,7 +82,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed aberrant_chrs)], # who failed/selected/passed and for what reason is stored on a relationship between this node and a User node
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed qc_passed_genotyping qc_defer qc_freeze aberrant_chrs)], # who failed/selected/passed etc and for what reason is stored on a relationship between this node and a User node. qc_passed means passed fluidigm tests, qc_passed_genotyping means passed the genotyping and microarray tests
                 keep_history => 1
             },
             
@@ -410,6 +410,70 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $meta;
     }
     
+    # graph_vrtrack datasource needs to get all the cram files under a point
+    # in the hierarchy, along with their hierarchy and some qc metadata; we have
+    # a service in the plugin to do this quickly (using combos of above methods
+    # is too slow), which returns a simple hash which we'll interpret in to FSE
+    # objects with the additional info put in the hash
+    # $source is like Study#id#123,456,789
+    # $ext is like .cram
+    # $parent_filter is like Sample#qc_failed#0
+    # $qc_filter is like stats#sequences#>#10000,genotype#pass#=#1,verifybamid#pass#=#1,file#manual_qc#=#1
+    # $search_stats is an empty hash ref that will be filled with search stats
+    method vrtrack_files (Str $source, Str $ext, Str :$parent_filter?, Str :$qc_filter?, HashRef :$search_stats?) {
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        my @args;
+        if ($parent_filter) {
+            push(@args, 'parent_filter=' . uri_escape($parent_filter));
+        }
+        if ($qc_filter) {
+            push(@args, 'qc_filter=' . uri_escape($qc_filter));
+        }
+        my $args = '';
+        if (@args) {
+            $args = '?' . join('&', @args);
+        }
+        $source = uri_escape($source);
+        
+        my $data = $graph->_call_vrpipe_neo4j_plugin("/vrtrack_alignment_files/$db/$source/$ext$args");
+        
+        my $type = $ext;
+        $type =~ s/^\.//;
+        
+        my @files;
+        if ($data) {
+            my $search = delete $data->{search};
+            if ($search_stats) {
+                while (my ($key, $count) = each %{ $search->{stats} }) {
+                    $search_stats->{$key} += $count;
+                }
+            }
+            
+            # make sure the FSEs I'm about to fake will work
+            $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
+            
+            foreach my $path (sort keys %$data) {
+                my $file_info = $data->{$path};
+                my $file      = {
+                    namespace  => 'VRPipe',
+                    label      => 'FileSystemElement',
+                    id         => delete $file_info->{properties}->{node_id},
+                    type       => $type,
+                    properties => $file_info->{properties},
+                    hierarchy  => $file_info->{hierarchy},
+                    defined $file_info->{qc_meta} ? (qc_meta => $file_info->{qc_meta}) : ()
+                };
+                $file->{properties}->{path} = $path;
+                
+                bless $file, 'VRPipe::Schema::VRPipe::FileSystemElement';
+                push(@files, $file);
+            }
+        }
+        
+        return \@files;
+    }
+    
     method add_file (Str|File $path, Str $protocol?) {
         $vrpipe_schema ||= VRPipe::Schema->create('VRPipe');
         return $vrpipe_schema->path_to_filesystemelement("$path", $protocol ? (protocol => $protocol) : ());
@@ -592,7 +656,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $graph = $self->graph;
         my $db    = $graph->_global_label;
         my $args  = '';
-        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|passed|selected|pending)$/) {
+        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:set_passed|set_passed_genotyping|unset_passed|unset_passed_genotyping|failed|selected|freeze|defer)$/) {
             $args = "?sample=$new->[0]&status=$new->[1]";
             if ($new->[2]) {
                 $args .= "&reason=$new->[2]";
@@ -626,16 +690,22 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         
         # first create a mapping of all sample names to some basic props, and
         # get the control sample
-        my (%name_to_basic_props, $control_sample_name);
+        my (%name_to_basic_props, $control_sample_name, %study_counts);
         while (my ($node_id, $sample_props) = each %$sample_details) {
-            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}];
+            my %in_studies = map { $_ => 1 } split(/,/, $sample_props->{study_ids});
+            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}, \%in_studies];
             
             if ($sample_props->{control} == 1) {
                 if (!$control_sample_name || $sample_props->{qc_status} ne 'failed') {
                     $control_sample_name = $sample_props->{public_name} . '_' . $sample_props->{name};
                 }
             }
+            
+            foreach my $study_id (keys %in_studies) {
+                $study_counts{$study_id}++;
+            }
         }
+        my ($biggest_study) = sort { $study_counts{$b} <=> $study_counts{$a} } keys %study_counts;
         
         my (%done, %cnv_plot_paths);
         foreach my $sample_node_id (sort { $sample_details->{$b}->{control} <=> $sample_details->{$a}->{control} || $sample_details->{$a}->{public_name} cmp $sample_details->{$b}->{public_name} || $sample_details->{$a}->{name} cmp $sample_details->{$b}->{name} } keys %{$sample_details}) {
@@ -643,7 +713,8 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my $this_name        = $sample_props->{name};
             my $this_public_name = $sample_props->{public_name};
             my $this_control     = $sample_props->{control};
-            my $this_study_ids   = $sample_props->{study_ids};
+            my $this_study_ids   = $name_to_basic_props{$this_name}->[5];
+            my $in_biggest_study = exists $this_study_ids->{$biggest_study};
             my %common_results   = (sample_name => $this_name, sample_public_name => $this_public_name);
             
             # status
@@ -652,10 +723,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 {
                     type => 'sample_status',
                     %common_results,
-                    qc_status        => $sample_props->{qc_status},
-                    qc_by            => $sample_props->{qc_by},
-                    qc_time          => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
-                    qc_failed_reason => $sample_props->{qc_failed_reason}
+                    qc_passed_fluidigm   => $sample_props->{qc_passed_fluidigm},
+                    qc_passed_genotyping => $sample_props->{qc_passed_genotyping},
+                    qc_status            => $sample_props->{qc_status},
+                    qc_by                => $sample_props->{qc_by},
+                    qc_time              => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
+                    qc_failed_reason     => $sample_props->{qc_failed_reason}
                 }
             );
             
@@ -677,13 +750,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     my $other_sample_props = $name_to_basic_props{$other_sample};
                     next if $other_sample_props->[4] eq 'failed';
                     
-                    my $other_study_ids = $other_sample_props->[2];
-                    my $other_public    = $other_sample_props->[0];
-                    if ($other_study_ids ne $this_study_ids) {
+                    my $other_study_ids  = $other_sample_props->[5];
+                    my $other_in_biggest = exists $other_study_ids->{$biggest_study};
+                    my $both_in_biggest  = $in_biggest_study && $other_in_biggest;
+                    my $other_public     = $other_sample_props->[0];
+                    unless ($both_in_biggest) {
                         next unless $other_public eq $this_public_name;
                     }
                     
-                    push(@disc_results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample1_name => $this_name, sample1_public_name => $this_public_name, sample1_control => $this_control, sample1_node_id => $sample_node_id, sample2_name => $other_sample, sample2_public_name => $other_public, sample2_control => $other_sample_props->[1], sample2_study => $other_study_ids, sample2_node_id => $other_sample_props->[3], study_sort => $other_study_ids eq $this_study_ids ? 1 : 2 });
+                    push(@disc_results, { type => $type, discordance => $discordance, num_of_sites => $num_of_sites, avg_min_depth => $avg_min_depth, sample1_name => $this_name, sample1_public_name => $this_public_name, sample1_control => $this_control, sample1_node_id => $sample_node_id, sample2_name => $other_sample, sample2_public_name => $other_public, sample2_control => $other_sample_props->[1], sample2_study => $other_study_ids, sample2_node_id => $other_sample_props->[3], study_sort => $both_in_biggest ? 1 : 2 });
                 }
                 $done{$type}->{$this_name} = 1;
             }
