@@ -163,6 +163,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         case 'sample_status':
                             result['new_qc_failed_reason'] = ko.observable(result['qc_failed_reason']);
                             result['new_qc_status'] = ko.observable(result['qc_status']);
+                            result['new_qc_passed_fluidigm'] = ko.observable(result['qc_passed_fluidigm']);
+                            result['new_qc_passed_genotyping'] = ko.observable(result['qc_passed_genotyping']);
                             ssArr.push(result);
                             break;
                         case 'gender':

@@ -822,7 +822,7 @@ role VRPipe::StepRole {
             # and causes a start_over, which we want to avoid. So we special
             # case all the missing files being temp files
             my $temp_files = $stepstate->temp_files;
-            if (scalar(@$temp_files) == scalar(@$missing)) {
+            if (@$missing && scalar(@$temp_files) == scalar(@$missing)) {
                 warn "     - it looks like all temp files are missing, will confirm...\n" if $debug;
                 my %temp;
                 foreach my $file (@$temp_files) {
@@ -879,7 +879,12 @@ role VRPipe::StepRole {
                     while (my ($key, $val) = each %$hash) {
                         foreach my $file (@$val) {
                             # but only do this if we were the first to create
-                            # the files
+                            # the files, and they're on local disc, and they
+                            # exist (prior output_files check may have ignored
+                            # missing files due to check_s being off)
+                            next unless $file->protocol eq 'file:/';
+                            next unless $file->e;
+                            
                             my $oss = $file->output_by(1);
                             $oss || next;
                             next unless $oss->id == $our_ss_id;
@@ -917,7 +922,7 @@ role VRPipe::StepRole {
                             # readable
                             my $all_can_read = 1;
                             foreach my $path (@paths) {
-                                my $mode = stat($path)->mode;
+                                my $mode = stat($path->stringify)->mode;
                                 my $readable = ($mode & S_IRUSR) && ($mode & S_IRGRP) && ($mode & S_IROTH);
                                 unless ($readable) {
                                     $all_can_read = 0;

@@ -82,7 +82,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed aberrant_chrs)], # who failed/selected/passed and for what reason is stored on a relationship between this node and a User node
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed qc_passed_genotyping qc_defer qc_freeze aberrant_chrs)], # who failed/selected/passed etc and for what reason is stored on a relationship between this node and a User node. qc_passed means passed fluidigm tests, qc_passed_genotyping means passed the genotyping and microarray tests
                 keep_history => 1
             },
             
@@ -627,7 +627,15 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         # sort by epoch and convert to ymd
         my $key = $label eq 'Donor' ? 'last_sample_added_date' : ($label eq 'Sample' ? 'created_date' : undef);
         if ($key) {
-            @nodes = sort { (defined $b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> (defined $a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            if ($label eq 'Donor') {
+                # additionally sort by qc progress
+                @nodes =
+                  sort { ($b->{properties}->{qc_unresolved} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved} ? 1 : 0) || ($b->{properties}->{qc_unresolved_fluidigm} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved_fluidigm} ? 1 : 0) || ($b->{properties}->{qc_unresolved_genotyping} ? 1 : 0) <=> ($a->{properties}->{qc_unresolved_genotyping} ? 1 : 0) || ($b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> ($a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            }
+            else {
+                @nodes = sort { (defined $b->{properties}->{$key} ? $b->{properties}->{$key} : 1) <=> (defined $a->{properties}->{$key} ? $a->{properties}->{$key} : 1) } @nodes;
+            }
+            
             foreach my $node (@nodes) {
                 if (defined $node->{properties}->{$key}) {
                     $node->{properties}->{$key} = DateTime->from_epoch(epoch => $node->{properties}->{$key})->ymd;
@@ -656,7 +664,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my $graph = $self->graph;
         my $db    = $graph->_global_label;
         my $args  = '';
-        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:failed|passed|selected|pending)$/) {
+        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:set_passed|set_passed_genotyping|unset_passed|unset_passed_genotyping|failed|selected|freeze|defer)$/) {
             $args = "?sample=$new->[0]&status=$new->[1]";
             if ($new->[2]) {
                 $args .= "&reason=$new->[2]";
@@ -723,10 +731,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 {
                     type => 'sample_status',
                     %common_results,
-                    qc_status        => $sample_props->{qc_status},
-                    qc_by            => $sample_props->{qc_by},
-                    qc_time          => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
-                    qc_failed_reason => $sample_props->{qc_failed_reason}
+                    qc_passed_fluidigm   => $sample_props->{qc_passed_fluidigm},
+                    qc_passed_genotyping => $sample_props->{qc_passed_genotyping},
+                    qc_status            => $sample_props->{qc_status},
+                    qc_by                => $sample_props->{qc_by},
+                    qc_time              => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
+                    qc_failed_reason     => $sample_props->{qc_failed_reason}
                 }
             );
             

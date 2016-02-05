@@ -1750,6 +1750,18 @@ sub qc {
                     }
                 }
             }
+            elsif ($label eq 'Donor') {
+                # rename properties for a nicer table to display
+                foreach my $node (@$data) {
+                    my $props = $node->{properties};
+                    $props->{ID}                     = delete $props->{id};
+                    $props->{'Example Sample'}       = delete $props->{example_sample};
+                    $props->{'Sample Creation Date'} = delete $props->{last_sample_added_date};
+                    $props->{'QCToDo(Fluidigm)'}     = delete $props->{qc_unresolved_fluidigm};
+                    $props->{'QCToDo(Genotyping)'}   = delete $props->{qc_unresolved_genotyping};
+                    $props->{'QCToDo(All)'}          = delete $props->{qc_unresolved};
+                }
+            }
         }
         else {
             $data = { errors => ["label must be supplied to nodes_of_label()"] };
