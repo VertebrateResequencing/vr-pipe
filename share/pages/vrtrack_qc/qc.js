@@ -16,6 +16,8 @@ var fillProperties = function(labelProperties, label, list) {
 }
 
 // function to call qc methods to get results from the graph db
+var laneQCStatusValues = ["Pass", "Fail", "Invst", "GTPend", "Pend"];
+var laneQCStatusValuesLength = laneQCStatusValues.length;
 var getQCGraphData = function(method, args, subargs, loading, errors) {
     loading.removeAll();
     errors.removeAll();
@@ -88,6 +90,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var viewLabels = subargs['viewLabels'];
                 viewLabels.push('Donor');
                 viewLabels.push('Sample');
+                viewLabels.push('Lane');
+                viewLabels.push('Lanelet');
                 
                 // populate the groups select and the all properties
                 fillProperties(labelProperties, 'Study', subargs['studyProperties']);
@@ -103,6 +107,11 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     if (flatten) {
                         data[i]['properties']['node_id'] = data[i]['id'];
                         data[i]['properties']['node_label'] = data[i]['label'];
+                        
+                        if (data[i]['label'] == 'Lane') {
+                            data[i]['properties']['new_qcgrind_qc_status'] = ko.observable(data[i]['properties']['qcgrind_qc_status']);
+                        }
+                        
                         arr.push(data[i]['properties']);
                     }
                     else {

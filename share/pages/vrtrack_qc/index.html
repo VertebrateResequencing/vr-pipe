@@ -5,7 +5,7 @@
         <title>VRTrack QC</title>
         
         <!-- jQuery for REST interaction, and needed by bootstrap.js -->
-        <script src="/js/jquery-1.11.0.min.js"></script>
+        <script src="/js/jquery-1.12.0.min.js"></script>
         
         <!-- Bootstrap for presentation and styling -->
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -18,7 +18,8 @@
         <![endif]-->
         
         <!-- Knockout for event handling -->
-        <script src="/js/knockout-3.1.0.min.js"></script>
+        <script src="/js/knockout-3.4.0.min.js"></script>
+        <script src="/js/knockout-switch-case.min.js"></script>
         
         <!-- Bootstrap Multiselect for nice selects -->
         <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
@@ -197,17 +198,66 @@
                     <div class="panel panel-default">
                         <div class="panel-heading" data-bind="text: selectedViewLabel"></div>
                         <div class="table-responsive">
-                            <table class="table table-striped table-hover">
+                            <table class="table table-striped table-hover table-condensed small">
                                 <thead>
                                     <tr data-bind="foreach: viewColumnNames">
                                         <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
                                     </tr>
                                 </thead>
-                                <tbody data-bind="foreach: viewNodes">
-                                    <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
-                                        <td data-bind="text: $parent[$data]"></td>
-                                    </tr>
-                                </tbody>
+                                <!-- ko switch: selectedViewLabel -->
+                                    <!-- ko case: 'Lanelet' -->
+                                        <!-- for speed we must explicitly specify every column -->
+                                        <tbody data-bind="foreach: viewNodes">
+                                            <tr style="cursor: pointer" data-bind="click: $parent.showQCForNode">
+                                                <td class="text-center">
+                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
+                                                        <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'passed')" />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
+                                                        <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'failed')" />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
+                                                        <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'investigate')" />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
+                                                        <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
+                                                    </div>
+                                                </td>
+                                                <td>
+                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
+                                                        <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'pending')" />
+                                                    </div>
+                                                </td>
+                                                <td data-bind="text: Individual"></td>
+                                                <td data-bind="text: Sample"></td>
+                                                <td data-bind="text: Library"></td>
+                                                <td data-bind="text: Run"></td>
+                                                <td data-bind="text: Genotype"></td>
+                                                <td data-bind="text: $data['NPG Status']"></td>
+                                                <td data-bind="text: $data['Auto QC Status']"></td>
+                                                <td data-bind="text: $data['Raw Gb']"></td>
+                                                <td data-bind="text: $data['Mapped Gb']"></td>
+                                                <td data-bind="text: $data['Dup%']"></td>
+                                                <td data-bind="text: $data['Mapped-dups Gb']"></td>
+                                                <td data-bind="text: $data['Overlap dup%']"></td>
+                                                <td data-bind="text: $data['Net Gb']"></td>
+                                            </tr>
+                                        </tbody>
+                                    <!-- /ko -->
+                                    <!-- ko case: $default -->
+                                        <tbody data-bind="foreach: viewNodes">
+                                            <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumnNames, click: $parent.showQCForNode">
+                                                <td data-bind="text: $parent[$data]"></td>
+                                            </tr>
+                                        </tbody>
+                                    <!-- /ko -->
+                                <!-- /ko -->
                             </table>
                         </div>
                         <div class="panel-footer"><small><span data-bind="text: viewNodes().length"></span> rows</small></div>
@@ -561,6 +611,26 @@
                         props.push('QCToDo(Genotyping)');
                         props.push('QCToDo(All)');
                     }
+                    else if (self.selectedViewLabel() == 'Lanelet') {
+                        props.push('Pass');
+                        props.push('Fail');
+                        props.push('Invst');
+                        props.push('GTPend');
+                        props.push('Pend');
+                        props.push('Individual');
+                        props.push('Sample');
+                        props.push('Library');
+                        props.push('Run');
+                        props.push('Genotype');
+                        props.push('NPG Status');
+                        props.push('Auto QC Status');
+                        props.push('Raw Gb');
+                        props.push('Mapped Gb');
+                        props.push('Dup%');
+                        props.push('Mapped-dups Gb');
+                        props.push('Overlap dup%');
+                        props.push('Net Gb');
+                    }
                     else {
                         var obj = self.viewNodes()[0];
                         for (var name in obj) {
@@ -582,6 +652,35 @@
                     if (nodeLabel == 'Donor') {
                         window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID, '_blank', '', false);
                     }
+                    
+                    return true;
+                }
+                
+                // when a lanelet qc status is changed, set in db and update
+                // the booleans that enable column sorting
+                self.qcStatusToCol = {passed: 'Pass', failed: 'Fail', investigate: 'Invst', 'gt_pending': 'GTPend', pending: 'Pend'};
+                self.changeQCStatus = function(laneletStatus, lanelet) {
+                    var oldStatus = lanelet['qcgrind_qc_status'];
+                    var run = lanelet['Run'];
+                    
+                    vrpipeRestMethod('qc', 'set_lanelet_qc_status', { lane: run, status: laneletStatus }, self.loading, self.errors, function(data) {
+                        if (data['success']) {
+                            lanelet['qcgrind_qc_status'] = laneletStatus;
+                            lanelet[self.qcStatusToCol[oldStatus]] = 0;
+                            lanelet[self.qcStatusToCol[laneletStatus]] = 1;
+                            
+                            // also colour the radio as indication of what has
+                            // been set this session
+                            var id = run + '_' + oldStatus;
+                            var radioDiv = document.getElementById(id);
+                            radioDiv.style.backgroundColor = 'transparent';
+                            id = run + '_' + laneletStatus;
+                            radioDiv = document.getElementById(id);
+                            radioDiv.style.backgroundColor = 'yellow';
+                        }
+                    });
+                    
+                    return true;
                 }
             }
             
