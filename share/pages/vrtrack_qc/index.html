@@ -20,6 +20,7 @@
         <!-- Knockout for event handling -->
         <script src="/js/knockout-3.4.0.min.js"></script>
         <script src="/js/knockout-switch-case.min.js"></script>
+        <script src="/js/knockout-projections-1.1.0.min.js"></script>
         
         <!-- Bootstrap Multiselect for nice selects -->
         <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
@@ -203,11 +204,92 @@
                                     <tr data-bind="foreach: viewColumnNames">
                                         <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
                                     </tr>
+                                    
+                                    <tr style="background-color:#F5F5F5" data-bind="visible: selectedViewLabel() == 'Lanelet'">
+                                        <td>
+                                            <label class="radio-highlightable"> <!-- just to get the alignment similar to the radios in body column beneath -->
+                                                <input type="checkbox" data-bind="checked: laneletFilters['passed']" />
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <label class="radio-highlightable">
+                                                <input type="checkbox" data-bind="checked: laneletFilters['failed']" />
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <label class="radio-highlightable">
+                                                <input type="checkbox" data-bind="checked: laneletFilters['investigate']" />
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <label class="radio-highlightable">
+                                                <input type="checkbox" data-bind="checked: laneletFilters['gt_pending']" />
+                                            </label>
+                                        </td>
+                                        <td>
+                                            <label class="radio-highlightable">
+                                                <input type="checkbox" data-bind="checked: laneletFilters['pending']" />
+                                            </label>
+                                        </td>
+                                        <td></td>
+                                        <td></td>
+                                        <td>
+                                            <input type="text" size="6" data-bind="textInput: laneletFilters['library']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="6" data-bind="textInput: laneletFilters['run']" />
+                                        </td>
+                                        <td>
+                                            <select data-bind="value: laneletFilters['genotype']">
+                                                <option value="all">all</option>
+                                                <option value="confirmed">confirmed</option>
+                                                <option value="unconfirmed">unconfirmed</option>
+                                                <option value="unchecked">unchecked</option>
+                                                <option value="unknown">unknown</option>
+                                                <option value="candidate">candidate</option>
+                                                <option value="wrong">wrong</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select data-bind="value: laneletFilters['npg_status']">
+                                                <option value="all">all</option>
+                                                <option value="pass">pass</option>
+                                                <option value="failed">failed</option>
+                                                <option value="pending">pending</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <select data-bind="value: laneletFilters['auto_qc_status']">
+                                                <option value="all">all</option>
+                                                <option value="passed">passed</option>
+                                                <option value="failed">failed</option>
+                                                <option value="no_qc">no_qc</option>
+                                            </select>
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['raw_gb']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_gb']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['dup_percent']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_dups_gb']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['overlap_dup_percent']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
+                                        </td>
+                                    </tr>
                                 </thead>
                                 <!-- ko switch: selectedViewLabel -->
                                     <!-- ko case: 'Lanelet' -->
                                         <!-- for speed we must explicitly specify every column -->
-                                        <tbody data-bind="foreach: viewNodes">
+                                        <tbody data-bind="foreach: filteredLanelets">
                                             <tr style="cursor: pointer" data-bind="click: $parent.showQCForNode">
                                                 <td class="text-center">
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
@@ -260,7 +342,18 @@
                                 <!-- /ko -->
                             </table>
                         </div>
-                        <div class="panel-footer"><small><span data-bind="text: viewNodes().length"></span> rows</small></div>
+                        <div class="panel-footer">
+                            <small>
+                                <!-- ko switch: selectedViewLabel -->
+                                    <!-- ko case: 'Lanelet' -->
+                                    <span data-bind="text: filteredLanelets().length"></span> rows
+                                    <!-- /ko -->
+                                    <!-- ko case: $default -->
+                                    <span data-bind="text: viewNodes().length"></span> rows
+                                    <!-- /ko -->
+                                <!-- /ko -->
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -352,6 +445,44 @@
                 // view mode vars
                 self.selectedViewLabel = ko.observable();
                 self.viewNodes = ko.observableArray();
+                self.laneletFilters = {
+                    passed: ko.observable(true),
+                    failed: ko.observable(true),
+                    investigate: ko.observable(true),
+                    gt_pending: ko.observable(true),
+                    pending: ko.observable(true),
+                    library: ko.observable(undefined),
+                    run: ko.observable(undefined),
+                    genotype: ko.observable('all'),
+                    npg_status: ko.observable('all'),
+                    auto_qc_status: ko.observable('all'),
+                    raw_gb: ko.observable(undefined),
+                    mapped_gb: ko.observable(undefined),
+                    dup_percent: ko.observable(undefined),
+                    mapped_dups_gb: ko.observable(undefined),
+                    overlap_dup_percent: ko.observable(undefined),
+                    net_gb: ko.observable(undefined),
+                };
+                self.filteredLanelets = self.viewNodes.filter(function(l) {
+                    var pass = 
+                        (self.laneletFilters['passed']() ? 1 : l['Pass'] == 0) &&
+                        (self.laneletFilters['failed']() ? 1 : l['Fail'] == 0) &&
+                        (self.laneletFilters['investigate']() ? 1 : l['Invst'] == 0) &&
+                        (self.laneletFilters['gt_pending']() ? 1 : l['GTPend'] == 0) &&
+                        (self.laneletFilters['pending']() ? 1 : l['Pend'] == 0) &&
+                        (self.laneletFilters['library']() ? l['Library'].indexOf(self.laneletFilters['library']()) !== -1 : 1) &&
+                        (self.laneletFilters['run']() ? l['Run'].indexOf(self.laneletFilters['run']()) !== -1 : 1) &&
+                        (self.laneletFilters['genotype']() == 'all' ? 1 : l['Genotype'].startsWith(self.laneletFilters['genotype']())) &&
+                        (self.laneletFilters['npg_status']() == 'all' ? 1 : l['NPG Status'] == self.laneletFilters['npg_status']()) &&
+                        (self.laneletFilters['auto_qc_status']() == 'all' ? 1 : l['Auto QC Status'] == self.laneletFilters['auto_qc_status']()) &&
+                        (self.laneletFilters['raw_gb']() ? parseFloat(l['Raw Gb']) >= parseFloat(self.laneletFilters['raw_gb']()) : 1) &&
+                        (self.laneletFilters['mapped_gb']() ? parseFloat(l['Mapped Gb']) >= parseFloat(self.laneletFilters['mapped_gb']()) : 1) &&
+                        (self.laneletFilters['dup_percent']() ? parseFloat(l['Dup%']) <= parseFloat(self.laneletFilters['dup_percent']()) : 1) &&
+                        (self.laneletFilters['mapped_dups_gb']() ? parseFloat(l['Mapped-dups Gb']) >= parseFloat(self.laneletFilters['mapped_dups_gb']()) : 1) &&
+                        (self.laneletFilters['overlap_dup_percent']() ? parseFloat(l['Overlap dup%']) <= parseFloat(self.laneletFilters['overlap_dup_percent']()) : 1) &&
+                        (self.laneletFilters['net_gb']() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters['net_gb']()) : 1);
+                    return pass;
+                });
                 
                 // configure the multiselects
                 $('#groupSelect').multiselect({
