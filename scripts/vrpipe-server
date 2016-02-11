@@ -1734,8 +1734,12 @@ sub qc {
     elsif ($method eq 'nodes_of_label') {
         my $label = $args->{label};
         if ($label) {
+            my $graph_label = $label;
+            if ($label eq 'Lanelet') {
+                $graph_label = 'Lane';
+            }
             $data = $vrtrack->nodes_of_label(
-                $label,
+                $graph_label,
                 $args->{groups}  ? (groups  => $args->{groups})  : (),
                 $args->{studies} ? (studies => $args->{studies}) : (),
                 $args->{donors}  ? (donors  => $args->{donors})  : (),
@@ -1761,6 +1765,103 @@ sub qc {
                     $props->{'QCToDo(Genotyping)'}   = delete $props->{qc_unresolved_genotyping};
                     $props->{'QCToDo(All)'}          = delete $props->{qc_unresolved};
                 }
+            }
+            elsif ($label eq 'Lanelet') {
+                # show the desired props of the Lane nodes; these have lots
+                # of data so we remove and rename to reduce the amount of
+                # bandwidth used and make things easier on the receiver
+                
+                my $rounder = sub {
+                    my $i = shift;
+                    my $o = sprintf("%.2f", $i);
+                    $o =~ s/0+$// if $o =~ /\./;
+                    $o =~ s/\.$//;
+                    return $o;
+                };
+                
+                my %qc_col_to_status = ('Pass' => 'passed', 'Fail' => 'failed', 'Invst' => 'investigate', 'GTPend' => 'gt_pending', 'Pend' => 'pending');
+                
+                foreach my $node (@$data) {
+                    my $props     = $node->{properties};
+                    my $new_props = {};
+                    
+                    # alignment stats
+                    my $total_length = $props->{'alignmentstats:total length'};
+                    $new_props->{'Raw Gb'} = &$rounder($total_length / 1000000000);
+                    my $bases_mapped_cigar = $props->{'alignmentstats:bases mapped (cigar)'};
+                    $new_props->{'Mapped Gb'} = &$rounder($bases_mapped_cigar / 1000000000);
+                    my $reads_mapped = $props->{'alignmentstats:reads mapped'};
+                    
+                    # (the above are in the stats file, while the remainder are
+                    # calculated by npg_cram_stats_parser step, so may not be
+                    # present)
+                    my $reads_mapped_after_rmdp  = $props->{'alignmentstats:reads mapped after rmdup'};
+                    my $bases_mapped_after_rmdup = $props->{'alignmentstats:bases mapped after rmdup'};
+                    my $dupl_mapped_bases        = $props->{'alignmentstats:dupl mapped bases'};
+                    my $total_mapped_bases       = $props->{'alignmentstats:total mapped bases'};
+                    
+                    if ($reads_mapped && $reads_mapped_after_rmdp) {
+                        $new_props->{'Dup%'} = &$rounder((100 / $reads_mapped) * ($reads_mapped - $reads_mapped_after_rmdp));
+                    }
+                    else {
+                        $new_props->{'Dup%'} = 'n/a';
+                    }
+                    
+                    if ($bases_mapped_after_rmdup) {
+                        $new_props->{'Mapped-dups Gb'} = &$rounder($bases_mapped_after_rmdup / 1000000000);
+                    }
+                    else {
+                        $new_props->{'Mapped-dups Gb'} = 'n/a';
+                    }
+                    
+                    if ($dupl_mapped_bases && $total_mapped_bases) {
+                        my $overlap_dup_percent = ($dupl_mapped_bases * 100) / $total_mapped_bases;
+                        $new_props->{'Overlap dup%'} = &$rounder($overlap_dup_percent);
+                        
+                        if ($bases_mapped_after_rmdup) {
+                            $new_props->{'Net Gb'} = &$rounder(($bases_mapped_after_rmdup - (($bases_mapped_after_rmdup / 100) * $overlap_dup_percent)) / 1000000000);
+                        }
+                    }
+                    else {
+                        $new_props->{'Overlap dup%'} = 'n/a';
+                        $new_props->{'Net Gb'}       = 'n/a';
+                    }
+                    
+                    # other simple things we want to display
+                    $new_props->{Individual} = $props->{individual_name} || 'unknown';
+                    $new_props->{Sample}     = $props->{sample_name}     || 'unknown';
+                    $new_props->{Library}    = $props->{library_id}      || 'unknown';
+                    $new_props->{Run}        = $props->{unique};
+                    $new_props->{Genotype}   = $props->{gtcheck}         || 'unknown';
+                    $new_props->{'NPG Status'}     = defined $props->{'npg_manual_qc'}        ? ($props->{'npg_manual_qc'} eq '1'        ? 'pass' : 'fail')   : 'unknown';
+                    $new_props->{'Auto QC Status'} = defined $props->{'auto_qc:pass'}         ? ($props->{'auto_qc:pass'} eq '1'         ? 'pass' : 'failed') : 'unknown';
+                    $new_props->{'Verify Bam ID'}  = defined $props->{'verifybamiddata:pass'} ? ($props->{'verifybamiddata:pass'} eq '1' ? 'pass' : 'fail')   : 'unknown';
+                    
+                    # to make it easier/possible to display the single
+                    # qcgrind_qc_status as sortable columns of radios for each
+                    # possible value, we break it in to booleans
+                    my $qc_status    = $props->{qcgrind_qc_status};
+                    my $found_status = 0;
+                    while (my ($col, $val) = each %qc_col_to_status) {
+                        my $this_status = $qc_status eq $val ? 1 : 0;
+                        $new_props->{$col} = $this_status;
+                        if ($this_status) {
+                            $found_status = 1;
+                        }
+                    }
+                    unless ($found_status) {
+                        $new_props->{Pend} = 1;
+                        $qc_status = 'pending';
+                    }
+                    $new_props->{qcgrind_qc_status} = $qc_status;
+                    
+                    $node->{properties} = $new_props;
+                }
+            }
+            elsif ($label eq 'Lane') {
+                # merge desired info about Lane nodes that share the same lane
+                # and run
+                #...
             }
         }
         else {
@@ -1814,6 +1915,16 @@ sub qc {
             $data = { errors => ["sample node id must be supplied to sample_discordance()"] };
         }
     }
+    elsif ($method eq 'set_lanelet_qc_status') {
+        my $lane   = $args->{lane};
+        my $status = $args->{status};
+        if ($lane && $status) {
+            $data = qcgrind_lane_status_update(undef, "$lane/$status");
+        }
+        else {
+            $data = { errors => ["lane and status must be supplied to set_lanelet_qc_status()"] };
+        }
+    }
     else {
         $data = { errors => ["Invalid qc method '$method'"] };
     }
@@ -1827,13 +1938,18 @@ sub qcgrind_lane_status_update {
     
     my $data;
     if ($lane && $status) {
-        my $lane_node = $vrtrack->get("Lane", { unique => $lane });
-        if ($lane_node) {
-            $lane_node->qcgrind_qc_status($status);
-            $data = { success => "Lane $lane qcgrind_qc_status set to $status" };
+        if ($status =~ /^(?:pending|passed|failed|gt_pending|investigate)$/) {
+            my $lane_node = $vrtrack->get("Lane", { unique => $lane });
+            if ($lane_node) {
+                $lane_node->qcgrind_qc_status($status);
+                $data = { success => "Lane $lane qcgrind_qc_status set to $status" };
+            }
+            else {
+                $data = { errors => ["Lane $lane not found in graph db"] };
+            }
         }
         else {
-            $data = { errors => ["Lane $lane not found in graph db"] };
+            $data = { errors => ["Status $status is not valid"] };
         }
     }
     else {

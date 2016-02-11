@@ -75,6 +75,11 @@ ko.bindingHandlers.sort = {
                     }
                 }
                 
+                if (!isNaN(rec1) && !isNaN(rec2)) {
+                    rec1 = +rec1;
+                    rec2 = +rec2;
+                }
+                
                 return rec1 == rec2 ? 0 : rec1 < rec2 ? -1 : 1;
             });
         };
