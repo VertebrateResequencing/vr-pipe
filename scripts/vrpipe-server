@@ -1919,7 +1919,10 @@ sub qc {
         my $lane   = $args->{lane};
         my $status = $args->{status};
         if ($lane && $status) {
-            $data = qcgrind_lane_status_update(undef, "$lane/$status");
+            $data = $vrtrack->set_lane_qc_status($lane, $status, $auth_user);
+            if ($data->{errors}) {
+                $data->{errors} = [$data->{errors}];
+            }
         }
         else {
             $data = { errors => ["lane and status must be supplied to set_lanelet_qc_status()"] };
@@ -1927,33 +1930,6 @@ sub qc {
     }
     else {
         $data = { errors => ["Invalid qc method '$method'"] };
-    }
-    
-    return $data;
-}
-
-sub qcgrind_lane_status_update {
-    my (undef, $arg) = @_;
-    my ($lane, $status) = split(/\//, $arg);
-    
-    my $data;
-    if ($lane && $status) {
-        if ($status =~ /^(?:pending|passed|failed|gt_pending|investigate)$/) {
-            my $lane_node = $vrtrack->get("Lane", { unique => $lane });
-            if ($lane_node) {
-                $lane_node->qcgrind_qc_status($status);
-                $data = { success => "Lane $lane qcgrind_qc_status set to $status" };
-            }
-            else {
-                $data = { errors => ["Lane $lane not found in graph db"] };
-            }
-        }
-        else {
-            $data = { errors => ["Status $status is not valid"] };
-        }
-    }
-    else {
-        $data = { errors => ["Invalid url path $arg"] };
     }
     
     return $data;

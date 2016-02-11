@@ -654,6 +654,23 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $graph->_call_vrpipe_neo4j_plugin_and_parse("/get_node_with_extra_info/$db/$id", namespace => 'VRTrack', label => $label);
     }
     
+    # sets qcgrind_qc_status on a lane node, but only if the status is valid
+    # and the user has permissions on at least 1 group the lane belongs to.
+    # returns a hashref with a single key: either success or errors
+    method set_lane_qc_status (Str $lane!, Str $status!, Str $user!) {
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        my $data;
+        if ($status =~ /^(?:pending|passed|failed|gt_pending|investigate)$/) {
+            $lane = uri_escape($lane);
+            $data = $graph->_call_vrpipe_neo4j_plugin("/vrtrack_set_lane_qc_status/$db/$user/$lane/$status");
+        }
+        else {
+            $data = { errors => ["Status $status is not valid"] };
+        }
+        return $data;
+    }
+    
     # get all qc-related stuff associated with a donor and its samples. Also
     # get info on which samples have been QC failed/selected, along with config
     # info on who is allowed to change these and what reasons are allowed
