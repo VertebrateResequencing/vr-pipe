@@ -301,27 +301,27 @@
                                             <tr style="cursor: pointer" data-bind="click: $parent.showQCForNode">
                                                 <td class="text-center">
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
-                                                        <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'passed')" />
+                                                        <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
-                                                        <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'failed')" />
+                                                        <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
-                                                        <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'investigate')" />
+                                                        <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
-                                                        <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
+                                                        <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
                                                     </div>
                                                 </td>
                                                 <td>
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
-                                                        <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'pending')" />
+                                                        <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
                                                     </div>
                                                 </td>
                                                 <td data-bind="text: Individual"></td>

@@ -610,7 +610,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # belong to your supplied groups, studies, donors or samples (supplied as
     # node ids separated by commas). Donor and Sample nodes will have the
     # extra info that get_node_by_id_with_extra_info() adds to them.
-    method nodes_of_label (Str $label!, ArrayRef[Int] :$groups?, ArrayRef[Int] :$studies?, ArrayRef[Int] :$donors?, ArrayRef[Int] :$samples?) {
+    # If groups and user are supplied, an additional is_admin property is
+    # applied to each node with a boolean for if the user is an admin of the
+    # supplied group that the node was found under (note this is a potentially
+    # inaccurate shortcut - the node may also be under a different group that
+    # is administered by the user, but this is not considered for is_admin).
+    method nodes_of_label (Str $label!, ArrayRef[Int] :$groups?, ArrayRef[Int] :$studies?, ArrayRef[Int] :$donors?, ArrayRef[Int] :$samples?, Str :$user?) {
         my $graph = $self->graph;
         my $db    = $graph->_global_label;
         my $args  = '';
@@ -620,6 +625,9 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 $args .= "&studies=" . join(',', @$studies);
                 $args .= "&donors=" . join(',', @$donors) if $donors;
                 $args .= "&samples=" . join(',', @$samples) if $samples;
+            }
+            if ($user) {
+                $args .= "&user=$user";
             }
         }
         my @nodes = $graph->_call_vrpipe_neo4j_plugin_and_parse("/vrtrack_nodes/$db/$label$args", namespace => 'VRTrack', label => $label);

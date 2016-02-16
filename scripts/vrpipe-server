@@ -1740,10 +1740,11 @@ sub qc {
             }
             $data = $vrtrack->nodes_of_label(
                 $graph_label,
-                $args->{groups}  ? (groups  => $args->{groups})  : (),
-                $args->{studies} ? (studies => $args->{studies}) : (),
-                $args->{donors}  ? (donors  => $args->{donors})  : (),
-                $args->{samples} ? (samples => $args->{samples}) : ()
+                $args->{groups}        ? (groups  => $args->{groups})  : (),
+                $args->{studies}       ? (studies => $args->{studies}) : (),
+                $args->{donors}        ? (donors  => $args->{donors})  : (),
+                $args->{samples}       ? (samples => $args->{samples}) : (),
+                $graph_label eq 'Lane' ? (user    => $auth_user)       : ()
             );
             
             if ($label eq 'Sample') {
@@ -1854,6 +1855,7 @@ sub qc {
                         $qc_status = 'pending';
                     }
                     $new_props->{qcgrind_qc_status} = $qc_status;
+                    $new_props->{is_admin}          = int($props->{is_admin});
                     
                     $node->{properties} = $new_props;
                 }
