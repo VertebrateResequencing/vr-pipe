@@ -1271,7 +1271,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
         if ($current_metadata && keys %$current_metadata) {
             while (my ($key, $val) = each %$current_metadata) {
                 if ($warehouse_mode) {
-                    next if exists $ignore_keys{$key};
                     next if $key =~ /_history$/;
                 }
                 
@@ -1418,13 +1417,20 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ())->original;
             
-            # add metadata to file, detecting any changes
+            # add metadata to file, handling any changes
             my @changed_details;
             my $changes = delete $new_metadata->{vrpipe_meta_changed};
             if ($changes) {
                 foreach my $change (@$changes) {
-                    push(@changed_details, "$file_abs_path $change->[0]: $change->[3]");
-                    last;
+                    my $key = $change->[0];
+                    if (exists $ignore_keys{$key}) {
+                        # we don't want to trigger a start over for this change,
+                        # but we do want to update the file metadata
+                        $vrfile->add_metadata({ $key => $change->[2] }, replace_data => 1);
+                    }
+                    else {
+                        push(@changed_details, "$file_abs_path $key: $change->[3]");
+                    }
                 }
             }
             
