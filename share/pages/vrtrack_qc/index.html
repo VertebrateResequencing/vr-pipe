@@ -894,19 +894,41 @@
                 // lanelet view has various popups for different columns
                 self.genotypePopover = function(lane) {
                     if (lane.hasOwnProperty('gtcheckdata:reception_call_string') && lane['gtcheckdata:reception_call_string']) {
-                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
+                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><caption>' + lane['gtcheckdata:match_count'] + '/' + lane['gtcheckdata:common_snp_count'] + ' (' + lane['gtcheckdata:match_percent'] + '%)</caption><tbody>';
                         
                         html += '<tr><th>Reception calls</th>';
                         var rCalls = lane['gtcheckdata:reception_call_string'];
+                        var rCallsArray = [];
                         for (var i = 0, rCallsLength = rCalls.length; i < rCallsLength; i += 2) {
-                            html += '<td>' + rCalls.substring(i, i + 2) + '</td>';
+                            var call = rCalls.substring(i, i + 2);
+                            html += '<td>' + call + '</td>';
+                            rCallsArray.push(call);
                         }
                         html += '</tr>';
                         
+                        var scores = lane['gtcheckdata:match_score'].split(';');
+                        
                         html += '<tr><th>BAM calls</th>';
                         var bCalls = lane['gtcheckdata:bam_call_string'];
+                        var callsI = 0;
                         for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {
-                            html += '<td>' + bCalls.substring(i, i + 2) + '</td>';
+                            var call = bCalls.substring(i, i + 2);
+                            if (call == 'NN') {
+                                call = '--';
+                            }
+                            var rCall = rCallsArray[callsI];
+                            var bootstrapClass = '';
+                            if (rCall != '--' && call != '--') {
+                                if (scores[callsI] == '1') {
+                                    bootstrapClass = 'success';
+                                }
+                                else {
+                                    bootstrapClass = 'danger';
+                                }
+                            }
+                            
+                            html += '<td class="' + bootstrapClass + '">' + call + '</td>';
+                            callsI++;
                         }
                         html += '</tr>';
                         
@@ -921,7 +943,7 @@
                         return html;
                     }
                     else {
-                        return '<p>no genotype result data available</p>';
+                        return '<p>no genotype result details available</p>';
                     }
                 }
                 self.verifyPopover = function(lane) {
