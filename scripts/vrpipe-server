@@ -1791,7 +1791,7 @@ sub qc {
                 
                 my %qc_col_to_status              = ('Pass' => 'passed', 'Fail' => 'failed', 'Invst' => 'investigate', 'GTPend' => 'gt_pending', 'Pend' => 'pending');
                 my @verifybamiddata_desired_types = qw(number_of_snps avg_depth freemix freeLK0 freeLK1);
-                my @gtcheckdata_desired_types     = qw(bam_call_string bam_gt_depths_string);
+                my @gtcheckdata_desired_types     = qw(bam_call_string bam_gt_depths_string reception_call_string);
                 my @qcgraph_labels                = ('GC Content', 'GC Depth', 'ACGT Cycles', 'Coverage', 'Indels per cycle', 'Indel distribution', 'Insert Size', 'Mismatches per cycle', 'Qualities');
                 
                 foreach my $node (@$data) {

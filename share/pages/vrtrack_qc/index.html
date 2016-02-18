@@ -893,9 +893,16 @@
                 
                 // lanelet view has various popups for different columns
                 self.genotypePopover = function(lane) {
-                    if (lane.hasOwnProperty('gtcheckdata:bam_call_string')) {
+                    if (lane.hasOwnProperty('gtcheckdata:reception_call_string') && lane['gtcheckdata:reception_call_string']) {
                         var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
-                    
+                        
+                        html += '<tr><th>Reception calls</th>';
+                        var rCalls = lane['gtcheckdata:reception_call_string'];
+                        for (var i = 0, rCallsLength = rCalls.length; i < rCallsLength; i += 2) {
+                            html += '<td>' + rCalls.substring(i, i + 2) + '</td>';
+                        }
+                        html += '</tr>';
+                        
                         html += '<tr><th>BAM calls</th>';
                         var bCalls = lane['gtcheckdata:bam_call_string'];
                         for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {

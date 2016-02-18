@@ -36,17 +36,30 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
+class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
     use VRPipe::Schema;
     use VRPipe::FileProtocol;
     use VRPipe::Parser;
     use JSON::XS;
     use Digest::MD5;
+    use VRPipe::Persistent::InMemory;
     
-    method options_definition {
+    method _build_irods_exes {
+        return { iget => 'iget', ichksum => 'ichksum', imeta => 'imeta' };
+    }
+    
+    around options_definition {
         return {
-            qc_file_suffixes => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.',                                                     default_value => '_F0xB00.stats,.genotype.json,.verify_bam_id.json'),
-            sample_id_type   => VRPipe::StepOption->create(description => 'The type of sample identifier to check in the cram file header; allowed values are id, public_name, supplier_name or accession', default_value => 'accession')
+            %{ $self->$orig },
+            irods_get_zone => VRPipe::StepOption->create(
+                description   => 'the zone (top level directory) where your official genotyping snp file is stored in iRODs',
+                optional      => 1,
+                default_value => 'seq'
+            ),
+            qc_file_suffixes                => VRPipe::StepOption->create(description => 'The file name suffixes of the qc files you wish to parse, comma separated.',                                                                                                               default_value => '_F0xB00.stats,.genotype.json,.verify_bam_id.json'),
+            sample_id_type                  => VRPipe::StepOption->create(description => 'The type of sample identifier to check in the cram file header; allowed values are id, public_name, supplier_name or accession',                                                           default_value => 'accession'),
+            genotyping_snp_file             => VRPipe::StepOption->create(description => 'Absolute path to a local file containing the correctly ordered and complemented alleles that are checked by NPG\'s genotype checker (optional if an official file is available in irods)', optional      => 1),
+            genotyping_snp_file_storage_dir => VRPipe::StepOption->create(description => 'absolute path to a directory where the official genotyping snp file can be downloaded to',                                                                                                 optional      => 1),
         };
     }
     
@@ -60,6 +73,12 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             my $opts           = $self->options;
             my $sample_id_type = $opts->{sample_id_type};
             my $suffixes       = $opts->{qc_file_suffixes};
+            my $user_snp_file  = $opts->{genotyping_snp_file} || '';
+            my $manifest_dir   = $opts->{genotyping_snp_file_storage_dir} || '';
+            my $imeta          = $opts->{imeta_exe};
+            my $iget           = $opts->{iget_exe};
+            my $ichksum        = $opts->{ichksum_exe};
+            my $zone           = $opts->{irods_get_zone};
             my $schema         = VRPipe::Schema->create('VRTrack');
             
             unless ($sample_id_type =~ /^(?:id|public_name|supplier_name|accession)$/) {
@@ -97,7 +116,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                 }
                 
                 my $cram_file_id = $cram_file->id;
-                $self->dispatch_vrpipecode("use VRPipe::Steps::npg_cram_stats_parser; VRPipe::Steps::npg_cram_stats_parser->parse_stats($cram_file_id, qq[$suffixes], qq[$sample_id_type])", $req);
+                $self->dispatch_vrpipecode("use VRPipe::Steps::npg_cram_stats_parser; VRPipe::Steps::npg_cram_stats_parser->parse_stats($cram_file_id, qq[$suffixes], qq[$sample_id_type], qq[$user_snp_file], qq[$manifest_dir], qq[$imeta], qq[$iget], qq[$ichksum], qq[$zone])", $req);
             }
         };
     }
@@ -125,7 +144,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
         return 50;
     }
     
-    method parse_stats (ClassName|Object $self: Int $cram_file_id, Str $suffixes, Str $sample_id_type) {
+    method parse_stats (ClassName|Object $self: Int $cram_file_id, Str $suffixes, Str $sample_id_type, Str $user_snp_file, Str $manifest_dir, Str $imeta, Str $iget, Str $ichksum, Str $zone) {
         my $cram_file = VRPipe::File->get(id => $cram_file_id);
         my @desired_suffixes = split(/,/, $suffixes) if $suffixes;
         my $desired_suffixes = join('|', @desired_suffixes) if @desired_suffixes;
@@ -309,7 +328,95 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
             my $data = $self->json_node_to_data($geno_graph_node);
             
             # based on what NPG display on their qc website, pull out the
-            # relevant data and store in our graph db
+            # relevant data and store in our graph db. The critical
+            # 'Sample Reception calls' data can only be calculated based on
+            # some arbitrary data stored in a file in irods, which we try to
+            # get now
+            my $reception_call_string = 'N' x 52;
+            my $call_set              = $data->{snp_call_set};
+            if (defined $data->{sample_name_match}->{matched_gt}) {
+                my @alleles;
+                my $parse_user_snp_file = 0;
+                if (0 && $call_set && $manifest_dir) { #*** disabled while the official snp file in irods does not actually exist
+                    my $snp_manifest_basename = $call_set . '.snp.manifest';
+                    my $snp_manifest = VRPipe::File->create(path => file($manifest_dir, $snp_manifest_basename));
+                    
+                    unless ($snp_manifest->s) {
+                        my ($irods_path) = $self->search_by_metadata(metadata => { snp_call_set => $call_set }, imeta => $imeta, zone => $zone);
+                        if ($irods_path) {
+                            # we could have multiple processes in parallel all
+                            # trying to get this same file at the same time; lock
+                            # and block
+                            my $im       = VRPipe::Persistent::InMemory->new;
+                            my $lock_key = 'npg_cram_stats_parser.' . $snp_manifest->path;
+                            $im->block_until_locked($lock_key);
+                            $snp_manifest->reselect_values_from_db;
+                            $snp_manifest->update_stats_from_disc;
+                            unless ($snp_manifest->s) {
+                                $self->get_file(source => $irods_path, dest => $snp_manifest->path, iget => $iget, ichksum => $ichksum);
+                            }
+                            $im->unlock($lock_key);
+                        }
+                        elsif ($user_snp_file && -s $user_snp_file) {
+                            warn "Could not find the official snp file in zone $zone matching metadata snp_call_set => $call_set, will use the user snp file\n";
+                            $parse_user_snp_file = 1;
+                        }
+                        else {
+                            $self->throw("Could not find the official snp file in zone $zone matching metadata snp_call_set => $call_set, and no user snp file was supplied");
+                        }
+                    }
+                    
+                    unless ($parse_user_snp_file) {
+                        # parse the snp manifest file in to our alleles
+                        my $fh = $snp_manifest->openr;
+                        
+                        $snp_manifest->close;
+                        $self->throw("Parsing of the official snp manifest file not yet implemented, though it was downloaded to " . $snp_manifest->path);
+                    }
+                }
+                elsif ($user_snp_file && -s $user_snp_file) {
+                    $parse_user_snp_file = 1;
+                }
+                
+                if ($parse_user_snp_file) {
+                    open(my $fh, '<', $user_snp_file) || die "Failed to open $user_snp_file\n";
+                    chomp(@alleles = <$fh>);
+                    close $fh;
+                }
+                
+                if (@alleles) {
+                    # Each digit of the "matched_gt" is a call:
+                    # 0 - NN
+                    # 1 - HomA
+                    # 2 - HomB
+                    # 3 - Het
+                    my @calls = split('', $data->{sample_name_match}->{matched_gt});
+                    $self->throw("There were " . scalar(@calls) . " calls, but the snp manifest has " . scalar(@alleles) . " alleles") unless @calls == @alleles;
+                    
+                    $reception_call_string = '';
+                    for my $i (0 .. $#alleles) {
+                        my $allele = $alleles[$i];
+                        my ($aa, $ab) = split('', $allele);
+                        my $call = $calls[$i];
+                        if ($call == 0) {
+                            $reception_call_string .= '--';
+                        }
+                        elsif ($call == 1) {
+                            $reception_call_string .= "$aa$aa";
+                        }
+                        elsif ($call == 2) {
+                            $reception_call_string .= "$ab$ab";
+                        }
+                        elsif ($call == 3) {
+                            $reception_call_string .= $allele;
+                        }
+                    }
+                }
+                else {
+                    die "Failed to discover the alleles used for genotyping\n";
+                }
+            }
+            
             $schema->add(
                 'Genotype',
                 {
@@ -320,6 +427,7 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                     bam_gt_depths_string     => $data->{bam_gt_depths_string},
                     bam_call_count           => $data->{bam_call_count},
                     bam_call_string          => $data->{bam_call_string},
+                    reception_call_string    => $reception_call_string,
                     defined $data->{sample_name_match}
                     ? (
                         matched_sample_name => $data->{sample_name_match}->{matched_sample_name},
@@ -327,8 +435,10 @@ class VRPipe::Steps::npg_cram_stats_parser with VRPipe::StepRole {
                         common_snp_count    => $data->{sample_name_match}->{common_snp_count},
                         match_count         => $data->{sample_name_match}->{match_count},
                         mismatch_count      => $data->{sample_name_match}->{mismatch_count},
+                        matched_gt          => $data->{sample_name_match}->{matched_gt}
                       )
-                    : (matched_sample_name => 'n/a')
+                    : (matched_sample_name => 'n/a'),
+                    snp_call_set => $call_set
                 },
                 incoming => { type => 'genotype_data', node => $geno_graph_node }
             );
