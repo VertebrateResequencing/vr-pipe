@@ -310,94 +310,128 @@
                                 <!-- ko switch: selectedViewLabel -->
                                     <!-- ko case: 'Lanelet' -->
                                         <!-- for speed we must explicitly specify every column -->
-                                        <tbody data-bind="foreach: filteredLanelets">
-                                            <tr>
-                                                <td class="text-center">
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
-                                                        <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
-                                                        <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
-                                                        <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
-                                                        <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
-                                                        <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
-                                                    </div>
-                                                </td>
-                                                <td data-bind="text: Individual"></td>
-                                                <td data-bind="text: Sample"></td>
-                                                <td data-bind="text: Library"></td>
-                                                <td data-bind="text: Run"></td>
-                                                <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
-                                                    <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
-                                                </td>
-                                                <td data-bind="css: { success: $data['Verify Bam ID'] == 'pass', danger: $data['Verify Bam ID'] == 'fail' }">
-                                                    <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
-                                                </td>
-                                                <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'failed' }"></td>
-                                                <td data-bind="text: $data['Auto QC Status']"></td>
-                                                <td data-bind="text: $data['Raw Gb']"></td>
-                                                <td data-bind="text: $data['Mapped Gb']"></td>
-                                                <td data-bind="text: $data['Dup%']"></td>
-                                                <td data-bind="text: $data['Mapped-dups Gb']"></td>
-                                                <td data-bind="text: $data['Overlap dup%']"></td>
-                                                <td data-bind="text: $data['Net Gb']"></td>
-                                                <td>
-                                                    <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
-                                                    <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
-                                                </td>
-                                            </tr>
-                                            <!-- ko if: display_graphs -->
+                                        <tbody>
+                                            <!-- ko foreach: filteredLanelets -->
                                                 <tr>
-                                                    <td colspan="20">
-                                                        <div class="img-row" data-bind="foreach: qc_plots">
-                                                            <div>
-                                                                <img class="img-thumbnail" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
-                                                            </div>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
+                                                            <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
                                                         </div>
                                                     </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
+                                                            <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
+                                                            <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
+                                                            <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
+                                                            <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
+                                                        </div>
+                                                    </td>
+                                                    <td data-bind="text: Individual"></td>
+                                                    <td data-bind="text: Sample"></td>
+                                                    <td data-bind="text: Library"></td>
+                                                    <td data-bind="text: Run"></td>
+                                                    <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
+                                                        <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                    </td>
+                                                    <td data-bind="css: { success: $data['Verify Bam ID'] == 'pass', danger: $data['Verify Bam ID'] == 'fail' }">
+                                                        <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                    </td>
+                                                    <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'failed' }"></td>
+                                                    <td data-bind="text: $data['Auto QC Status']"></td>
+                                                    <td data-bind="text: $data['Raw Gb']"></td>
+                                                    <td data-bind="text: $data['Mapped Gb']"></td>
+                                                    <td data-bind="text: $data['Dup%']"></td>
+                                                    <td data-bind="text: $data['Mapped-dups Gb']"></td>
+                                                    <td data-bind="text: $data['Overlap dup%']"></td>
+                                                    <td data-bind="text: $data['Net Gb']"></td>
+                                                    <td>
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
+                                                    </td>
                                                 </tr>
+                                                <!-- ko if: display_graphs -->
+                                                    <tr>
+                                                        <td colspan="20">
+                                                            <div class="img-row" data-bind="foreach: qc_plots">
+                                                                <div>
+                                                                    <img class="img-thumbnail" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <!-- /ko -->
+                                                <!-- ko if: display_stats -->
+                                                    <tr>
+                                                        <td colspan="20">
+                                                            <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <th>Total Reads</th><td data-bind="text: $data['alignmentstats:reads']"></td>
+                                                                        <th>Total Bases</th><td data-bind="text: $data['alignmentstats:bases']"></td>
+                                                                        <th>Cycles</th><td data-bind="text: $data['alignmentstats:cycles']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads paired</th><td data-bind="text: $data['alignmentstats:reads_paired']"></td>
+                                                                        <th>Bases postclip</th><td data-bind="text: $data['alignmentstats:bases_postclip']"></td>
+                                                                        <th>Duplication rate</th><td data-bind="text: $data['alignmentstats:duplication_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped</th><td data-bind="text: $data['alignmentstats:reads_mapped']"></td>
+                                                                        <th>Bases mapped</th><td data-bind="text: $data['alignmentstats:bases_mapped']"></td>
+                                                                        <th>Error rate</th><td data-bind="text: $data['alignmentstats:error_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:reads_mapped_rmdup']"></td>
+                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:bases_mapped_rmdup']"></td>
+                                                                        <th></th><td></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                <!-- /ko -->
                                             <!-- /ko -->
-                                            <!-- ko if: display_stats -->
+                                            <!-- ko if: isGroupAdmin -->
                                                 <tr>
-                                                    <td colspan="20">
-                                                        <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
-                                                            <tbody>
-                                                                <tr>
-                                                                    <th>Total Reads</th><td data-bind="text: $data['alignmentstats:reads']"></td>
-                                                                    <th>Total Bases</th><td data-bind="text: $data['alignmentstats:bases']"></td>
-                                                                    <th>Cycles</th><td data-bind="text: $data['alignmentstats:cycles']"></td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <th>Reads paired</th><td data-bind="text: $data['alignmentstats:reads_paired']"></td>
-                                                                    <th>Bases postclip</th><td data-bind="text: $data['alignmentstats:bases_postclip']"></td>
-                                                                    <th>Duplication rate</th><td data-bind="text: $data['alignmentstats:duplication_rate']"></td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <th>Reads mapped</th><td data-bind="text: $data['alignmentstats:reads_mapped']"></td>
-                                                                    <th>Bases mapped</th><td data-bind="text: $data['alignmentstats:bases_mapped']"></td>
-                                                                    <th>Error rate</th><td data-bind="text: $data['alignmentstats:error_rate']"></td>
-                                                                </tr>
-                                                                <tr>
-                                                                    <th>Reads mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:reads_mapped_rmdup']"></td>
-                                                                    <th>Bases mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:bases_mapped_rmdup']"></td>
-                                                                    <th></th><td></td>
-                                                                </tr>
-                                                            </tbody>
-                                                        </table>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td colspan="15">
+                                                        <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
                                                     </td>
                                                 </tr>
                                             <!-- /ko -->
@@ -458,6 +492,7 @@
                 self.adminToggle = ko.observable('->>>');
                 self.adminUsers = ko.observable();
                 self.groupAdmins = ko.observableArray();
+                self.isGroupAdmin = ko.observable(false);
                 self.groupConfig = ko.observableArray();
                 
                 // toggle display of the admin well when user clicks the arrows
@@ -519,6 +554,7 @@
                 self.viewNodes = ko.observableArray();
                 self.showAllGraphs = ko.observable(false);
                 self.showAllStats = ko.observable(false);
+                self.setAllQCGrindQCStatus = ko.observable('pending');
                 self.laneletFilters = {
                     passed: ko.observable(true),
                     failed: ko.observable(true),
@@ -641,7 +677,7 @@
                 
                 // get admin details (ignore errors from it to avoid having 2
                 // not-logged-in errors)
-                self.errorsIgnored =  ko.observableArray();
+                self.errorsIgnored = ko.observableArray();
                 getQCGraphData('qc_website_admin', { }, { adminUsers: self.adminUsers, groupAdmins: self.groupAdmins, groupConfig: self.groupConfig }, self.loading, self.errorsIgnored);
                 
                 // when admin-stuff changes, update the graph db
@@ -728,7 +764,7 @@
                         else {
                             loc = loc + '/samples:all';
                         }
-                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, flatten: true }, self.loading, self.errors);
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, flatten: true }, self.loading, self.errors);
                         
                         // and set the browser url to make this selection
                         // bookmarkable and included in the history
@@ -889,6 +925,18 @@
                     });
                     
                     return true;
+                }
+                
+                // we have a single button that can change the qc status on
+                // all the filtered lanes in one go
+                self.setAllQCGrindQC = function() {
+                    var newStatus = self.setAllQCGrindQCStatus();
+                    ko.utils.arrayForEach(self.filteredLanelets(), function(lanelet) {
+                        if (lanelet['new_qcgrind_qc_status']() != newStatus) {
+                            self.changeQCStatus(newStatus, lanelet);
+                            lanelet['new_qcgrind_qc_status'](newStatus);
+                        }
+                    });
                 }
                 
                 // lanelet view has various popups for different columns
