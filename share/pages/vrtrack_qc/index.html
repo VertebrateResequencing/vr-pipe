@@ -266,7 +266,7 @@
                                             <select data-bind="value: laneletFilters['verify_bam_id']">
                                                 <option value="all">all</option>
                                                 <option value="pass">pass</option>
-                                                <option value="fail">failed</option>
+                                                <option value="fail">fail</option>
                                                 <option value="unknown">unknown</option>
                                             </select>
                                         </td>
@@ -274,7 +274,7 @@
                                             <select data-bind="value: laneletFilters['npg_status']">
                                                 <option value="all">all</option>
                                                 <option value="pass">pass</option>
-                                                <option value="fail">failed</option>
+                                                <option value="fail">fail</option>
                                                 <option value="unknown">unknown</option>
                                             </select>
                                         </td>
@@ -348,7 +348,7 @@
                                                     <td data-bind="css: { success: $data['Verify Bam ID'] == 'pass', danger: $data['Verify Bam ID'] == 'fail' }">
                                                         <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
-                                                    <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'failed' }"></td>
+                                                    <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td>
                                                     <td data-bind="text: $data['Auto QC Status']"></td>
                                                     <td data-bind="text: $data['Raw Gb']"></td>
                                                     <td data-bind="text: $data['Mapped Gb']"></td>
