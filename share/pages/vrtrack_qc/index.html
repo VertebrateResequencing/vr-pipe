@@ -341,13 +341,13 @@
                                                 <td data-bind="text: Sample"></td>
                                                 <td data-bind="text: Library"></td>
                                                 <td data-bind="text: Run"></td>
-                                                <td>
+                                                <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                     <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                 </td>
-                                                <td>
+                                                <td data-bind="css: { success: $data['Verify Bam ID'] == 'pass', danger: $data['Verify Bam ID'] == 'fail' }">
                                                     <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                 </td>
-                                                <td data-bind="text: $data['NPG Status']"></td>
+                                                <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'failed' }"></td>
                                                 <td data-bind="text: $data['Auto QC Status']"></td>
                                                 <td data-bind="text: $data['Raw Gb']"></td>
                                                 <td data-bind="text: $data['Mapped Gb']"></td>
