@@ -90,7 +90,6 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var viewLabels = subargs['viewLabels'];
                 viewLabels.push('Donor');
                 viewLabels.push('Sample');
-                viewLabels.push('Lane');
                 viewLabels.push('Lanelet');
                 
                 // populate the groups select and the all properties
