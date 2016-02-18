@@ -9,6 +9,10 @@
     max-height: 200px;
 }
 
+.popover {
+    max-width: 100%;
+}
+
 .toolbar-with-whitespace {
     margin-top: 15px;
     margin-bottom: 20px;
@@ -80,4 +84,23 @@ dd {
     float:none;
     display:inline-block;
     vertical-align:middle;
+}
+
+.img-row {
+    display: table;
+    border-collapse: collpase;
+    width: 100%;
+}
+.img-row div {
+    display: table-cell;
+    vertical-align: top;
+    padding: 2px;
+}
+.img-row div img {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+.img-row div img:focus {
+    width: 3000px;
 }

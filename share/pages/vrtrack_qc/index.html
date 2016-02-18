@@ -21,6 +21,7 @@
         <script src="/js/knockout-3.4.0.min.js"></script>
         <script src="/js/knockout-switch-case.min.js"></script>
         <script src="/js/knockout-projections-1.1.0.min.js"></script>
+        <script src="/js/knockstrap-1.3.1.min.js"></script>
         
         <!-- Bootstrap Multiselect for nice selects -->
         <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
@@ -196,6 +197,17 @@
                 <div id="viewtable" data-bind="visible: viewNodes().length">
                     <hr>
                     
+                    <!-- ko if: selectedViewLabel() == 'Lanelet' -->
+                        <form role="form" style="margin-bottom: 20px">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" data-bind="checked: showAllGraphs" /> show all graphs
+                            </label>
+                            <label class="checkbox-inline">
+                                <input type="checkbox" data-bind="checked: showAllStats" /> show all stats
+                            </label>
+                        </form>
+                    <!-- /ko -->
+                    
                     <div class="panel panel-default">
                         <div class="panel-heading" data-bind="text: selectedViewLabel"></div>
                         <div class="table-responsive">
@@ -292,13 +304,14 @@
                                         <td>
                                             <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
                                         </td>
+                                        <td></td>
                                     </tr>
                                 </thead>
                                 <!-- ko switch: selectedViewLabel -->
                                     <!-- ko case: 'Lanelet' -->
                                         <!-- for speed we must explicitly specify every column -->
                                         <tbody data-bind="foreach: filteredLanelets">
-                                            <tr style="cursor: pointer" data-bind="click: $parent.showQCForNode">
+                                            <tr>
                                                 <td class="text-center">
                                                     <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
                                                         <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
@@ -328,8 +341,12 @@
                                                 <td data-bind="text: Sample"></td>
                                                 <td data-bind="text: Library"></td>
                                                 <td data-bind="text: Run"></td>
-                                                <td data-bind="text: Genotype"></td>
-                                                <td data-bind="text: $data['Verify Bam ID']"></td>
+                                                <td>
+                                                    <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                </td>
+                                                <td>
+                                                    <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                </td>
                                                 <td data-bind="text: $data['NPG Status']"></td>
                                                 <td data-bind="text: $data['Auto QC Status']"></td>
                                                 <td data-bind="text: $data['Raw Gb']"></td>
@@ -338,7 +355,52 @@
                                                 <td data-bind="text: $data['Mapped-dups Gb']"></td>
                                                 <td data-bind="text: $data['Overlap dup%']"></td>
                                                 <td data-bind="text: $data['Net Gb']"></td>
+                                                <td>
+                                                    <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
+                                                    <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
+                                                </td>
                                             </tr>
+                                            <!-- ko if: display_graphs -->
+                                                <tr>
+                                                    <td colspan="20">
+                                                        <div class="img-row" data-bind="foreach: qc_plots">
+                                                            <div>
+                                                                <img class="img-thumbnail" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            <!-- /ko -->
+                                            <!-- ko if: display_stats -->
+                                                <tr>
+                                                    <td colspan="20">
+                                                        <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
+                                                            <tbody>
+                                                                <tr>
+                                                                    <th>Total Reads</th><td data-bind="text: $data['alignmentstats:reads']"></td>
+                                                                    <th>Total Bases</th><td data-bind="text: $data['alignmentstats:bases']"></td>
+                                                                    <th>Cycles</th><td data-bind="text: $data['alignmentstats:cycles']"></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Reads paired</th><td data-bind="text: $data['alignmentstats:reads_paired']"></td>
+                                                                    <th>Bases postclip</th><td data-bind="text: $data['alignmentstats:bases_postclip']"></td>
+                                                                    <th>Duplication rate</th><td data-bind="text: $data['alignmentstats:duplication_rate']"></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Reads mapped</th><td data-bind="text: $data['alignmentstats:reads_mapped']"></td>
+                                                                    <th>Bases mapped</th><td data-bind="text: $data['alignmentstats:bases_mapped']"></td>
+                                                                    <th>Error rate</th><td data-bind="text: $data['alignmentstats:error_rate']"></td>
+                                                                </tr>
+                                                                <tr>
+                                                                    <th>Reads mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:reads_mapped_rmdup']"></td>
+                                                                    <th>Bases mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:bases_mapped_rmdup']"></td>
+                                                                    <th></th><td></td>
+                                                                </tr>
+                                                            </tbody>
+                                                        </table>
+                                                    </td>
+                                                </tr>
+                                            <!-- /ko -->
                                         </tbody>
                                     <!-- /ko -->
                                     <!-- ko case: $default -->
@@ -376,6 +438,7 @@
         
         <script type="text/javascript">
             var router = new Simrou();
+            $('[data-toggle="popover"]').popover();
             
             // viewmodel for logging in
             var livm = new ko.LogInViewModel();
@@ -454,6 +517,8 @@
                 // view mode vars
                 self.selectedViewLabel = ko.observable();
                 self.viewNodes = ko.observableArray();
+                self.showAllGraphs = ko.observable(false);
+                self.showAllStats = ko.observable(false);
                 self.laneletFilters = {
                     passed: ko.observable(true),
                     failed: ko.observable(true),
@@ -825,6 +890,61 @@
                     
                     return true;
                 }
+                
+                // lanelet view has various popups for different columns
+                self.genotypePopover = function(lane) {
+                    if (lane.hasOwnProperty('gtcheckdata:bam_call_string')) {
+                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
+                    
+                        html += '<tr><th>BAM calls</th>';
+                        var bCalls = lane['gtcheckdata:bam_call_string'];
+                        for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {
+                            html += '<td>' + bCalls.substring(i, i + 2) + '</td>';
+                        }
+                        html += '</tr>';
+                        
+                        html += '<tr><th>Call depths</th>';
+                        var depths = lane['gtcheckdata:bam_gt_depths_string'].split(';');
+                        for (var i = 0, depthsLength = depths.length; i < depthsLength; i++) {
+                            html += '<td>' + depths[i] + '</td>';
+                        }
+                        html += '</tr>';
+                        
+                        html += '</tbody></table>';
+                        return html;
+                    }
+                    else {
+                        return '<p>no genotype result data available</p>';
+                    }
+                }
+                self.verifyPopover = function(lane) {
+                    var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
+                    
+                    html += '<tr><th>Number of SNPs</th><td>' + lane['verifybamiddata:number_of_snps'] + '</td></tr>';
+                    html += '<tr><th>Average Depth</th><td>' + lane['verifybamiddata:avg_depth'] + '</td></tr>';
+                    html += '<tr><th>Freemix</th><td>' + lane['verifybamiddata:freemix'] + '</td></tr>';
+                    html += '<tr><th>FreeLK0</th><td>' + lane['verifybamiddata:freeLK0'] + '</td></tr>';
+                    html += '<tr><th>FreeLK1</th><td>' + lane['verifybamiddata:freeLK1'] + '</td></tr>';
+                    
+                    html += '</tbody></table>';
+                    return html;
+                }
+                self.toggleLaneletGraphs = function (node) {
+                    node['display_graphs'](!node['display_graphs']());
+                };
+                self.toggleLaneletStats = function (node) {
+                    node['display_stats'](!node['display_stats']());
+                };
+                self.showAllGraphs.subscribe(function(newValue) {
+                    ko.utils.arrayForEach(self.viewNodes(), function(node) {
+                        node['display_graphs'](newValue);
+                    });
+                });
+                self.showAllStats.subscribe(function(newValue) {
+                    ko.utils.arrayForEach(self.viewNodes(), function(node) {
+                        node['display_stats'](newValue);
+                    });
+                });
             }
             
             var qcvm = new QCViewModel();

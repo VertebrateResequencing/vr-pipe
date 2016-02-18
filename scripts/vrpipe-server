@@ -44,6 +44,7 @@ use File::Share ':all';
 use Module::Find;
 use DateTime;
 use Authen::Simple::PAM;
+use URI::Escape;
 
 # handle options
 my $cmdline = VRPipe::Interface::CmdLine->new(
@@ -1780,7 +1781,18 @@ sub qc {
                     return $o;
                 };
                 
-                my %qc_col_to_status = ('Pass' => 'passed', 'Fail' => 'failed', 'Invst' => 'investigate', 'GTPend' => 'gt_pending', 'Pend' => 'pending');
+                my $commify = sub {
+                    my $number = shift;
+                    $number || return '';
+                    $number = reverse $number;
+                    $number =~ s/(\d\d\d)(?=\d)(?!\d*\.)/$1,/g;
+                    return scalar reverse $number;
+                };
+                
+                my %qc_col_to_status              = ('Pass' => 'passed', 'Fail' => 'failed', 'Invst' => 'investigate', 'GTPend' => 'gt_pending', 'Pend' => 'pending');
+                my @verifybamiddata_desired_types = qw(number_of_snps avg_depth freemix freeLK0 freeLK1);
+                my @gtcheckdata_desired_types     = qw(bam_call_string bam_gt_depths_string);
+                my @qcgraph_labels                = ('GC Content', 'GC Depth', 'ACGT Cycles', 'Coverage', 'Indels per cycle', 'Indel distribution', 'Insert Size', 'Mismatches per cycle', 'Qualities');
                 
                 foreach my $node (@$data) {
                     my $props     = $node->{properties};
@@ -1828,15 +1840,75 @@ sub qc {
                         $new_props->{'Net Gb'}       = 'n/a';
                     }
                     
+                    # stats for the detailed stats table
+                    my $reads = $props->{'alignmentstats:sequences'};
+                    $new_props->{'alignmentstats:reads'}              = &$commify($reads);
+                    $new_props->{'alignmentstats:reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
+                    $new_props->{'alignmentstats:reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
+                    $new_props->{'alignmentstats:reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
+                    $new_props->{'alignmentstats:bases'}              = &$commify($total_length);
+                    my $bases_postclip = $total_length - $props->{'alignmentstats:bases trimmed'};
+                    $new_props->{'alignmentstats:bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
+                    $new_props->{'alignmentstats:bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
+                    $new_props->{'alignmentstats:bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
+                    $new_props->{'alignmentstats:cycles'}             = $props->{'alignmentstats:average length'};
+                    $new_props->{'alignmentstats:error_rate'}         = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'}) . '%';
+                    $new_props->{'alignmentstats:duplication_rate'}   = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
+                    
+                    # put the graphs in to an array for easy display, since
+                    # there could be a variable number of these
+                    my @graphs = ();
+                    foreach my $label (@qcgraph_labels) {
+                        if (defined $props->{"alignmentstats_plot:$label"}) {
+                            my $path = uri_escape('file' . $props->{"alignmentstats_plot:$label"});
+                            
+                            if ($label eq 'Qualities') {
+                                # 4 different graphs all have the same label
+                                # and are collapsed as one due to nodes_of_label
+                                # properties being a hash
+                                $path =~ s/quals.*\.png$/quals.png/;
+                                push(@graphs, { src => $path, alt => $label });
+                                $path =~ s/quals\.png$/quals2.png/;
+                                push(@graphs, { src => $path, alt => $label });
+                                $path =~ s/quals2\.png$/quals3.png/;
+                                push(@graphs, { src => $path, alt => $label });
+                                $path =~ s/quals3\.png$/quals-hm.png/;
+                                push(@graphs, { src => $path, alt => $label });
+                                next;
+                            }
+                            
+                            push(@graphs, { src => $path, alt => $label });
+                        }
+                    }
+                    $new_props->{qc_plots} = \@graphs;
+                    
                     # other simple things we want to display
                     $new_props->{Individual} = $props->{individual_name} || 'unknown';
                     $new_props->{Sample}     = $props->{sample_name}     || 'unknown';
                     $new_props->{Library}    = $props->{library_id}      || 'unknown';
                     $new_props->{Run}        = $props->{unique};
                     $new_props->{Genotype}   = $props->{gtcheck}         || 'unknown';
-                    $new_props->{'NPG Status'}     = defined $props->{'npg_manual_qc'}        ? ($props->{'npg_manual_qc'} eq '1'        ? 'pass' : 'fail')   : 'unknown';
-                    $new_props->{'Auto QC Status'} = defined $props->{'auto_qc:pass'}         ? ($props->{'auto_qc:pass'} eq '1'         ? 'pass' : 'failed') : 'unknown';
-                    $new_props->{'Verify Bam ID'}  = defined $props->{'verifybamiddata:pass'} ? ($props->{'verifybamiddata:pass'} eq '1' ? 'pass' : 'fail')   : 'unknown';
+                    $new_props->{'NPG Status'}     = defined $props->{'npg_manual_qc'} ? ($props->{'npg_manual_qc'} eq '1' ? 'pass' : 'fail')   : 'unknown';
+                    $new_props->{'Auto QC Status'} = defined $props->{'auto_qc:pass'}  ? ($props->{'auto_qc:pass'} eq '1'  ? 'pass' : 'failed') : 'unknown';
+                    
+                    if (defined $props->{'gtcheckdata:bam_gt_depths_string'}) {
+                        foreach my $type (@gtcheckdata_desired_types) {
+                            $new_props->{"gtcheckdata:$type"} = $props->{"gtcheckdata:$type"};
+                        }
+                    }
+                    
+                    if (defined $props->{'verifybamiddata:pass'}) {
+                        $new_props->{'Verify Bam ID'} = $props->{'verifybamiddata:pass'} eq '1' ? 'pass' : 'fail';
+                        foreach my $type (@verifybamiddata_desired_types) {
+                            $new_props->{"verifybamiddata:$type"} = $props->{"verifybamiddata:$type"};
+                        }
+                    }
+                    else {
+                        $new_props->{'Verify Bam ID'} = 'unknown';
+                        foreach my $type (@verifybamiddata_desired_types) {
+                            $new_props->{"verifybamiddata:$type"} = 'unknown';
+                        }
+                    }
                     
                     # to make it easier/possible to display the single
                     # qcgrind_qc_status as sortable columns of radios for each

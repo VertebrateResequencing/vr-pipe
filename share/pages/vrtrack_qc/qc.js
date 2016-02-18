@@ -110,6 +110,8 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         
                         if (data[i]['label'] == 'Lane') {
                             data[i]['properties']['new_qcgrind_qc_status'] = ko.observable(data[i]['properties']['qcgrind_qc_status']);
+                            data[i]['properties']['display_graphs'] = ko.observable(false);
+                            data[i]['properties']['display_stats'] = ko.observable(false);
                         }
                         
                         arr.push(data[i]['properties']);
