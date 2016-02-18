@@ -332,7 +332,7 @@ class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
             # 'Sample Reception calls' data can only be calculated based on
             # some arbitrary data stored in a file in irods, which we try to
             # get now
-            my $reception_call_string = 'N' x 52;
+            my $reception_call_string = '-' x 52;
             my $call_set              = $data->{snp_call_set};
             if (defined $data->{sample_name_match}->{matched_gt}) {
                 my @alleles;
