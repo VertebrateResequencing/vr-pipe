@@ -455,7 +455,7 @@ class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
                 {
                     date           => $date,
                     freemix        => $data->{freemix},
-                    pass           => $data->{pass} ? $data->{pass} : 0,
+                    pass           => defined $data->{pass} ? $data->{pass} : -1,
                     number_of_snps => $data->{number_of_snps},
                     avg_depth      => $data->{avg_depth},
                     freeLK0        => $data->{freeLK0},

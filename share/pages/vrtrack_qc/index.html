@@ -274,6 +274,7 @@
                                                 <option value="all">all</option>
                                                 <option value="pass">pass</option>
                                                 <option value="fail">fail</option>
+                                                <option value="fail">unsure</option>
                                                 <option value="unknown">unknown</option>
                                             </select>
                                         </td>
@@ -352,7 +353,7 @@
                                                     <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                         <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
-                                                    <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail') }">
+                                                    <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail'), warning: $data['Verify Bam ID'].startsWith('unsure') }">
                                                         <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
                                                     <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td>
