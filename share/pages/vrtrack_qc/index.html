@@ -214,7 +214,14 @@
                             <table class="table table-striped table-hover table-condensed small">
                                 <thead>
                                     <tr data-bind="foreach: viewColumnNames">
-                                        <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                        <!-- ko switch: $data -->
+                                            <!-- ko case: 'Verify Bam ID' -->
+                                                <th data-bind="sort: { arr: $parent.viewNodes, prop: 'verifybamiddata:freemix' }"><span data-bind="text: $data"></span></th>
+                                            <!-- /ko -->
+                                            <!-- ko case: $default -->
+                                                <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                            <!-- /ko -->
+                                        <!-- /ko -->
                                     </tr>
                                     
                                     <tr style="background-color:#F5F5F5" data-bind="visible: selectedViewLabel() == 'Lanelet'">
@@ -345,7 +352,7 @@
                                                     <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                         <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
-                                                    <td data-bind="css: { success: $data['Verify Bam ID'] == 'pass', danger: $data['Verify Bam ID'] == 'fail' }">
+                                                    <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail') }">
                                                         <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
                                                     <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td>

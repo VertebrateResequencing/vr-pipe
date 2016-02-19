@@ -1900,7 +1900,10 @@ sub qc {
                     }
                     
                     if (defined $props->{'verifybamiddata:pass'}) {
-                        $new_props->{'Verify Bam ID'} = $props->{'verifybamiddata:pass'} eq '1' ? 'pass' : 'fail';
+                        # npg's pass criteria seem strange, we'll ignore it for
+                        # now and do our own based on freemix > 0.002
+                        $new_props->{'Verify Bam ID'} = $props->{'verifybamiddata:freemix'} <= '0.002' ? 'pass' : 'fail';
+                        $new_props->{'Verify Bam ID'} .= ' (' . $props->{'verifybamiddata:freemix'} . ')';
                         foreach my $type (@verifybamiddata_desired_types) {
                             $new_props->{"verifybamiddata:$type"} = $props->{"verifybamiddata:$type"};
                         }
