@@ -334,7 +334,7 @@ class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
             # get now
             my $reception_call_string = '-' x 52;
             my $call_set              = $data->{snp_call_set};
-            if (defined $data->{sample_name_match}->{matched_gt}) {
+            if (exists $data->{sample_name_match} && defined $data->{sample_name_match}->{matched_gt}) {
                 my @alleles;
                 my $parse_user_snp_file = 0;
                 if (0 && $call_set && $manifest_dir) { #*** disabled while the official snp file in irods does not actually exist
