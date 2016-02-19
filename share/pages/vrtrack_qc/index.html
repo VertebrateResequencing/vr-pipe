@@ -366,7 +366,7 @@
                                                         <td colspan="20">
                                                             <div class="img-row" data-bind="foreach: qc_plots">
                                                                 <div>
-                                                                    <img class="img-thumbnail" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                                    <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -1009,6 +1009,11 @@
                 self.toggleLaneletGraphs = function (node) {
                     node['display_graphs'](!node['display_graphs']());
                 };
+                $(document).on('click', '.img-row-img', function() { // can't get focus and blur to work in firefox
+                    $(this).parent().css({
+                        'flex-grow' : $(this).parent().css('flex-grow') == 4 ? '1' : '4'
+                    });
+                });
                 self.toggleLaneletStats = function (node) {
                     node['display_stats'](!node['display_stats']());
                 };

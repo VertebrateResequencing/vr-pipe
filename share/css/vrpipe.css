@@ -87,20 +87,14 @@ dd {
 }
 
 .img-row {
-    display: table;
-    border-collapse: collpase;
     width: 100%;
+    display: flex;
 }
 .img-row div {
-    display: table-cell;
+    flex: 1;
     vertical-align: top;
     padding: 2px;
 }
 .img-row div img {
-    display: block;
     width: 100%;
-    height: auto;
-}
-.img-row div img:focus {
-    width: 3000px;
 }
