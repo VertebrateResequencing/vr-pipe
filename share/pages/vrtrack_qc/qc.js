@@ -90,7 +90,6 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 var viewLabels = subargs['viewLabels'];
                 viewLabels.push('Donor');
                 viewLabels.push('Sample');
-                viewLabels.push('Lane');
                 viewLabels.push('Lanelet');
                 
                 // populate the groups select and the all properties
@@ -103,6 +102,10 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
             case 'nodes_of_label':
                 var arr = [];
                 var flatten = subargs['flatten'];
+                var isGroupAdmin = false;
+                if (args['label'] == 'Lanelet') {
+                    isGroupAdmin = true;
+                }
                 for (var i = 0; i < data.length; i++) {
                     if (flatten) {
                         data[i]['properties']['node_id'] = data[i]['id'];
@@ -110,6 +113,12 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                         
                         if (data[i]['label'] == 'Lane') {
                             data[i]['properties']['new_qcgrind_qc_status'] = ko.observable(data[i]['properties']['qcgrind_qc_status']);
+                            data[i]['properties']['display_graphs'] = ko.observable(false);
+                            data[i]['properties']['display_stats'] = ko.observable(false);
+                            
+                            if (isGroupAdmin && ! data[i]['properties']['is_admin']) {
+                                isGroupAdmin = false;
+                            }
                         }
                         
                         arr.push(data[i]['properties']);
@@ -119,6 +128,9 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     }
                 }
                 resultStore(arr);
+                if (subargs['isGroupAdmin']) {
+                    subargs['isGroupAdmin'](isGroupAdmin);
+                }
                 break;
             
             case 'node_by_id':

@@ -9,6 +9,10 @@
     max-height: 200px;
 }
 
+.popover {
+    max-width: 100%;
+}
+
 .toolbar-with-whitespace {
     margin-top: 15px;
     margin-bottom: 20px;
@@ -80,4 +84,17 @@ dd {
     float:none;
     display:inline-block;
     vertical-align:middle;
+}
+
+.img-row {
+    width: 100%;
+    display: flex;
+}
+.img-row div {
+    flex: 1;
+    vertical-align: top;
+    padding: 2px;
+}
+.img-row div img {
+    width: 100%;
 }

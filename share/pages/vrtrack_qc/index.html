@@ -21,6 +21,7 @@
         <script src="/js/knockout-3.4.0.min.js"></script>
         <script src="/js/knockout-switch-case.min.js"></script>
         <script src="/js/knockout-projections-1.1.0.min.js"></script>
+        <script src="/js/knockstrap-1.3.1.min.js"></script>
         
         <!-- Bootstrap Multiselect for nice selects -->
         <script src="/js/bootstrap-multiselect-0.9.8.min.js"></script>
@@ -196,13 +197,31 @@
                 <div id="viewtable" data-bind="visible: viewNodes().length">
                     <hr>
                     
+                    <!-- ko if: selectedViewLabel() == 'Lanelet' -->
+                        <form role="form" style="margin-bottom: 20px">
+                            <label class="checkbox-inline">
+                                <input type="checkbox" data-bind="checked: showAllGraphs" /> show all graphs
+                            </label>
+                            <label class="checkbox-inline">
+                                <input type="checkbox" data-bind="checked: showAllStats" /> show all stats
+                            </label>
+                        </form>
+                    <!-- /ko -->
+                    
                     <div class="panel panel-default">
                         <div class="panel-heading" data-bind="text: selectedViewLabel"></div>
                         <div class="table-responsive">
                             <table class="table table-striped table-hover table-condensed small">
                                 <thead>
                                     <tr data-bind="foreach: viewColumnNames">
-                                        <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                        <!-- ko switch: $data -->
+                                            <!-- ko case: 'Verify Bam ID' -->
+                                                <th data-bind="sort: { arr: $parent.viewNodes, prop: 'verifybamiddata:freemix' }"><span data-bind="text: $data"></span></th>
+                                            <!-- /ko -->
+                                            <!-- ko case: $default -->
+                                                <th data-bind="sort: { arr: $parent.viewNodes, prop: $data }"><span data-bind="text: $data"></span></th>
+                                            <!-- /ko -->
+                                        <!-- /ko -->
                                     </tr>
                                     
                                     <tr style="background-color:#F5F5F5" data-bind="visible: selectedViewLabel() == 'Lanelet'">
@@ -254,7 +273,8 @@
                                             <select data-bind="value: laneletFilters['verify_bam_id']">
                                                 <option value="all">all</option>
                                                 <option value="pass">pass</option>
-                                                <option value="fail">failed</option>
+                                                <option value="fail">fail</option>
+                                                <option value="fail">unsure</option>
                                                 <option value="unknown">unknown</option>
                                             </select>
                                         </td>
@@ -262,7 +282,7 @@
                                             <select data-bind="value: laneletFilters['npg_status']">
                                                 <option value="all">all</option>
                                                 <option value="pass">pass</option>
-                                                <option value="fail">failed</option>
+                                                <option value="fail">fail</option>
                                                 <option value="unknown">unknown</option>
                                             </select>
                                         </td>
@@ -292,53 +312,137 @@
                                         <td>
                                             <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
                                         </td>
+                                        <td></td>
                                     </tr>
                                 </thead>
                                 <!-- ko switch: selectedViewLabel -->
                                     <!-- ko case: 'Lanelet' -->
                                         <!-- for speed we must explicitly specify every column -->
-                                        <tbody data-bind="foreach: filteredLanelets">
-                                            <tr style="cursor: pointer" data-bind="click: $parent.showQCForNode">
-                                                <td class="text-center">
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
-                                                        <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'passed')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
-                                                        <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'failed')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
-                                                        <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'investigate')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
-                                                        <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
-                                                    </div>
-                                                </td>
-                                                <td>
-                                                    <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
-                                                        <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, click: $parent.changeQCStatus.bind($data, 'pending')" />
-                                                    </div>
-                                                </td>
-                                                <td data-bind="text: Individual"></td>
-                                                <td data-bind="text: Sample"></td>
-                                                <td data-bind="text: Library"></td>
-                                                <td data-bind="text: Run"></td>
-                                                <td data-bind="text: Genotype"></td>
-                                                <td data-bind="text: $data['Verify Bam ID']"></td>
-                                                <td data-bind="text: $data['NPG Status']"></td>
-                                                <td data-bind="text: $data['Auto QC Status']"></td>
-                                                <td data-bind="text: $data['Raw Gb']"></td>
-                                                <td data-bind="text: $data['Mapped Gb']"></td>
-                                                <td data-bind="text: $data['Dup%']"></td>
-                                                <td data-bind="text: $data['Mapped-dups Gb']"></td>
-                                                <td data-bind="text: $data['Overlap dup%']"></td>
-                                                <td data-bind="text: $data['Net Gb']"></td>
-                                            </tr>
+                                        <tbody>
+                                            <!-- ko foreach: filteredLanelets -->
+                                                <tr>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
+                                                            <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
+                                                            <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
+                                                            <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
+                                                            <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
+                                                            <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
+                                                        </div>
+                                                    </td>
+                                                    <td data-bind="text: Individual"></td>
+                                                    <td data-bind="text: Sample"></td>
+                                                    <td data-bind="text: Library"></td>
+                                                    <td data-bind="text: Run"></td>
+                                                    <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
+                                                        <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                    </td>
+                                                    <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail'), warning: $data['Verify Bam ID'].startsWith('unsure') }">
+                                                        <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                    </td>
+                                                    <td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td>
+                                                    <td data-bind="text: $data['Auto QC Status']"></td>
+                                                    <td data-bind="text: $data['Raw Gb']"></td>
+                                                    <td data-bind="text: $data['Mapped Gb']"></td>
+                                                    <td data-bind="text: $data['Dup%']"></td>
+                                                    <td data-bind="text: $data['Mapped-dups Gb']"></td>
+                                                    <td data-bind="text: $data['Overlap dup%']"></td>
+                                                    <td data-bind="text: $data['Net Gb']"></td>
+                                                    <td>
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
+                                                    </td>
+                                                </tr>
+                                                <!-- ko if: display_graphs -->
+                                                    <tr>
+                                                        <td colspan="20">
+                                                            <div class="img-row" data-bind="foreach: qc_plots">
+                                                                <div>
+                                                                    <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <!-- /ko -->
+                                                <!-- ko if: display_stats -->
+                                                    <tr>
+                                                        <td colspan="20">
+                                                            <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <th>Total Reads</th><td data-bind="text: $data['alignmentstats:reads']"></td>
+                                                                        <th>Total Bases</th><td data-bind="text: $data['alignmentstats:bases']"></td>
+                                                                        <th>Cycles</th><td data-bind="text: $data['alignmentstats:cycles']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads paired</th><td data-bind="text: $data['alignmentstats:reads_paired']"></td>
+                                                                        <th>Bases postclip</th><td data-bind="text: $data['alignmentstats:bases_postclip']"></td>
+                                                                        <th>Duplication rate</th><td data-bind="text: $data['alignmentstats:duplication_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped</th><td data-bind="text: $data['alignmentstats:reads_mapped']"></td>
+                                                                        <th>Bases mapped</th><td data-bind="text: $data['alignmentstats:bases_mapped']"></td>
+                                                                        <th>Error rate</th><td data-bind="text: $data['alignmentstats:error_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:reads_mapped_rmdup']"></td>
+                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:bases_mapped_rmdup']"></td>
+                                                                        <th></th><td></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
+                                                        </td>
+                                                    </tr>
+                                                <!-- /ko -->
+                                            <!-- /ko -->
+                                            <!-- ko if: isGroupAdmin -->
+                                                <tr>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                    <td colspan="15">
+                                                        <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
+                                                    </td>
+                                                </tr>
+                                            <!-- /ko -->
                                         </tbody>
                                     <!-- /ko -->
                                     <!-- ko case: $default -->
@@ -376,6 +480,7 @@
         
         <script type="text/javascript">
             var router = new Simrou();
+            $('[data-toggle="popover"]').popover();
             
             // viewmodel for logging in
             var livm = new ko.LogInViewModel();
@@ -395,6 +500,7 @@
                 self.adminToggle = ko.observable('->>>');
                 self.adminUsers = ko.observable();
                 self.groupAdmins = ko.observableArray();
+                self.isGroupAdmin = ko.observable(false);
                 self.groupConfig = ko.observableArray();
                 
                 // toggle display of the admin well when user clicks the arrows
@@ -454,6 +560,9 @@
                 // view mode vars
                 self.selectedViewLabel = ko.observable();
                 self.viewNodes = ko.observableArray();
+                self.showAllGraphs = ko.observable(false);
+                self.showAllStats = ko.observable(false);
+                self.setAllQCGrindQCStatus = ko.observable('pending');
                 self.laneletFilters = {
                     passed: ko.observable(true),
                     failed: ko.observable(true),
@@ -576,7 +685,7 @@
                 
                 // get admin details (ignore errors from it to avoid having 2
                 // not-logged-in errors)
-                self.errorsIgnored =  ko.observableArray();
+                self.errorsIgnored = ko.observableArray();
                 getQCGraphData('qc_website_admin', { }, { adminUsers: self.adminUsers, groupAdmins: self.groupAdmins, groupConfig: self.groupConfig }, self.loading, self.errorsIgnored);
                 
                 // when admin-stuff changes, update the graph db
@@ -663,7 +772,7 @@
                         else {
                             loc = loc + '/samples:all';
                         }
-                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, flatten: true }, self.loading, self.errors);
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, flatten: true }, self.loading, self.errors);
                         
                         // and set the browser url to make this selection
                         // bookmarkable and included in the history
@@ -825,6 +934,107 @@
                     
                     return true;
                 }
+                
+                // we have a single button that can change the qc status on
+                // all the filtered lanes in one go
+                self.setAllQCGrindQC = function() {
+                    var newStatus = self.setAllQCGrindQCStatus();
+                    ko.utils.arrayForEach(self.filteredLanelets(), function(lanelet) {
+                        if (lanelet['new_qcgrind_qc_status']() != newStatus) {
+                            self.changeQCStatus(newStatus, lanelet);
+                            lanelet['new_qcgrind_qc_status'](newStatus);
+                        }
+                    });
+                }
+                
+                // lanelet view has various popups for different columns
+                self.genotypePopover = function(lane) {
+                    if (lane.hasOwnProperty('gtcheckdata:reception_call_string') && lane['gtcheckdata:reception_call_string']) {
+                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><caption>' + lane['gtcheckdata:match_count'] + '/' + lane['gtcheckdata:common_snp_count'] + ' (' + lane['gtcheckdata:match_percent'] + '%)</caption><tbody>';
+                        
+                        html += '<tr><th>Reception calls</th>';
+                        var rCalls = lane['gtcheckdata:reception_call_string'];
+                        var rCallsArray = [];
+                        for (var i = 0, rCallsLength = rCalls.length; i < rCallsLength; i += 2) {
+                            var call = rCalls.substring(i, i + 2);
+                            html += '<td>' + call + '</td>';
+                            rCallsArray.push(call);
+                        }
+                        html += '</tr>';
+                        
+                        var scores = lane['gtcheckdata:match_score'].split(';');
+                        
+                        html += '<tr><th>BAM calls</th>';
+                        var bCalls = lane['gtcheckdata:bam_call_string'];
+                        var callsI = 0;
+                        for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {
+                            var call = bCalls.substring(i, i + 2);
+                            if (call == 'NN') {
+                                call = '--';
+                            }
+                            var rCall = rCallsArray[callsI];
+                            var bootstrapClass = '';
+                            if (rCall != '--' && call != '--') {
+                                if (scores[callsI] == '1') {
+                                    bootstrapClass = 'success';
+                                }
+                                else {
+                                    bootstrapClass = 'danger';
+                                }
+                            }
+                            
+                            html += '<td class="' + bootstrapClass + '">' + call + '</td>';
+                            callsI++;
+                        }
+                        html += '</tr>';
+                        
+                        html += '<tr><th>Call depths</th>';
+                        var depths = lane['gtcheckdata:bam_gt_depths_string'].split(';');
+                        for (var i = 0, depthsLength = depths.length; i < depthsLength; i++) {
+                            html += '<td>' + depths[i] + '</td>';
+                        }
+                        html += '</tr>';
+                        
+                        html += '</tbody></table>';
+                        return html;
+                    }
+                    else {
+                        return '<p>no genotype result details available</p>';
+                    }
+                }
+                self.verifyPopover = function(lane) {
+                    var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
+                    
+                    html += '<tr><th>Number of SNPs</th><td>' + lane['verifybamiddata:number_of_snps'] + '</td></tr>';
+                    html += '<tr><th>Average Depth</th><td>' + lane['verifybamiddata:avg_depth'] + '</td></tr>';
+                    html += '<tr><th>Freemix</th><td>' + lane['verifybamiddata:freemix'] + '</td></tr>';
+                    html += '<tr><th>FreeLK0</th><td>' + lane['verifybamiddata:freeLK0'] + '</td></tr>';
+                    html += '<tr><th>FreeLK1</th><td>' + lane['verifybamiddata:freeLK1'] + '</td></tr>';
+                    
+                    html += '</tbody></table>';
+                    return html;
+                }
+                self.toggleLaneletGraphs = function (node) {
+                    node['display_graphs'](!node['display_graphs']());
+                };
+                $(document).on('click', '.img-row-img', function() { // can't get focus and blur to work in firefox
+                    $(this).parent().css({
+                        'flex-grow' : $(this).parent().css('flex-grow') == 4 ? '1' : '4'
+                    });
+                });
+                self.toggleLaneletStats = function (node) {
+                    node['display_stats'](!node['display_stats']());
+                };
+                self.showAllGraphs.subscribe(function(newValue) {
+                    ko.utils.arrayForEach(self.viewNodes(), function(node) {
+                        node['display_graphs'](newValue);
+                    });
+                });
+                self.showAllStats.subscribe(function(newValue) {
+                    ko.utils.arrayForEach(self.viewNodes(), function(node) {
+                        node['display_stats'](newValue);
+                    });
+                });
             }
             
             var qcvm = new QCViewModel();
