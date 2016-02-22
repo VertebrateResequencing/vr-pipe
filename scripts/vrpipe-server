@@ -1842,18 +1842,33 @@ sub qc {
                     
                     # stats for the detailed stats table
                     my $reads = $props->{'alignmentstats:sequences'};
-                    $new_props->{'alignmentstats:reads'}              = &$commify($reads);
-                    $new_props->{'alignmentstats:reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
-                    $new_props->{'alignmentstats:reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
-                    $new_props->{'alignmentstats:reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
-                    $new_props->{'alignmentstats:bases'}              = &$commify($total_length);
-                    my $bases_postclip = $total_length - $props->{'alignmentstats:bases trimmed'};
-                    $new_props->{'alignmentstats:bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
-                    $new_props->{'alignmentstats:bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
-                    $new_props->{'alignmentstats:bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
-                    $new_props->{'alignmentstats:cycles'}             = $props->{'alignmentstats:average length'};
-                    $new_props->{'alignmentstats:error_rate'}         = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'}) . '%';
-                    $new_props->{'alignmentstats:duplication_rate'}   = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
+                    if ($reads) {
+                        $new_props->{'alignmentstats:reads'}              = &$commify($reads);
+                        $new_props->{'alignmentstats:reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
+                        $new_props->{'alignmentstats:reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
+                        $new_props->{'alignmentstats:reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
+                        $new_props->{'alignmentstats:bases'}              = &$commify($total_length);
+                        my $bases_postclip = $total_length - $props->{'alignmentstats:bases trimmed'};
+                        $new_props->{'alignmentstats:bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
+                        $new_props->{'alignmentstats:bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
+                        $new_props->{'alignmentstats:bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
+                        $new_props->{'alignmentstats:cycles'}             = $props->{'alignmentstats:average length'};
+                        $new_props->{'alignmentstats:error_rate'}         = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'}) . '%';
+                        $new_props->{'alignmentstats:duplication_rate'}   = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
+                    }
+                    else {
+                        $new_props->{'alignmentstats:reads'}              = 0;
+                        $new_props->{'alignmentstats:reads_mapped'}       = 0;
+                        $new_props->{'alignmentstats:reads_paired'}       = 0;
+                        $new_props->{'alignmentstats:reads_mapped_rmdup'} = 0;
+                        $new_props->{'alignmentstats:bases'}              = 0;
+                        $new_props->{'alignmentstats:bases_postclip'}     = 0;
+                        $new_props->{'alignmentstats:bases_mapped'}       = 0;
+                        $new_props->{'alignmentstats:bases_mapped_rmdup'} = 0;
+                        $new_props->{'alignmentstats:cycles'}             = 0;
+                        $new_props->{'alignmentstats:error_rate'}         = 0;
+                        $new_props->{'alignmentstats:duplication_rate'}   = 0;
+                    }
                     
                     # put the graphs in to an array for easy display, since
                     # there could be a variable number of these
