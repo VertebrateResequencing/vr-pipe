@@ -250,13 +250,17 @@
                                                 <input type="checkbox" data-bind="checked: laneletFilters['pending']" />
                                             </label>
                                         </td>
-                                        <td></td>
-                                        <td></td>
+                                        <td>
+                                            <input type="text" size="6" data-bind="textInput: laneletFilters['individual']" />
+                                        </td>
+                                        <td>
+                                            <input type="text" size="6" data-bind="textInput: laneletFilters['sample']" />
+                                        </td>
                                         <td>
                                             <input type="text" size="6" data-bind="textInput: laneletFilters['library']" />
                                         </td>
                                         <td>
-                                            <input type="text" size="6" data-bind="textInput: laneletFilters['run']" />
+                                            <input type="text" size="6" data-bind="textInput: laneletFilters['lanelet']" />
                                         </td>
                                         <td>
                                             <select data-bind="value: laneletFilters['genotype']">
@@ -322,34 +326,34 @@
                                             <!-- ko foreach: filteredLanelets -->
                                                 <tr>
                                                     <td>
-                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_passed'}">
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_passed'}">
                                                             <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_failed'}">
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_failed'}">
                                                             <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_investigate'}">
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_investigate'}">
                                                             <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_gt_pending'}">
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_gt_pending'}">
                                                             <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
                                                         </div>
                                                     </td>
                                                     <td>
-                                                        <div class="radio-highlightable" data-bind="attr: {'id': Run + '_pending'}">
+                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_pending'}">
                                                             <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
                                                         </div>
                                                     </td>
-                                                    <td data-bind="text: Individual"></td>
-                                                    <td data-bind="text: Sample"></td>
-                                                    <td data-bind="text: Library"></td>
-                                                    <td data-bind="text: Run, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }"></td>
+                                                    <td data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td>
+                                                    <td data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td>
+                                                    <td data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td>
+                                                    <td data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td>
                                                     <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                         <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
@@ -571,8 +575,10 @@
                     investigate: ko.observable(true),
                     gt_pending: ko.observable(true),
                     pending: ko.observable(true),
+                    individual: ko.observable(undefined),
+                    sample: ko.observable(undefined),
                     library: ko.observable(undefined),
-                    run: ko.observable(undefined),
+                    lanelet: ko.observable(undefined),
                     genotype: ko.observable('all'),
                     verify_bam_id: ko.observable('all'),
                     npg_status: ko.observable('all'),
@@ -595,8 +601,10 @@
                                 (self.laneletFilters['investigate']() ? 1 : l['Invst'] == 0) &&
                                 (self.laneletFilters['gt_pending']() ? 1 : l['GTPend'] == 0) &&
                                 (self.laneletFilters['pending']() ? 1 : l['Pend'] == 0) &&
+                                (self.laneletFilters['individual']() ? l['Individual'].indexOf(self.laneletFilters['individual']()) !== -1 : 1) &&
+                                (self.laneletFilters['sample']() ? l['Sample'].indexOf(self.laneletFilters['sample']()) !== -1 : 1) &&
                                 (self.laneletFilters['library']() ? l['Library'].indexOf(self.laneletFilters['library']()) !== -1 : 1) &&
-                                (self.laneletFilters['run']() ? l['Run'].indexOf(self.laneletFilters['run']()) !== -1 : 1) &&
+                                (self.laneletFilters['lanelet']() ? l['Lanelet'].indexOf(self.laneletFilters['lanelet']()) !== -1 : 1) &&
                                 (self.laneletFilters['genotype']() == 'all' ? 1 : l['Genotype'].startsWith(self.laneletFilters['genotype']())) &&
                                 (self.laneletFilters['verify_bam_id']() == 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters['verify_bam_id']())) &&
                                 (self.laneletFilters['npg_status']() == 'all' ? 1 : l['NPG Status'] == self.laneletFilters['npg_status']()) &&
@@ -626,6 +634,9 @@
                     if (self.selectedViewLabel() == 'Lanelet') {
                         self.filteredLanelets.filterProgressive(self.viewNodes.peek());
                     }
+                }
+                self.setFilter = function(filter, value) {
+                    self.laneletFilters[filter](value);
                 }
                 
                 // configure the multiselects
@@ -895,7 +906,7 @@
                         props.push('Individual');
                         props.push('Sample');
                         props.push('Library');
-                        props.push('Run');
+                        props.push('Lanelet');
                         props.push('Genotype');
                         props.push('Verify Bam ID');
                         props.push('NPG Status');
@@ -937,9 +948,9 @@
                 self.qcStatusToCol = {passed: 'Pass', failed: 'Fail', investigate: 'Invst', 'gt_pending': 'GTPend', pending: 'Pend'};
                 self.changeQCStatus = function(laneletStatus, lanelet) {
                     var oldStatus = lanelet['qcgrind_qc_status'];
-                    var run = lanelet['Run'];
+                    var unique = lanelet['Lanelet'];
                     
-                    vrpipeRestMethod('qc', 'set_lanelet_qc_status', { lane: run, status: laneletStatus }, self.loading, self.errors, function(data) {
+                    vrpipeRestMethod('qc', 'set_lanelet_qc_status', { lane: unique, status: laneletStatus }, self.loading, self.errors, function(data) {
                         if (data['success']) {
                             lanelet['qcgrind_qc_status'] = laneletStatus;
                             lanelet[self.qcStatusToCol[oldStatus]] = 0;
@@ -947,10 +958,10 @@
                             
                             // also colour the radio as indication of what has
                             // been set this session
-                            var id = run + '_' + oldStatus;
+                            var id = unique + '_' + oldStatus;
                             var radioDiv = document.getElementById(id);
                             radioDiv.style.backgroundColor = 'transparent';
-                            id = run + '_' + laneletStatus;
+                            id = unique + '_' + laneletStatus;
                             radioDiv = document.getElementById(id);
                             radioDiv.style.backgroundColor = 'yellow';
                         }

@@ -1911,8 +1911,9 @@ sub qc {
                     $new_props->{Individual} = $props->{individual_name} || 'unknown';
                     $new_props->{Sample}     = $props->{sample_name}     || 'unknown';
                     $new_props->{Library}    = $props->{library_id}      || 'unknown';
-                    $new_props->{Run}        = $props->{unique};
-                    $new_props->{Genotype}   = $props->{gtcheck}         || 'unknown';
+                    $new_props->{Lanelet}    = $props->{unique};
+                    $new_props->{run_and_lane} = $props->{run} . '_' . $props->{lane};
+                    $new_props->{Genotype} = $props->{gtcheck} || 'unknown';
                     $new_props->{'NPG Status'}     = defined $props->{'npg_manual_qc'} ? ($props->{'npg_manual_qc'} eq '1' ? 'pass' : 'fail')   : 'unknown';
                     $new_props->{'Auto QC Status'} = defined $props->{'auto_qc:pass'}  ? ($props->{'auto_qc:pass'} eq '1'  ? 'pass' : 'failed') : 'unknown';
                     
