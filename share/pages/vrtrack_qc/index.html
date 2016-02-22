@@ -411,7 +411,7 @@
                                                     </tr>
                                                 <!-- /ko -->
                                             <!-- /ko -->
-                                            <!-- ko if: isGroupAdmin -->
+                                            <!-- ko if: isGroupAdmin && filteredLanelets().length > 1 -->
                                                 <tr>
                                                     <td>
                                                         <div class="radio-highlightable">
@@ -587,8 +587,8 @@
                 self.filteredLanelets = ko.observableArray();
                 self.filteredLanelets.extend({
                     progressivefilter: {
-                        batchSize: 30, // batch size
-                        filterFunction: function isItemFiltered(l) { // filter function
+                        batchSize: 30,
+                        filterFunction: function isItemFiltered(l) {
                             var pass = 
                                 (self.laneletFilters['passed']() ? 1 : l['Pass'] == 0) &&
                                 (self.laneletFilters['failed']() ? 1 : l['Fail'] == 0) &&
@@ -612,7 +612,9 @@
                     }
                 });
                 self.viewNodes.subscribe(function () {
-                    self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    if (self.selectedViewLabel() == 'Lanelet') {
+                        self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    }
                 });
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
@@ -621,7 +623,9 @@
                     });
                 })
                 self.updateFilter = function() {
-                    self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    if (self.selectedViewLabel() == 'Lanelet') {
+                        self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    }
                 }
                 
                 // configure the multiselects
