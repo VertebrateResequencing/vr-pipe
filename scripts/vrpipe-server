@@ -1800,9 +1800,19 @@ sub qc {
                     
                     # alignment stats
                     my $total_length = $props->{'alignmentstats:total length'};
-                    $new_props->{'Raw Gb'} = &$rounder($total_length / 1000000000);
+                    if ($total_length) {
+                        $new_props->{'Raw Gb'} = &$rounder($total_length / 1000000000);
+                    }
+                    else {
+                        $new_props->{'Raw Gb'} = 0;
+                    }
                     my $bases_mapped_cigar = $props->{'alignmentstats:bases mapped (cigar)'};
-                    $new_props->{'Mapped Gb'} = &$rounder($bases_mapped_cigar / 1000000000);
+                    if ($bases_mapped_cigar) {
+                        $new_props->{'Mapped Gb'} = &$rounder($bases_mapped_cigar / 1000000000);
+                    }
+                    else {
+                        $new_props->{'Mapped Gb'} = 0;
+                    }
                     my $reads_mapped = $props->{'alignmentstats:reads mapped'};
                     
                     # (the above are in the stats file, while the remainder are
@@ -1936,7 +1946,7 @@ sub qc {
                     # to make it easier/possible to display the single
                     # qcgrind_qc_status as sortable columns of radios for each
                     # possible value, we break it in to booleans
-                    my $qc_status    = $props->{qcgrind_qc_status};
+                    my $qc_status = $props->{qcgrind_qc_status} || 'pending';
                     my $found_status = 0;
                     while (my ($col, $val) = each %qc_col_to_status) {
                         my $this_status = $qc_status eq $val ? 1 : 0;
@@ -1950,7 +1960,7 @@ sub qc {
                         $qc_status = 'pending';
                     }
                     $new_props->{qcgrind_qc_status} = $qc_status;
-                    $new_props->{is_admin}          = int($props->{is_admin});
+                    $new_props->{is_admin} = int($props->{is_admin} || 0);
                     
                     $node->{properties} = $new_props;
                 }
