@@ -349,7 +349,7 @@
                                                     <td data-bind="text: Individual"></td>
                                                     <td data-bind="text: Sample"></td>
                                                     <td data-bind="text: Library"></td>
-                                                    <td data-bind="text: Run"></td>
+                                                    <td data-bind="text: Run, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }"></td>
                                                     <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                         <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                     </td>
