@@ -1911,7 +1911,12 @@ sub qc {
                             $new_props->{"gtcheckdata:$type"} = $props->{"gtcheckdata:$type"};
                         }
                         
-                        $new_props->{"gtcheckdata:match_percent"} = &$rounder((100 / $props->{"gtcheckdata:common_snp_count"}) * $props->{"gtcheckdata:match_count"});
+                        if ($props->{"gtcheckdata:common_snp_count"}) {
+                            $new_props->{"gtcheckdata:match_percent"} = &$rounder((100 / $props->{"gtcheckdata:common_snp_count"}) * $props->{"gtcheckdata:match_count"});
+                        }
+                        else {
+                            $new_props->{"gtcheckdata:match_percent"} = 0;
+                        }
                     }
                     
                     if (defined $props->{'verifybamiddata:pass'}) {
