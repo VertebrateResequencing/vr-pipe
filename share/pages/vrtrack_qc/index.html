@@ -447,7 +447,7 @@
                                                         </div>
                                                     </td>
                                                     <td colspan="15">
-                                                        <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
+                                                        <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC, disable: setAllQCGrindQCStatus() == 'unset'">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
                                                     </td>
                                                 </tr>
                                             <!-- /ko -->
@@ -577,7 +577,7 @@
                 self.viewNodes = ko.observableArray();
                 self.showAllGraphs = ko.observable(false);
                 self.showAllStats = ko.observable(false);
-                self.setAllQCGrindQCStatus = ko.observable('pending');
+                self.setAllQCGrindQCStatus = ko.observable('unset');
                 
                 // lanelets can be sorted and filtered
                 self.laneletFilters = {
@@ -636,12 +636,14 @@
                 });
                 self.viewNodes.subscribe(function () {
                     if (self.selectedViewLabel() != 'Donor') {
+                        self.setAllQCGrindQCStatus('unset');
                         self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     }
                 });
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
                     filter.subscribe(function () {
+                        self.setAllQCGrindQCStatus('unset');
                         self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     });
                 })
