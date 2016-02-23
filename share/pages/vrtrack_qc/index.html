@@ -734,8 +734,8 @@
                 
                 // function to reset parts of the view
                 self.reset = function(mode) {
-                    self.deselect(self.selectedViewLabel, '#viewSelect');
                     self.viewNodes.removeAll();
+                    self.deselect(self.selectedViewLabel, '#viewSelect');
                     
                     if (mode > 1) {
                         self.deselect(self.selectedSampleProperty, '#samplePropertySelect');
