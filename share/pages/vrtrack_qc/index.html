@@ -316,6 +316,9 @@
                                         <td>
                                             <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
                                         </td>
+                                        <td>
+                                            <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
+                                        </td>
                                         <td></td>
                                     </tr>
                                 </thead>
@@ -368,6 +371,7 @@
                                                     <td data-bind="text: $data['Mapped-dups Gb']"></td>
                                                     <td data-bind="text: $data['Overlap dup%']"></td>
                                                     <td data-bind="text: $data['Net Gb']"></td>
+                                                    <td data-bind="text: $data['Error Rate']"></td>
                                                     <td>
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
@@ -375,7 +379,7 @@
                                                 </tr>
                                                 <!-- ko if: display_graphs -->
                                                     <tr>
-                                                        <td colspan="20">
+                                                        <td colspan="21">
                                                             <div class="img-row" data-bind="foreach: qc_plots">
                                                                 <div>
                                                                     <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
@@ -386,7 +390,7 @@
                                                 <!-- /ko -->
                                                 <!-- ko if: display_stats -->
                                                     <tr>
-                                                        <td colspan="20">
+                                                        <td colspan="21">
                                                             <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
                                                                 <tbody>
                                                                     <tr>
@@ -596,6 +600,7 @@
                     mapped_dups_gb: ko.observable(undefined),
                     overlap_dup_percent: ko.observable(undefined),
                     net_gb: ko.observable(undefined),
+                    error_rate: ko.observable(undefined),
                 };
                 self.filteredNodes = ko.observableArray();
                 self.maxRows = ko.observable(500);
@@ -623,7 +628,8 @@
                                 (self.laneletFilters['dup_percent']() ? parseFloat(l['Dup%']) <= parseFloat(self.laneletFilters['dup_percent']()) : 1) &&
                                 (self.laneletFilters['mapped_dups_gb']() ? parseFloat(l['Mapped-dups Gb']) >= parseFloat(self.laneletFilters['mapped_dups_gb']()) : 1) &&
                                 (self.laneletFilters['overlap_dup_percent']() ? parseFloat(l['Overlap dup%']) <= parseFloat(self.laneletFilters['overlap_dup_percent']()) : 1) &&
-                                (self.laneletFilters['net_gb']() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters['net_gb']()) : 1);
+                                (self.laneletFilters['net_gb']() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters['net_gb']()) : 1) &&
+                                (self.laneletFilters['error_rate']() ? parseFloat(l['Error Rate']) >= parseFloat(self.laneletFilters['error_rate']()) : 1);
                             return pass;
                         } 
                     }
@@ -938,6 +944,7 @@
                         props.push('Mapped-dups Gb');
                         props.push('Overlap dup%');
                         props.push('Net Gb');
+                        props.push('Error Rate');
                     }
                     else {
                         var obj = self.viewNodes()[0];
