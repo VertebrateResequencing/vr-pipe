@@ -323,7 +323,7 @@
                                     <!-- ko case: 'Lanelet' -->
                                         <!-- for speed we must explicitly specify every column -->
                                         <tbody>
-                                            <!-- ko foreach: filteredLanelets -->
+                                            <!-- ko foreach: filteredNodes -->
                                                 <tr>
                                                     <td>
                                                         <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_passed'}">
@@ -415,7 +415,7 @@
                                                     </tr>
                                                 <!-- /ko -->
                                             <!-- /ko -->
-                                            <!-- ko if: isGroupAdmin && filteredLanelets().length > 1 -->
+                                            <!-- ko if: isGroupAdmin && filteredNodes().length > 1 -->
                                                 <tr>
                                                     <td>
                                                         <div class="radio-highlightable">
@@ -460,13 +460,20 @@
                             </table>
                         </div>
                         <div class="panel-footer">
-                            <small>
+                            <small data-bind="if: selectedViewLabel">
                                 <!-- ko switch: selectedViewLabel -->
-                                    <!-- ko case: 'Lanelet' -->
-                                    <span data-bind="text: filteredLanelets().length"></span> rows
+                                    <!-- ko case: 'Donor' -->
+                                        <span data-bind="text: viewNodes().length"></span> Donors
                                     <!-- /ko -->
                                     <!-- ko case: $default -->
-                                    <span data-bind="text: viewNodes().length"></span> rows
+                                        <span data-bind="text: filteredNodes.trueLength"></span> / <span data-bind="text: viewNodes().length"></span> <span data-bind="text: selectedViewLabel"></span>s
+                                        <!-- ko if: filteredNodes.trueLength() > maxRows() -->
+                                            (showing <span data-bind="text: filteredNodes().length"></span>)
+                                            <!-- ko if: filteredNodes.trueLength() > maxRows() + 750 -->
+                                                <button class="btn btn-info btn-sm" type="submit" data-bind="click: showMoreNodes">show 500 more</button>
+                                            <!-- /ko -->
+                                            <button class="btn btn-info btn-sm" type="submit" data-bind="click: showAllNodes">show all</button>
+                                        <!-- /ko -->
                                     <!-- /ko -->
                                 <!-- /ko -->
                             </small>
@@ -590,10 +597,12 @@
                     overlap_dup_percent: ko.observable(undefined),
                     net_gb: ko.observable(undefined),
                 };
-                self.filteredLanelets = ko.observableArray();
-                self.filteredLanelets.extend({
+                self.filteredNodes = ko.observableArray();
+                self.maxRows = ko.observable(500);
+                self.filteredNodes.extend({
                     progressivefilter: {
                         batchSize: 30,
+                        maxRows: self.maxRows,
                         filterFunction: function isItemFiltered(l) {
                             var pass = 
                                 (self.laneletFilters['passed']() ? 1 : l['Pass'] == 0) &&
@@ -620,24 +629,35 @@
                     }
                 });
                 self.viewNodes.subscribe(function () {
-                    if (self.selectedViewLabel() == 'Lanelet') {
-                        self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    if (self.selectedViewLabel() != 'Donor') {
+                        self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     }
                 });
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
                     filter.subscribe(function () {
-                        self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                        self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     });
                 })
                 self.updateFilter = function() {
-                    if (self.selectedViewLabel() == 'Lanelet') {
-                        self.filteredLanelets.filterProgressive(self.viewNodes.peek());
+                    if (self.selectedViewLabel() != 'Donor') {
+                        self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     }
                 }
                 self.setFilter = function(filter, value) {
                     self.laneletFilters[filter](value);
                 }
+                self.showMoreNodes = function() {
+                    self.maxRows(self.maxRows() + 500);
+                }
+                self.showAllNodes = function() {
+                    self.maxRows(self.viewNodes().length);
+                }
+                self.maxRows.subscribe(function () {
+                    if (self.selectedViewLabel() != 'Donor') {
+                        self.filteredNodes.filterProgressive(self.viewNodes.peek(), true);
+                    }
+                });
                 
                 // configure the multiselects
                 $('#groupSelect').multiselect({
@@ -807,6 +827,7 @@
                         else {
                             loc = loc + '/samples:all';
                         }
+                        self.maxRows(500);
                         getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, flatten: true }, self.loading, self.errors);
                         
                         // and set the browser url to make this selection
@@ -974,7 +995,7 @@
                 // all the filtered lanes in one go
                 self.setAllQCGrindQC = function() {
                     var newStatus = self.setAllQCGrindQCStatus();
-                    ko.utils.arrayForEach(self.filteredLanelets(), function(lanelet) {
+                    ko.utils.arrayForEach(self.filteredNodes(), function(lanelet) {
                         if (lanelet['new_qcgrind_qc_status']() != newStatus) {
                             self.changeQCStatus(newStatus, lanelet);
                             lanelet['new_qcgrind_qc_status'](newStatus);
