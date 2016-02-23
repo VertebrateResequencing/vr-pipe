@@ -1008,7 +1008,7 @@
                     if (lane.hasOwnProperty('gtcheckdata:reception_call_string') && lane['gtcheckdata:reception_call_string']) {
                         var matchCount = lane['gtcheckdata:match_count'] || 0;
                         var commonCount = lane['gtcheckdata:common_snp_count'] || 0
-                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><caption>' + matchCount + '/' + commonCount + ' (' + lane['gtcheckdata:match_percent'] + '%)</caption><tbody>';
+                        var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><caption>' + matchCount + '/' + commonCount + ' (' + lane['gtcheckdata:match_percent'] + '%) matched to ' + lane['gtcheckdata:matched_sample_name'] + '</caption><tbody>';
                         
                         html += '<tr><th>Reception calls</th>';
                         var rCalls = lane['gtcheckdata:reception_call_string'];
