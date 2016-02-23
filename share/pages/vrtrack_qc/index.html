@@ -496,6 +496,16 @@
         <script type="text/javascript">
             var router = new Simrou();
             $('[data-toggle="popover"]').popover();
+            $('html').on('click', function(e) {
+                if (typeof $(e.target).data('original-title') == 'undefined' && !$(e.target).parents().is('.popover.in')) {
+                    $('[data-original-title]').popover('hide');
+                }
+            });
+            $(document).keyup(function (event) {
+                if (event.which === 27) {
+                    $('[data-original-title]').popover('hide');
+                }
+            });
             
             // viewmodel for logging in
             var livm = new ko.LogInViewModel();
