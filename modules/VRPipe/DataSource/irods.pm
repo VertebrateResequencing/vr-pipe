@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2013-2015 Genome Research Limited.
+Copyright (c) 2013-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -446,6 +446,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             
             # convert query string to baton-compatible json
             # study = "Exome - Neo-antigen discovery in mouse lung cancer" and target = 1 and type = cram
+            # sample in "CP50-MEL-B_rnaseq' 'CP66-MEL_rnaseq' 'LB2518-MEL_rnaseq' and type = cram and target = 1
             my @avus;
             foreach my $avu (split(/\s+and\s+/i, $query)) {
                 my ($attribute, $o, $value) = $avu =~ /^(\S+)\s+(\S+)\s+(.+)/;
@@ -455,6 +456,12 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         ${$s} =~ s/['"]$//;
                     }
                 }
+                
+                if (lc($o) eq 'in') {
+                    my @values = split(/['"]\s+['"]/, $value);
+                    $value = \@values;
+                }
+                
                 push(@avus, { attribute => $attribute, value => $value, o => $o });
             }
             my $json_input = $json->encode({ avus => \@avus });
