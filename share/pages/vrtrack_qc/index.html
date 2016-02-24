@@ -239,7 +239,7 @@
                                         <!-- /ko -->
                                     </tr>
                                     
-                                    <!-- ko if: selectedViewLabel() == 'Lanelet' && columns() && columns()['Pass'] -->
+                                    <!-- ko if: selectedViewLabel() == 'Lanelet' && columns() && columns()['Pass'] && numColumns() > 0 -->
                                         <tr style="background-color:#F5F5F5">
                                             <!-- ko if: columns()['Pass'].display -->
                                                 <td>
@@ -370,7 +370,7 @@
                                                     <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
                                                 </td>
                                             <!-- /ko -->
-                                            <!-- ko if: columns()['Error Rate'].display -->
+                                            <!-- ko if: columns()['Error Rate%'].display -->
                                                 <td>
                                                     <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
                                                 </td>
@@ -442,7 +442,7 @@
                                                     <!-- ko if: $parent.columns()['Mapped-dups Gb'].display --><td data-bind="text: $data['Mapped-dups Gb']"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Overlap dup%'].display --><td data-bind="text: $data['Overlap dup%']"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: $data['Net Gb']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Error Rate'].display --><td data-bind="text: $data['Error Rate']"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: $data['Error Rate']"></td><!-- /ko -->
                                                     <td>
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquographs&raquo</span> 
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquostats&raquo</span>
@@ -450,7 +450,7 @@
                                                 </tr>
                                                 <!-- ko if: display_graphs -->
                                                     <tr>
-                                                        <td colspan="21">
+                                                        <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
                                                             <div class="img-row" data-bind="foreach: qc_plots">
                                                                 <div>
                                                                     <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
@@ -461,7 +461,7 @@
                                                 <!-- /ko -->
                                                 <!-- ko if: display_stats -->
                                                     <tr>
-                                                        <td colspan="21">
+                                                        <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
                                                             <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
                                                                 <tbody>
                                                                     <tr>
@@ -490,34 +490,44 @@
                                                     </tr>
                                                 <!-- /ko -->
                                             <!-- /ko -->
-                                            <!-- ko if: isGroupAdmin && filteredNodes().length > 1 -->
+                                            <!-- ko if: isGroupAdmin && filteredNodes().length > 1 && numQCColumns() > 0 -->
                                                 <tr>
-                                                    <td>
-                                                        <div class="radio-highlightable">
-                                                            <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="radio-highlightable">
-                                                            <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="radio-highlightable">
-                                                            <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="radio-highlightable">
-                                                            <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <div class="radio-highlightable">
-                                                            <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
-                                                        </div>
-                                                    </td>
-                                                    <td colspan="15">
+                                                    <!-- ko if: columns()['Pass'].display -->
+                                                        <td>
+                                                            <div class="radio-highlightable">
+                                                                <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                            </div>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: columns()['Fail'].display -->
+                                                        <td>
+                                                            <div class="radio-highlightable">
+                                                                <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                            </div>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: columns()['Invst'].display -->
+                                                        <td>
+                                                            <div class="radio-highlightable">
+                                                                <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
+                                                            </div>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: columns()['GTPend'].display -->
+                                                        <td>
+                                                            <div class="radio-highlightable">
+                                                                <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                            </div>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: columns()['Pend'].display -->
+                                                        <td>
+                                                            <div class="radio-highlightable">
+                                                                <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                            </div>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <td data-bind="attr: { colspan: numColumns() - numQCColumns() + 1 }">
                                                         <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC, disable: setAllQCGrindQCStatus() == 'unset'">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
                                                     </td>
                                                 </tr>
@@ -990,25 +1000,30 @@
                 
                 // dynamic view table columns
                 self.columns = ko.observable({});
+                self.numColumns = ko.observable(0);
+                self.numQCColumns = ko.observable(0);
                 self.viewColumns = ko.computed(function () {
                     var columns = [];
                     var details = {};
+                    var n = 0;
+                    var nqc = 0;
                     
                     if (self.selectedViewLabel() == 'Donor') {
                         var colNames = ["ID", "Example Sample", "Sample Creation Date", "QCToDo(Fluidigm)", "QCToDo(Genotyping)", "QCToDo(All)"];
                         for (var i = 0, len = colNames.length; i < len; i++) {
-                            var col = { header: colNames[i], text: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '' };
+                            var col = { header: colNames[i], text: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '', isqc: false };
                             details[colNames[i]] = col;
                             columns.push(col);
+                            n++;
                         }
                     }
                     else if (self.selectedViewLabel() == 'Lanelet') {
                         var cols = [
-                            ["Pass", "Pass", "Pass", true],
-                            ["Fail", "Fail", "Fail", true],
-                            ["Invst", "Invst", "Invst", true],
-                            ["GTPend", "GTPend", "GTPend", false],
-                            ["Pend", "Pend", "Pend", true],
+                            ["Pass", "Pass", "Pass", true, '', true],
+                            ["Fail", "Fail", "Fail", true, '', true],
+                            ["Invst", "Invst", "Invst", true, '', true],
+                            ["GTPend", "GTPend", "GTPend", false, '', true],
+                            ["Pend", "Pend", "Pend", true, '', true],
                             ["Individual", "Individual", "Individual", false],
                             ["Sample", "Sample", "Sample", true],
                             ["Library", "Library", "Library", true],
@@ -1023,13 +1038,19 @@
                             ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
                             ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
                             ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
-                            ["Error Rate", "Error Rate", "Error Rate", true, "mismatches / bases mapped (cigar)"],
+                            ["Error Rate%", "Error Rate", "Error Rate", true, "percent of mismatches in bases mapped (cigar)"],
                         ];
                         
                         for (var i = 0, len = cols.length; i < len; i++) {
-                            var col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(cols[i][3]), desc: cols[i][4] };
+                            var col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(cols[i][3]), desc: cols[i][4], isqc: cols[i][5] };
                             details[cols[i][0]] = col;
                             columns.push(col);
+                            if (cols[i][3]) {
+                                n++;
+                                if (i <= 4) {
+                                    nqc++;
+                                }
+                            }
                         }
                     }
                     else {
@@ -1038,21 +1059,48 @@
                             if (name == 'node_id' || name == 'node_label') {
                                 continue;
                             }
-                            var col = { header: name, text: name, sortOn: name, display: ko.observable(true), desc: '' };
+                            var col = { header: name, text: name, sortOn: name, display: ko.observable(true), desc: '', isqc: false };
                             details[name] = col;
                             columns.push(col);
+                            n++;
                         }
                     }
                     
                     self.columns(details);
+                    self.numColumns(n);
+                    self.numQCColumns(nqc);
                     return columns;
                 });
                 self.toggleColumn = function (column, event) {
                     if (event.target.nodeName == "INPUT") {
+                        if (column['display']()) {
+                            self.numColumns(self.numColumns() + 1);
+                            if (column['isqc']) {
+                                self.numQCColumns(self.numQCColumns() + 1);
+                            }
+                        }
+                        else {
+                            self.numColumns(self.numColumns() - 1);
+                            if (column['isqc']) {
+                                self.numQCColumns(self.numQCColumns() - 1);
+                            }
+                        }
                         return true;
                     }
                     else {
                         column['display'](! column['display']());
+                        if (column['display']()) {
+                            self.numColumns(self.numColumns() + 1);
+                            if (column['isqc']) {
+                                self.numQCColumns(self.numQCColumns() + 1);
+                            }
+                        }
+                        else {
+                            self.numColumns(self.numColumns() - 1);
+                            if (column['isqc']) {
+                                self.numQCColumns(self.numQCColumns() - 1);
+                            }
+                        }
                     }
                     return false;
                 }
