@@ -1287,6 +1287,7 @@
                             
                             html += '<tr><th>BAM calls</th>';
                             var bCalls = lane['gtcheckdata:bam_call_string'];
+                            var depths = lane['gtcheckdata:bam_gt_depths_string'].split(';');
                             var callsI = 0;
                             for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {
                                 var call = bCalls.substring(i, i + 2);
@@ -1299,8 +1300,11 @@
                                     if (scores[callsI] == '1') {
                                         bootstrapClass = 'success';
                                     }
-                                    else {
+                                    else if (scores[callsI] == '-1' || depths[callsI] >= 4) {
                                         bootstrapClass = 'danger';
+                                    }
+                                    else {
+                                        bootstrapClass = 'warning';
                                     }
                                 }
                                 
@@ -1310,7 +1314,6 @@
                             html += '</tr>';
                             
                             html += '<tr><th>Call depths</th>';
-                            var depths = lane['gtcheckdata:bam_gt_depths_string'].split(';');
                             for (var i = 0, depthsLength = depths.length; i < depthsLength; i++) {
                                 html += '<td>' + depths[i] + '</td>';
                             }
