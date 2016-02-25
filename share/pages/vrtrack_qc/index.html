@@ -30,6 +30,9 @@
         <!-- Simrou for client-side navigation -->
         <script src="/js/simrou-1.5.4.min.js"></script>
         
+        <!-- js.cookie for cookie get/setting -->
+        <script src="/js/js.cookie-2.1.0.js"></script>
+        
         <!-- Some of our own general helper functions -->
         <script src="/js/vrpipe.js"></script>
         <link rel="stylesheet" href="/css/vrpipe.css">
@@ -214,6 +217,9 @@
                                             </a>
                                         </li>
                                     </ul>
+                                    
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, false)"><span>save for this selection</span></button>
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, true)"><span>save as default</span></button>
                                 </div>
                             </div>
                         </form>
@@ -623,6 +629,9 @@
                     $('[data-original-title]').popover('hide');
                 }
             });
+            $(document).on('mouseup', '.btn, img', function(){
+                $(this).blur();
+            })
             
             // viewmodel for logging in
             var livm = new ko.LogInViewModel();
@@ -1056,6 +1065,19 @@
                     var n = 0;
                     var nqc = 0;
                     
+                    // read user cookie to see if they have chosen columns
+                    // saved for this url or as their own default
+                    var userCols = Cookies.getJSON('columns' + location.hash);
+                    if (userCols == null) {
+                        userCols = Cookies.getJSON('columns');
+                    }
+                    var desiredCols = {};
+                    if (userCols != null) {
+                        for (var i = 0, uclen = userCols.length; i < uclen; i++) {
+                            desiredCols[userCols[i]] = 1;
+                        }
+                    }
+                    
                     if (self.selectedViewLabel() == 'Donor') {
                         var colNames = ["ID", "Example Sample", "Sample Creation Date", "QCToDo(Fluidigm)", "QCToDo(Genotyping)", "QCToDo(All)"];
                         for (var i = 0, len = colNames.length; i < len; i++) {
@@ -1096,10 +1118,20 @@
                         ];
                         
                         for (var i = 0, len = cols.length; i < len; i++) {
-                            var col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(cols[i][3]), desc: cols[i][4], isqc: cols[i][5] };
+                            var display = false;
+                            if (userCols != null) {
+                                if (desiredCols.hasOwnProperty(cols[i][0])) {
+                                    display = true;
+                                }
+                            }
+                            else {
+                                display = cols[i][3];
+                            }
+                            
+                            var col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
                             details[cols[i][0]] = col;
                             columns.push(col);
-                            if (cols[i][3]) {
+                            if (display) {
                                 n++;
                                 if (i <= 4) {
                                     nqc++;
@@ -1157,6 +1189,28 @@
                         }
                     }
                     return false;
+                }
+                
+                // column choice can be saved to the user's cookie
+                self.rememberColumns = function(setDefault) {
+                    var name = 'columns';
+                    if (! setDefault) {
+                        // setting Cookie path: '' doesn't work, since our
+                        // real path is just /pages; we want a cookie specific
+                        // to our fake path, so we append our fake path to
+                        // the cookie name instead
+                        name += location.hash;
+                    }
+                    
+                    var cols = [];
+                    for (var i = 0, clen = self.viewColumns().length; i < clen; i++) {
+                        var col = self.viewColumns()[i];
+                        if (col.display()) {
+                            cols.push(col.header);
+                        }
+                    }
+                    
+                    Cookies.set(name, cols, { secure: true });
                 }
                 
                 // when a node in the view table is clicked on, open a new tab
