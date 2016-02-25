@@ -82,6 +82,10 @@ ko.bindingHandlers.sort = {
                 
                 return rec1 == rec2 ? 0 : rec1 < rec2 ? -1 : 1;
             });
+            
+            if (value.hasOwnProperty('postFunc')) {
+                value.postFunc();
+            }
         };
     }
 };
