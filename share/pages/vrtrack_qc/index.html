@@ -276,6 +276,21 @@
                                                     </label>
                                                 </td>
                                             <!-- /ko -->
+                                            <!-- ko if: columns()['Study ID'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_id']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Study Name'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_name']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Study Acc'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_acc']" />
+                                                </td>
+                                            <!-- /ko -->
                                             <!-- ko if: columns()['Individual'].display -->
                                                 <td>
                                                     <input type="text" size="6" data-bind="textInput: laneletFilters['individual']" />
@@ -286,6 +301,16 @@
                                                     <input type="text" size="6" data-bind="textInput: laneletFilters['sample']" />
                                                 </td>
                                             <!-- /ko -->
+                                            <!-- ko if: columns()['Sample Acc'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['sample_acc']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Sample Suppl'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['sample_sn']" />
+                                                </td>
+                                            <!-- /ko -->
                                             <!-- ko if: columns()['Library'].display -->
                                                 <td>
                                                     <input type="text" size="6" data-bind="textInput: laneletFilters['library']" />
@@ -294,6 +319,11 @@
                                             <!-- ko if: columns()['Lanelet'].display -->
                                                 <td>
                                                     <input type="text" size="6" data-bind="textInput: laneletFilters['lanelet']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Gender'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['gender']" />
                                                 </td>
                                             <!-- /ko -->
                                             <!-- ko if: columns()['Genotype'].display -->
@@ -420,10 +450,16 @@
                                                             </div>
                                                         </td>
                                                     <!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study ID'].display --><td data-bind="text: study_id, click: $parent.setFilter.bind($data, 'study_id', study_id)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study Name'].display --><td data-bind="text: study_name, click: $parent.setFilter.bind($data, 'study_name', study_name)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study Acc'].display --><td data-bind="text: study_acc, click: $parent.setFilter.bind($data, 'study_acc', study_acc)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Individual'].display --><td data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Sample'].display --><td data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Sample Acc'].display --><td data-bind="text: sample_acc, click: $parent.setFilter.bind($data, 'sample_acc', sample_acc)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Sample Suppl'].display --><td data-bind="text: sample_sn, click: $parent.setFilter.bind($data, 'sample_sn', sample_sn)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Library'].display --><td data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Lanelet'].display --><td data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Gender'].display --><td data-bind="text: Gender, click: $parent.setFilter.bind($data, 'Gender', Gender)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Genotype'].display -->
                                                         <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
                                                             <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
@@ -672,10 +708,16 @@
                     investigate: ko.observable(true),
                     gt_pending: ko.observable(true),
                     pending: ko.observable(true),
+                    study_id: ko.observable(undefined),
+                    study_name: ko.observable(undefined),
+                    study_acc: ko.observable(undefined),
                     individual: ko.observable(undefined),
                     sample: ko.observable(undefined),
+                    sample_acc: ko.observable(undefined),
+                    sample_sn: ko.observable(undefined),
                     library: ko.observable(undefined),
                     lanelet: ko.observable(undefined),
+                    gender: ko.observable(undefined),
                     genotype: ko.observable('all'),
                     verify_bam_id: ko.observable('all'),
                     npg_status: ko.observable('all'),
@@ -701,10 +743,16 @@
                                 (self.laneletFilters['investigate']() ? 1 : l['Invst'] == 0) &&
                                 (self.laneletFilters['gt_pending']() ? 1 : l['GTPend'] == 0) &&
                                 (self.laneletFilters['pending']() ? 1 : l['Pend'] == 0) &&
-                                (self.laneletFilters['individual']() ? l['Individual'].indexOf(self.laneletFilters['individual']()) !== -1 : 1) &&
-                                (self.laneletFilters['sample']() ? l['Sample'].indexOf(self.laneletFilters['sample']()) !== -1 : 1) &&
+                                (self.laneletFilters['study_id']() ? l['study_id'].indexOf(self.laneletFilters['study_id']()) !== -1 : 1) &&
+                                (self.laneletFilters['study_name']() ? l['study_name'].toLowerCase().indexOf(self.laneletFilters['study_name']().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters['study_acc']() ? l['study_acc'].toLowerCase().indexOf(self.laneletFilters['study_acc']().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters['individual']() ? l['Individual'].toLowerCase().indexOf(self.laneletFilters['individual']().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters['sample']() ? l['Sample'].toLowerCase().indexOf(self.laneletFilters['sample']().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters['sample_acc']() ? l['sample_acc'].toLowerCase().indexOf(self.laneletFilters['sample_acc']().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters['sample_sn']() ? l['sample_sn'].toLowerCase().indexOf(self.laneletFilters['sample_sn']().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters['library']() ? l['Library'].indexOf(self.laneletFilters['library']()) !== -1 : 1) &&
                                 (self.laneletFilters['lanelet']() ? l['Lanelet'].indexOf(self.laneletFilters['lanelet']()) !== -1 : 1) &&
+                                (self.laneletFilters['gender']() ? l['Gender'].toLowerCase().indexOf(self.laneletFilters['gender']().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters['genotype']() == 'all' ? 1 : l['Genotype'].startsWith(self.laneletFilters['genotype']())) &&
                                 (self.laneletFilters['verify_bam_id']() == 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters['verify_bam_id']())) &&
                                 (self.laneletFilters['npg_status']() == 'all' ? 1 : l['NPG Status'] == self.laneletFilters['npg_status']()) &&
@@ -1024,10 +1072,16 @@
                             ["Invst", "Invst", "Invst", true, '', true],
                             ["GTPend", "GTPend", "GTPend", false, '', true],
                             ["Pend", "Pend", "Pend", true, '', true],
+                            ["Study ID", "study_id", "study_id", false],
+                            ["Study Name", "study_name", "study_name", false],
+                            ["Study Acc", "study_acc", "study_acc", false],
                             ["Individual", "Individual", "Individual", false],
                             ["Sample", "Sample", "Sample", true],
+                            ["Sample Acc", "sample_acc", "sample_acc", false],
+                            ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
                             ["Library", "Library", "Library", true],
                             ["Lanelet", "Lanelet", "Lanelet", true],
+                            ["Gender", "Gender", "Gender", false],
                             ["Genotype", "Genotype", "gtcheckdata:discordance", true],
                             ["Verify Bam ID", "Verify Bam ID", "verifybamiddata:freemix", true],
                             ["NPG Status", "NPG Status", "NPG Status", true],
