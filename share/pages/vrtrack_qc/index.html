@@ -204,14 +204,14 @@
                     <hr>
                     
                     <!-- ko if: selectedViewLabel() != 'Donor' -->
-                        <form role="form" class="input-group btn-group top-margin" style="margin-bottom: 10px">
-                            <div class="input-group">
+                        <form role="form" class="input-group btn-groupd top-margin" style="margin-bottom: 10px; width: 100%">
+                            <div class="input-group" style="width: 100%">
                                 <div class="button-group">
                                     <button data-toggle="dropdown" class="btn btn-default btn-sm dropdown-toggle" type="button">
                                         <span>columns</span> <span class="caret"></span>
                                     </button>
-                                    <ul role="menu" class="dropdown-menu" data-bind="foreach: viewColumns">
-                                        <li>
+                                    <ul role="menu" class="dropdown-menu list-inline" data-bind="foreach: viewColumns">
+                                        <li style="padding:0;margin:0;width:100px">
                                             <a href="#" class="small" data-bind="click: $parent.toggleColumn, clickBubble: false">
                                                 <input type="checkbox" data-bind="checked: display"> <span class="small" data-bind="text: header"></span>
                                             </a>
