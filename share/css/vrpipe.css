@@ -49,6 +49,9 @@
 .top-margin {
     margin-top: 5px;
 }
+.bottom-margin {
+    margin-bottom: 20px;
+}
 
 .img_thumb {
     width: 100px;
