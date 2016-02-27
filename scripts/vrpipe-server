@@ -1928,8 +1928,10 @@ sub qc {
                     if ($gtcheck) {
                         # save column space by getting rid of the matching sample name
                         $gtcheck =~ s/\(.+:(\d.*)\)/($1)/; #unconfirmed (vbseqx106041576:1)
-                        $new_props->{'gtcheckdata:discordance'}         = $1;
-                        $new_props->{Genotype}                          = $gtcheck;
+                        $new_props->{'gtcheckdata:concordance'} = $1;
+                        $new_props->{Genotype} = $gtcheck;
+                        $gtcheck =~ s/\s+.+//;
+                        $new_props->{genotype_status} = $gtcheck;
                         $new_props->{'gtcheckdata:matched_sample_name'} = $props->{'gtcheckdata:matched_sample_name'};
                     }
                     else {
