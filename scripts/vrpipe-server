@@ -1930,6 +1930,7 @@ sub qc {
                     $new_props->{Library}      = $props->{library_id} || 'unknown';
                     $new_props->{Lanelet}      = $props->{unique};
                     $new_props->{run_and_lane} = $props->{run} . '_' . $props->{lane};
+                    $new_props->{run}          = $props->{run};
                     my $gtcheck = $props->{gtcheck};
                     
                     if ($gtcheck) {

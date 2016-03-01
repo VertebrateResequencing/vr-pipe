@@ -101,3 +101,7 @@ dd {
 .img-row div img {
     width: 100%;
 }
+
+.text-default {
+    color: #333;
+}

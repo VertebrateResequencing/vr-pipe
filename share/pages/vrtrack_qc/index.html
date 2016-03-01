@@ -489,15 +489,15 @@
                                                             </div>
                                                         </td>
                                                     <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study ID'].display --><td data-bind="text: study_id, click: $parent.setFilter.bind($data, 'study_id', study_id)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study Name'].display --><td data-bind="text: study_name, click: $parent.setFilter.bind($data, 'study_name', study_name)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study Acc'].display --><td data-bind="text: study_acc, click: $parent.setFilter.bind($data, 'study_acc', study_acc)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Individual'].display --><td data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample'].display --><td data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample Acc'].display --><td data-bind="text: sample_acc, click: $parent.setFilter.bind($data, 'sample_acc', sample_acc)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample Suppl'].display --><td data-bind="text: sample_sn, click: $parent.setFilter.bind($data, 'sample_sn', sample_sn)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Library'].display --><td data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Lanelet'].display --><td data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study ID'].display --><td style="cursor: pointer" data-bind="text: study_id, click: $parent.setFilter.bind($data, 'study_id', study_id)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study Name'].display --><td style="cursor: pointer" data-bind="text: study_name, click: $parent.setFilter.bind($data, 'study_name', study_name)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Study Acc'].display --><td style="cursor: pointer" data-bind="text: study_acc, click: $parent.setFilter.bind($data, 'study_acc', study_acc)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Individual'].display --><td style="cursor: pointer" data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Sample'].display --><td style="cursor: pointer" data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Sample Acc'].display --><td style="cursor: pointer" data-bind="text: sample_acc, click: $parent.setFilter.bind($data, 'sample_acc', sample_acc)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Sample Suppl'].display --><td style="cursor: pointer" data-bind="text: sample_sn, click: $parent.setFilter.bind($data, 'sample_sn', sample_sn)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Library'].display --><td style="cursor: pointer" data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Lanelet'].display --><td style="cursor: pointer" data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Gender'].display --><td data-bind="text: Gender, click: $parent.setFilter.bind($data, 'Gender', Gender)"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Genotype'].display -->
                                                         <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
@@ -509,7 +509,11 @@
                                                             <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                         </td>
                                                     <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['NPG Status'].display --><td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['NPG Status'].display -->
+                                                        <td data-bind="css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }">
+                                                            <a data-bind="text: $data['NPG Status'], attr: { href: 'http://npg.sanger.ac.uk/perl/npg/run/' + run }" target="_blank" class="text-default"></a>
+                                                        </td>
+                                                    <!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Auto QC'].display -->
                                                         <td data-bind="css: { success: auto_qc()[0] == 'pass', danger: auto_qc()[0] == 'fail' }">
                                                             <!-- ko switch: auto_qc()[0] -->
