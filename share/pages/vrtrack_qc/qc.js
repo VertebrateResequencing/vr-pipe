@@ -202,7 +202,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                                     var max_error_rate = aqs['Error rate'].value();
                                     var error_rate = lane['alignmentstats:error rate']; // or should this be the error rate % stored in lane['Error Rate']?
                                     if (error_rate && +error_rate > max_error_rate) {
-                                        fails.push(['Error rate', 'The error rate is higher than ' + max_error_rate + ' (' + error_rate + ').']);
+                                        fails.push(['Error rate', 'The error rate is higher than ' + max_error_rate + ' (' + +error_rate + ').']);
                                     }
                                     
                                     // number of insertions vs deletions

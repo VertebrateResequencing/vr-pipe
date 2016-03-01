@@ -227,11 +227,18 @@
                             <div class="well well-sm">
                                 <label>Auto QC settings</label>
                                 
-                                <form role="form" class="form-inline" data-bind="foreach: autoQCConfigKeys" style="margin-bottom:-5px">
-                                    <div class="input-group input-group-sm" style="margin-bottom: 5px">
-                                        <div class="input-group-addon"><abbr data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
-                                        <input type="text" class="form-control" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
+                                <form role="form" class="form-inline" style="margin-bottom:-5px">
+                                    <div data-bind="foreach: autoQCConfigKeys">
+                                        <div class="input-group input-group-sm" style="margin-bottom: 5px">
+                                            <div class="input-group-addon"><abbr data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
+                                            <input type="text" class="form-control" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
+                                        </div>
                                     </div>
+                                    
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, false), css: aqcSelectionButtonClass"><span>save for this selection</span></button>
+                                    <button id="aqc_study_button" class="btn btn-default btn-sm" type="button" data-bind="click: setStudyAutoQCSettings, css: aqcStudyButtonClass"><span>save for <span data-bind="text: selectedStudies().length > 1 ? 'these studies' : 'this study'"></span></span></button>
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, true), css: aqcDefaultButtonClass"><span>save as my default</span></button>
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: revertAutoQCSettings"><span>revert</span></button>
                                 </form>
                             </div>
                         <!-- /ko -->
@@ -987,9 +994,8 @@
                     self.reset(1);
                 });
                 
-                // when the user selects a view, get all nodes with that label,
-                // filtered based on group, studies and any other selections.
-                // For lanelets we also need to calculate the auto_qc result.
+                // for lanelets we need to calculate the auto_qc result when we
+                // get the nodes, so first we need to define the settings
                 self.autoQCSettings = {
                     'GType regex': { desc: 'A regular expression to choose acceptable genotype status values', value: ko.observable(), default: '^confirmed', size: 10  },
                     'GType min concordance': { desc: 'Minimum concordance found by the genotype check', value: ko.observable(), default: 0.60, size: 2 },
@@ -1017,6 +1023,47 @@
                         setTimeout(self.updateFilter, 500); // correct the count
                     });
                 });
+                self.getCurrentAutoQCSettings = function() {
+                    var currentSettings = {};
+                    self.autoQCConfigKeys.forEach(function (key) {
+                        currentSettings[key] = self.autoQCSettings[key].value();
+                    });
+                    return currentSettings;
+                };
+                self.setUserAutoQCSettings = function(setDefault) {
+                    var name = 'auto_qc_settings';
+                    if (! setDefault) {
+                        name += location.hash;
+                    }
+                    Cookies.set(name, self.getCurrentAutoQCSettings(), { secure: true, expires: 365 });
+                    return true;
+                };
+                self.aqcSelectionButtonClass = ko.observable('btn-secondary');
+                self.aqcStudyButtonClass = ko.observable('btn-secondary');
+                self.aqcDefaultButtonClass = ko.observable('btn-secondary');
+                self.setStudyAutoQCSettings = function() {
+                    var currentSettings = self.getCurrentAutoQCSettings();
+                    currentSettings = JSON.stringify(currentSettings);
+                    ko.utils.arrayForEach(self.selectedStudies(), function(studyNodeID) {
+                        vrpipeRestMethod('qc', 'set_study_auto_qc_settings', { study: studyNodeID, settings: currentSettings }, self.loading, self.errors, function(data) {
+                            if (data.success) {
+                                // flash the button to confirm
+                                var $button = $('#aqc_study_button');
+                                $button.fadeOut(100, function(){ $button.removeClass(self.aqcStudyButtonClass()); $button.addClass('btn-success'); $button.fadeIn(500, function(){ $button.removeClass('btn-success'); $button.addClass(self.aqcStudyButtonClass()); }) });
+                            }
+                        });
+                    });
+                    return true;
+                };
+                self.initialAutoQCSettings = {};
+                self.revertAutoQCSettings = function() {
+                    self.autoQCConfigKeys.forEach(function (key) {
+                        self.autoQCSettings[key].value(self.initialAutoQCSettings[key]);
+                    });
+                };
+                
+                // when the user selects a view, get all nodes with that label,
+                // filtered based on group, studies and any other selections.
                 self.selectedViewLabel.subscribe(function(newValue) {
                     if (newValue && newValue != '' && self.selectedGroups().length && self.selectedStudies().length) {
                         self.viewNodes.removeAll();
@@ -1039,10 +1086,49 @@
                         
                         if (newValue == 'Lanelet') {
                             // set autoQCSettings values based on what user has
-                            // saved in their cookie or the default
+                            // saved in their cookie, on the study or the
+                            // default. cookie selection > study > cookie
+                            // default > code default. We'll change the button
+                            // class to indicate to the user which settings are
+                            // being used.
+                            var savedSettings = Cookies.getJSON('auto_qc_settings' + location.hash);
+                            
+                            if (savedSettings) {
+                                self.aqcSelectionButtonClass('btn-info');
+                            }
+                            else {
+                                var currentStudyNodeIds = {};
+                                ko.utils.arrayForEach(self.selectedStudies(), function(studyNodeID) {
+                                    currentStudyNodeIds[studyNodeID] = 1;
+                                });
+                                ko.utils.arrayForEach(self.studyNodes(), function(node) {
+                                    // if multiple studies have conflicting settings
+                                    // we're just going to go with the first we see
+                                    if (!savedSettings && currentStudyNodeIds[node.id]) {
+                                        var theseSettings = node.properties.auto_qc_settings;
+                                        if (theseSettings) {
+                                            savedSettings = JSON.parse(theseSettings);
+                                            self.aqcStudyButtonClass('btn-info');
+                                        }
+                                    }
+                                });
+                            }
+                            
+                            if (!savedSettings) {
+                                savedSettings = Cookies.getJSON('auto_qc_settings');
+                                if (savedSettings) {
+                                    self.aqcDefaultButtonClass('btn-info');
+                                }
+                                else {
+                                    savedSettings = {};
+                                }
+                            }
+                            
                             self.autoQCConfigKeys.forEach(function (key) {
-                                self.autoQCSettings[key].value(self.autoQCSettings[key].default);
+                                self.autoQCSettings[key].value(savedSettings.hasOwnProperty(key) ? savedSettings[key] : self.autoQCSettings[key].default);
                             });
+                            
+                            self.initialAutoQCSettings = self.getCurrentAutoQCSettings();
                         }
                         
                         self.maxRows(500);

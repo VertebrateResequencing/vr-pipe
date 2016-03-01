@@ -2070,6 +2070,19 @@ sub qc {
             $data = { errors => ["lane and status must be supplied to set_lanelet_qc_status()"] };
         }
     }
+    elsif ($method eq 'set_study_auto_qc_settings') {
+        my $study    = $args->{study};
+        my $settings = $args->{settings};
+        if ($study && $settings) {
+            $data = $vrtrack->set_study_auto_qc_settings($study, $settings, $auth_user);
+            if ($data->{errors}) {
+                $data->{errors} = [$data->{errors}];
+            }
+        }
+        else {
+            $data = { errors => ["study and settings must be supplied to set_study_auto_qc_settings()"] };
+        }
+    }
     else {
         $data = { errors => ["Invalid qc method '$method'"] };
     }
