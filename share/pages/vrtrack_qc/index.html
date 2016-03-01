@@ -59,7 +59,7 @@
                     &nbsp;
                 </div>
                 
-                <button style="margin-bottom: 20px" class="btn btn-default btn-sm" type="button" data-bind="visible: groupConfig().length || adminUsers, click: toggleAdmin">
+                <button class="btn btn-default btn-sm bottom-margin" type="button" data-bind="visible: groupConfig().length || adminUsers, click: toggleAdmin">
                     <span>administration</span> <span class="caret"></span>
                 </button>
                 
@@ -205,27 +205,38 @@
                     <hr>
                     
                     <!-- ko if: selectedViewLabel() != 'Donor' -->
-                        <form role="form" class="input-group btn-groupd top-margin" style="margin-bottom: 10px; width: 100%">
-                            <div class="input-group" style="width: 100%">
-                                <div class="button-group">
-                                    <button data-toggle="dropdown" class="btn btn-default btn-sm dropdown-toggle" type="button">
-                                        <span>columns</span> <span class="caret"></span>
-                                    </button>
-                                    <ul role="menu" class="dropdown-menu list-inline" data-bind="foreach: viewColumns">
-                                        <li style="padding:0;margin:0;width:100px">
-                                            <a href="#" class="small" data-bind="click: $parent.toggleColumn, clickBubble: false">
-                                                <input type="checkbox" data-bind="checked: display"> <span class="small" data-bind="text: header"></span>
-                                            </a>
-                                        </li>
-                                    </ul>
-                                    
-                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, false)"><span>save for this selection</span></button>
-                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, true)"><span>save as default</span></button>
-                                </div>
+                        <form role="form" class="btn-group top-margin bottom-margin" style="width: 100%">
+                            <div>
+                                <button data-toggle="dropdown" class="btn btn-default btn-sm dropdown-toggle" type="button">
+                                    <span>columns</span> <span class="caret"></span>
+                                </button>
+                                <ul role="menu" class="dropdown-menu list-inline" data-bind="foreach: viewColumns">
+                                    <li style="padding:0;margin:0;width:100px">
+                                        <a href="#" class="small" data-bind="click: $parent.toggleColumn, clickBubble: false">
+                                            <input type="checkbox" data-bind="checked: display"> <span class="small" data-bind="text: header"></span>
+                                        </a>
+                                    </li>
+                                </ul>
+                                
+                                <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, false)"><span>save for this selection</span></button>
+                                <button class="btn btn-default btn-sm" type="button" data-bind="click: rememberColumns.bind($data, true)"><span>save as default</span></button>
                             </div>
                         </form>
                         
-                        <form role="form" style="margin-bottom: 20px">
+                        <!-- ko if: selectedViewLabel() == 'Lanelet' && columns()['Auto QC'].display -->
+                            <div class="well well-sm">
+                                <label>Auto QC settings</label>
+                                
+                                <form role="form" class="form-inline" data-bind="foreach: autoQCConfigKeys" style="margin-bottom:-5px">
+                                    <div class="input-group input-group-sm" style="margin-bottom: 5px">
+                                        <div class="input-group-addon"><abbr data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
+                                        <input type="text" class="form-control" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
+                                    </div>
+                                </form>
+                            </div>
+                        <!-- /ko -->
+                        
+                        <form role="form" class="bottom-margin">
                             <label class="checkbox-inline">
                                 <input type="checkbox" data-bind="checked: showAllGraphs" /> show all graphs
                             </label>
@@ -242,7 +253,14 @@
                                 <thead>
                                     <tr data-bind="foreach: viewColumns">
                                         <!-- ko if: display -->
-                                            <th data-bind="sort: { arr: $parent.viewNodes, prop: sortOn, postFunc: $parent.updateFilter }"><span data-bind="text: header, attr: { title: desc }"></span></th>
+                                            <th data-bind="sort: { arr: $parent.viewNodes, prop: sortOn, postFunc: $parent.updateFilter }">
+                                                <!-- ko if: desc -->
+                                                    <abbr data-bind="text: header, attr: { title: desc }"></abbr>
+                                                <!-- /ko -->
+                                                <!-- ko ifnot: desc -->
+                                                    <span data-bind="text: header"></span>
+                                                <!-- /ko -->
+                                            </th>
                                         <!-- /ko -->
                                     </tr>
                                     
@@ -367,13 +385,12 @@
                                                     </select>
                                                 </td>
                                             <!-- /ko -->
-                                            <!-- ko if: columns()['Auto QC Status'].display -->
+                                            <!-- ko if: columns()['Auto QC'].display -->
                                                 <td>
-                                                    <select data-bind="value: laneletFilters['auto_qc_status']">
+                                                    <select data-bind="value: laneletFilters['auto_qc']">
                                                         <option value="all">all</option>
-                                                        <option value="passed">passed</option>
-                                                        <option value="failed">failed</option>
-                                                        <option value="unknown">unknown</option>
+                                                        <option value="pass">pass</option>
+                                                        <option value="fail">fail</option>
                                                     </select>
                                                 </td>
                                             <!-- /ko -->
@@ -478,7 +495,18 @@
                                                         </td>
                                                     <!-- /ko -->
                                                     <!-- ko if: $parent.columns()['NPG Status'].display --><td data-bind="text: $data['NPG Status'], css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Auto QC Status'].display --><td data-bind="text: $data['Auto QC Status']"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Auto QC'].display -->
+                                                        <td data-bind="css: { success: auto_qc()[0] == 'pass', danger: auto_qc()[0] == 'fail' }">
+                                                            <!-- ko switch: auto_qc()[0] -->
+                                                                <!-- ko case: 'fail' -->
+                                                                    <span style="cursor: pointer" data-bind="text: auto_qc()[0], popover: { content: $parent.autoQCPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                                <!-- /ko -->
+                                                                <!-- ko case: $default -->
+                                                                    <span data-bind="text: auto_qc()[0]"></span>
+                                                                <!-- /ko -->
+                                                            <!-- /ko -->
+                                                        </td>
+                                                    <!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Raw Gb'].display --><td data-bind="text: $data['Raw Gb']"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Mapped Gb'].display --><td data-bind="text: $data['Mapped Gb']"></td><!-- /ko -->
                                                     <!-- ko if: $parent.columns()['Dup%'].display --><td data-bind="text: $data['Dup%']"></td><!-- /ko -->
@@ -508,23 +536,23 @@
                                                             <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
                                                                 <tbody>
                                                                     <tr>
-                                                                        <th>Total Reads</th><td data-bind="text: $data['alignmentstats:reads']"></td>
-                                                                        <th>Total Bases</th><td data-bind="text: $data['alignmentstats:bases']"></td>
-                                                                        <th>Cycles</th><td data-bind="text: $data['alignmentstats:cycles']"></td>
+                                                                        <th>Total Reads</th><td data-bind="text: $data['reads']"></td>
+                                                                        <th>Total Bases</th><td data-bind="text: $data['bases']"></td>
+                                                                        <th>Cycles</th><td data-bind="text: $data['cycles']"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads paired</th><td data-bind="text: $data['alignmentstats:reads_paired']"></td>
-                                                                        <th>Bases postclip</th><td data-bind="text: $data['alignmentstats:bases_postclip']"></td>
-                                                                        <th>Duplication rate</th><td data-bind="text: $data['alignmentstats:duplication_rate']"></td>
+                                                                        <th>Reads paired</th><td data-bind="text: $data['reads_paired']"></td>
+                                                                        <th>Bases postclip</th><td data-bind="text: $data['bases_postclip']"></td>
+                                                                        <th>Duplication rate</th><td data-bind="text: $data['duplication_rate']"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads mapped</th><td data-bind="text: $data['alignmentstats:reads_mapped']"></td>
-                                                                        <th>Bases mapped</th><td data-bind="text: $data['alignmentstats:bases_mapped']"></td>
-                                                                        <th>Error rate</th><td data-bind="text: $data['alignmentstats:error_rate']"></td>
+                                                                        <th>Reads mapped</th><td data-bind="text: $data['reads_mapped']"></td>
+                                                                        <th>Bases mapped</th><td data-bind="text: $data['bases_mapped']"></td>
+                                                                        <th>Error rate</th><td data-bind="text: $data['error_rate']"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:reads_mapped_rmdup']"></td>
-                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['alignmentstats:bases_mapped_rmdup']"></td>
+                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['reads_mapped_rmdup']"></td>
+                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['bases_mapped_rmdup']"></td>
                                                                         <th></th><td></td>
                                                                     </tr>
                                                                 </tbody>
@@ -621,7 +649,7 @@
             var router = new Simrou();
             $('[data-toggle="popover"]').popover();
             $('html').on('click', function(e) {
-                if (typeof $(e.target).data('original-title') == 'undefined' && !$(e.target).parents().is('.popover.in')) {
+                if ($(e.target).data('original-title') === undefined && !$(e.target).parents().is('.popover.in')) {
                     $('[data-original-title]').popover('hide');
                 }
             });
@@ -632,7 +660,7 @@
             });
             $(document).on('mouseup', '.btn, img', function(){
                 $(this).blur();
-            })
+            });
             
             // viewmodel for logging in
             var livm = new ko.LogInViewModel();
@@ -642,6 +670,7 @@
             
             // viewmodel for qc
             function QCViewModel() {
+                "use strict";
                 var self = this;
                 
                 self.loading = ko.observableArray();
@@ -658,7 +687,7 @@
                 // toggle display of the admin well when user clicks the button
                 self.toggleAdmin = function() {
                     self.adminToggle(! self.adminToggle());
-                }
+                };
                 
                 // some selects show node properties sorted by the selected
                 // property, so we'll have computed vars that build their arrays
@@ -667,12 +696,15 @@
                     var arr = [];
                     if (property) {
                         property = property[0];
-                        for (var i = 0; i < nodes().length; i++) {
-                            var node = nodes()[i];
-                            arr.push({ id: node['id'], property: node.properties[property] });
+                        var i;
+                        var nlen = nodes().length;
+                        var node;
+                        for (i = 0; i < nlen; i += 1) {
+                            node = nodes()[i];
+                            arr.push({ id: node.id, property: node.properties[property] });
                         }
                         arr.sort(function(left, right) {
-                            return left.property == right.property ? (left.id < right.id ? -1 : 1) : (left.property < right.property ? -1 : 1)
+                            return left.property === right.property ? (left.id < right.id ? -1 : 1) : (left.property < right.property ? -1 : 1);
                         });
                     }
                     
@@ -681,7 +713,7 @@
                     }, 10);
                     
                     return arr;
-                }
+                };
                 
                 // required group and study selection vars
                 self.groupNodes = ko.observableArray();
@@ -731,14 +763,14 @@
                     genotype: ko.observable('all'),
                     verify_bam_id: ko.observable('all'),
                     npg_status: ko.observable('all'),
-                    auto_qc_status: ko.observable('all'),
+                    auto_qc: ko.observable('all'),
                     raw_gb: ko.observable(undefined),
                     mapped_gb: ko.observable(undefined),
                     dup_percent: ko.observable(undefined),
                     mapped_dups_gb: ko.observable(undefined),
                     overlap_dup_percent: ko.observable(undefined),
                     net_gb: ko.observable(undefined),
-                    error_rate: ko.observable(undefined),
+                    error_rate: ko.observable(undefined)
                 };
                 self.filteredNodes = ko.observableArray();
                 self.maxRows = ko.observable(500);
@@ -748,63 +780,60 @@
                         maxRows: self.maxRows,
                         filterFunction: function isItemFiltered(l) {
                             var pass = 
-                                (self.laneletFilters['passed']() ? 1 : l['Pass'] == 0) &&
-                                (self.laneletFilters['failed']() ? 1 : l['Fail'] == 0) &&
-                                (self.laneletFilters['investigate']() ? 1 : l['Invst'] == 0) &&
-                                (self.laneletFilters['gt_pending']() ? 1 : l['GTPend'] == 0) &&
-                                (self.laneletFilters['pending']() ? 1 : l['Pend'] == 0) &&
-                                (self.laneletFilters['study_id']() ? l['study_id'].indexOf(self.laneletFilters['study_id']()) !== -1 : 1) &&
-                                (self.laneletFilters['study_name']() ? l['study_name'].toLowerCase().indexOf(self.laneletFilters['study_name']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['study_acc']() ? l['study_acc'].toLowerCase().indexOf(self.laneletFilters['study_acc']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['individual']() ? l['Individual'].toLowerCase().indexOf(self.laneletFilters['individual']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['sample']() ? l['Sample'].toLowerCase().indexOf(self.laneletFilters['sample']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['sample_acc']() ? l['sample_acc'].toLowerCase().indexOf(self.laneletFilters['sample_acc']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['sample_sn']() ? l['sample_sn'].toLowerCase().indexOf(self.laneletFilters['sample_sn']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['library']() ? l['Library'].indexOf(self.laneletFilters['library']()) !== -1 : 1) &&
-                                (self.laneletFilters['lanelet']() ? l['Lanelet'].indexOf(self.laneletFilters['lanelet']()) !== -1 : 1) &&
-                                (self.laneletFilters['gender']() ? l['Gender'].toLowerCase().indexOf(self.laneletFilters['gender']().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters['genotype']() == 'all' ? 1 : l['Genotype'].startsWith(self.laneletFilters['genotype']())) &&
-                                (self.laneletFilters['verify_bam_id']() == 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters['verify_bam_id']())) &&
-                                (self.laneletFilters['npg_status']() == 'all' ? 1 : l['NPG Status'] == self.laneletFilters['npg_status']()) &&
-                                (self.laneletFilters['auto_qc_status']() == 'all' ? 1 : l['Auto QC Status'] == self.laneletFilters['auto_qc_status']()) &&
-                                (self.laneletFilters['raw_gb']() ? parseFloat(l['Raw Gb']) >= parseFloat(self.laneletFilters['raw_gb']()) : 1) &&
-                                (self.laneletFilters['mapped_gb']() ? parseFloat(l['Mapped Gb']) >= parseFloat(self.laneletFilters['mapped_gb']()) : 1) &&
-                                (self.laneletFilters['dup_percent']() ? parseFloat(l['Dup%']) <= parseFloat(self.laneletFilters['dup_percent']()) : 1) &&
-                                (self.laneletFilters['mapped_dups_gb']() ? parseFloat(l['Mapped-dups Gb']) >= parseFloat(self.laneletFilters['mapped_dups_gb']()) : 1) &&
-                                (self.laneletFilters['overlap_dup_percent']() ? parseFloat(l['Overlap dup%']) <= parseFloat(self.laneletFilters['overlap_dup_percent']()) : 1) &&
-                                (self.laneletFilters['net_gb']() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters['net_gb']()) : 1) &&
-                                (self.laneletFilters['error_rate']() ? parseFloat(l['Error Rate']) >= parseFloat(self.laneletFilters['error_rate']()) : 1);
+                                (self.laneletFilters.passed() ? 1 : !l.Pass) &&
+                                (self.laneletFilters.failed() ? 1 : !l.Fail) &&
+                                (self.laneletFilters.investigate() ? 1 : !l.Invst) &&
+                                (self.laneletFilters.gt_pending() ? 1 : !l.GTPend) &&
+                                (self.laneletFilters.pending() ? 1 : !l.Pend) &&
+                                (self.laneletFilters.study_id() ? l.study_id.indexOf(self.laneletFilters.study_id()) !== -1 : 1) &&
+                                (self.laneletFilters.study_name() ? l.study_name.toLowerCase().indexOf(self.laneletFilters.study_name().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.study_acc() ? l.study_acc.toLowerCase().indexOf(self.laneletFilters.study_acc().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.individual() ? l.Individual.toLowerCase().indexOf(self.laneletFilters.individual().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.sample() ? l.Sample.toLowerCase().indexOf(self.laneletFilters.sample().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.sample_acc() ? l.sample_acc.toLowerCase().indexOf(self.laneletFilters.sample_acc().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.sample_sn() ? l.sample_sn.toLowerCase().indexOf(self.laneletFilters.sample_sn().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.library() ? l.Library.indexOf(self.laneletFilters.library()) !== -1 : 1) &&
+                                (self.laneletFilters.lanelet() ? l.Lanelet.indexOf(self.laneletFilters.lanelet()) !== -1 : 1) &&
+                                (self.laneletFilters.gender() ? l.Gender.toLowerCase().indexOf(self.laneletFilters.gender().toLowerCase()) !== -1 : 1) &&
+                                (self.laneletFilters.genotype() === 'all' ? 1 : l.Genotype.startsWith(self.laneletFilters.genotype())) &&
+                                (self.laneletFilters.verify_bam_id() === 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters.verify_bam_id())) &&
+                                (self.laneletFilters.npg_status() === 'all' ? 1 : l['NPG Status'] === self.laneletFilters.npg_status()) &&
+                                (self.laneletFilters.auto_qc() === 'all' ? 1 : l.auto_qc()[0] === self.laneletFilters.auto_qc()) &&
+                                (self.laneletFilters.raw_gb() ? parseFloat(l['Raw Gb']) >= parseFloat(self.laneletFilters.raw_gb()) : 1) &&
+                                (self.laneletFilters.mapped_gb() ? parseFloat(l['Mapped Gb']) >= parseFloat(self.laneletFilters.mapped_gb()) : 1) &&
+                                (self.laneletFilters.dup_percent() ? parseFloat(l['Dup%']) <= parseFloat(self.laneletFilters.dup_percent()) : 1) &&
+                                (self.laneletFilters.mapped_dups_gb() ? parseFloat(l['Mapped-dups Gb']) >= parseFloat(self.laneletFilters.mapped_dups_gb()) : 1) &&
+                                (self.laneletFilters.overlap_dup_percent() ? parseFloat(l['Overlap dup%']) <= parseFloat(self.laneletFilters.overlap_dup_percent()) : 1) &&
+                                (self.laneletFilters.net_gb() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters.net_gb()) : 1) &&
+                                (self.laneletFilters.error_rate() ? parseFloat(l['Error Rate']) >= parseFloat(self.laneletFilters.error_rate()) : 1);
                             return pass;
                         } 
                     }
                 });
-                self.viewNodes.subscribe(function () {
+                self.updateFilter = function() {
                     if (self.selectedViewLabel.peek() != 'Donor') {
                         self.setAllQCGrindQCStatus('unset');
                         self.filteredNodes.filterProgressive(self.viewNodes.peek());
                     }
+                };
+                self.viewNodes.subscribe(function () {
+                    self.updateFilter();
                 });
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
                     filter.subscribe(function () {
-                        self.setAllQCGrindQCStatus('unset');
-                        self.filteredNodes.filterProgressive(self.viewNodes.peek());
+                        self.updateFilter();
                     });
-                })
-                self.updateFilter = function() {
-                    if (self.selectedViewLabel.peek() != 'Donor') {
-                        self.filteredNodes.filterProgressive(self.viewNodes.peek());
-                    }
-                }
+                });
                 self.setFilter = function(filter, value) {
                     self.laneletFilters[filter](value);
-                }
+                };
                 self.showMoreNodes = function() {
                     self.maxRows(self.maxRows() + 500);
-                }
+                };
                 self.showAllNodes = function() {
                     self.maxRows(self.viewNodes().length);
-                }
+                };
                 self.maxRows.subscribe(function () {
                     if (self.selectedViewLabel.peek() != 'Donor') {
                         self.filteredNodes.filterProgressive(self.viewNodes.peek(), true);
@@ -864,7 +893,7 @@
                         $(id).multiselect('deselect', selected());
                         selected(undefined);
                     }
-                }
+                };
                 
                 // function to reset parts of the view
                 self.reset = function(mode) {
@@ -888,7 +917,7 @@
                         self.selectedStudies.removeAll();
                         self.studyNodes.removeAll();
                     }
-                }
+                };
                 
                 // get admin details (ignore errors from it to avoid having 2
                 // not-logged-in errors)
@@ -903,10 +932,10 @@
                 });
                 self.updateGroupAdmins = function(data) {
                     getQCGraphData('qc_website_admin', { group: data.group, group_admins: data.users }, { groupAdmins: self.groupAdmins }, self.loading, self.errors);
-                }
+                };
                 self.updateGroupConfig = function(data) {
                     getQCGraphData('qc_website_admin', { group: data.group, group_qc_fail_reasons: data.qc_fail_reasons }, { groupConfig: self.groupConfig }, self.loading, self.errors);
-                }
+                };
                 
                 // get all the schema details from the db
                 getQCGraphData('labels', { }, { resultStore: self.labels, labelProperties: self.labelProperties, viewLabels: self.viewLabels, groupNodes: self.groupNodes, studyProperties: self.studyProperties, donorProperties: self.donorProperties, sampleProperties: self.sampleProperties }, self.loading, self.errors);
@@ -920,10 +949,10 @@
                 });
                 
                 // when the user changes groups or studies we need to reset things
-                self.selectedGroups.subscribe(function(newValue) {
+                self.selectedGroups.subscribe(function() {
                     self.reset(4);
                 });
-                self.selectedStudies.subscribe(function(newValue) {
+                self.selectedStudies.subscribe(function() {
                     self.reset(3);
                 });
                 
@@ -938,7 +967,7 @@
                     if (newValue && newValue != '' && ! self.sampleNodes().length) {
                         var opts = {label: 'Sample', groups: self.selectedGroups(), studies: self.selectedStudies()};
                         if (self.selectedDonors().length) {
-                            opts['donors'] = self.selectedDonors();
+                            opts.donors = self.selectedDonors();
                         }
                         getQCGraphData('nodes_of_label', opts, { resultStore: self.sampleNodes }, self.loading, self.errors);
                     }
@@ -954,38 +983,75 @@
                 });
                 
                 // when samples change, reset the view
-                self.selectedSamples.subscribe(function(newValue) {
+                self.selectedSamples.subscribe(function() {
                     self.reset(1);
                 });
                 
                 // when the user selects a view, get all nodes with that label,
-                // filtered based on group, studies and any other selections
+                // filtered based on group, studies and any other selections.
+                // For lanelets we also need to calculate the auto_qc result.
+                self.autoQCSettings = {
+                    'GType regex': { desc: 'A regular expression to choose acceptable genotype status values', value: ko.observable(), default: '^confirmed', size: 10  },
+                    'GType min concordance': { desc: 'Minimum concordance found by the genotype check', value: ko.observable(), default: 0.60, size: 2 },
+                    'GType min sites': { desc: 'Minimum number of sites with data in the genotype check', value: ko.observable(), default: 15, size: 2 },
+                    'Mapped base %': { desc: 'Minimum percentage of mapped bases', value: ko.observable(), default: 90, size: 2 },
+                    'Duplicate read %': { desc: 'Maximum percentage of duplicate reads', value: ko.observable(), default: 30, size: 2 },
+                    'Mapped reads properly paired %': { desc: 'Minimum percentage of the reads that are mapped which are also properly paired', value: ko.observable(), default: 80, size: 2 },
+                    'Error rate': { desc: 'Maximum allowed error rate', value: ko.observable(), default: 0.02, size: 2 },
+                    'Max in/del ratio': { desc: 'Maximum insert to deletion ratio', value: ko.observable(), default: 0.97, size: 2 },
+                    'Min in/del ratio': { desc: 'Minimum insert to deletion ratio', value: ko.observable(), default: 0.68, size: 2 },
+                    'Overlapping Base Duplicate %': { desc: 'Maximum percent of bases duplicated due to overlapping reads of a pair', value: ko.observable(), default: 4, size: 2 },
+                    'Max indel/cycle above median': { desc: 'Maximimum indels per cycle, factor above median', value: ko.observable(), default: 8, size: 2 }
+                };
+                self.autoQCConfigKeys = Object.keys(self.autoQCSettings); // most browsers always return the keys in the above order?
+                self.autoQCConfigKeys.forEach(function (key) {
+                    // when any of these change we need to update the filter,
+                    // but only after all the new auto_qc values have been
+                    // calculated, or the filter count and possibly what is
+                    // filtered will be wrong. Here we just wait half a second;
+                    // I couldn't figure out a nice way of knowing when all the
+                    // computed functions have finished...
+                    var setting = self.autoQCSettings[key].value;
+                    setting.subscribe(function () {
+                        self.updateFilter(); // immediate results
+                        setTimeout(self.updateFilter, 500); // correct the count
+                    });
+                });
                 self.selectedViewLabel.subscribe(function(newValue) {
                     if (newValue && newValue != '' && self.selectedGroups().length && self.selectedStudies().length) {
                         self.viewNodes.removeAll();
                         var loc = '/groups:' + self.selectedGroups() + '/studies:' + self.selectedStudies();
                         var opts = {label: newValue[0], groups: self.selectedGroups(), studies: self.selectedStudies()};
                         if (self.selectedDonors().length) {
-                            opts['donors'] = self.selectedDonors();
+                            opts.donors = self.selectedDonors();
                             loc = loc + '/donors:' + self.selectedDonors();
                         }
                         else {
                             loc = loc + '/donors:all';
                         }
                         if (self.selectedSamples().length) {
-                            opts['samples'] = self.selectedSamples();
+                            opts.samples = self.selectedSamples();
                             loc = loc + '/samples:' + self.selectedSamples();
                         }
                         else {
                             loc = loc + '/samples:all';
                         }
+                        
+                        if (newValue == 'Lanelet') {
+                            // set autoQCSettings values based on what user has
+                            // saved in their cookie or the default
+                            self.autoQCConfigKeys.forEach(function (key) {
+                                self.autoQCSettings[key].value(self.autoQCSettings[key].default);
+                            });
+                        }
+                        
                         self.maxRows(500);
-                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, flatten: true }, self.loading, self.errors);
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, autoQCSettings: self.autoQCSettings, flatten: true }, self.loading, self.errors);
                         
                         // and set the browser url to make this selection
                         // bookmarkable and included in the history
                         loc = loc + '/view:' + newValue;
-                        if (location.hash != '#' + loc) {
+                        if (location.hash !== '#' + loc) {
                             location.hash = loc;
                         }
                     }
@@ -994,12 +1060,12 @@
                 // client-side route which fills in the selection dropdowns
                 // based on the user changing the url in the browser directly
                 // (to enable bookmarkability and history)
-                route = router.addRoute('/groups\::groups/studies\::studies/donors\::donors/samples\::samples/view\::view');
+                var route = router.addRoute('/groups\::groups/studies\::studies/donors\::donors/samples\::samples/view\::view');
                 route.get(function(event, params) {
                     var groups = splitToInts(params.groups);
                     var studies = splitToInts(params.studies);
-                    var donors = params.donors == 'all' ? [] : splitToInts(params.donors);
-                    var samples = params.samples == 'all' ? [] : splitToInts(params.samples);
+                    var donors = params.donors === 'all' ? [] : splitToInts(params.donors);
+                    var samples = params.samples === 'all' ? [] : splitToInts(params.samples);
                     if (! arraysEqual(groups, self.selectedGroups()) || ! arraysEqual(studies, self.selectedStudies()) || ! arraysEqual(donors, self.selectedDonors()) || ! arraysEqual(samples, self.selectedSamples()) || params.view != self.selectedViewLabel()) {
                         self.reset(4);
                         
@@ -1060,137 +1126,150 @@
                 self.columns = ko.observable({});
                 self.numColumns = ko.observable(0);
                 self.numQCColumns = ko.observable(0);
+                self.previousViewLabel = null;
                 self.viewColumns = ko.computed(function () {
                     var columns = [];
-                    var details = {};
-                    var n = 0;
-                    var nqc = 0;
                     
-                    // read user cookie to see if they have chosen columns
-                    // saved for this url or as their own default
-                    var userCols = Cookies.getJSON('columns' + location.hash);
-                    if (userCols == null) {
-                        userCols = Cookies.getJSON('columns');
-                    }
-                    var desiredCols = {};
-                    if (userCols != null) {
-                        for (var i = 0, uclen = userCols.length; i < uclen; i++) {
-                            desiredCols[userCols[i]] = 1;
-                        }
-                    }
-                    
-                    if (self.selectedViewLabel() == 'Donor') {
-                        var colNames = ["ID", "Example Sample", "Sample Creation Date", "QCToDo(Fluidigm)", "QCToDo(Genotyping)", "QCToDo(All)"];
-                        for (var i = 0, len = colNames.length; i < len; i++) {
-                            var col = { header: colNames[i], text: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '', isqc: false };
-                            details[colNames[i]] = col;
-                            columns.push(col);
-                            n++;
-                        }
-                    }
-                    else if (self.selectedViewLabel() == 'Lanelet') {
-                        var cols = [
-                            ["Pass", "Pass", "Pass", true, '', true],
-                            ["Fail", "Fail", "Fail", true, '', true],
-                            ["Invst", "Invst", "Invst", true, '', true],
-                            ["GTPend", "GTPend", "GTPend", false, '', true],
-                            ["Pend", "Pend", "Pend", true, '', true],
-                            ["Study ID", "study_id", "study_id", false],
-                            ["Study Name", "study_name", "study_name", false],
-                            ["Study Acc", "study_acc", "study_acc", false],
-                            ["Individual", "Individual", "Individual", false],
-                            ["Sample", "Sample", "Sample", true],
-                            ["Sample Acc", "sample_acc", "sample_acc", false],
-                            ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
-                            ["Library", "Library", "Library", true],
-                            ["Lanelet", "Lanelet", "Lanelet", true],
-                            ["Gender", "Gender", "Gender", false],
-                            ["Genotype", "Genotype", "gtcheckdata:discordance", true],
-                            ["Verify Bam ID", "Verify Bam ID", "verifybamiddata:freemix", true],
-                            ["NPG Status", "NPG Status", "NPG Status", true],
-                            ["Auto QC Status", "Auto QC Status", "Auto QC Status", true],
-                            ["Raw Gb", "Raw Gb", "Raw Gb", true],
-                            ["Mapped Gb", "Mapped Gb", "Mapped Gb", true, "mapped Gb (cigar)"],
-                            ["Dup%", "Dup%", "Dup%", true, "percent of mapped reads which were duplicates"],
-                            ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
-                            ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
-                            ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
-                            ["Error Rate%", "Error Rate", "Error Rate", true, "percent of mismatches in bases mapped (cigar)"],
-                        ];
+                    if (self.selectedViewLabel() != null && (self.previousViewLabel === null || self.previousViewLabel != self.selectedViewLabel())) {
+                        var details = {};
+                        var n = 0;
+                        var nqc = 0;
+                        var i;
+                        var col;
+                        var len;
                         
-                        for (var i = 0, len = cols.length; i < len; i++) {
-                            var display = false;
-                            if (userCols != null) {
-                                if (desiredCols.hasOwnProperty(cols[i][0])) {
-                                    display = true;
-                                }
+                        // read user cookie to see if they have chosen columns
+                        // saved for this url or as their own default
+                        var userCols = Cookies.getJSON('columns' + location.hash);
+                        if (!userCols) {
+                            userCols = Cookies.getJSON('columns');
+                        }
+                        var desiredCols = {};
+                        if (userCols) {
+                            var uclen = userCols.length;
+                            for (i = 0; i < uclen; i += 1) {
+                                desiredCols[userCols[i]] = 1;
                             }
-                            else {
-                                display = cols[i][3];
+                        }
+                        
+                        if (self.selectedViewLabel() == 'Donor') {
+                            var colNames = ["ID", "Example Sample", "Sample Creation Date", "QCToDo(Fluidigm)", "QCToDo(Genotyping)", "QCToDo(All)"];
+                            len = colNames.length;
+                            for (i = 0; i < len; i += 1) {
+                                col = { header: colNames[i], text: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '', isqc: false };
+                                details[colNames[i]] = col;
+                                columns.push(col);
+                                n += 1;
                             }
+                        }
+                        else if (self.selectedViewLabel() == 'Lanelet') {
+                            var cols = [
+                                ["Pass", "Pass", "Pass", true, '', true],
+                                ["Fail", "Fail", "Fail", true, '', true],
+                                ["Invst", "Invst", "Invst", true, '', true],
+                                ["GTPend", "GTPend", "GTPend", false, '', true],
+                                ["Pend", "Pend", "Pend", true, '', true],
+                                ["Study ID", "study_id", "study_id", false],
+                                ["Study Name", "study_name", "study_name", false],
+                                ["Study Acc", "study_acc", "study_acc", false],
+                                ["Individual", "Individual", "Individual", false],
+                                ["Sample", "Sample", "Sample", true],
+                                ["Sample Acc", "sample_acc", "sample_acc", false],
+                                ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
+                                ["Library", "Library", "Library", true],
+                                ["Lanelet", "Lanelet", "Lanelet", true],
+                                ["Gender", "Gender", "Gender", false],
+                                ["Genotype", "Genotype", "gtcheckdata:concordance", true],
+                                ["Verify Bam ID", "Verify Bam ID", "verifybamiddata:freemix", true],
+                                ["NPG Status", "NPG Status", "NPG Status", true],
+                                ["Auto QC", "auto_qc", "auto_qc()", true],
+                                ["Raw Gb", "Raw Gb", "Raw Gb", true],
+                                ["Mapped Gb", "Mapped Gb", "Mapped Gb", true, "mapped Gb (cigar)"],
+                                ["Dup%", "Dup%", "Dup%", true, "percent of mapped reads which were duplicates"],
+                                ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
+                                ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
+                                ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
+                                ["Error Rate%", "Error Rate", "Error Rate", true, "percent of mismatches in bases mapped (cigar)"]
+                            ];
+                            len = cols.length;
                             
-                            var col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
-                            details[cols[i][0]] = col;
-                            columns.push(col);
-                            if (display) {
-                                n++;
-                                if (i <= 4) {
-                                    nqc++;
+                            var display;
+                            for (i = 0; i < len; i += 1) {
+                                display = false;
+                                if (userCols) {
+                                    if (desiredCols.hasOwnProperty(cols[i][0])) {
+                                        display = true;
+                                    }
+                                }
+                                else {
+                                    display = cols[i][3];
+                                }
+                                
+                                col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
+                                details[cols[i][0]] = col;
+                                columns.push(col);
+                                if (display) {
+                                    n += 1;
+                                    if (i <= 4) {
+                                        nqc += 1;
+                                    }
                                 }
                             }
                         }
-                    }
-                    else {
-                        var obj = self.viewNodes()[0];
-                        for (var name in obj) {
-                            if (name == 'node_id' || name == 'node_label') {
-                                continue;
-                            }
-                            var col = { header: name, text: name, sortOn: name, display: ko.observable(true), desc: '', isqc: false };
-                            details[name] = col;
-                            columns.push(col);
-                            n++;
+                        else {
+                            var obj = self.viewNodes()[0];
+                            Object.keys(obj).forEach(function (name) {
+                                if (name === 'node_id' || name === 'node_label') {
+                                    return;
+                                }
+                                col = { header: name, text: name, sortOn: name, display: ko.observable(true), desc: '', isqc: false };
+                                details[name] = col;
+                                columns.push(col);
+                                n += 1;
+                            });
                         }
+                        
+                        self.columns(details);
+                        self.numColumns(n);
+                        self.numQCColumns(nqc);
+                        self.previousViewLabel = self.selectedViewLabel();
                     }
                     
-                    self.columns(details);
-                    self.numColumns(n);
-                    self.numQCColumns(nqc);
                     return columns;
                 });
                 self.toggleColumn = function (column, event) {
-                    if (event.target.nodeName == "INPUT") {
-                        if (column['display']()) {
+                    if (event.target.nodeName === "INPUT") {
+                        if (column.display()) {
                             self.numColumns(self.numColumns() + 1);
-                            if (column['isqc']) {
+                            if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() + 1);
                             }
                         }
                         else {
                             self.numColumns(self.numColumns() - 1);
-                            if (column['isqc']) {
+                            if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() - 1);
                             }
                         }
                         return true;
                     }
                     else {
-                        column['display'](! column['display']());
-                        if (column['display']()) {
+                        column.display(! column.display());
+                        if (column.display()) {
                             self.numColumns(self.numColumns() + 1);
-                            if (column['isqc']) {
+                            if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() + 1);
                             }
                         }
                         else {
                             self.numColumns(self.numColumns() - 1);
-                            if (column['isqc']) {
+                            if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() - 1);
                             }
                         }
                     }
                     return false;
-                }
+                };
                 
                 // column choice can be saved to the user's cookie
                 self.rememberColumns = function(setDefault) {
@@ -1204,39 +1283,42 @@
                     }
                     
                     var cols = [];
-                    for (var i = 0, clen = self.viewColumns().length; i < clen; i++) {
-                        var col = self.viewColumns()[i];
+                    var i;
+                    var clen = self.viewColumns().length;
+                    var col;
+                    for (i = 0; i < clen; i += 1) {
+                        col = self.viewColumns()[i];
                         if (col.display()) {
                             cols.push(col.header);
                         }
                     }
                     
                     Cookies.set(name, cols, { secure: true, expires: 365 });
-                }
+                };
                 
                 // when a node in the view table is clicked on, open a new tab
                 // with the results
                 self.showQCForNode = function(node) {
-                    var nodeID = +node['node_id'];
-                    var nodeLabel = node['node_label'];
+                    var nodeID = +node.node_id;
+                    var nodeLabel = node.node_label;
                     
-                    if (nodeLabel == 'Donor') {
+                    if (nodeLabel === 'Donor') {
                         window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID, '_blank', '', false);
                     }
                     
                     return true;
-                }
+                };
                 
                 // when a lanelet qc status is changed, set in db and update
                 // the booleans that enable column sorting
                 self.qcStatusToCol = {passed: 'Pass', failed: 'Fail', investigate: 'Invst', 'gt_pending': 'GTPend', pending: 'Pend'};
                 self.changeQCStatus = function(laneletStatus, lanelet) {
-                    var oldStatus = lanelet['qcgrind_qc_status'];
-                    var unique = lanelet['Lanelet'];
+                    var oldStatus = lanelet.qcgrind_qc_status;
+                    var unique = lanelet.Lanelet;
                     
                     vrpipeRestMethod('qc', 'set_lanelet_qc_status', { lane: unique, status: laneletStatus }, self.loading, self.errors, function(data) {
-                        if (data['success']) {
-                            lanelet['qcgrind_qc_status'] = laneletStatus;
+                        if (data.success) {
+                            lanelet.qcgrind_qc_status = laneletStatus;
                             lanelet[self.qcStatusToCol[oldStatus]] = 0;
                             lanelet[self.qcStatusToCol[laneletStatus]] = 1;
                             
@@ -1252,32 +1334,35 @@
                     });
                     
                     return true;
-                }
+                };
                 
                 // we have a single button that can change the qc status on
                 // all the filtered lanes in one go
                 self.setAllQCGrindQC = function() {
                     var newStatus = self.setAllQCGrindQCStatus();
                     ko.utils.arrayForEach(self.filteredNodes(), function(lanelet) {
-                        if (lanelet['new_qcgrind_qc_status']() != newStatus) {
+                        if (lanelet.new_qcgrind_qc_status() != newStatus) {
                             self.changeQCStatus(newStatus, lanelet);
-                            lanelet['new_qcgrind_qc_status'](newStatus);
+                            lanelet.new_qcgrind_qc_status(newStatus);
                         }
                     });
-                }
+                };
                 
                 // lanelet view has various popups for different columns
                 self.genotypePopover = function(lane) {
                     if (lane.hasOwnProperty('gtcheckdata:reception_call_string') && lane['gtcheckdata:reception_call_string']) {
                         var matchCount = lane['gtcheckdata:match_count'] || 0;
-                        var commonCount = lane['gtcheckdata:common_snp_count'] || 0
+                        var commonCount = lane['gtcheckdata:common_snp_count'] || 0;
                         var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><caption>' + matchCount + '/' + commonCount + ' (' + lane['gtcheckdata:match_percent'] + '%) matched to ' + lane['gtcheckdata:matched_sample_name'] + '</caption><tbody>';
                         
                         html += '<tr><th>Reception calls</th>';
                         var rCalls = lane['gtcheckdata:reception_call_string'];
                         var rCallsArray = [];
-                        for (var i = 0, rCallsLength = rCalls.length; i < rCallsLength; i += 2) {
-                            var call = rCalls.substring(i, i + 2);
+                        var i;
+                        var rCallsLength = rCalls.length;
+                        var call;
+                        for (i = 0; i < rCallsLength; i += 2) {
+                            call = rCalls.substring(i, i + 2);
                             html += '<td>' + call + '</td>';
                             rCallsArray.push(call);
                         }
@@ -1289,19 +1374,22 @@
                             html += '<tr><th>BAM calls</th>';
                             var bCalls = lane['gtcheckdata:bam_call_string'];
                             var depths = lane['gtcheckdata:bam_gt_depths_string'].split(';');
+                            var bCallsLength = bCalls.length;
+                            var rCall;
+                            var bootstrapClass;
                             var callsI = 0;
-                            for (var i = 0, bCallsLength = bCalls.length; i < bCallsLength; i += 2) {
-                                var call = bCalls.substring(i, i + 2);
-                                if (call == 'NN') {
+                            for (i = 0; i < bCallsLength; i += 2) {
+                                call = bCalls.substring(i, i + 2);
+                                if (call === 'NN') {
                                     call = '--';
                                 }
-                                var rCall = rCallsArray[callsI];
-                                var bootstrapClass = '';
-                                if (rCall != '--' && call != '--') {
-                                    if (scores[callsI] == '1') {
+                                rCall = rCallsArray[callsI];
+                                bootstrapClass = '';
+                                if (rCall !== '--' && call !== '--') {
+                                    if (scores[callsI] === '1') {
                                         bootstrapClass = 'success';
                                     }
-                                    else if (scores[callsI] == '-1' || depths[callsI] >= 4) {
+                                    else if (scores[callsI] === '-1' || depths[callsI] >= 4) {
                                         bootstrapClass = 'danger';
                                     }
                                     else {
@@ -1310,12 +1398,13 @@
                                 }
                                 
                                 html += '<td class="' + bootstrapClass + '">' + call + '</td>';
-                                callsI++;
+                                callsI += 1;
                             }
                             html += '</tr>';
                             
                             html += '<tr><th>Call depths</th>';
-                            for (var i = 0, depthsLength = depths.length; i < depthsLength; i++) {
+                            var depthsLength = depths.length;
+                            for (i = 0; i < depthsLength; i += 1) {
                                 html += '<td>' + depths[i] + '</td>';
                             }
                             html += '</tr>';
@@ -1327,7 +1416,7 @@
                     else {
                         return '<p>no genotype result details available</p>';
                     }
-                }
+                };
                 self.verifyPopover = function(lane) {
                     var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
                     
@@ -1339,26 +1428,37 @@
                     
                     html += '</tbody></table>';
                     return html;
-                }
+                };
+                self.autoQCPopover = function(lane) {
+                    var html = '<table class="table table-bordered table-striped table-condensed small" style="margin-bottom: 0"><tbody>';
+                    
+                    ko.utils.arrayForEach(lane.auto_qc()[1], function(reason) {
+                        html += '<tr><th>' + reason[0] + '</th><td>' + reason[1] + '</td></tr>';
+                    });
+                    
+                    html += '</tbody></table>';
+                    return html;
+                };
+                
                 self.toggleLaneletGraphs = function (node) {
-                    node['display_graphs'](!node['display_graphs']());
+                    node.display_graphs(!node.display_graphs());
                 };
                 $(document).on('click', '.img-row-img', function() { // can't get focus and blur to work in firefox
                     $(this).parent().css({
-                        'flex-grow' : $(this).parent().css('flex-grow') == 4 ? '1' : '4'
+                        'flex-grow' : $(this).parent().css('flex-grow') === '4' ? '1' : '4'
                     });
                 });
                 self.toggleLaneletStats = function (node) {
-                    node['display_stats'](!node['display_stats']());
+                    node.display_stats(!node.display_stats());
                 };
                 self.showAllGraphs.subscribe(function(newValue) {
                     ko.utils.arrayForEach(self.viewNodes(), function(node) {
-                        node['display_graphs'](newValue);
+                        node.display_graphs(newValue);
                     });
                 });
                 self.showAllStats.subscribe(function(newValue) {
                     ko.utils.arrayForEach(self.viewNodes(), function(node) {
-                        node['display_stats'](newValue);
+                        node.display_stats(newValue);
                     });
                 });
             }
