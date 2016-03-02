@@ -205,13 +205,13 @@
                     <hr>
                     
                     <!-- ko if: selectedViewLabel() != 'Donor' -->
-                        <form role="form" class="btn-group top-margin bottom-margin" style="width: 100%">
+                        <form role="form" class="btn-group top-margin" style="width: 100%">
                             <div>
                                 <button data-toggle="dropdown" class="btn btn-default btn-sm dropdown-toggle" type="button">
                                     <span>columns</span> <span class="caret"></span>
                                 </button>
                                 <ul role="menu" class="dropdown-menu list-inline" data-bind="foreach: viewColumns">
-                                    <li style="padding:0;margin:0;width:100px">
+                                    <li style="padding:0; margin:0; width:100px">
                                         <a href="#" class="small" data-bind="click: $parent.toggleColumn, clickBubble: false">
                                             <input type="checkbox" data-bind="checked: display"> <span class="small" data-bind="text: header"></span>
                                         </a>
@@ -224,26 +224,29 @@
                         </form>
                         
                         <!-- ko if: selectedViewLabel() == 'Lanelet' && columns()['Auto QC'].display -->
-                            <div class="well well-sm">
-                                <label>Auto QC settings</label>
-                                
-                                <form role="form" class="form-inline" style="margin-bottom:-5px">
-                                    <div data-bind="foreach: autoQCConfigKeys">
-                                        <div class="input-group input-group-sm" style="margin-bottom: 5px">
-                                            <div class="input-group-addon"><abbr data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
-                                            <input type="text" class="form-control" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
+                            <form role="form" class="btn-group top-margin form-inline" style="width: 100%">
+                            <div>
+                                <button id="autoQCSettingsMenuButton" class="btn btn-default btn-sm dropdown-toggle" type="button">
+                                    <span>Auto QC settings</span> <span class="caret"></span>
+                                </button>
+                                <ul id="autoQCSettingsMenu" role="menu" class="dropdown-menu list-inline" data-bind="foreach: autoQCConfigKeys" style="padding: 0 0 5px 0;">
+                                    <li class="autoQCSettingsMenuItem" style="padding: 0; margin: 0;">
+                                        <div class="input-group input-group-sm autoQCSettingsMenuItem" style="float: left; padding: 0; margin: 5px -5px -5px 5px;">
+                                            <div class="input-group-addon autoQCSettingsMenuItem"><abbr class="autoQCSettingsMenuItem" data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
+                                            <input type="text" class="form-control autoQCSettingsMenuItem" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
                                         </div>
-                                    </div>
-                                    
-                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, false), css: aqcSelectionButtonClass"><span>save for this selection</span></button>
-                                    <button id="aqc_study_button" class="btn btn-default btn-sm" type="button" data-bind="click: setStudyAutoQCSettings, css: aqcStudyButtonClass"><span>save for <span data-bind="text: selectedStudies().length > 1 ? 'these studies' : 'this study'"></span></span></button>
-                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, true), css: aqcDefaultButtonClass"><span>save as my default</span></button>
-                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: revertAutoQCSettings"><span>revert</span></button>
-                                </form>
+                                    </li>
+                                </ul>
+                                
+                                <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, false), css: aqcSelectionButtonClass"><span>save for this selection</span></button>
+                                <button id="aqc_study_button" class="btn btn-default btn-sm" type="button" data-bind="click: setStudyAutoQCSettings, css: aqcStudyButtonClass"><span>save for <span data-bind="text: selectedStudies().length > 1 ? 'these studies' : 'this study'"></span></span></button>
+                                <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, true), css: aqcDefaultButtonClass"><span>save as my default</span></button>
+                                <button class="btn btn-default btn-sm" type="button" data-bind="click: revertAutoQCSettings"><span>revert</span></button>
                             </div>
+                        </form>
                         <!-- /ko -->
                         
-                        <form role="form" class="bottom-margin">
+                        <form role="form" class="top-margin bottom-margin">
                             <label class="checkbox-inline">
                                 <input type="checkbox" data-bind="checked: showAllGraphs" /> show all graphs
                             </label>
@@ -679,6 +682,15 @@
             });
             $(document).on('mouseup', '.btn, img', function(){
                 $(this).blur();
+            });
+            
+            $(document).on('click', '#autoQCSettingsMenuButton', function() {
+                $(this).parent().toggleClass('open');
+            });
+            $('body').on('click', function(e) {
+                if (!$('#autoQCSettingsMenuButton, #autoQCSettingsMenuButton span, #autoQCSettingsMenu, .autoQCSettingsMenuItem').is(e.target) && $('#autoQCSettingsMenuButton').parent().hasClass('open')) {
+                    $('#autoQCSettingsMenuButton').parent().removeClass('open');
+                }
             });
             
             // viewmodel for logging in
