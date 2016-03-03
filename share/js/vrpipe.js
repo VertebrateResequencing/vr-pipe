@@ -47,8 +47,15 @@ ko.bindingHandlers.sort = {
         
         element.onclick = function(){
             var value = valueAccessor();
-            var prop = value.prop;
             var data = value.arr;
+            
+            var prop = value.prop;
+            var parenIndex = prop.indexOf('()');
+            var isKO = false;
+            if (parenIndex > 0) {
+                prop = prop.substring(0, parenIndex);
+                isKO = true;
+            }
             
             asc = !asc;
             
@@ -61,18 +68,13 @@ ko.bindingHandlers.sort = {
                     rec2 = left;
                 }
                 
-                var props = prop.split('.');
-                for(var i in props){
-                    var propName = props[i];
-                    var parenIndex = propName.indexOf('()');
-                    if(parenIndex > 0){
-                        propName = propName.substring(0, parenIndex);
-                        rec1 = rec1[propName]();
-                        rec2 = rec2[propName]();
-                    } else {
-                        rec1 = rec1[propName];
-                        rec2 = rec2[propName];
-                    }
+                if (isKO) {
+                    rec1 = rec1[prop]();
+                    rec2 = rec2[prop]();
+                }
+                else {
+                    rec1 = rec1[prop];
+                    rec2 = rec2[prop];
                 }
                 
                 if (!isNaN(rec1) && !isNaN(rec2)) {

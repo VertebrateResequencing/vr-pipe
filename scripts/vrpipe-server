@@ -8,7 +8,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012-2015 Genome Research Limited.
+Copyright (c) 2012-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -1794,6 +1794,7 @@ sub qc {
                 my @verifybamiddata_desired_types = qw(number_of_snps avg_depth freemix freeLK0 freeLK1);
                 my @gtcheckdata_desired_types     = qw(bam_call_string bam_gt_depths_string reception_call_string match_score common_snp_count match_count);
                 my @qcgraph_labels                = ('GC Content', 'GC Depth', 'ACGT Cycles', 'Coverage', 'Indels per cycle', 'Indel distribution', 'Insert Size', 'Mismatches per cycle', 'Qualities');
+                my @autoqc_keys                   = ('is_paired_read', 'alignmentstats:total length', 'alignmentstats:sequences', 'alignmentstats:bases trimmed', 'alignmentstats:bases mapped (cigar)', 'alignmentstats:reads mapped', 'alignmentstats:reads properly paired', 'alignmentstats:error rate', 'alignmentstats:number of insertions', 'alignmentstats:number of deletions', 'alignmentstats:reads paired', 'alignmentstats:insert size average', 'alignmentstats:dupl mapped bases', 'alignmentstats:total mapped bases', 'alignmentstats:median of indel cycle counts', 'alignmentstats:max of indel cycle counts');
                 
                 foreach my $node (@$data) {
                     my $props     = $node->{properties};
@@ -1854,34 +1855,40 @@ sub qc {
                     # stats for the detailed stats table
                     my $reads = $props->{'alignmentstats:sequences'};
                     if ($reads) {
-                        $new_props->{'alignmentstats:reads'}              = &$commify($reads);
-                        $new_props->{'alignmentstats:reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
-                        $new_props->{'alignmentstats:reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
-                        $new_props->{'alignmentstats:reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
-                        $new_props->{'alignmentstats:bases'}              = &$commify($total_length);
+                        $new_props->{'reads'}              = &$commify($reads);
+                        $new_props->{'reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
+                        $new_props->{'reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
+                        $new_props->{'reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
+                        $new_props->{'bases'}              = &$commify($total_length);
                         my $bases_postclip = $total_length - $props->{'alignmentstats:bases trimmed'};
-                        $new_props->{'alignmentstats:bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
-                        $new_props->{'alignmentstats:bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
-                        $new_props->{'alignmentstats:bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
-                        $new_props->{'alignmentstats:cycles'}             = $props->{'alignmentstats:average length'};
+                        $new_props->{'bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
+                        $new_props->{'bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
+                        $new_props->{'bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
+                        $new_props->{'cycles'}             = $props->{'alignmentstats:average length'};
                         my $error_rate = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'});
-                        $new_props->{'alignmentstats:error_rate'}       = $error_rate . '%';
-                        $new_props->{'Error Rate'}                      = $error_rate;
-                        $new_props->{'alignmentstats:duplication_rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
+                        $new_props->{'error_rate'}       = $error_rate . '%';
+                        $new_props->{'Error Rate'}       = $error_rate;
+                        $new_props->{'duplication_rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
                     }
                     else {
-                        $new_props->{'alignmentstats:reads'}              = 0;
-                        $new_props->{'alignmentstats:reads_mapped'}       = 0;
-                        $new_props->{'alignmentstats:reads_paired'}       = 0;
-                        $new_props->{'alignmentstats:reads_mapped_rmdup'} = 0;
-                        $new_props->{'alignmentstats:bases'}              = 0;
-                        $new_props->{'alignmentstats:bases_postclip'}     = 0;
-                        $new_props->{'alignmentstats:bases_mapped'}       = 0;
-                        $new_props->{'alignmentstats:bases_mapped_rmdup'} = 0;
-                        $new_props->{'alignmentstats:cycles'}             = 0;
-                        $new_props->{'alignmentstats:error_rate'}         = 0;
-                        $new_props->{'Error Rate'}                        = 0;
-                        $new_props->{'alignmentstats:duplication_rate'}   = 0;
+                        $new_props->{'reads'}              = 0;
+                        $new_props->{'reads_mapped'}       = 0;
+                        $new_props->{'reads_paired'}       = 0;
+                        $new_props->{'reads_mapped_rmdup'} = 0;
+                        $new_props->{'bases'}              = 0;
+                        $new_props->{'bases_postclip'}     = 0;
+                        $new_props->{'bases_mapped'}       = 0;
+                        $new_props->{'bases_mapped_rmdup'} = 0;
+                        $new_props->{'cycles'}             = 0;
+                        $new_props->{'error_rate'}         = 0;
+                        $new_props->{'Error Rate'}         = 0;
+                        $new_props->{'duplication_rate'}   = 0;
+                    }
+                    
+                    # for calculating auto qc, copy over a number of
+                    # alignementstats values as-is
+                    foreach my $key (@autoqc_keys) {
+                        $new_props->{$key} = $props->{$key};
                     }
                     
                     # put the graphs in to an array for easy display, since
@@ -1912,22 +1919,35 @@ sub qc {
                     $new_props->{qc_plots} = \@graphs;
                     
                     # other simple things we want to display
-                    $new_props->{Individual} = $props->{individual_name} || 'unknown';
-                    $new_props->{Sample}     = $props->{sample_name}     || 'unknown';
-                    $new_props->{Library}    = $props->{library_id}      || 'unknown';
-                    $new_props->{Lanelet}    = $props->{unique};
+                    $new_props->{study_id}     = $props->{study_id};
+                    $new_props->{study_name}   = $props->{study_name};
+                    $new_props->{study_acc}    = $props->{study_accession} || 'unknown';
+                    $new_props->{Individual}   = $props->{individual_name} || 'unknown';
+                    $new_props->{Sample}       = $props->{sample_name} || 'unknown';
+                    $new_props->{sample_acc}   = $props->{sample_accession} || 'unknown';
+                    $new_props->{sample_sn}    = $props->{sample_supplier_name} || 'unknown';
+                    $new_props->{Gender}       = $props->{gender} || 'U';
+                    $new_props->{Library}      = $props->{library_id} || 'unknown';
+                    $new_props->{Lanelet}      = $props->{unique};
                     $new_props->{run_and_lane} = $props->{run} . '_' . $props->{lane};
+                    $new_props->{run}          = $props->{run};
                     my $gtcheck = $props->{gtcheck};
+                    
                     if ($gtcheck) {
                         # save column space by getting rid of the matching sample name
                         $gtcheck =~ s/\(.+:(\d.*)\)/($1)/; #unconfirmed (vbseqx106041576:1)
-                        $new_props->{'gtcheckdata:discordance'}         = $1;
-                        $new_props->{Genotype}                          = $gtcheck;
+                        $new_props->{'gtcheckdata:concordance'} = $1;
+                        $new_props->{Genotype} = $gtcheck;
+                        $gtcheck =~ s/\s+.+//;
+                        $new_props->{genotype_status}                   = $gtcheck;
                         $new_props->{'gtcheckdata:matched_sample_name'} = $props->{'gtcheckdata:matched_sample_name'};
+                        $new_props->{'gtcheckdata:common_snp_count'}    = $props->{'gtcheckdata:common_snp_count'};
                     }
                     else {
-                        $new_props->{Genotype} = 'unknown';
-                        $new_props->{'gtcheckdata:discordance'} = 0;
+                        $new_props->{Genotype}                       = 'unknown';
+                        $new_props->{genotype_status}                = 'unknown';
+                        $new_props->{'gtcheckdata:concordance'}      = 0;
+                        $new_props->{'gtcheckdata:common_snp_count'} = 0;
                     }
                     $new_props->{'NPG Status'}     = defined $props->{'npg_manual_qc'} ? ($props->{'npg_manual_qc'} eq '1' ? 'pass' : 'fail')   : 'unknown';
                     $new_props->{'Auto QC Status'} = defined $props->{'auto_qc:pass'}  ? ($props->{'auto_qc:pass'} eq '1'  ? 'pass' : 'failed') : 'unknown';
@@ -2049,6 +2069,19 @@ sub qc {
         }
         else {
             $data = { errors => ["lane and status must be supplied to set_lanelet_qc_status()"] };
+        }
+    }
+    elsif ($method eq 'set_study_auto_qc_settings') {
+        my $study    = $args->{study};
+        my $settings = $args->{settings};
+        if ($study && $settings) {
+            $data = $vrtrack->set_study_auto_qc_settings($study, $settings, $auth_user);
+            if ($data->{errors}) {
+                $data->{errors} = [$data->{errors}];
+            }
+        }
+        else {
+            $data = { errors => ["study and settings must be supplied to set_study_auto_qc_settings()"] };
         }
     }
     else {

@@ -19,7 +19,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014, 2015 Genome Research Limited.
+Copyright (c) 2014-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -67,6 +67,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 label        => 'Study',
                 unique       => [qw(id)],
                 indexed      => [qw(name accession)],
+                optional     => [qw(auto_qc_settings)],
                 keep_history => 1
             },
             {
@@ -677,6 +678,17 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             $data = { errors => ["Status $status is not valid"] };
         }
         return $data;
+    }
+    
+    # sets auto_qc_settings on a study node, but only if the user has
+    # permissions on at least 1 group the study belongs to.
+    # returns a hashref with a single key: either success or errors
+    method set_study_auto_qc_settings (Str $study!, Str $settings!, Str $user!) {
+        my $graph = $self->graph;
+        my $db    = $graph->_global_label;
+        $study    = uri_escape($study);
+        $settings = uri_escape($settings);
+        return $graph->_call_vrpipe_neo4j_plugin("/vrtrack_set_study_auto_qc_settings/$db/$user/$study/$settings");
     }
     
     # get all qc-related stuff associated with a donor and its samples. Also

@@ -49,6 +49,9 @@
 .top-margin {
     margin-top: 5px;
 }
+.bottom-margin {
+    margin-bottom: 20px;
+}
 
 .img_thumb {
     width: 100px;
@@ -97,4 +100,8 @@ dd {
 }
 .img-row div img {
     width: 100%;
+}
+
+.text-default {
+    color: #333;
 }
