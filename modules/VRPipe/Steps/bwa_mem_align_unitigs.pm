@@ -44,6 +44,16 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
             ),
             samtools_exe          => VRPipe::StepOption->create(description => 'path to your samtools executable',                                     optional => 1, default_value => 'samtools'),
             samtools_view_options => VRPipe::StepOption->create(description => 'samtools view option to control compression level of output bam file', optional => 1, default_value => '-1'),
+            k8_exe                => VRPipe::StepOption->create(
+                description   => 'path to your k8 executable',
+                optional      => 1,
+                default_value => 'k8'
+            ),
+            bwa_postalt => VRPipe::StepOption->create(
+                description   => 'path to your bwa-postalt.js to be optionally used if mapping to a reference with ALTs',
+                optional      => 1,
+                default_value => ''
+            ),
         };
     }
     
@@ -63,9 +73,8 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                     study          => 'name of the study, put in the DS field of the RG header line',
                     analysis_group => 'project analysis group',
                     population     => 'sample population',
-                    # bases          => 'total number of base pairs',
-                    reads    => 'total number of reads (sequences)',
-                    optional => ['lane', 'library', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                    reads          => 'total number of reads (sequences)',
+                    optional       => ['lane', 'library', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
             )
         };
@@ -77,6 +86,8 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
             my $options = $self->options;
             my $ref     = file($options->{reference_fasta});
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
+            my $k8      = $options->{k8_exe};
+            my $postalt = $options->{bwa_postalt};
             
             my $bwa_exe  = $options->{bwa_exe};
             my $bwa_opts = $options->{bwa_mem_options};
@@ -89,6 +100,19 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
             }
             my $samtools          = $options->{samtools_exe};
             my $samtools_compress = $options->{samtools_view_options};
+            my $post_pipes        = qq[$samtools view $samtools_compress -];
+            
+            my $has_hla = 0;
+            my $do_alt  = 0;
+            if ($postalt && -f "$ref.alt") {
+                my $do_alt = 1;
+                my $fh;
+                open($fh, "$ref.alt") || die;
+                while (<$fh>) {
+                    $has_hla = 1 if /^HLA-[^\s\*]+\*\d+/;
+                }
+                close($fh);
+            }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
@@ -162,10 +186,32 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                     type       => 'bam',
                     metadata   => $bam_meta
                 );
+                my @outfiles         = ($bam_file);
+                my $these_post_pipes = $post_pipes;
+                if ($do_alt) {
+                    my $hla_pre = '';
+                    if ($has_hla) {
+                        my $fq_meta = $bam_meta;
+                        delete $$fq_meta{reads} if exists $$fq_meta{reads};
+                        delete $$fq_meta{bases} if exists $$fq_meta{bases};
+                        foreach my $suffix (qw(HLA-A.fq HLA-B.fq HLA-C.fq HLA-DQA1.fq HLA-DQB1.fq HLA-DRB1.fq)) {
+                            my $hla = $self->output_file(
+                                sub_dir    => "$idx",
+                                output_key => 'hla_fastq_files',
+                                basename   => "$idx.unitig.hla.$suffix",
+                                type       => 'fq',
+                                metadata   => $fq_meta
+                            );
+                            push(@outfiles, $hla);
+                        }
+                        $hla_pre = ' -p ' . file($bam_file->dir, "$idx.unitig.hla");
+                    }
+                    $these_post_pipes = "$k8 $postalt$hla_pre $ref.alt | $these_post_pipes";
+                }
                 $idx++;
                 
-                my $this_cmd = "$cmd -R '$rg_line' $ref " . $fq->path . " | $samtools view $samtools_compress - > " . $bam_file->path;
-                $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_mem_align_unitigs', 'mem_and_check', [$this_cmd, $req, { output_files => [$bam_file] }]);
+                my $this_cmd = "$cmd -R '$rg_line' $ref " . $fq->path . " | $these_post_pipes > " . $bam_file->path;
+                $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_mem_align_unitigs', 'mem_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
             }
         };
     }
@@ -177,18 +223,23 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                 max_files   => -1,
                 description => 'output bam file(s) mapped by bwa mem',
                 metadata    => {
-                    # library        => 'library name',
-                    # sample         => 'sample name',
-                    # center_name    => 'center name',
-                    # platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
-                    # study          => 'name of the study, put in the DS field of the RG header line',
-                    # insert_size    => 'expected (mean) insert size if paired',
-                    # analysis_group => 'project analysis group',
-                    # population     => 'sample population',
-                    # bases          => 'total number of base pairs',
-                    reads => 'total number of reads (sequences)',
-                    # optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
+                    library        => 'library name',
+                    sample         => 'sample name',
+                    center_name    => 'center name',
+                    platform       => 'sequencing platform, eg. ILLUMINA|LS454|ABI_SOLID',
+                    study          => 'name of the study, put in the DS field of the RG header line',
+                    insert_size    => 'expected (mean) insert size if paired',
+                    analysis_group => 'project analysis group',
+                    population     => 'sample population',
+                    reads          => 'total number of reads (sequences)',
+                    optional       => ['library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
+            ),
+            hla_fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'optional output HLA fastq file(s) mapped by bwa mem',
             )
         };
     }
