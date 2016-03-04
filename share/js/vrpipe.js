@@ -49,13 +49,18 @@ ko.bindingHandlers.sort = {
             var value = valueAccessor();
             var data = value.arr;
             
-            var prop = value.prop;
-            var parenIndex = prop.indexOf('()');
-            var isKO = false;
-            if (parenIndex > 0) {
-                prop = prop.substring(0, parenIndex);
-                isKO = true;
-            }
+            var props = [];
+            ko.utils.arrayForEach(value.prop.split('.'), function(prop) {
+                var parenIndex = prop.indexOf('()');
+                var isKO = false;
+                if (parenIndex > 0) {
+                    prop = prop.substring(0, parenIndex);
+                    isKO = true;
+                }
+                props.push([prop, isKO]);
+            });
+            var i;
+            var propsLen = props.length;
             
             asc = !asc;
             
@@ -63,26 +68,36 @@ ko.bindingHandlers.sort = {
                 var rec1 = left;
                 var rec2 = right;
                 
-                if(!asc) {
+                if (!asc) {
                     rec1 = right;
                     rec2 = left;
                 }
                 
-                if (isKO) {
-                    rec1 = rec1[prop]();
-                    rec2 = rec2[prop]();
+                var sortReturn = 0;
+                var val1;
+                var val2;
+                for (i = 0; i < propsLen; i += 1) {
+                    if (props[i][1]) {
+                        val1 = rec1[props[i][0]]();
+                        val2 = rec2[props[i][0]]();
+                    }
+                    else {
+                        val1 = rec1[props[i][0]];
+                        val2 = rec2[props[i][0]];
+                    }
+                    
+                    if (!isNaN(val1) && !isNaN(val2)) {
+                        val1 = +val1;
+                        val2 = +val2;
+                    }
+                    
+                    sortReturn = val1 == val2;
+                    if (! sortReturn) {
+                        sortReturn = val1 < val2 ? -1 : 1;
+                        break;
+                    }
                 }
-                else {
-                    rec1 = rec1[prop];
-                    rec2 = rec2[prop];
-                }
-                
-                if (!isNaN(rec1) && !isNaN(rec2)) {
-                    rec1 = +rec1;
-                    rec2 = +rec2;
-                }
-                
-                return rec1 == rec2 ? 0 : rec1 < rec2 ? -1 : 1;
+                return sortReturn;
             });
             
             if (value.hasOwnProperty('postFunc')) {
