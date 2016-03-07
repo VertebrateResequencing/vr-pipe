@@ -70,6 +70,10 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
                 description => 'regions to include (format should follow chr:start-end seperated by comma)',
                 optional    => 1,
             ),
+            user_supplied_chunks => VRPipe::StepOption->create(
+                description => 'path to a bed file containing pre-defined chunks in case you want to supply your own coordinates (Setting this essentially skips the step)',
+                optional    => 1,
+            ),
             bcftools_exe => VRPipe::StepOption->create(
                 description   => 'path to your bcftools exe',
                 optional      => 1,
@@ -106,6 +110,7 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
             my $regions       = $options->{regions};
             my $bcftools_exe  = $options->{bcftools_exe};
             my $tabix_exe     = $options->{tabix_exe};
+            my $input_bed     = $options->{user_supplied_chunks};
             
             my $vcf_to_chunk;
             if ($chunk_by_ref) {
@@ -127,12 +132,19 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
                 my @vcf_path = split(/\//, $vcf_to_chunk);
                 pop @vcf_path;
                 foreach my $region (@regions) {
-                    my $chr = $region;
-                    $chr =~ s/:.*$//;
+                    my ($chr, $from, $to) = split(/:|-/, $region);
                     my $outdir = join('/', @vcf_path) . "/$chr";
-                    my $bed_file = $self->output_file(output_dir => "$outdir", output_key => 'bed_files', basename => "$region.${chunk_nsites}_$buffer_nsites.bed", type => 'txt');
+                    my $basename;
+                    if ($input_bed) {
+                        my $input_bed_file = VRPipe::File->create(path => $input_bed);
+                        $basename = $region . "." . $input_bed_file->basename;
+                    }
+                    else {
+                        $basename = "$region.${chunk_nsites}_$buffer_nsites.bed";
+                    }
+                    my $bed_file = $self->output_file(output_dir => "$outdir", output_key => 'bed_files', basename => $basename, type => 'txt');
                     my $bed_path = $bed_file->path;
-                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], in_path => q[$vcf_to_chunk], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe]);";
+                    my $this_cmd = "use VRPipe::Steps::define_vcf_chunks; VRPipe::Steps::define_vcf_chunks->define_chunks(outfile => q[$bed_path], input_bed => q[$input_bed], vcf_file => q[$vcf_to_chunk], region => q[$region], buffer_nsites => q[$buffer_nsites], chunk_nsites => q[$chunk_nsites], max_chr_len => q[$max_chr_len], bcftools => q[$bcftools_exe]);";
                     my $req      = $self->new_requirements(memory => 1000, time => 1);
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$bed_file], block_and_skip_if_ok => 1 });
                 }
@@ -182,71 +194,82 @@ class VRPipe::Steps::define_vcf_chunks with VRPipe::StepRole {
         }
     }
     
-    method define_chunks (ClassName|Object $self: Str|File :$outfile!, Str :$in_path!, Str :$region!, Str :$buffer_nsites!, Str :$chunk_nsites!, Str :$max_chr_len!, Str :$bcftools!) {
-        my $tot_sites = $buffer_nsites + $chunk_nsites;
-        my (@chunks, @buffer);
-        $in_path = $self->expand_chrom($in_path, $region);
-        if ($region eq '.') { $region = ''; }
-        my $cmd = "$bcftools view -g ^miss $in_path $region |";
-        open(my $in, $cmd) or $self->throw("$cmd: $!");
-        while (my $line = <$in>) {
-            if (substr($line, 0, 1) eq '#') { next; }
-            my $i = index($line, "\t");
-            if ($i < 0) { $self->throw("Could not parse the line [CHR]: $line"); }
-            my $chr = substr($line, 0, $i);
-            my $j = index($line, "\t", $i + 1);
-            if ($j < 0) { $self->throw("Could not parse the line [POS]: $line"); }
-            my $pos = substr($line, $i + 1, $j - $i - 1);
-            if (@buffer && $buffer[0][0] ne $chr or @buffer > $tot_sites) {
+    method define_chunks (ClassName|Object $self: Str|File :$outfile!, Str|File :$input_bed!, Str|File :$vcf_file!, Str :$region!, Str :$buffer_nsites!, Str :$chunk_nsites!, Str :$max_chr_len!, Str :$bcftools!) {
+        if ($input_bed) {
+            my ($chr, $from, $to) = split(/:|-/, $region);
+            if ($from && $to) {
+                system("awk '\$1==\"$chr\" && \$2>=$from && \$3<=$to' $input_bed > $outfile") && $self->throw("failed to create the bed file $outfile");
+            }
+            else {
+                system("awk '\$1==\"$chr\"' $input_bed > $outfile") && $self->throw("failed to create the bed file $outfile");
+            }
+        }
+        else {
+            my $tot_sites = $buffer_nsites + $chunk_nsites;
+            my (@chunks, @buffer);
+            $vcf_file = $self->expand_chrom($vcf_file, $region);
+            if ($region eq '.') { $region = ''; }
+            my $cmd = "$bcftools view -g ^miss $vcf_file $region |";
+            open(my $in, $cmd) or $self->throw("$cmd: $!");
+            while (my $line = <$in>) {
+                if (substr($line, 0, 1) eq '#') { next; }
+                my $i = index($line, "\t");
+                if ($i < 0) { $self->throw("Could not parse the line [CHR]: $line"); }
+                my $chr = substr($line, 0, $i);
+                my $j = index($line, "\t", $i + 1);
+                if ($j < 0) { $self->throw("Could not parse the line [POS]: $line"); }
+                my $pos = substr($line, $i + 1, $j - $i - 1);
+                if (@buffer && $buffer[0][0] ne $chr or @buffer > $tot_sites) {
+                    my $chr_from = $buffer[0][0];
+                    my $pos_from = $buffer[0][1];
+                    my $pos_to   = $buffer[-1][1];
+                    my $nout     = @buffer;
+                    push @chunks, { chr => $chr_from, from => $pos_from, to => $pos_to, n => $nout };
+                    if ($chunk_nsites < @buffer) { splice(@buffer, 0, $chunk_nsites); }
+                    else                         { @buffer = (); }
+                }
+                push @buffer, [$chr, $pos];
+            }
+            if (@buffer) {
                 my $chr_from = $buffer[0][0];
                 my $pos_from = $buffer[0][1];
                 my $pos_to   = $buffer[-1][1];
                 my $nout     = @buffer;
                 push @chunks, { chr => $chr_from, from => $pos_from, to => $pos_to, n => $nout };
-                if ($chunk_nsites < @buffer) { splice(@buffer, 0, $chunk_nsites); }
-                else                         { @buffer = (); }
             }
-            push @buffer, [$chr, $pos];
-        }
-        if (@buffer) {
-            my $chr_from = $buffer[0][0];
-            my $pos_from = $buffer[0][1];
-            my $pos_to   = $buffer[-1][1];
-            my $nout     = @buffer;
-            push @chunks, { chr => $chr_from, from => $pos_from, to => $pos_to, n => $nout };
-        }
-        close($in) or $self->throw("close $cmd");
-        #if ( !@chunks ) { $self->throw("No chunks defined: $cmd\n"); }
-        if (@chunks > 1 && $chunks[-1]{n} < $tot_sites * 0.75 && $chunks[-1]{chr} eq $chunks[-2]{chr}) {
-            my $chunk = splice(@chunks, -1, 1);
-            $chunks[-1]{to} = $$chunk{to};
-            $chunks[-1]{n} += $$chunk{n};
-        }
-        
-        if (!($region =~ /:/)) { # Whole genome or whole chromosome was requested. When on a new
-            # chromosome, expand the first and last record to accompany
-            # sites which may be present only in one (known_vcf vs in_vcf)
-            for (my $i = 0; $i < @chunks; $i++) {
-                if ($i == 0) { $chunks[0]{from} = 0; next; }
-                if ($chunks[$i]{chr} ne $chunks[$i - 1]{chr}) {
-                    $chunks[$i - 1]{to} = $max_chr_len; # last chunk, longest chr of human genome
-                    $chunks[$i]{from} = 0;
+            close($in) or $self->throw("close $cmd");
+            #if ( !@chunks ) { $self->throw("No chunks defined: $cmd\n"); }
+            if (@chunks > 1 && $chunks[-1]{n} < $tot_sites * 0.75 && $chunks[-1]{chr} eq $chunks[-2]{chr}) {
+                my $chunk = splice(@chunks, -1, 1);
+                $chunks[-1]{to} = $$chunk{to};
+                $chunks[-1]{n} += $$chunk{n};
+            }
+            
+            if (!($region =~ /:/)) { # Whole genome or whole chromosome was requested. When on a new
+                # chromosome, expand the first and last record to accompany
+                # sites which may be present only in one (known_vcf vs in_vcf)
+                for (my $i = 0; $i < @chunks; $i++) {
+                    if ($i == 0) { $chunks[0]{from} = 0; next; }
+                    if ($chunks[$i]{chr} ne $chunks[$i - 1]{chr}) {
+                        $chunks[$i - 1]{to} = $max_chr_len; # last chunk, longest chr of human genome
+                        $chunks[$i]{from} = 0;
+                    }
                 }
+                $chunks[-1]{to} = $max_chr_len;
             }
-            $chunks[-1]{to} = $max_chr_len;
+            
+            my $out_file = VRPipe::File->get(path => $outfile);
+            my $ofh = $out_file->openw;
+            $out_file->disconnect;
+            print $ofh "#chr\tstart\tend\tnsites\n";
+            for my $chunk (@chunks) {
+                print $ofh "$$chunk{chr}\t$$chunk{from}\t$$chunk{to}\t$$chunk{n}\n";
+                # Here we could also run tabix to split the vcf file, however, for scalability,
+                # each vcf chunk should ideally be generated using a separate VRPipe dispatch.
+                # Therefore, vcf split, if required, should be carried out in a separate step.
+            }
+            $out_file->close;
         }
-        
-        my $out_file = VRPipe::File->get(path => $outfile);
-        my $ofh = $out_file->openw;
-        $out_file->disconnect;
-        print $ofh "#chr\tstart\tend\tnsites\n";
-        for my $chunk (@chunks) {
-            print $ofh "$$chunk{chr}\t$$chunk{from}\t$$chunk{to}\t$$chunk{n}\n";
-            # Here we could also run tabix to split the vcf file, however, for scalability,
-            # each vcf chunk should ideally be generated using a separate VRPipe dispatch.
-            # Therefore, vcf split, if required, should be carried out in a separate step.
-        }
-        $out_file->close;
         return 1;
     }
 

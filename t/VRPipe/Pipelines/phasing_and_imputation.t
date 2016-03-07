@@ -13,11 +13,22 @@ BEGIN {
     use TestPipelines;
 }
 
-my $ref_dir      = get_output_dir('reference');
-my $ref_vcf_orig = file(qw(t data chr20.1kg_phase1.GBR.vcf.gz));
-my $ref_vcf      = file($ref_dir, 'chr20.1kg_phase1.GBR.vcf.gz')->stringify;
-copy($ref_vcf_orig,       $ref_vcf);
-copy("$ref_vcf_orig.tbi", "$ref_vcf.tbi");
+my $input_dir = get_output_dir('reference');
+
+my $ref_vcf_orig   = file(qw(t data chr20.1kg_phase1.GBR.vcf.gz));
+my $input_vcf_orig = file(qw(t data chr20.1kg_omni25.GBR.vcf.gz));
+my $ref_vcf        = file($input_dir, 'chr20.1kg_phase1.GBR.vcf.gz');
+my $input_vcf      = file($input_dir, 'chr20.1kg_omni25.GBR.vcf.gz');
+
+copy($ref_vcf_orig,         $ref_vcf->stringify);
+copy($input_vcf_orig,       $input_vcf->stringify);
+copy("$ref_vcf_orig.tbi",   "$ref_vcf.tbi");
+copy("$input_vcf_orig.tbi", "$input_vcf.tbi");
+
+my $fofn = file($input_dir, 'imputation.vcf.fofn');
+my $fh = $fofn->openw;
+print $fh $input_vcf->absolute;
+close($fh);
 
 SKIP: {
     my $num_tests = 3;
@@ -39,7 +50,7 @@ SKIP: {
         datasource => VRPipe::DataSource->create(
             type   => 'fofn',
             method => 'all',
-            source => file(qw(t data imputation.vcf.fofn)),
+            source => $fofn->absolute,
         ),
         options => {
             chunk_nsites         => 1000,
@@ -81,13 +92,12 @@ SKIP: {
         datasource => VRPipe::DataSource->create(
             type   => 'fofn',
             method => 'all',
-            source => file(qw(t data imputation.vcf.fofn)),
+            source => $fofn->absolute,
         ),
         options => {
-            ref_vcf       => $ref_vcf,
-            chunk_by_ref  => 1,
-            chunk_nsites  => 1000,
-            buffer_nsites => 200
+            ref_vcf              => $ref_vcf,
+            bcftools_concat_opts => '--allow-overlaps',
+            user_supplied_chunks => file(qw(t data 20.1000_200.bed))->absolute
         },
         output_root => $output_dir
     );
