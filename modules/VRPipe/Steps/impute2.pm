@@ -47,7 +47,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                 default_value => 'impute2'
             ),
             impute2_options => VRPipe::StepOption->create(
-                description   => 'options to impute2 excluding --buffer, -m, -h, -l, -g, -int, -o and -sample_g',
+                description   => 'options to impute2 excluding --buffer, -m, -h, -l, -g, -int, -o and -sample_g (may contain the string {CHROM} which will be expanded before running)',
                 optional      => 1,
                 default_value => '-Ne 20000 -k 80 -allow_large_regions'
             ),
@@ -175,6 +175,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     
                     my $gen_map = $self->expand_chrom($options->{genetic_map}, $chr);
                     my $ref_path = $self->expand_chrom($ref_vcf, $chr);
+                    $impute2_opts = $self->expand_chrom($impute2_opts, $chr);
                     
                     push(@outfiles, ($log_file, $warnings_file, $summary_file, $info_file, $sample_info_file, $out_vcf, $out_tbi));
                     
