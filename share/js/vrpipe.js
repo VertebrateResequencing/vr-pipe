@@ -342,3 +342,17 @@ var stackTrace = function() {
     var err = new Error();
     console.log(err.stack);
 }
+
+// from http://stackoverflow.com/a/8069196/675083, to be able to pass options
+// to a template
+ko.bindingHandlers.templateWithOptions = {
+    init: ko.bindingHandlers.template.init,
+    update: function(element, valueAccessor, allBindingsAccessor, viewModel, context) {
+        var options = ko.utils.unwrapObservable(valueAccessor());
+        if (options.templateOptions) {
+            context.$data.options = ko.utils.unwrapObservable(options.templateOptions);
+        }
+        ko.bindingHandlers.template.update(element, valueAccessor, allBindingsAccessor, viewModel, context);
+        //delete context.$data.options;
+    } 
+}
