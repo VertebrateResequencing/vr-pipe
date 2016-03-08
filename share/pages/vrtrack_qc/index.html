@@ -266,97 +266,95 @@
                             </small>
                         </div>
                         
-                        <div data-bind="templateWithOptions: { name: 'viewNodes-template', templateOptions: { mode: selectedViewLabel(), nodes: viewNodes() } }"></div>
-                        
-                        <script type="text/html" id="viewNodes-template">
-                            <div class="table-responsive">
-                                <table class="table table-striped table-hover table-condensed small">
-                                    <thead>
-                                        <tr data-bind="foreach: viewColumns">
-                                            <!-- ko if: display() && ($parent.options.mode == 'Sample' ? (! $parent.sampleExcludedColumns().hasOwnProperty(header)) : true) -->
-                                                <th data-bind="sort: { arr: $parent.options.nodes, prop: sortOn, postFunc: $parent.updateFilter }">
-                                                    <!-- ko if: desc -->
-                                                        <abbr data-bind="text: header, attr: { title: desc }"></abbr>
-                                                    <!-- /ko -->
-                                                    <!-- ko ifnot: desc -->
-                                                        <span data-bind="text: header"></span>
-                                                    <!-- /ko -->
-                                                </th>
+                        <div class="table-responsive">
+                            <table class="table table-striped table-hover table-condensed small">
+                                <thead>
+                                    <tr data-bind="foreach: viewColumns">
+                                        <!-- ko if: display -->
+                                            <th data-bind="sort: { arr: $parent.viewNodes, prop: sortOn, postFunc: $parent.updateFilter }">
+                                                <!-- ko if: desc -->
+                                                    <abbr data-bind="text: header, attr: { title: desc }"></abbr>
+                                                <!-- /ko -->
+                                                <!-- ko ifnot: desc -->
+                                                    <span data-bind="text: header"></span>
+                                                <!-- /ko -->
+                                            </th>
+                                        <!-- /ko -->
+                                    </tr>
+                                    
+                                    <!-- ko if: selectedViewLabel() != 'Donor' && columns() && columns()['Pass'] && numColumns() > 0 -->
+                                        <tr style="background-color:#F5F5F5">
+                                            <!-- ko if: columns()['Pass'].display -->
+                                                <td>
+                                                    <label class="radio-highlightable"> <!-- just to get the alignment similar to the radios in body column beneath -->
+                                                        <input type="checkbox" data-bind="checked: laneletFilters['passed']" />
+                                                    </label>
+                                                </td>
                                             <!-- /ko -->
-                                        </tr>
-                                        
-                                        <!-- ko if: options.mode != 'Donor' && columns() && columns()['Pass'] && numColumns() > 0 -->
-                                            <tr style="background-color:#F5F5F5">
-                                                <!-- ko if: columns()['Pass'].display -->
-                                                    <td>
-                                                        <label class="radio-highlightable"> <!-- just to get the alignment similar to the radios in body column beneath -->
-                                                            <input type="checkbox" data-bind="checked: laneletFilters['passed']" />
-                                                        </label>
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Fail'].display -->
-                                                    <td>
-                                                        <label class="radio-highlightable">
-                                                            <input type="checkbox" data-bind="checked: laneletFilters['failed']" />
-                                                        </label>
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Invst'].display -->
-                                                    <td>
-                                                        <label class="radio-highlightable">
-                                                            <input type="checkbox" data-bind="checked: laneletFilters['investigate']" />
-                                                        </label>
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['GTPend'].display -->
-                                                    <td>
-                                                        <label class="radio-highlightable">
-                                                            <input type="checkbox" data-bind="checked: laneletFilters['gt_pending']" />
-                                                        </label>
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Pend'].display -->
-                                                    <td>
-                                                        <label class="radio-highlightable">
-                                                            <input type="checkbox" data-bind="checked: laneletFilters['pending']" />
-                                                        </label>
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Study ID'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['study_id']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Study Name'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['study_name']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Study Acc'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['study_acc']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Individual'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['individual']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Sample'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['sample']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Sample Acc'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['sample_acc']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Sample Suppl'].display -->
-                                                    <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['sample_sn']" />
-                                                    </td>
-                                                <!-- /ko -->
+                                            <!-- ko if: columns()['Fail'].display -->
+                                                <td>
+                                                    <label class="radio-highlightable">
+                                                        <input type="checkbox" data-bind="checked: laneletFilters['failed']" />
+                                                    </label>
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Invst'].display -->
+                                                <td>
+                                                    <label class="radio-highlightable">
+                                                        <input type="checkbox" data-bind="checked: laneletFilters['investigate']" />
+                                                    </label>
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['GTPend'].display -->
+                                                <td>
+                                                    <label class="radio-highlightable">
+                                                        <input type="checkbox" data-bind="checked: laneletFilters['gt_pending']" />
+                                                    </label>
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Pend'].display -->
+                                                <td>
+                                                    <label class="radio-highlightable">
+                                                        <input type="checkbox" data-bind="checked: laneletFilters['pending']" />
+                                                    </label>
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Study ID'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_id']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Study Name'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_name']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Study Acc'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['study_acc']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Individual'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['individual']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Sample'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['sample']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Sample Acc'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['sample_acc']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Sample Suppl'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['sample_sn']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: selectedViewLabel() == 'Lanelet' -->
                                                 <!-- ko if: columns()['Library'].display -->
                                                     <td>
                                                         <input type="text" size="6" data-bind="textInput: laneletFilters['library']" />
@@ -367,352 +365,354 @@
                                                         <input type="text" size="6" data-bind="textInput: laneletFilters['lanelet']" />
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Gender'].display -->
+                                            <!-- /ko -->
+                                            <!-- ko if: selectedViewLabel() == 'Sample' -->
+                                                <!-- ko if: columns()['Libraries'].display -->
                                                     <td>
-                                                        <input type="text" size="6" data-bind="textInput: laneletFilters['gender']" />
+                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['libraries']" />
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: options.mode == 'Lanelet' -->
-                                                    <!-- ko if: columns()['Genotype'].display -->
-                                                        <td>
-                                                            <select data-bind="value: laneletFilters['genotype']">
-                                                                <option value="all">all</option>
-                                                                <option value="confirmed">confirmed</option>
-                                                                <option value="unconfirmed">unconfirmed</option>
-                                                                <option value="unchecked">unchecked</option>
-                                                                <option value="unknown">unknown</option>
-                                                                <option value="candidate">candidate</option>
-                                                                <option value="wrong">wrong</option>
-                                                            </select>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['Verify Bam ID'].display -->
-                                                        <td>
-                                                            <select data-bind="value: laneletFilters['verify_bam_id']">
-                                                                <option value="all">all</option>
-                                                                <option value="pass">pass</option>
-                                                                <option value="fail">fail</option>
-                                                                <option value="unsure">unsure</option>
-                                                                <option value="unknown">unknown</option>
-                                                            </select>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['NPG Status'].display -->
-                                                        <td>
-                                                            <select data-bind="value: laneletFilters['npg_status']">
-                                                                <option value="all">all</option>
-                                                                <option value="pass">pass</option>
-                                                                <option value="fail">fail</option>
-                                                                <option value="unknown">unknown</option>
-                                                            </select>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['Auto QC'].display -->
-                                                        <td>
-                                                            <select data-bind="value: laneletFilters['auto_qc']">
-                                                                <option value="all">all</option>
-                                                                <option value="pass">pass</option>
-                                                                <option value="fail">fail</option>
-                                                            </select>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Raw Gb'].display -->
+                                                <!-- ko if: columns()['Lanelets'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['raw_gb']" />
+                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['lanelets']" />
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Mapped Gb'].display -->
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Gender'].display -->
+                                                <td>
+                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['gender']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: selectedViewLabel() == 'Lanelet' -->
+                                                <!-- ko if: columns()['Genotype'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_gb']" />
+                                                        <select data-bind="value: laneletFilters['genotype']">
+                                                            <option value="all">all</option>
+                                                            <option value="confirmed">confirmed</option>
+                                                            <option value="unconfirmed">unconfirmed</option>
+                                                            <option value="unchecked">unchecked</option>
+                                                            <option value="unknown">unknown</option>
+                                                            <option value="candidate">candidate</option>
+                                                            <option value="wrong">wrong</option>
+                                                        </select>
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Dup%'].display -->
+                                                <!-- ko if: columns()['Verify Bam ID'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['dup_percent']" />
+                                                        <select data-bind="value: laneletFilters['verify_bam_id']">
+                                                            <option value="all">all</option>
+                                                            <option value="pass">pass</option>
+                                                            <option value="fail">fail</option>
+                                                            <option value="unsure">unsure</option>
+                                                            <option value="unknown">unknown</option>
+                                                        </select>
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Mapped-dups Gb'].display -->
+                                                <!-- ko if: columns()['NPG Status'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_dups_gb']" />
+                                                        <select data-bind="value: laneletFilters['npg_status']">
+                                                            <option value="all">all</option>
+                                                            <option value="pass">pass</option>
+                                                            <option value="fail">fail</option>
+                                                            <option value="unknown">unknown</option>
+                                                        </select>
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Overlap dup%'].display -->
+                                                <!-- ko if: columns()['Auto QC'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['overlap_dup_percent']" />
+                                                        <select data-bind="value: laneletFilters['auto_qc']">
+                                                            <option value="all">all</option>
+                                                            <option value="pass">pass</option>
+                                                            <option value="fail">fail</option>
+                                                        </select>
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Net Gb'].display -->
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Raw Gb'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['raw_gb']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Mapped Gb'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_gb']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Dup%'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['dup_percent']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Mapped-dups Gb'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['mapped_dups_gb']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Overlap dup%'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['overlap_dup_percent']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Net Gb'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Depth'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['depth']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['Error Rate%'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: selectedViewLabel() == 'Lanelet' --><td></td><!-- /ko -->
+                                        </tr>
+                                    <!-- /ko -->
+                                </thead>
+                                <!-- ko if: selectedViewLabel() != 'Donor' -->
+                                    <!-- for speed we must explicitly specify every column -->
+                                    <tbody data-bind="if:  columns() && columns()['Pass']">
+                                        <!-- ko foreach: filteredNodes -->
+                                            <tr data-bind="css: { success: $parent.selectedViewLabel() == 'Sample' && Pass == Lanelets }">
+                                                <!-- ko if: $parent.columns()['Pass'].display -->
                                                     <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['net_gb']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Depth'].display -->
-                                                    <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['depth']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <!-- ko if: columns()['Error Rate%'].display -->
-                                                    <td>
-                                                        <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
-                                                    </td>
-                                                <!-- /ko -->
-                                                <td></td>
-                                            </tr>
-                                        <!-- /ko -->
-                                    </thead>
-                                    <!-- ko if: options.mode != 'Donor' -->
-                                        <!-- for speed we must explicitly specify every column -->
-                                        <tbody data-bind="if:  columns() && columns()['Pass']">
-                                            <!-- ko foreach: filteredNodes -->
-                                                <tr data-bind="css: { success: $parent.options.mode == 'Sample' && Pass == Lanelet }">
-                                                    <!-- ko if: $parent.columns()['Pass'].display -->
-                                                        <td>
-                                                            <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                                <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_passed'}">
-                                                                    <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
-                                                                </div>
-                                                            <!-- /ko -->
-                                                            <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                                <span data-bind="text: Pass"></span>
-                                                            <!-- /ko -->
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Fail'].display -->
-                                                        <td>
-                                                            <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                                <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_failed'}">
-                                                                    <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
-                                                                </div>
-                                                            <!-- /ko -->
-                                                            <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                                <span data-bind="text: Fail"></span>
-                                                            <!-- /ko -->
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Invst'].display -->
-                                                        <td>
-                                                            <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                                <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_investigate'}">
-                                                                    <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
-                                                                </div>
-                                                            <!-- /ko -->
-                                                            <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                                <span data-bind="text: Invst"></span>
-                                                            <!-- /ko -->
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['GTPend'].display -->
-                                                        <td>
-                                                            <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                                <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_gt_pending'}">
-                                                                    <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
-                                                                </div>
-                                                            <!-- /ko -->
-                                                            <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                                <span data-bind="text: GTPend"></span>
-                                                            <!-- /ko -->
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Pend'].display -->
-                                                        <td>
-                                                            <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                                <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_pending'}">
-                                                                    <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
-                                                                </div>
-                                                            <!-- /ko -->
-                                                            <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                                <span data-bind="text: Pend"></span>
-                                                            <!-- /ko -->
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study ID'].display --><td style="cursor: pointer" data-bind="text: study_id, click: $parent.setFilter.bind($data, 'study_id', study_id)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study Name'].display --><td style="cursor: pointer" data-bind="text: study_name, click: $parent.setFilter.bind($data, 'study_name', study_name)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Study Acc'].display --><td style="cursor: pointer" data-bind="text: study_acc, click: $parent.setFilter.bind($data, 'study_acc', study_acc)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Individual'].display --><td style="cursor: pointer" data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample'].display --><td style="cursor: pointer" data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample Acc'].display --><td style="cursor: pointer" data-bind="text: sample_acc, click: $parent.setFilter.bind($data, 'sample_acc', sample_acc)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Sample Suppl'].display --><td style="cursor: pointer" data-bind="text: sample_sn, click: $parent.setFilter.bind($data, 'sample_sn', sample_sn)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                        <!-- ko if: $parent.columns()['Library'].display --><td style="cursor: pointer" data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td><!-- /ko -->
-                                                        <!-- ko if: $parent.columns()['Lanelet'].display --><td style="cursor: pointer" data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                        <!-- ko if: $parent.columns()['Library'].display --><td data-bind="text: Library"></td><!-- /ko -->
-                                                        <!-- ko if: $parent.columns()['Lanelet'].display --><td data-bind="text: Lanelet"></td><!-- /ko -->
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Gender'].display --><td data-bind="text: Gender, click: $parent.setFilter.bind($data, 'Gender', Gender)"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                        <!-- ko if: $parent.columns()['Genotype'].display -->
-                                                            <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
-                                                                <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
-                                                            </td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                            <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_passed'}">
+                                                                <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'passed')" />
+                                                            </div>
                                                         <!-- /ko -->
-                                                        <!-- ko if: $parent.columns()['Verify Bam ID'].display -->
-                                                            <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail'), warning: $data['Verify Bam ID'].startsWith('unsure') }">
-                                                                <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
-                                                            </td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                            <span data-bind="text: Pass"></span>
                                                         <!-- /ko -->
-                                                        <!-- ko if: $parent.columns()['NPG Status'].display -->
-                                                            <td data-bind="css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }">
-                                                                <a data-bind="text: $data['NPG Status'], attr: { href: 'http://npg.sanger.ac.uk/perl/npg/run/' + run }" target="_blank" class="text-default"></a>
-                                                            </td>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Fail'].display -->
+                                                    <td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                            <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_failed'}">
+                                                                <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'failed')" />
+                                                            </div>
                                                         <!-- /ko -->
-                                                        <!-- ko if: $parent.columns()['Auto QC'].display -->
-                                                            <td data-bind="css: { success: auto_qc()[0] == 'pass', danger: auto_qc()[0] == 'fail' }">
-                                                                <!-- ko switch: auto_qc()[0] -->
-                                                                    <!-- ko case: 'fail' -->
-                                                                        <span style="cursor: pointer" data-bind="text: auto_qc()[0], popover: { content: $parent.autoQCPopover($data), container: 'body', html: true, placement: 'top' }"></span>
-                                                                    <!-- /ko -->
-                                                                    <!-- ko case: $default -->
-                                                                        <span data-bind="text: auto_qc()[0]"></span>
-                                                                    <!-- /ko -->
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                            <span data-bind="text: Fail"></span>
+                                                        <!-- /ko -->
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Invst'].display -->
+                                                    <td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                            <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_investigate'}">
+                                                                <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'investigate')" />
+                                                            </div>
+                                                        <!-- /ko -->
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                            <span data-bind="text: Invst"></span>
+                                                        <!-- /ko -->
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['GTPend'].display -->
+                                                    <td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                            <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_gt_pending'}">
+                                                                <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'gt_pending')" />
+                                                            </div>
+                                                        <!-- /ko -->
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                            <span data-bind="text: GTPend"></span>
+                                                        <!-- /ko -->
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Pend'].display -->
+                                                    <td>
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                            <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_pending'}">
+                                                                <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $parent.changeQCStatus.bind($data, 'pending')" />
+                                                            </div>
+                                                        <!-- /ko -->
+                                                        <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                            <span data-bind="text: Pend"></span>
+                                                        <!-- /ko -->
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Study ID'].display --><td style="cursor: pointer" data-bind="text: study_id, click: $parent.setFilter.bind($data, 'study_id', study_id)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Study Name'].display --><td style="cursor: pointer" data-bind="text: study_name, click: $parent.setFilter.bind($data, 'study_name', study_name)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Study Acc'].display --><td style="cursor: pointer" data-bind="text: study_acc, click: $parent.setFilter.bind($data, 'study_acc', study_acc)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Individual'].display --><td style="cursor: pointer" data-bind="text: Individual, click: $parent.setFilter.bind($data, 'individual', Individual)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Sample'].display --><td style="cursor: pointer" data-bind="text: Sample, click: $parent.setFilter.bind($data, 'sample', Sample)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Sample Acc'].display --><td style="cursor: pointer" data-bind="text: sample_acc, click: $parent.setFilter.bind($data, 'sample_acc', sample_acc)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Sample Suppl'].display --><td style="cursor: pointer" data-bind="text: sample_sn, click: $parent.setFilter.bind($data, 'sample_sn', sample_sn)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                    <!-- ko if: $parent.columns()['Library'].display --><td style="cursor: pointer" data-bind="text: Library, click: $parent.setFilter.bind($data, 'library', Library)"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Lanelet'].display --><td style="cursor: pointer" data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                    <!-- ko if: $parent.columns()['Libraries'].display --><td data-bind="text: Libraries"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Lanelets'].display --><td style="cursor: pointer"  data-bind="text: Lanelets, click: $parent.openLanelets"></td><!-- /ko -->
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Gender'].display --><td data-bind="text: Gender, click: $parent.setFilter.bind($data, 'Gender', Gender)"></td><!-- /ko -->
+                                                <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                    <!-- ko if: $parent.columns()['Genotype'].display -->
+                                                        <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
+                                                            <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $parent.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Verify Bam ID'].display -->
+                                                        <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail'), warning: $data['Verify Bam ID'].startsWith('unsure') }">
+                                                            <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $parent.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['NPG Status'].display -->
+                                                        <td data-bind="css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }">
+                                                            <a data-bind="text: $data['NPG Status'], attr: { href: 'http://npg.sanger.ac.uk/perl/npg/run/' + run }" target="_blank" class="text-default"></a>
+                                                        </td>
+                                                    <!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Auto QC'].display -->
+                                                        <td data-bind="css: { success: auto_qc()[0] == 'pass', danger: auto_qc()[0] == 'fail' }">
+                                                            <!-- ko switch: auto_qc()[0] -->
+                                                                <!-- ko case: 'fail' -->
+                                                                    <span style="cursor: pointer" data-bind="text: auto_qc()[0], popover: { content: $parent.autoQCPopover($data), container: 'body', html: true, placement: 'top' }"></span>
                                                                 <!-- /ko -->
-                                                            </td>
-                                                        <!-- /ko -->
-                                                    <!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Raw Gb'].display --><td data-bind="text: $data['Raw Gb']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Mapped Gb'].display --><td data-bind="text: $data['Mapped Gb']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Dup%'].display --><td data-bind="text: $data['Dup%']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Mapped-dups Gb'].display --><td data-bind="text: $data['Mapped-dups Gb']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Overlap dup%'].display --><td data-bind="text: $data['Overlap dup%']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: $data['Net Gb']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Depth'].display --><td data-bind="text: $data['Depth']"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: $data['Error Rate']"></td><!-- /ko -->
-                                                    <td>
-                                                        <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                            <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
-                                                            <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquo;stats&raquo;</span>
-                                                        <!-- /ko -->
-                                                        <!-- ko if: $parent.options.mode == 'Sample' -->
-                                                            <span style="cursor: pointer" data-bind="click: $parent.toggleLanelets">&laquo;lanelets&raquo;</span>
-                                                        <!-- /ko -->
-                                                    </td>
-                                                </tr>
-                                                <!-- ko if: $parent.options.mode == 'Lanelet' -->
-                                                    <!-- ko if: display_graphs -->
-                                                        <tr>
-                                                            <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
-                                                                <div class="img-row" data-bind="foreach: qc_plots">
-                                                                    <div>
-                                                                        <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                        </tr>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: display_stats -->
-                                                        <tr>
-                                                            <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
-                                                                <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
-                                                                    <tbody>
-                                                                        <tr>
-                                                                            <th>Total Reads</th><td data-bind="text: $data['reads']"></td>
-                                                                            <th>Total Bases</th><td data-bind="text: $data['bases']"></td>
-                                                                            <th>Cycles</th><td data-bind="text: $data['cycles']"></td>
-                                                                        </tr>
-                                                                        <tr>
-                                                                            <th>Reads paired</th><td data-bind="text: $data['reads_paired']"></td>
-                                                                            <th>Bases postclip</th><td data-bind="text: $data['bases_postclip']"></td>
-                                                                            <th>Duplication rate</th><td data-bind="text: $data['duplication_rate']"></td>
-                                                                        </tr>
-                                                                        <tr>
-                                                                            <th>Reads mapped</th><td data-bind="text: $data['reads_mapped']"></td>
-                                                                            <th>Bases mapped</th><td data-bind="text: $data['bases_mapped']"></td>
-                                                                            <th>Error rate</th><td data-bind="text: $data['error_rate']"></td>
-                                                                        </tr>
-                                                                        <tr>
-                                                                            <th>Reads mapped (rmdup)</th><td data-bind="text: $data['reads_mapped_rmdup']"></td>
-                                                                            <th>Bases mapped (rmdup)</th><td data-bind="text: $data['bases_mapped_rmdup']"></td>
-                                                                            <th></th><td></td>
-                                                                        </tr>
-                                                                    </tbody>
-                                                                </table>
-                                                            </td>
-                                                        </tr>
+                                                                <!-- ko case: $default -->
+                                                                    <span data-bind="text: auto_qc()[0]"></span>
+                                                                <!-- /ko -->
+                                                            <!-- /ko -->
+                                                        </td>
                                                     <!-- /ko -->
                                                 <!-- /ko -->
-                                                <!-- ko if: $parent.options.mode == 'Sample' && display_lanelets -->
+                                                <!-- ko if: $parent.columns()['Raw Gb'].display --><td data-bind="text: $data['Raw Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Mapped Gb'].display --><td data-bind="text: $data['Mapped Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Dup%'].display --><td data-bind="text: $data['Dup%']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Mapped-dups Gb'].display --><td data-bind="text: $data['Mapped-dups Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Overlap dup%'].display --><td data-bind="text: $data['Overlap dup%']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: $data['Net Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Depth'].display --><td data-bind="text: $data['Depth']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: $data['Error Rate']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                    <td>
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquo;stats&raquo;</span>
+                                                    </td>
+                                                <!-- /ko -->
+                                            </tr>
+                                            <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
+                                                <!-- ko if: display_graphs -->
                                                     <tr>
                                                         <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
-                                                            <div data-bind="templateWithOptions: { name: 'viewNodes-template', data: $root, templateOptions: { mode: 'Lanelet', nodes: lanelets } }"></div>
+                                                            <div class="img-row" data-bind="foreach: qc_plots">
+                                                                <div>
+                                                                    <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                <!-- /ko -->
+                                                <!-- ko if: display_stats -->
+                                                    <tr>
+                                                        <td data-bind="attr: { colspan: $parent.numColumns() + 1 }">
+                                                            <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
+                                                                <tbody>
+                                                                    <tr>
+                                                                        <th>Total Reads</th><td data-bind="text: $data['reads']"></td>
+                                                                        <th>Total Bases</th><td data-bind="text: $data['bases']"></td>
+                                                                        <th>Cycles</th><td data-bind="text: $data['cycles']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads paired</th><td data-bind="text: $data['reads_paired']"></td>
+                                                                        <th>Bases postclip</th><td data-bind="text: $data['bases_postclip']"></td>
+                                                                        <th>Duplication rate</th><td data-bind="text: $data['duplication_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped</th><td data-bind="text: $data['reads_mapped']"></td>
+                                                                        <th>Bases mapped</th><td data-bind="text: $data['bases_mapped']"></td>
+                                                                        <th>Error rate</th><td data-bind="text: $data['error_rate']"></td>
+                                                                    </tr>
+                                                                    <tr>
+                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['reads_mapped_rmdup']"></td>
+                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['bases_mapped_rmdup']"></td>
+                                                                        <th></th><td></td>
+                                                                    </tr>
+                                                                </tbody>
+                                                            </table>
                                                         </td>
                                                     </tr>
                                                 <!-- /ko -->
                                             <!-- /ko -->
-                                            <!-- ko if: options.mode == 'Lanelet' && isGroupAdmin && filteredNodes().length > 1 && numQCColumns() > 0 -->
-                                                <tr>
-                                                    <!-- ko if: columns()['Pass'].display -->
-                                                        <td>
-                                                            <div class="radio-highlightable">
-                                                                <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
-                                                            </div>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['Fail'].display -->
-                                                        <td>
-                                                            <div class="radio-highlightable">
-                                                                <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
-                                                            </div>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['Invst'].display -->
-                                                        <td>
-                                                            <div class="radio-highlightable">
-                                                                <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
-                                                            </div>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['GTPend'].display -->
-                                                        <td>
-                                                            <div class="radio-highlightable">
-                                                                <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
-                                                            </div>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <!-- ko if: columns()['Pend'].display -->
-                                                        <td>
-                                                            <div class="radio-highlightable">
-                                                                <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
-                                                            </div>
-                                                        </td>
-                                                    <!-- /ko -->
-                                                    <td data-bind="attr: { colspan: numColumns() - numQCColumns() + 1 }">
-                                                        <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC, disable: setAllQCGrindQCStatus() == 'unset'">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
+                                        <!-- /ko -->
+                                        <!-- ko if: selectedViewLabel() == 'Lanelet' && isGroupAdmin && filteredNodes().length > 1 && numQCColumns() > 0 -->
+                                            <tr>
+                                                <!-- ko if: columns()['Pass'].display -->
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="passed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
                                                     </td>
-                                                </tr>
-                                            <!-- /ko -->
-                                        </tbody>
-                                    <!-- /ko -->
-                                    <!-- ko if: options.mode == 'Donor' -->
-                                        <tbody data-bind="foreach: options.nodes">
-                                            <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumns, click: $parent.showQCForNode">
-                                                <td data-bind="text: $parent[text]"></td>
-                                            </tr>
-                                        </tbody>
-                                    <!-- /ko -->
-                                </table>
-                            </div>
-                            <div class="panel-footer">
-                                <small data-bind="if: selectedViewLabel">
-                                    <!-- ko switch: selectedViewLabel -->
-                                        <!-- ko case: 'Donor' -->
-                                            <span data-bind="text: options.nodes.length"></span> Donors
-                                        <!-- /ko -->
-                                        <!-- ko case: $default -->
-                                            <span data-bind="text: filteredNodes.trueLength"></span> / <span data-bind="text: options.nodes.length"></span> <span data-bind="text: selectedViewLabel"></span>s
-                                            <!-- ko if: filteredNodes.trueLength() > maxRows() -->
-                                                (showing <span data-bind="text: filteredNodes().length"></span>)
-                                                <!-- ko if: filteredNodes.trueLength() > maxRows() + 750 -->
-                                                    <button class="btn btn-info btn-sm" type="submit" data-bind="click: showMoreNodes">show 500 more</button>
                                                 <!-- /ko -->
-                                                <button class="btn btn-info btn-sm" type="submit" data-bind="click: showAllNodes">show all</button>
+                                                <!-- ko if: columns()['Fail'].display -->
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="failed" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: columns()['Invst'].display -->
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="investigate" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: columns()['GTPend'].display -->
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="gt_pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: columns()['Pend'].display -->
+                                                    <td>
+                                                        <div class="radio-highlightable">
+                                                            <input type="radio" value="pending" data-bind="checked: setAllQCGrindQCStatus" />
+                                                        </div>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <td data-bind="attr: { colspan: numColumns() - numQCColumns() + 1 }">
+                                                    <button class="btn btn-info btn-sm" type="submit" data-bind="click: setAllQCGrindQC, disable: setAllQCGrindQCStatus() == 'unset'">Set above to: <span data-bind="text: setAllQCGrindQCStatus"></span></button>
+                                                </td>
+                                            </tr>
+                                        <!-- /ko -->
+                                    </tbody>
+                                <!-- /ko -->
+                                <!-- ko if: selectedViewLabel() == 'Donor' -->
+                                    <tbody data-bind="foreach: viewNodes">
+                                        <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumns, click: $parent.showQCForNode">
+                                            <td data-bind="text: $parent[text]"></td>
+                                        </tr>
+                                    </tbody>
+                                <!-- /ko -->
+                            </table>
+                        </div>
+                        <div class="panel-footer">
+                            <small data-bind="if: selectedViewLabel">
+                                <!-- ko switch: selectedViewLabel -->
+                                    <!-- ko case: 'Donor' -->
+                                        <span data-bind="text: viewNodes().length"></span> Donors
+                                    <!-- /ko -->
+                                    <!-- ko case: $default -->
+                                        <span data-bind="text: filteredNodes.trueLength"></span> / <span data-bind="text: viewNodes().length"></span> <span data-bind="text: selectedViewLabel"></span>s
+                                        <!-- ko if: filteredNodes.trueLength() > maxRows() -->
+                                            (showing <span data-bind="text: filteredNodes().length"></span>)
+                                            <!-- ko if: filteredNodes.trueLength() > maxRows() + 750 -->
+                                                <button class="btn btn-info btn-sm" type="submit" data-bind="click: showMoreNodes">show 500 more</button>
                                             <!-- /ko -->
+                                            <button class="btn btn-info btn-sm" type="submit" data-bind="click: showAllNodes">show all</button>
                                         <!-- /ko -->
                                     <!-- /ko -->
-                                </small>
-                            </div>
-                        </script>
+                                <!-- /ko -->
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -847,6 +847,8 @@
                     sample_sn: ko.observable(undefined),
                     library: ko.observable(undefined),
                     lanelet: ko.observable(undefined),
+                    libraries: ko.observable(undefined),
+                    lanelets: ko.observable(undefined),
                     gender: ko.observable(undefined),
                     genotype: ko.observable('all'),
                     verify_bam_id: ko.observable('all'),
@@ -881,8 +883,10 @@
                                 (self.laneletFilters.sample() ? l.Sample.toLowerCase().indexOf(self.laneletFilters.sample().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters.sample_acc() ? l.sample_acc.toLowerCase().indexOf(self.laneletFilters.sample_acc().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters.sample_sn() ? l.sample_sn.toLowerCase().indexOf(self.laneletFilters.sample_sn().toLowerCase()) !== -1 : 1) &&
-                                (self.laneletFilters.library() ? (typeof l.Library == 'string' ? (l.Library.indexOf(self.laneletFilters.library()) !== -1) : (l.Library == self.laneletFilters.library())) : 1) &&
-                                (self.laneletFilters.lanelet() ? (typeof l.Lanelet == 'string' ? (l.Lanelet.indexOf(self.laneletFilters.lanelet()) !== -1) : (l.Lanelet == self.laneletFilters.lanelet())) : 1) &&
+                                (self.laneletFilters.library() ? l.Library.indexOf(self.laneletFilters.library()) !== -1 : 1) &&
+                                (self.laneletFilters.lanelet() ? l.Lanelet.indexOf(self.laneletFilters.lanelet()) !== -1 : 1) &&
+                                (self.laneletFilters.libraries() ? l.Libraries >= self.laneletFilters.libraries() : 1) &&
+                                (self.laneletFilters.lanelets() ? l.Lanelets >= self.laneletFilters.lanelets() : 1) &&
                                 (self.laneletFilters.gender() ? l.Gender.toLowerCase().indexOf(self.laneletFilters.gender().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters.genotype() === 'all' ? 1 : l.Genotype.startsWith(self.laneletFilters.genotype())) &&
                                 (self.laneletFilters.verify_bam_id() === 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters.verify_bam_id())) &&
@@ -1150,6 +1154,7 @@
                 self.selectedViewLabel.subscribe(function(newValue) {
                     if (newValue && newValue != '' && self.selectedGroups().length && self.selectedStudies().length) {
                         self.viewNodes.removeAll();
+                        self.columns({});
                         var loc = '/groups:' + self.selectedGroups() + '/studies:' + self.selectedStudies();
                         var opts = {label: newValue[0], table_mode: true, groups: self.selectedGroups(), studies: self.selectedStudies()};
                         if (self.selectedDonors().length) {
@@ -1296,13 +1301,11 @@
                 self.numColumns = ko.observable(0);
                 self.numQCColumns = ko.observable(0);
                 self.previousViewLabel = null;
-                self.sampleExcludedColumns = ko.observable({});
                 self.viewColumns = ko.computed(function () {
                     var columns = [];
                     
                     if (self.selectedViewLabel() != null && (self.previousViewLabel === null || self.previousViewLabel != self.selectedViewLabel())) {
                         var details = {};
-                        var excluded = {};
                         var n = 0;
                         var nqc = 0;
                         var i;
@@ -1311,9 +1314,9 @@
                         
                         // read user cookie to see if they have chosen columns
                         // saved for this url or as their own default
-                        var userCols = Cookies.getJSON('columns' + location.hash);
+                        var userCols = Cookies.getJSON('columns_' + self.selectedViewLabel() + location.hash);
                         if (!userCols) {
-                            userCols = Cookies.getJSON('columns');
+                            userCols = Cookies.getJSON('columns_' + self.selectedViewLabel());
                         }
                         var desiredCols = {};
                         if (userCols) {
@@ -1333,7 +1336,7 @@
                                 n += 1;
                             }
                         }
-                        else if (self.selectedViewLabel() == 'Lanelet' || self.selectedViewLabel() == 'Sample') {
+                        else if (self.selectedViewLabel() == 'Lanelet') {
                             var cols = [
                                 ["Pass", "Pass", "Pass", true, '', true],
                                 ["Fail", "Fail", "Fail", true, '', true],
@@ -1381,10 +1384,57 @@
                                 details[cols[i][0]] = col;
                                 columns.push(col);
                                 
-                                if (self.selectedViewLabel() == 'Sample' && (i >= 15 && i <= 18)) {
-                                    excluded[cols[i][0]] = 1;
-                                    continue;
+                                if (display) {
+                                    n += 1;
+                                    if (i <= 4) {
+                                        nqc += 1;
+                                    }
                                 }
+                            }
+                        }
+                        else if (self.selectedViewLabel() == 'Sample') {
+                            var cols = [
+                                ["Pass", "Pass", "Pass", true, '', true],
+                                ["Fail", "Fail", "Fail", true, '', true],
+                                ["Invst", "Invst", "Invst", true, '', true],
+                                ["GTPend", "GTPend", "GTPend", false, '', true],
+                                ["Pend", "Pend", "Pend", true, '', true],
+                                ["Study ID", "study_id", "study_id", false],
+                                ["Study Name", "study_name", "study_name", false],
+                                ["Study Acc", "study_acc", "study_acc", false],
+                                ["Individual", "Individual", "Individual", false],
+                                ["Sample", "Sample", "Sample", true],
+                                ["Sample Acc", "sample_acc", "sample_acc", false],
+                                ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
+                                ["Libraries", "Libraries", "Libraries", true],
+                                ["Lanelets", "Lanelets", "Lanelets", true],
+                                ["Gender", "Gender", "Gender", true],
+                                ["Raw Gb", "Raw Gb", "Raw Gb", true],
+                                ["Mapped Gb", "Mapped Gb", "Mapped Gb", true, "mapped Gb (cigar)"],
+                                ["Dup%", "Dup%", "Dup%", true, "percent of mapped reads which were duplicates"],
+                                ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
+                                ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
+                                ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
+                                ["Depth", "Depth", "Depth", true, "bases mapped ignoring duplicate reads / 3000000000"],
+                                ["Error Rate%", "Error Rate", "Error Rate", false, "percent of mismatches in bases mapped (cigar)"]
+                            ];
+                            len = cols.length;
+                            
+                            var display;
+                            for (i = 0; i < len; i += 1) {
+                                display = false;
+                                if (userCols) {
+                                    if (desiredCols.hasOwnProperty(cols[i][0])) {
+                                        display = true;
+                                    }
+                                }
+                                else {
+                                    display = cols[i][3];
+                                }
+                                
+                                col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
+                                details[cols[i][0]] = col;
+                                columns.push(col);
                                 
                                 if (display) {
                                     n += 1;
@@ -1408,7 +1458,6 @@
                         }
                         
                         self.columns(details);
-                        self.sampleExcludedColumns(excluded);
                         self.numColumns(n);
                         self.numQCColumns(nqc);
                         self.previousViewLabel = self.selectedViewLabel();
@@ -1452,7 +1501,7 @@
                 
                 // column choice can be saved to the user's cookie
                 self.rememberColumns = function(setDefault) {
-                    var name = 'columns';
+                    var name = 'columns_' + self.selectedViewLabel();
                     if (! setDefault) {
                         // setting Cookie path: '' doesn't work, since our
                         // real path is just /pages; we want a cookie specific
@@ -1619,7 +1668,7 @@
                     return html;
                 };
                 
-                self.toggleLaneletGraphs = function (node) {
+                self.toggleLaneletGraphs = function(node) {
                     node.display_graphs(!node.display_graphs());
                 };
                 $(document).on('click', '.img-row-img', function() { // can't get focus and blur to work in firefox
@@ -1627,7 +1676,7 @@
                         'flex-grow' : $(this).parent().css('flex-grow') === '4' ? '1' : '4'
                     });
                 });
-                self.toggleLaneletStats = function (node) {
+                self.toggleLaneletStats = function(node) {
                     node.display_stats(!node.display_stats());
                 };
                 self.showAllGraphs.subscribe(function(newValue) {
@@ -1640,8 +1689,21 @@
                         node.display_stats(newValue);
                     });
                 });
-                self.toggleLanelets = function (node) {
-                    node.display_lanelets(!node.display_lanelets());
+                
+                // in Sample view, when lanelets column is clicked on, we'll
+                // open Lanelet view limited to the sample in a new tab
+                self.openLanelets = function(node) {
+                    var loc = '/pages/vrtrack_qc#/groups:' + self.selectedGroups() + '/studies:' + self.selectedStudies();
+                    if (self.selectedDonors().length) {
+                        loc += '/donors:' + self.selectedDonors();
+                    }
+                    else {
+                        loc += '/donors:all';
+                    }
+                    
+                    loc += '/samples:' + node.node_id + '/view:Lanelet';
+                    
+                    window.open(loc, '_blank');
                 };
             }
             
