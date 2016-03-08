@@ -380,7 +380,7 @@
                                             <!-- /ko -->
                                             <!-- ko if: columns()['Gender'].display -->
                                                 <td>
-                                                    <input type="text" size="6" data-bind="textInput: laneletFilters['gender']" />
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['gender']" />
                                                 </td>
                                             <!-- /ko -->
                                             <!-- ko if: selectedViewLabel() == 'Lanelet' -->
@@ -476,7 +476,7 @@
                                     <!-- for speed we must explicitly specify every column -->
                                     <tbody data-bind="if:  columns() && columns()['Pass']">
                                         <!-- ko foreach: filteredNodes -->
-                                            <tr data-bind="css: { success: $parent.selectedViewLabel() == 'Sample' && Pass == Lanelets }">
+                                            <tr data-bind="css: { success: $parent.selectedViewLabel() == 'Sample' && Pass == Lanelets, danger: $parent.selectedViewLabel() == 'Sample' && Fail == Lanelets, warning: (Pass && Fail && (Pass + Fail == Lanelets)), info: Invst }">
                                                 <!-- ko if: $parent.columns()['Pass'].display -->
                                                     <td>
                                                         <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
