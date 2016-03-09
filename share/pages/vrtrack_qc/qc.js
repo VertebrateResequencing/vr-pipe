@@ -17,8 +17,199 @@ var fillProperties = function(labelProperties, label, list) {
     list(arr);
 };
 
+// lane information we get from getQCGraphData(nodes_of_label) needs to be
+// massaged
+var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
+    lane['new_qcgrind_qc_status'] = ko.observable(lane['qcgrind_qc_status']);
+    lane['display_graphs'] = ko.observable(false);
+    lane['display_stats'] = ko.observable(false);
+    
+    if (isGroupAdmin && ! lane.is_admin) {
+        isGroupAdmin = false;
+    }
+    
+    // create an auto_qc property that computes the
+    // result so that the result can auto-update when
+    // the user changes the settings. We need to put
+    lane['auto_qc'] = ko.pureComputed(function() {
+        var fails = [];
+        
+        // check we have data and end early if not
+        if (! lane['alignmentstats:total length'] && ! lane['alignmentstats:sequences']) {
+            fails.push(['Missing data', 'The alignment stats for this lanelet are missing.' ]);
+        }
+        else if (lane['alignmentstats:total length'] == 0 || lane['alignmentstats:sequences'] == 0) {
+            fails.push(['Empty bam file check', 'The cram file provided for this lanelet contains no sequences.' ]);
+        }
+        else {
+            // follow npg
+            if (lane['NPG Status'] === 'fail') {
+                fails.push(['NPG QC status check', 'The lane failed the NPG QC check, so we auto-fail as well since this data will not be auto-submitted to EGA/ENA.' ]);
+            }
+            
+            // genotype check
+            var gtype_regex_str = aqs['GType regex'].value();
+            var gtype_regex = new RegExp(gtype_regex_str, "i");
+            if (! gtype_regex.test(lane.genotype_status)) {
+                fails.push(['Genotype check', 'The status (' + lane.genotype_status + ') does not match the regex /' + gtype_regex_str + '/.']);
+            }
+            var gtype_common_snp_count = lane['gtcheckdata:common_snp_count'];
+            if (gtype_common_snp_count) {
+                var gtype_min_s = parseInt(aqs['GType min sites'].value());
+                if (parseInt(gtype_common_snp_count) < gtype_min_s) {
+                    fails.push(['Genotype check', 'The number of common sites called (' + gtype_common_snp_count + ') is less than ' + gtype_min_s + '.']);
+                }
+                
+                var gtype_min_c = parseFloat(aqs['GType min concordance'].value());
+                var gtype_concordance = parseFloat(lane['gtcheckdata:concordance']);
+                if (gtype_concordance < gtype_min_c) {
+                    fails.push(['Genotype check', 'The concordance (' + gtype_concordance + ') is less than ' + gtype_min_c + '.']);
+                }
+            }
+            
+            // mapped bases
+            var min_mapped_base_percentage = parseFloat(aqs['Mapped base %'].value());
+            var clip_bases = lane['alignmentstats:total length'] - lane['alignmentstats:bases trimmed'];
+            var bases_mapped_c = lane['alignmentstats:bases mapped (cigar)'];
+            var mbtest = (100 * bases_mapped_c / clip_bases).toFixed(2);
+            if (mbtest < min_mapped_base_percentage) {
+                fails.push(['Mapped bases', 'Less than ' + min_mapped_base_percentage + '% bases mapped after clipping (' + mbtest + '%).']);
+            }
+            
+            // duplicate reads
+            var max_duplicate_read_percentage = parseFloat(aqs['Duplicate read %'].value());
+            var reads_mapped = lane['alignmentstats:reads mapped'];
+            if (reads_mapped) {
+                // var reads_mapped_after_rmdup = lane['alignmentstats:reads mapped after rmdup'];
+                // var dup_reads = reads_mapped - reads_mapped_after_rmdup;
+                // var drtest = (100 * dup_reads / reads_mapped).toFixed(2);
+                if (parseFloat(lane['Dup%']) > max_duplicate_read_percentage) {
+                    fails.push(['Duplicate reads', 'More than ' + max_duplicate_read_percentage + '% reads were duplicates (' + lane['Dup%'] + '%).']);
+                }
+            }
+            
+            // properly paired mapped reads
+            var min_mapped_reads_properly_paired_percentage = parseFloat(aqs['Mapped reads properly paired %'].value());
+            if (reads_mapped) {
+                var properly_paired = lane['alignmentstats:reads properly paired'];
+                var pptest = (100 * properly_paired / reads_mapped).toFixed(2);
+                if (pptest < min_mapped_reads_properly_paired_percentage) {
+                    fails.push(['Reads mapped in a proper pair', 'Less than ' + min_mapped_reads_properly_paired_percentage + '% of reads that were mapped are in a proper pair (' + pptest + '%).']);
+                }
+            }
+            
+            // error rate
+            var max_error_rate = parseFloat(aqs['Error rate'].value());
+            var error_rate = parseFloat(lane['alignmentstats:error rate']); // or should this be the error rate % stored in lane['Error Rate']?
+            if (error_rate && error_rate > max_error_rate) {
+                fails.push(['Error rate', 'The error rate is higher than ' + max_error_rate + ' (' + +error_rate + ').']);
+            }
+            
+            // number of insertions vs deletions
+            var inum = lane['alignmentstats:number of insertions'];
+            var dnum = lane['alignmentstats:number of deletions'];
+            if (inum != null && dnum != null) {
+                var max_ins_to_del_ratio = parseFloat(aqs['Max in/del ratio'].value());
+                var min_ins_to_del_ratio = parseFloat(aqs['Min in/del ratio'].value());
+                var ratio = dnum ? (inum / dnum).toFixed(2) : 0;
+                if (!dnum || (ratio > max_ins_to_del_ratio)) {
+                    fails.push(['InDel ratio', 'The Ins/Del ratio is bigger than ' + max_ins_to_del_ratio + ' (' + ratio + ').']);
+                    $reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum).";
+                }
+                else if (dnum && (!inum || (ratio < min_ins_to_del_ratio))) {
+                    fails.push(['InDel ratio', 'The Ins/Del ratio is smaller than ' + min_ins_to_del_ratio + ' (' + ratio + ').']);
+                }
+            }
+            
+            // insert size
+            if (lane['is_paired_read']) {
+                if (parseInt(lane['alignmentstats:reads paired']) == 0) {
+                    fails.push(['Insert size', 'Zero paired reads, yet flagged as paired']);
+                }
+                else if (parseFloat(lane['alignmentstats:insert size average']) == 0) {
+                    fails.push(['Insert size', 'The insert size not available, yet flagged as paired']);
+                }
+                else {
+                    // npg_cram_stats_parser step
+                    // calculates these from all the
+                    // (1000s of) IS values in the
+                    // stats file, but only for fixed
+                    // 80/25 settings. Sadly this causes
+                    // a fail for everything, and since
+                    // it's not user-configurable,
+                    // excluding for now...
+                    
+                    // check how wide the insert size distribution is and
+                    // whether 80% of the data lies within 25% from the max peak
+                    // (e.g. [mpeak*(1-0.25),mpeak*(1+0.25)])
+                    // only libraries can be failed based on wrong insert size. The
+                    // lanes are always passed as long as the insert size is
+                    // consistent with other lanes from the same library.
+                    // var amount = lane['alignmentstats:inserts within 25% max peak'];
+                    // var range  = lane['alignmentstats:peak window containing 80% of inserts'];
+                    // if (amount != null && range != null) {
+                    //     amount = parseFloat(amount).toFixed(2);
+                    //     range = parseFloat(range).toFixed(2);
+                    //     if (amount < 80) {
+                    //         fails.push(['Insert size', 'Fail library, less than 80% of the inserts are within 25% of max peak (' + amount + '%).']);
+                    //     }
+                    //     if (range > 25) {
+                    //         fails.push(['Insert size', 'Fail library, 80% of inserts are not within 25% of the max peak (' + range + '%).']);
+                    //     }
+                    // }
+                    // else {
+                    //     fails.push(['Insert size', 'The insert size not available, yet flagged as paired']);
+                    // }
+                }
+            }
+            
+            // overlapping base duplicate percent
+            // calculate the proportion of mapped bases duplicated e.g. if a fragment
+            // is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
+            // in the fragment are duplicate sequence)
+            //
+            //------------->
+            //          <------------
+            //        160bp
+            //|---------------------|
+            //          |--|
+            //          40bp
+            var max_overlapping_base_duplicate_percent = parseFloat(aqs['Overlapping Base Duplicate %'].value());
+            var dupl_mapped_bases = lane['alignmentstats:dupl mapped bases'];
+            var total_mapped_bases = lane['alignmentstats:total mapped bases'];
+            if (dupl_mapped_bases && total_mapped_bases) {
+                var obtest = ((dupl_mapped_bases * 100) / total_mapped_bases).toFixed(2); // (same as lane['Overlap dup%'])
+                if (obtest > max_overlapping_base_duplicate_percent) {
+                    fails.push(['Overlap duplicate base percent', 'The percent of bases duplicated due to reads of a pair overlapping (' + obtest + '%) is greater than ' + max_overlapping_base_duplicate_percent + '%.']);
+                }
+            }
+            
+            // maximimum indels per cycle
+            var max_ic_above_median = parseInt(aqs['Max indel/cycle above median'].value());
+            var median_oicc = lane['alignmentstats:median of indel cycle counts'];
+            var max_oicc = lane['alignmentstats:max of indel cycle counts'];
+            if (median_oicc && max_oicc) {
+                median_oicc = median_oicc.split(',');
+                max_oicc = max_oicc.split(',');
+                for (i = 0; i < 4; i += 1) {
+                    if (max_oicc[i] > max_ic_above_median * median_oicc[i]) {
+                        fails.push(['InDels per Cycle', 'Some ' + indelsPerCycleLookup[i] + ' per cycle exceed ' + max_ic_above_median + ' x median (max ' + max_oicc[i] + ' vs median ' + median_oicc[i] + ').']);
+                    }
+                }
+            }
+        }
+        
+        var status = 'pass';
+        if (fails.length > 0) {
+            status = 'fail';
+        }
+        return [status, fails];
+    });
+};
+
 // function to call qc methods to get results from the graph db
 var indelsPerCycleLookup = ['Insertion(fwd)', 'Insertion(rev)', 'Deletion(fwd)', 'Deletion(rev)'];
+var qcStates = { 'Pass': 'passed', 'Fail': 'failed', 'Invst': 'investigate', 'GTPend': 'gt_pending', 'Pend': 'pending' };
 var getQCGraphData = function(method, args, subargs, loading, errors) {
     loading.removeAll();
     errors.removeAll();
@@ -116,199 +307,44 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                 // closure and things would be wrong)
                 ko.utils.arrayForEach(data, function (datum) {
                     if (flatten) {
-                        datum.properties.node_id = datum.id;
-                        datum.properties.node_label = datum.label;
+                        var props = datum.properties;
+                        props.node_id = datum.id;
+                        props.node_label = datum.label;
                         
                         if (datum.label === 'Lane') {
-                            var lane = datum.properties;
-                            lane['new_qcgrind_qc_status'] = ko.observable(lane['qcgrind_qc_status']);
-                            lane['display_graphs'] = ko.observable(false);
-                            lane['display_stats'] = ko.observable(false);
+                            massageLaneProperties(props, isGroupAdmin, aqs);
+                        }
+                        else if (datum.label === 'Sample') {
+                            props.display_lanelets = ko.observable(false);
                             
-                            if (isGroupAdmin && ! lane.is_admin) {
-                                isGroupAdmin = false;
-                            }
+                            // massage the lanelets
+                            var lanelets = [];
+                            Object.keys(props.lanelet_nodes).forEach(function(key) {
+                                var lanelet = this[key];
+                                var laneletProps = lanelet.properties;
+                                laneletProps.node_id = lanelet.id;
+                                laneletProps.node_label = lanelet.label;
+                                massageLaneProperties(laneletProps, isGroupAdmin, aqs);
+                                lanelets.push(laneletProps);
+                            }, props.lanelet_nodes);
+                            props.lanelet_nodes = ko.observableArray(lanelets);
                             
-                            // create an auto_qc property that computes the
-                            // result so that the result can auto-update when
-                            // the user changes the settings. We need to put
-                            lane['auto_qc'] = ko.pureComputed(function() {
-                                var fails = [];
-                                
-                                // check we have data and end early if not
-                                if (! lane['alignmentstats:total length'] && ! lane['alignmentstats:sequences']) {
-                                    fails.push(['Missing data', 'The alignment stats for this lanelet are missing.' ]);
-                                }
-                                else if (lane['alignmentstats:total length'] == 0 || lane['alignmentstats:sequences'] == 0) {
-                                    fails.push(['Empty bam file check', 'The cram file provided for this lanelet contains no sequences.' ]);
-                                }
-                                else {
-                                    // follow npg
-                                    if (lane['NPG Status'] === 'fail') {
-                                        fails.push(['NPG QC status check', 'The lane failed the NPG QC check, so we auto-fail as well since this data will not be auto-submitted to EGA/ENA.' ]);
-                                    }
-                                    
-                                    // genotype check
-                                    var gtype_regex_str = aqs['GType regex'].value();
-                                    var gtype_regex = new RegExp(gtype_regex_str, "i");
-                                    if (! gtype_regex.test(lane.genotype_status)) {
-                                        fails.push(['Genotype check', 'The status (' + lane.genotype_status + ') does not match the regex /' + gtype_regex_str + '/.']);
-                                    }
-                                    var gtype_common_snp_count = lane['gtcheckdata:common_snp_count'];
-                                    if (gtype_common_snp_count) {
-                                        var gtype_min_s = aqs['GType min sites'].value();
-                                        if (gtype_common_snp_count < gtype_min_s) {
-                                            fails.push(['Genotype check', 'The number of common sites called (' + gtype_common_snp_count + ') is less than ' + gtype_min_s + '.']);
+                            // make the qc state numbers dynamic
+                            Object.keys(qcStates).forEach(function(state) {
+                                var status = qcStates[state];
+                                props[state] = ko.pureComputed(function() {
+                                    var n = 0;
+                                    ko.utils.arrayForEach(props.lanelet_nodes(), function (lanelet) {
+                                        if (lanelet.new_qcgrind_qc_status() == status) {
+                                            n += 1;
                                         }
-                                        
-                                        var gtype_min_c = aqs['GType min concordance'].value();
-                                        var gtype_concordance = lane['gtcheckdata:concordance'];
-                                        if (gtype_concordance < gtype_min_c) {
-                                            fails.push(['Genotype check', 'The concordance (' + gtype_concordance + ') is less than ' + gtype_min_c + '.']);
-                                        }
-                                    }
-                                    
-                                    // mapped bases
-                                    var min_mapped_base_percentage = aqs['Mapped base %'].value();
-                                    var clip_bases = lane['alignmentstats:total length'] - lane['alignmentstats:bases trimmed'];
-                                    var bases_mapped_c = lane['alignmentstats:bases mapped (cigar)'];
-                                    var mbtest = (100 * bases_mapped_c / clip_bases).toFixed(2);
-                                    if (mbtest < min_mapped_base_percentage) {
-                                        fails.push(['Mapped bases', 'Less than ' + min_mapped_base_percentage + '% bases mapped after clipping (' + mbtest + '%).']);
-                                    }
-                                    
-                                    // duplicate reads
-                                    var max_duplicate_read_percentage = aqs['Duplicate read %'].value();
-                                    var reads_mapped = lane['alignmentstats:reads mapped'];
-                                    if (reads_mapped) {
-                                        // var reads_mapped_after_rmdup = lane['alignmentstats:reads mapped after rmdup'];
-                                        // var dup_reads = reads_mapped - reads_mapped_after_rmdup;
-                                        // var drtest = (100 * dup_reads / reads_mapped).toFixed(2);
-                                        if (lane['Dup%'] > max_duplicate_read_percentage) {
-                                            fails.push(['Duplicate reads', 'More than ' + max_duplicate_read_percentage + '% reads were duplicates (' + lane['Dup%'] + '%).']);
-                                        }
-                                    }
-                                    
-                                    // properly paired mapped reads
-                                    var min_mapped_reads_properly_paired_percentage = aqs['Mapped reads properly paired %'].value();
-                                    if (reads_mapped) {
-                                        var properly_paired = lane['alignmentstats:reads properly paired'];
-                                        var pptest = (100 * properly_paired / reads_mapped).toFixed(2);
-                                        if (pptest < min_mapped_reads_properly_paired_percentage) {
-                                            fails.push(['Reads mapped in a proper pair', 'Less than ' + min_mapped_reads_properly_paired_percentage + '% of reads that were mapped are in a proper pair (' + pptest + '%).']);
-                                        }
-                                    }
-                                    
-                                    // error rate
-                                    var max_error_rate = aqs['Error rate'].value();
-                                    var error_rate = lane['alignmentstats:error rate']; // or should this be the error rate % stored in lane['Error Rate']?
-                                    if (error_rate && +error_rate > max_error_rate) {
-                                        fails.push(['Error rate', 'The error rate is higher than ' + max_error_rate + ' (' + +error_rate + ').']);
-                                    }
-                                    
-                                    // number of insertions vs deletions
-                                    var inum = lane['alignmentstats:number of insertions'];
-                                    var dnum = lane['alignmentstats:number of deletions'];
-                                    if (inum != null && dnum != null) {
-                                        var max_ins_to_del_ratio = aqs['Max in/del ratio'].value();
-                                        var min_ins_to_del_ratio = aqs['Min in/del ratio'].value();
-                                        var ratio = dnum ? (inum / dnum).toFixed(2) : 0;
-                                        if (!dnum || (ratio > max_ins_to_del_ratio)) {
-                                            fails.push(['InDel ratio', 'The Ins/Del ratio is bigger than ' + max_ins_to_del_ratio + ' (' + ratio + ').']);
-                                            $reason = "The Ins/Del ratio is bigger than $max ($inum/$dnum).";
-                                        }
-                                        else if (dnum && (!inum || (ratio < min_ins_to_del_ratio))) {
-                                            fails.push(['InDel ratio', 'The Ins/Del ratio is smaller than ' + min_ins_to_del_ratio + ' (' + ratio + ').']);
-                                        }
-                                    }
-                                    
-                                    // insert size
-                                    if (lane['is_paired_read']) {
-                                        if (lane['alignmentstats:reads paired'] == 0) {
-                                            fails.push(['Insert size', 'Zero paired reads, yet flagged as paired']);
-                                        }
-                                        else if (lane['alignmentstats:insert size average'] == 0) {
-                                            fails.push(['Insert size', 'The insert size not available, yet flagged as paired']);
-                                        }
-                                        else {
-                                            // npg_cram_stats_parser step
-                                            // calculates these from all the
-                                            // (1000s of) IS values in the
-                                            // stats file, but only for fixed
-                                            // 80/25 settings. Sadly this causes
-                                            // a fail for everything, and since
-                                            // it's not user-configurable,
-                                            // excluding for now...
-                                            
-                                            // check how wide the insert size distribution is and
-                                            // whether 80% of the data lies within 25% from the max peak
-                                            // (e.g. [mpeak*(1-0.25),mpeak*(1+0.25)])
-                                            // only libraries can be failed based on wrong insert size. The
-                                            // lanes are always passed as long as the insert size is
-                                            // consistent with other lanes from the same library.
-                                            // var amount = lane['alignmentstats:inserts within 25% max peak'];
-                                            // var range  = lane['alignmentstats:peak window containing 80% of inserts'];
-                                            // if (amount != null && range != null) {
-                                            //     amount = parseFloat(amount).toFixed(2);
-                                            //     range = parseFloat(range).toFixed(2);
-                                            //     if (amount < 80) {
-                                            //         fails.push(['Insert size', 'Fail library, less than 80% of the inserts are within 25% of max peak (' + amount + '%).']);
-                                            //     }
-                                            //     if (range > 25) {
-                                            //         fails.push(['Insert size', 'Fail library, 80% of inserts are not within 25% of the max peak (' + range + '%).']);
-                                            //     }
-                                            // }
-                                            // else {
-                                            //     fails.push(['Insert size', 'The insert size not available, yet flagged as paired']);
-                                            // }
-                                        }
-                                    }
-                                    
-                                    // overlapping base duplicate percent
-                                    // calculate the proportion of mapped bases duplicated e.g. if a fragment
-                                    // is 160bp - then 40bp out of 200bp sequenced (or 20% of bases sequenced
-                                    // in the fragment are duplicate sequence)
-                                    //
-                                    //------------->
-                                    //          <------------
-                                    //        160bp
-                                    //|---------------------|
-                                    //          |--|
-                                    //          40bp
-                                    var max_overlapping_base_duplicate_percent = aqs['Overlapping Base Duplicate %'].value();
-                                    var dupl_mapped_bases = lane['alignmentstats:dupl mapped bases'];
-                                    var total_mapped_bases = lane['alignmentstats:total mapped bases'];
-                                    if (dupl_mapped_bases && total_mapped_bases) {
-                                        var obtest = ((dupl_mapped_bases * 100) / total_mapped_bases).toFixed(2); // (same as lane['Overlap dup%'])
-                                        if (obtest > max_overlapping_base_duplicate_percent) {
-                                            fails.push(['Overlap duplicate base percent', 'The percent of bases duplicated due to reads of a pair overlapping (' + obtest + '%) is greater than ' + max_overlapping_base_duplicate_percent + '%.']);
-                                        }
-                                    }
-                                    
-                                    // maximimum indels per cycle
-                                    var max_ic_above_median = aqs['Max indel/cycle above median'].value();
-                                    var median_oicc = lane['alignmentstats:median of indel cycle counts'];
-                                    var max_oicc = lane['alignmentstats:max of indel cycle counts'];
-                                    if (median_oicc && max_oicc) {
-                                        median_oicc = median_oicc.split(',');
-                                        max_oicc = max_oicc.split(',');
-                                        for (i = 0; i < 4; i += 1) {
-                                            if (max_oicc[i] > max_ic_above_median * median_oicc[i]) {
-                                                fails.push(['InDels per Cycle', 'Some ' + indelsPerCycleLookup[i] + ' per cycle exceed ' + max_ic_above_median + ' x median (max ' + max_oicc[i] + ' vs median ' + median_oicc[i] + ').']);
-                                            }
-                                        }
-                                    }
-                                }
-                                
-                                var status = 'pass';
-                                if (fails.length > 0) {
-                                    status = 'fail';
-                                }
-                                return [status, fails];
+                                    });
+                                    return n;
+                                });
                             });
                         }
                         
-                        arr.push(datum.properties);
+                        arr.push(props);
                     }
                     else {
                         arr.push(datum);

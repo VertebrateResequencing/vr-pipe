@@ -2044,7 +2044,7 @@ sub qc {
                         }
                         
                         $sample->{libraries}->{ $props->{Library} }++;
-                        $sample->{lanelets}->{ $props->{Lanelet} } = $lanelet;
+                        $sample->{lanelet_nodes}->{ $props->{Lanelet} } = $lanelet;
                         
                         $sample->{'Raw Gb'}         += $props->{'Raw Gb'};
                         $sample->{'Mapped Gb'}      += $props->{'Mapped Gb'};
@@ -2110,7 +2110,7 @@ sub qc {
                         }
                         
                         my $libs = delete $props->{libraries};
-                        my $lans = delete $props->{lanelets};
+                        my $lans = $props->{lanelet_nodes};
                         $props->{Libraries} = scalar(keys %{$libs});
                         $props->{Lanelets}  = scalar(keys %{$lans});
                         
