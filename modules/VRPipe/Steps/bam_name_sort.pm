@@ -84,6 +84,20 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
             my $req = $self->new_requirements(memory => $mem == 768 ? 3000 : (4 * $mem), time => 2); # in some cases samtools can use way more than the -m specified, and is very segfault happy
             my $memory = $req->memory;
             
+            my $version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+            my $legacy = 0;
+            if ($version =~ /^0\./ || $version =~ /^1\.1/ || $version =~ /^1\.2/) {
+                $legacy = 1;
+            }
+            
+            $self->set_cmd_summary(
+                VRPipe::StepCmdSummary->create(
+                    exe     => 'samtools',
+                    version => $version,
+                    summary => $legacy ? qq[samtools $opts \$input_path \$out_prefix"] : qq[samtools $opts -T \$tmp_prefix -o \$output_path \$input_path]
+                )
+            );
+            
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $in_base  = $bam->basename;
                 my $out_base = $in_base;
@@ -94,7 +108,7 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
                 
                 my $out_prefix = $sort_bam_file->path;
                 $out_prefix =~ s/\.bam$//;
-                my $this_cmd = "$samtools $opts " . $bam->path . " $out_prefix";
+                my $this_cmd = $legacy ? "$samtools $opts " . $bam->path . " $out_prefix" : "$samtools $opts -T $out_prefix -o $out_prefix.bam " . $bam->path;
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bam_name_sort', 'sort_and_check', [$this_cmd, $req, { output_files => [$sort_bam_file] }]);
             }
         };
@@ -123,10 +137,13 @@ class VRPipe::Steps::bam_name_sort with VRPipe::StepRole {
     }
     
     method sort_and_check (ClassName|Object $self: Str $cmd_line) {
-        my ($in_path, $out_path) = $cmd_line =~ /(\S+) (\S+)$/;
-        $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
-        $out_path .= '.bam';
+        my ($in_path, $out_path) = $cmd_line =~ /-o (\S+) (\S+)$/; # samtools>=1.3 syntax
+        unless ($in_path && $out_path) {
+            ($in_path, $out_path) = $cmd_line =~ /(\S+) (\S+)$/;   # samtools legacy syntax
+            $in_path  || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+            $out_path || $self->throw("cmd_line [$cmd_line] was not constructed as expected");
+            $out_path .= '.bam';
+        }
         
         my $in_file  = VRPipe::File->get(path => $in_path);
         my $out_file = VRPipe::File->get(path => $out_path);

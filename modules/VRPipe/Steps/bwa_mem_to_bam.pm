@@ -56,6 +56,16 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 'samtools'
             ),
+            k8_exe => VRPipe::StepOption->create(
+                description   => 'path to your k8 executable',
+                optional      => 1,
+                default_value => 'k8'
+            ),
+            bwa_postalt => VRPipe::StepOption->create(
+                description   => 'path to your bwa-postalt.js to be optionally used if mapping to a reference with ALTs',
+                optional      => 1,
+                default_value => ''
+            ),
         };
     }
     
@@ -97,6 +107,8 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
             my $options  = $self->options;
             my $ref      = file($options->{reference_fasta});
             my $samtools = $options->{samtools_exe};
+            my $k8       = $options->{k8_exe};
+            my $postalt  = $options->{bwa_postalt};
             $self->throw("reference_fasta must be an absolute path") unless $ref->is_absolute;
             
             my $post_proc = $options->{bwa_mem_post_processing};
@@ -110,6 +122,17 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
             my $cmd = $bwa_exe . ' mem ' . $bwa_opts;
             if ($self->inputs->{dict_file}) {
                 $cmd .= ' -H ' . $self->inputs->{dict_file}->[0]->path;
+            }
+            my $has_hla = 0;
+            my $do_alt  = 0;
+            if ($postalt && -f "$ref.alt") {
+                my $do_alt = 1;
+                my $fh;
+                open($fh, "$ref.alt") || die;
+                while (<$fh>) {
+                    $has_hla = 1 if /^HLA-[^\s\*]+\*\d+/;
+                }
+                close($fh);
             }
             
             $self->set_cmd_summary(
@@ -217,9 +240,29 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                             metadata   => $sam_meta
                         );
                         my $output_dir = $bam_file->dir;
+                        my @outfiles   = ($bam_file);
                         
-                        my $this_cmd = "cd $output_dir; $cmd -R '$rg_line' $ref @fqs$post_pipes > " . $bam_file->path;
-                        $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_mem_to_bam', 'mem_and_check', [$this_cmd, $req, { output_files => [$bam_file] }]);
+                        my $these_post_pipes = $post_pipes;
+                        if ($do_alt) {
+                            my $hla_pre = '';
+                            if ($has_hla) {
+                                foreach my $suffix (qw(HLA-A.fq HLA-B.fq HLA-C.fq HLA-DQA1.fq HLA-DQB1.fq HLA-DRB1.fq)) {
+                                    my $hla = $self->output_file(
+                                        sub_dir    => "$idx",
+                                        output_key => 'hla_fastq_files',
+                                        basename   => $chunk ? "$lane.$ended.$chunk.hla.$suffix" : "$lane.$ended.hla.$suffix",
+                                        type       => 'fq',
+                                        metadata   => $sam_meta
+                                    );
+                                    push(@outfiles, $hla);
+                                }
+                                $hla_pre = ' -p ' . file($output_dir, $chunk ? "$lane.$ended.$chunk.hla" : "$lane.$ended.hla");
+                            }
+                            $these_post_pipes .= " | $k8 $postalt$hla_pre $ref.alt";
+                        }
+                        
+                        my $this_cmd = "cd $output_dir; $cmd -R '$rg_line' $ref @fqs$these_post_pipes > " . $bam_file->path;
+                        $self->dispatch_wrapped_cmd('VRPipe::Steps::bwa_mem_to_bam', 'mem_and_check', [$this_cmd, $req, { output_files => \@outfiles }]);
                         $idx++;
                     }
                 }
@@ -250,6 +293,12 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                     chunk          => 'if this was mapped with fastqs that were chunks of an original fastq, this tells you which chunk',
                     optional       => ['chunk', 'library', 'insert_size', 'analysis_group', 'population', 'sample', 'center_name', 'platform', 'study']
                 }
+            ),
+            hla_fastq_files => VRPipe::StepIODefinition->create(
+                type        => 'fq',
+                min_files   => 0,
+                max_files   => -1,
+                description => 'optional output HLA fastq file(s) mapped by bwa mem',
             )
         };
     }

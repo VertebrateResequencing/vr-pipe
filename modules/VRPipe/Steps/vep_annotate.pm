@@ -74,17 +74,19 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
                 )
             );
             my $suffix = $post_vep_cmds =~ /\$output_bcf/ ? "bcf" : "vcf.gz";
+            my $type   = $post_vep_cmds =~ /\$output_bcf/ ? "bcf" : "vcf";
             foreach my $input_file (@{ $self->inputs->{vcf_files} }) {
                 my $input_meta = $input_file->metadata;
                 my $basename   = $input_file->basename;
                 $basename =~ s/(\.vcf\.gz$|\.bcf$)//;
                 #$self->output_file(basename => "$basename.${suffix}_temp.vcf", type => 'vcf', temporary => 1);
-                my $output_file  = $self->output_file(output_key => 'vep_annot_vcf_files',       basename => "$basename.$suffix",     type => 'var', metadata => $input_meta);
+                my $output_file  = $self->output_file(output_key => 'vep_annot_vcf_files',       basename => "$basename.$suffix",     type => $type, metadata => $input_meta);
                 my $output_index = $self->output_file(output_key => 'vep_annot_vcf_index_files', basename => "$basename.$suffix.csi", type => 'idx', metadata => $input_meta);
                 my $input_path   = $input_file->path;
                 my $output_path  = $output_file->path;
                 my $post_vep     = $post_vep_cmds;
-                $post_vep =~ s/\$output_(b|v)cf/$output_path/;
+                $post_vep =~ s/\$output_(b|v)cf/$output_path/g;
+                $post_vep =~ s/\$bcftools/$bcftools_exe/g;
                 my $req = $self->new_requirements(memory => 5000, time => 1);
                 my $this_cmd = "use VRPipe::Steps::vep_annotate; VRPipe::Steps::vep_annotate->vep_annotate_and_check(input => q[$input_path], chunk => [], output => q[$output_path], bcftools => q[$bcftools_exe], vep => q[$vep_exe], vep_opts => q[$vep_opts], api_paths => q[$ensembl_api_paths] , post_vep => q[$post_vep]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$output_file, $output_index] });

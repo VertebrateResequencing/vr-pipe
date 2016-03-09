@@ -74,6 +74,7 @@ VRPipe::PipelineSetup->create(
         bwa_exe                           => 'bwa',
         bwa_index_options                 => '-a is',
         bwa_mem_options                   => '-x intractg',
+        samtools_view_options             => '-S1',
         htsbox_exe                        => 'htsbox',
         htsbox_pileup_options             => '-Ccu',
         htsbox_abreak_options             => '-bcu',
