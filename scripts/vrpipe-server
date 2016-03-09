@@ -1683,6 +1683,8 @@ sub qc {
     }
     
     my $data;
+    my @study_menu_properties  = qw(name id accession);
+    my @sample_menu_properties = qw(name id public_name supplier_name accession);
     if ($method eq 'qc_website_admin') {
         my $admins = $args->{admins};
         if ($admins) {
@@ -1731,12 +1733,24 @@ sub qc {
     }
     elsif ($method eq 'labels') {
         $data = $vrtrack->labels;
+        
+        # we want the sample and study drop-down menus to only show certain
+        # properties
+        $data->{Study}  = \@study_menu_properties;
+        $data->{Sample} = \@sample_menu_properties;
     }
     elsif ($method eq 'nodes_of_label') {
-        my $label = $args->{label};
+        my $label      = $args->{label};
+        my $table_mode = $args->{table_mode};
         if ($label) {
             my $graph_label = $label;
             if ($label eq 'Lanelet') {
+                $graph_label = 'Lane';
+            }
+            elsif ($label eq 'Sample' && $table_mode) {
+                # we're just going to display sequencing data only for now,
+                # and we want to be able to expand out a sample to show the
+                # lanelets, so we actually get lanes
                 $graph_label = 'Lane';
             }
             $data = $vrtrack->nodes_of_label(
@@ -1748,15 +1762,7 @@ sub qc {
                 $graph_label eq 'Lane' ? (user    => $auth_user)       : ()
             );
             
-            if ($label eq 'Sample') {
-                # remove properties for a nicer table to display
-                foreach my $node (@$data) {
-                    foreach my $prop (qw(id supplier_name accession consent control aberrant_chrs donor_node_id donor_id study_id study_node_id)) {
-                        delete $node->{properties}->{$prop};
-                    }
-                }
-            }
-            elsif ($label eq 'Donor') {
+            if ($label eq 'Donor') {
                 # rename properties for a nicer table to display
                 foreach my $node (@$data) {
                     my $props = $node->{properties};
@@ -1768,11 +1774,14 @@ sub qc {
                     $props->{'QCToDo(All)'}          = delete $props->{qc_unresolved};
                 }
             }
-            elsif ($label eq 'Lanelet') {
+            elsif ($label eq 'Lanelet' || ($label eq 'Sample' && $table_mode)) {
                 # show the desired props of the Lane nodes; these have lots
                 # of data so we remove and rename to reduce the amount of
                 # bandwidth used and make things easier on the receiver, and
                 # we also calculate some new data for display
+                
+                # for samples we need the massaged lanelet nodes, so we do the
+                # normal lanelet code first
                 
                 my $rounder = sub {
                     my $i = shift;
@@ -1834,9 +1843,11 @@ sub qc {
                     
                     if ($bases_mapped_after_rmdup) {
                         $new_props->{'Mapped-dups Gb'} = &$rounder($bases_mapped_after_rmdup / 1000000000);
+                        $new_props->{'Depth'}          = &$rounder($bases_mapped_after_rmdup / 3000000000); # human hard-coding
                     }
                     else {
                         $new_props->{'Mapped-dups Gb'} = 'n/a';
+                        $new_props->{'Depth'}          = 'n/a';
                     }
                     
                     if ($dupl_mapped_bases && $total_mapped_bases) {
@@ -1998,13 +2009,125 @@ sub qc {
                     $new_props->{qcgrind_qc_status} = $qc_status;
                     $new_props->{is_admin} = int($props->{is_admin} || 0);
                     
+                    # add extra things for Sample mode
+                    if ($label eq 'Sample') {
+                        $new_props->{sample_node_id}                            = $props->{sample_node_id};
+                        $new_props->{'alignmentstats:bases mapped after rmdup'} = $bases_mapped_after_rmdup;
+                        $new_props->{'alignmentstats:reads mapped after rmdup'} = $reads_mapped_after_rmdp;
+                    }
+                    
                     $node->{properties} = $new_props;
                 }
+                
+                if ($label eq 'Sample') {
+                    # we have lanelets and will create fake sample nodes with
+                    # summarised details of their lanelets
+                    my %samples;
+                    foreach my $lanelet (@$data) {
+                        my $props       = $lanelet->{properties};
+                        my $sample_name = $props->{Sample};
+                        next if $sample_name eq 'unknown';
+                        
+                        my $sample = $samples{$sample_name};
+                        unless ($sample) {
+                            $samples{$sample_name} = {};
+                            $sample                = $samples{$sample_name};
+                            $sample->{Sample}      = $sample_name;
+                            $sample->{node_id}     = $props->{sample_node_id};
+                            $sample->{study_id}    = $props->{study_id};
+                            $sample->{study_name}  = $props->{study_name};
+                            $sample->{study_acc}   = $props->{study_acc};
+                            $sample->{Individual}  = $props->{Individual};
+                            $sample->{sample_acc}  = $props->{sample_acc};
+                            $sample->{sample_sn}   = $props->{sample_sn};
+                            $sample->{Gender}      = $props->{Gender};
+                        }
+                        
+                        $sample->{libraries}->{ $props->{Library} }++;
+                        $sample->{lanelets}->{ $props->{Lanelet} } = $lanelet;
+                        
+                        $sample->{'Raw Gb'}         += $props->{'Raw Gb'};
+                        $sample->{'Mapped Gb'}      += $props->{'Mapped Gb'};
+                        $sample->{'Mapped-dups Gb'} += $props->{'Mapped-dups Gb'};
+                        $sample->{'Net Gb'}         += $props->{'Net Gb'};
+                        
+                        # to calculate Dup%, Overlap dup%, Depth and error rate
+                        # later, we need the following:
+                        $sample->{'alignmentstats:reads mapped'}             += $props->{'alignmentstats:reads mapped'};
+                        $sample->{'alignmentstats:reads mapped after rmdup'} += $props->{'alignmentstats:reads mapped after rmdup'};
+                        $sample->{'alignmentstats:dupl mapped bases'}        += $props->{'alignmentstats:dupl mapped bases'};
+                        $sample->{'alignmentstats:total mapped bases'}       += $props->{'alignmentstats:total mapped bases'};
+                        $sample->{'alignmentstats:bases mapped (cigar)'}     += $props->{'alignmentstats:bases mapped (cigar)'};
+                        $sample->{'alignmentstats:mismatches'}               += $props->{'alignmentstats:mismatches'};
+                        $sample->{'alignmentstats:bases mapped after rmdup'} += $props->{'alignmentstats:bases mapped after rmdup'};
+                        
+                        while (my ($col, $val) = each %qc_col_to_status) {
+                            $sample->{$col} += $props->{$col};
+                        }
+                    }
+                    
+                    # finalise the samples by calculating things we can only
+                    # do after grouping has completed, and replace $data with
+                    # them
+                    $data = [];
+                    foreach my $sample_name (sort keys %samples) {
+                        my $props = $samples{$sample_name};
+                        
+                        my $reads_mapped             = $props->{'alignmentstats:reads mapped'};
+                        my $reads_mapped_after_rmdp  = $props->{'alignmentstats:reads mapped after rmdup'};
+                        my $bases_mapped_after_rmdup = $props->{'alignmentstats:bases mapped after rmdup'};
+                        my $dupl_mapped_bases        = $props->{'alignmentstats:dupl mapped bases'};
+                        my $total_mapped_bases       = $props->{'alignmentstats:total mapped bases'};
+                        my $bases_mapped_cigar       = $props->{'alignmentstats:bases mapped (cigar)'};
+                        if ($reads_mapped && $reads_mapped_after_rmdp) {
+                            $props->{'Dup%'} = &$rounder((100 / $reads_mapped) * ($reads_mapped - $reads_mapped_after_rmdp));
+                        }
+                        else {
+                            $props->{'Dup%'} = 'n/a';
+                        }
+                        if ($dupl_mapped_bases && $total_mapped_bases) {
+                            my $overlap_dup_percent = ($dupl_mapped_bases * 100) / $total_mapped_bases;
+                            $props->{'Overlap dup%'} = &$rounder($overlap_dup_percent);
+                        }
+                        else {
+                            $props->{'Overlap dup%'} = 'n/a';
+                        }
+                        if ($bases_mapped_cigar) {
+                            $props->{'Error Rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'});
+                        }
+                        else {
+                            $props->{'Error Rate'} = 'n/a';
+                        }
+                        if ($bases_mapped_after_rmdup) {
+                            # *** qcgrind sample_view.pl does something odd
+                            # where the mapping raw_bases is expected to be
+                            # different from the lane raw_bases; is this an
+                            # exome thing??
+                            $props->{'Depth'} = &$rounder($bases_mapped_after_rmdup / 3000000000); # human hard-coding
+                        }
+                        else {
+                            $props->{'Depth'} = 'n/a';
+                        }
+                        
+                        my $libs = delete $props->{libraries};
+                        my $lans = delete $props->{lanelets};
+                        $props->{Libraries} = scalar(keys %{$libs});
+                        $props->{Lanelets}  = scalar(keys %{$lans});
+                        
+                        push(@$data, { id => delete $props->{node_id}, label => 'Sample', properties => $props });
+                    }
+                }
             }
-            elsif ($label eq 'Lane') {
-                # merge desired info about Lane nodes that share the same lane
-                # and run
-                #...
+            elsif ($label eq 'Sample') {
+                # we only want certain properties in the drop-down menu
+                foreach my $node (@$data) {
+                    my $props     = $node->{properties};
+                    my $new_props = {};
+                    foreach my $key (@sample_menu_properties) {
+                        $new_props->{$key} = $props->{$key};
+                    }
+                    $node->{properties} = $new_props;
+                }
             }
         }
         else {
