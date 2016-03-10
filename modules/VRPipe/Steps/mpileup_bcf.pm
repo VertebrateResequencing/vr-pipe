@@ -37,9 +37,9 @@ use VRPipe::Base;
 class VRPipe::Steps::mpileup_bcf with VRPipe::StepRole {
     method options_definition {
         return {
-            samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools executable',                                                                                                          optional => 1, default_value => 'samtools'),
-            bcftools_exe             => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                          optional => 1, default_value => 'bcftools'),
-            samtools_mpileup_options => VRPipe::StepOption->create(description => 'samtools mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
+            samtools_exe             => VRPipe::StepOption->create(description => 'path to samtools or bcftools executable - the one to use for the mpileup subcommand to generate bcf output',                  optional => 1, default_value => 'samtools'),
+            bcftools_exe             => VRPipe::StepOption->create(description => 'path to bcftools executable',                                                                                                 optional => 1, default_value => 'bcftools'),
+            samtools_mpileup_options => VRPipe::StepOption->create(description => 'mpileup options excluding -f and -b options. Also exclude the -l option if a sites_file is provided as an input to the step', optional => 1, default_value => '-DSV -C50 -m2 -F0.0005 -d 10000 -g'),
             reference_fasta          => VRPipe::StepOption->create(description => 'absolute path to reference genome fasta'),
         };
     }
