@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::bcftools_merge - a pipeline
+VRPipe::Pipelines::bcftools_merge_with_vep - a pipeline
 
 =head1 DESCRIPTION
 
@@ -33,9 +33,9 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::bcftools_merge with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bcftools_merge_with_vep with VRPipe::PipelineRole {
     method name {
-        return 'bcftools_merge';
+        return 'bcftools_merge_with_vep';
     }
     
     method description {
