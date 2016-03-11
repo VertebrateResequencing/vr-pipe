@@ -35,10 +35,10 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
         var fails = [];
         
         // check we have data and end early if not
-        if (! lane['alignmentstats:total length'] && ! lane['alignmentstats:sequences']) {
+        if (! lane.lanelet_stats['alignmentstats:total length'] && ! lane.lanelet_stats['alignmentstats:sequences']) {
             fails.push(['Missing data', 'The alignment stats for this lanelet are missing.' ]);
         }
-        else if (lane['alignmentstats:total length'] == 0 || lane['alignmentstats:sequences'] == 0) {
+        else if (lane.lanelet_stats['alignmentstats:total length'] == 0 || lane.lanelet_stats['alignmentstats:sequences'] == 0) {
             fails.push(['Empty bam file check', 'The cram file provided for this lanelet contains no sequences.' ]);
         }
         else {
@@ -69,8 +69,8 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             
             // mapped bases
             var min_mapped_base_percentage = parseFloat(aqs['Mapped base %'].value());
-            var clip_bases = lane['alignmentstats:total length'] - lane['alignmentstats:bases trimmed'];
-            var bases_mapped_c = lane['alignmentstats:bases mapped (cigar)'];
+            var clip_bases = lane.lanelet_stats['alignmentstats:total length'] - lane.lanelet_stats['alignmentstats:bases trimmed'];
+            var bases_mapped_c = lane.lanelet_stats['alignmentstats:bases mapped (cigar)'];
             var mbtest = (100 * bases_mapped_c / clip_bases).toFixed(2);
             if (mbtest < min_mapped_base_percentage) {
                 fails.push(['Mapped bases', 'Less than ' + min_mapped_base_percentage + '% bases mapped after clipping (' + mbtest + '%).']);
@@ -78,20 +78,20 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             
             // duplicate reads
             var max_duplicate_read_percentage = parseFloat(aqs['Duplicate read %'].value());
-            var reads_mapped = lane['alignmentstats:reads mapped'];
+            var reads_mapped = lane.lanelet_stats['alignmentstats:reads mapped'];
             if (reads_mapped) {
                 // var reads_mapped_after_rmdup = lane['alignmentstats:reads mapped after rmdup'];
                 // var dup_reads = reads_mapped - reads_mapped_after_rmdup;
                 // var drtest = (100 * dup_reads / reads_mapped).toFixed(2);
-                if (parseFloat(lane['Dup%']) > max_duplicate_read_percentage) {
-                    fails.push(['Duplicate reads', 'More than ' + max_duplicate_read_percentage + '% reads were duplicates (' + lane['Dup%'] + '%).']);
+                if (parseFloat(lane.lanelet_stats['Dup%']) > max_duplicate_read_percentage) {
+                    fails.push(['Duplicate reads', 'More than ' + max_duplicate_read_percentage + '% reads were duplicates (' + lane.lanelet_stats['Dup%'] + '%).']);
                 }
             }
             
             // properly paired mapped reads
             var min_mapped_reads_properly_paired_percentage = parseFloat(aqs['Mapped reads properly paired %'].value());
             if (reads_mapped) {
-                var properly_paired = lane['alignmentstats:reads properly paired'];
+                var properly_paired = lane.lanelet_stats['alignmentstats:reads properly paired'];
                 var pptest = (100 * properly_paired / reads_mapped).toFixed(2);
                 if (pptest < min_mapped_reads_properly_paired_percentage) {
                     fails.push(['Reads mapped in a proper pair', 'Less than ' + min_mapped_reads_properly_paired_percentage + '% of reads that were mapped are in a proper pair (' + pptest + '%).']);
@@ -100,14 +100,14 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             
             // error rate
             var max_error_rate = parseFloat(aqs['Error rate'].value());
-            var error_rate = parseFloat(lane['alignmentstats:error rate']); // or should this be the error rate % stored in lane['Error Rate']?
+            var error_rate = parseFloat(lane.lanelet_stats['alignmentstats:error rate']); // or should this be the error rate % stored in lane['Error Rate']?
             if (error_rate && error_rate > max_error_rate) {
                 fails.push(['Error rate', 'The error rate is higher than ' + max_error_rate + ' (' + +error_rate + ').']);
             }
             
             // number of insertions vs deletions
-            var inum = lane['alignmentstats:number of insertions'];
-            var dnum = lane['alignmentstats:number of deletions'];
+            var inum = lane.lanelet_stats['alignmentstats:number of insertions'];
+            var dnum = lane.lanelet_stats['alignmentstats:number of deletions'];
             if (inum != null && dnum != null) {
                 var max_ins_to_del_ratio = parseFloat(aqs['Max in/del ratio'].value());
                 var min_ins_to_del_ratio = parseFloat(aqs['Min in/del ratio'].value());
@@ -123,10 +123,10 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             
             // insert size
             if (lane['is_paired_read']) {
-                if (parseInt(lane['alignmentstats:reads paired']) == 0) {
+                if (parseInt(lane.lanelet_stats['alignmentstats:reads paired']) == 0) {
                     fails.push(['Insert size', 'Zero paired reads, yet flagged as paired']);
                 }
-                else if (parseFloat(lane['alignmentstats:insert size average']) == 0) {
+                else if (parseFloat(lane.lanelet_stats['alignmentstats:insert size average']) == 0) {
                     fails.push(['Insert size', 'The insert size not available, yet flagged as paired']);
                 }
                 else {
@@ -145,8 +145,8 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
                     // only libraries can be failed based on wrong insert size. The
                     // lanes are always passed as long as the insert size is
                     // consistent with other lanes from the same library.
-                    // var amount = lane['alignmentstats:inserts within 25% max peak'];
-                    // var range  = lane['alignmentstats:peak window containing 80% of inserts'];
+                    // var amount = lane.lanelet_stats['alignmentstats:inserts within 25% max peak'];
+                    // var range  = lane.lanelet_stats['alignmentstats:peak window containing 80% of inserts'];
                     // if (amount != null && range != null) {
                     //     amount = parseFloat(amount).toFixed(2);
                     //     range = parseFloat(range).toFixed(2);
@@ -175,8 +175,8 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             //          |--|
             //          40bp
             var max_overlapping_base_duplicate_percent = parseFloat(aqs['Overlapping Base Duplicate %'].value());
-            var dupl_mapped_bases = lane['alignmentstats:dupl mapped bases'];
-            var total_mapped_bases = lane['alignmentstats:total mapped bases'];
+            var dupl_mapped_bases = lane.lanelet_stats['alignmentstats:dupl mapped bases'];
+            var total_mapped_bases = lane.lanelet_stats['alignmentstats:total mapped bases'];
             if (dupl_mapped_bases && total_mapped_bases) {
                 var obtest = ((dupl_mapped_bases * 100) / total_mapped_bases).toFixed(2); // (same as lane['Overlap dup%'])
                 if (obtest > max_overlapping_base_duplicate_percent) {
@@ -186,8 +186,8 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
             
             // maximimum indels per cycle
             var max_ic_above_median = parseInt(aqs['Max indel/cycle above median'].value());
-            var median_oicc = lane['alignmentstats:median of indel cycle counts'];
-            var max_oicc = lane['alignmentstats:max of indel cycle counts'];
+            var median_oicc = lane.lanelet_stats['alignmentstats:median of indel cycle counts'];
+            var max_oicc = lane.lanelet_stats['alignmentstats:max of indel cycle counts'];
             if (median_oicc && max_oicc) {
                 median_oicc = median_oicc.split(',');
                 max_oicc = max_oicc.split(',');
@@ -301,6 +301,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                     isGroupAdmin = true;
                 }
                 var aqs = subargs.autoQCSettings;
+                var slf = subargs.sampleLaneletsFilter;
                 
                 // (because we create computed functions for lanelets, we
                 // can't use a normal for loop or they would all share the same
@@ -341,6 +342,85 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                                     });
                                     return n;
                                 });
+                            });
+                            
+                            // make dynamic properties that summarise the
+                            // combined properties of the lanelets, depending
+                            // on which lanelets pass a new_qcgrind_qc_status
+                            // filter
+                            props.lanelet_stats = ko.pureComputed(function() {
+                                var stats = { 'Raw Gb': 0,  'Mapped Gb': 0, 'Mapped-dups Gb': 0, 'Net Gb': 0, 'alignmentstats:reads mapped': 0, 'alignmentstats:reads mapped after rmdup': 0, 'alignmentstats:bases mapped after rmdup': 0, 'alignmentstats:dupl mapped bases': 0, 'alignmentstats:total mapped bases': 0, 'alignmentstats:bases mapped (cigar)': 0, 'alignmentstats:mismatches': 0 };
+                                var i;
+                                var laneletsLength = lanelets.length;
+                                var lanelet;
+                                var ls;
+                                for (i = 0; i < laneletsLength; i += 1) {
+                                    lanelet = lanelets[i];
+                                    if (slf[lanelet.new_qcgrind_qc_status()]()) {
+                                        continue;
+                                    }
+                                    ls = lanelet.lanelet_stats;
+                                    
+                                    stats['Raw Gb']         += ls['Raw Gb'] != -1 ? +ls['Raw Gb'] : 0;
+                                    stats['Mapped Gb']      += ls['Mapped Gb'] != -1 ? +ls['Mapped Gb'] : 0;
+                                    stats['Mapped-dups Gb'] += ls['Mapped-dups Gb'] != -1 ? +ls['Mapped-dups Gb'] : 0;
+                                    stats['Net Gb']         += ls['Net Gb'] != -1 ? +ls['Net Gb'] : 0;
+                                    
+                                    // to calculate Dup%, Overlap dup%, Depth
+                                    // and error rate later, we need the
+                                    // following:
+                                    stats['alignmentstats:reads mapped']             += +ls['alignmentstats:reads mapped'];
+                                    stats['alignmentstats:reads mapped after rmdup'] += +ls['alignmentstats:reads mapped after rmdup'];
+                                    stats['alignmentstats:bases mapped after rmdup'] += +ls['alignmentstats:bases mapped after rmdup'];
+                                    stats['alignmentstats:dupl mapped bases']        += +ls['alignmentstats:dupl mapped bases'];
+                                    stats['alignmentstats:total mapped bases']       += +ls['alignmentstats:total mapped bases'];
+                                    stats['alignmentstats:bases mapped (cigar)']     += +ls['alignmentstats:bases mapped (cigar)'];
+                                    stats['alignmentstats:mismatches']               += +ls['alignmentstats:mismatches'];
+                                }
+                                
+                                // finalise the summary stats now that we have
+                                // all the filtered stats
+                                stats['Raw Gb'] = stats['Raw Gb'].toFixed(2);
+                                stats['Mapped Gb'] = stats['Mapped Gb'].toFixed(2);
+                                stats['Mapped-dups Gb'] = stats['Mapped-dups Gb'].toFixed(2);
+                                stats['Net Gb'] = stats['Net Gb'].toFixed(2);
+                                
+                                var reads_mapped             = stats['alignmentstats:reads mapped'];
+                                var reads_mapped_after_rmdp  = stats['alignmentstats:reads mapped after rmdup'];
+                                var bases_mapped_after_rmdup = stats['alignmentstats:bases mapped after rmdup'];
+                                var dupl_mapped_bases        = stats['alignmentstats:dupl mapped bases'];
+                                var total_mapped_bases       = stats['alignmentstats:total mapped bases'];
+                                var bases_mapped_cigar       = stats['alignmentstats:bases mapped (cigar)'];
+                                if (reads_mapped && reads_mapped_after_rmdp) {
+                                    stats['Dup%'] = rounder((100 / reads_mapped) * (reads_mapped - reads_mapped_after_rmdp));
+                                }
+                                else {
+                                    stats['Dup%'] = -1;
+                                }
+                                if (dupl_mapped_bases && total_mapped_bases) {
+                                    stats['Overlap dup%'] = rounder((dupl_mapped_bases * 100) / total_mapped_bases);
+                                }
+                                else {
+                                    stats['Overlap dup%'] = -1;
+                                }
+                                if (bases_mapped_cigar) {
+                                    stats['Error Rate'] = rounder((100 / bases_mapped_cigar) * stats['alignmentstats:mismatches']);
+                                }
+                                else {
+                                    stats['Error Rate'] = -1;
+                                }
+                                if (bases_mapped_after_rmdup) {
+                                    // *** qcgrind sample_view.pl does something odd
+                                    // where the mapping raw_bases is expected to be
+                                    // different from the lane raw_bases; is this an
+                                    // exome thing??
+                                    stats['Depth'] = rounder(bases_mapped_after_rmdup / 3000000000); // human hard-coding
+                                }
+                                else {
+                                    stats['Depth'] = -1;
+                                }
+                                
+                                return stats;
                             });
                         }
                         
