@@ -40,6 +40,49 @@ ko.bindingHandlers.loadingWhen = {
 
 // we can have sortable table columns
 // (from http://stackoverflow.com/a/16964843/675083)
+var dataSort = function(data, prop, asc) {
+    var props = prop.split('.');
+    var propsLen = props.length;
+    var i;
+    
+    data.sort(function(left, right){
+        var rec1 = left;
+        var rec2 = right;
+        var sam1 = left.Sample;
+        var sam2 = right.Sample;
+        
+        if (!asc) {
+            rec1 = right;
+            rec2 = left;
+        }
+        
+        // we not only handle direct properties like 'foo', but also
+        // subproperties like 'foo.bar' and even method calls like
+        // 'foo.bar.method()'. We also cleanly handle ko.observables
+        // without having to specify ().
+        var propName, parenIndex;
+        for (i = 0; i < propsLen; i += 1) {
+            propName = props[i];
+            parenIndex = propName.indexOf('()');
+            if (parenIndex > 0) {
+                propName = propName.substring(0, parenIndex);
+                rec1 = rec1[propName]();
+                rec2 = rec2[propName]();
+            }
+            else {
+                rec1 = ko.utils.unwrapObservable(rec1[propName]);
+                rec2 = ko.utils.unwrapObservable(rec2[propName]);
+            }
+        }
+        
+        if (!isNaN(rec1) && !isNaN(rec2)) {
+            rec1 = +rec1;
+            rec2 = +rec2;
+        }
+        
+        return rec1 == rec2 ? 0 : rec1 < rec2 ? -1 : 1;
+    });
+};
 ko.bindingHandlers.sort = {
     init: function(element, valueAccessor, allBindingsAccessor, viewModel, bindingContext) {
         var asc = false;
@@ -47,61 +90,14 @@ ko.bindingHandlers.sort = {
         
         element.onclick = function(){
             var value = valueAccessor();
-            var data = value.arr;
-            
-            var props = [];
-            ko.utils.arrayForEach(value.prop.split('.'), function(prop) {
-                var parenIndex = prop.indexOf('()');
-                var isKO = false;
-                if (parenIndex > 0) {
-                    prop = prop.substring(0, parenIndex);
-                    isKO = true;
-                }
-                props.push([prop, isKO]);
-            });
-            var i;
-            var propsLen = props.length;
-            
             asc = !asc;
-            
-            data.sort(function(left, right){
-                var rec1 = left;
-                var rec2 = right;
-                
-                if (!asc) {
-                    rec1 = right;
-                    rec2 = left;
-                }
-                
-                var sortReturn = 0;
-                var val1;
-                var val2;
-                for (i = 0; i < propsLen; i += 1) {
-                    if (props[i][1]) {
-                        val1 = rec1[props[i][0]]();
-                        val2 = rec2[props[i][0]]();
-                    }
-                    else {
-                        val1 = rec1[props[i][0]];
-                        val2 = rec2[props[i][0]];
-                    }
-                    
-                    if (!isNaN(val1) && !isNaN(val2)) {
-                        val1 = +val1;
-                        val2 = +val2;
-                    }
-                    
-                    sortReturn = val1 == val2;
-                    if (! sortReturn) {
-                        sortReturn = val1 < val2 ? -1 : 1;
-                        break;
-                    }
-                }
-                return sortReturn;
-            });
-            
+            dataSort(value.arr, value.prop, asc);
             if (value.hasOwnProperty('postFunc')) {
                 value.postFunc();
+            }
+            if (value.hasOwnProperty('last')) {
+                value.last[0] = value.prop;
+                value.last[1] = asc ? true : false;
             }
         };
     }
@@ -243,7 +239,7 @@ var ajax = function(uri, method, loading, error, data) {
         }
     };
     return $.ajax(request);
-}
+};
 
 // function to call a VRPipe Rest method and do something with the
 // json response, and its helper function to deal with errors
@@ -259,7 +255,7 @@ var vrpipeRestDataErrorParser = function(data, error) {
         return 1;
     }
     return 0;
-}
+};
 var vrpipeRestMethod = function(category, method, args, loading, error, donefunction, other) {
     var promise = ajax('/rest/' + category + '/' + method, 'POST', loading, error, args);
     
@@ -273,7 +269,7 @@ var vrpipeRestMethod = function(category, method, args, loading, error, donefunc
     else {
         return promise;
     }
-}
+};
 
 var shortenString = function(string) {
     var shortened = string;
@@ -281,7 +277,7 @@ var shortenString = function(string) {
         shortened = string.substring(0, 5) + '[...]' + string.slice(-15);
     }
     return shortened;
-}
+};
 
 var wbr = function(string) {
     if (! string) { return '' }
@@ -289,17 +285,17 @@ var wbr = function(string) {
     wbrd = wbrd.replace(/([_\-\W])/g, "$1<wbr>");
     wbrd = wbrd.replace(/( <wbr>)/g, " ");
     return wbrd;
-}
+};
 
 var zeropad = function(num) {
     return (num < 10) ? ("0" + num) : num;
-}
+};
 
 // convert epoch seconds to friendly date
 var epochToDate = function(epoch) {
     var date = new Date(epoch * 1000);
     return date.getFullYear() + "/" + zeropad(date.getMonth() + 1) + "/" + zeropad(date.getDate()) + " " + zeropad(date.getHours()) + ":" + zeropad(date.getMinutes()) + ":" + zeropad(date.getSeconds());
-}
+};
 
 // find out if 2 arrays are equal, regardless of order
 function arraysEqual(a, b) {
@@ -335,10 +331,15 @@ var runWhenPopulated = function(observable, runFunction) {
             }
         });
     }
-}
+};
 
 // get a stacktrace
 var stackTrace = function() {
     var err = new Error();
     console.log(err.stack);
-}
+};
+
+// round floats in a standard way, eliminating trailing zeroes and dots
+var rounder = function(i) {
+    return parseFloat(parseFloat(i).toFixed(2));
+};
