@@ -83,7 +83,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             {
                 label        => 'Sample',
                 unique       => [qw(name)],
-                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed qc_passed_genotyping qc_defer qc_freeze aberrant_chrs)], # who failed/selected/passed etc and for what reason is stored on a relationship between this node and a User node. qc_passed means passed fluidigm tests, qc_passed_genotyping means passed the genotyping and microarray tests
+                indexed      => [qw(id public_name supplier_name accession created_date consent control qc_failed qc_selected qc_passed qc_exclude_from_analysis qc_defer qc_freeze aberrant_chrs)], # who failed/selected/passed etc and for what reason is stored on a relationship between this node and a User node. qc_passed means passed fluidigm tests, qc_exclude_from_analysis means there's nothing wrong with a sample, but we won't use it (eg. it's a duplicate)
                 keep_history => 1
             },
             
@@ -694,17 +694,25 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
     # get all qc-related stuff associated with a donor and its samples. Also
     # get info on which samples have been QC failed/selected, along with config
     # info on who is allowed to change these and what reasons are allowed
-    method donor_qc (Int $donor, Str $user, ArrayRef $new) {
+    method donor_qc (Int $donor, Str $studies, Str $user, ArrayRef $new) {
         # this used to be done in multiple separate methods and queries, but now
         # it's one massive query for efficiency, and so we can do "auto qc"
         # where we add some results that summarise the specific results
         my $graph = $self->graph;
         my $db    = $graph->_global_label;
         my $args  = '';
-        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:set_passed|set_passed_genotyping|unset_passed|unset_passed_genotyping|failed|selected|freeze|defer)$/) {
+        if ($new && @$new == 3 && $new->[0] && $new->[1] && $new->[1] =~ /^(?:set_passed|set_excluded|unset_passed|unset_excluded|failed|selected|freeze|defer)$/) {
             $args = "?sample=$new->[0]&status=$new->[1]";
             if ($new->[2]) {
                 $args .= "&reason=$new->[2]";
+            }
+        }
+        if ($studies) {
+            if ($args) {
+                $args .= "&studies=$studies";
+            }
+            else {
+                $args = "?studies=$studies";
             }
         }
         my $data = $graph->_call_vrpipe_neo4j_plugin("/donor_qc/$db/$user/$donor$args");
@@ -768,12 +776,12 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                 {
                     type => 'sample_status',
                     %common_results,
-                    qc_passed_fluidigm   => $sample_props->{qc_passed_fluidigm},
-                    qc_passed_genotyping => $sample_props->{qc_passed_genotyping},
-                    qc_status            => $sample_props->{qc_status},
-                    qc_by                => $sample_props->{qc_by},
-                    qc_time              => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
-                    qc_failed_reason     => $sample_props->{qc_failed_reason}
+                    qc_passed_fluidigm       => $sample_props->{qc_passed_fluidigm},
+                    qc_exclude_from_analysis => $sample_props->{qc_exclude_from_analysis},
+                    qc_status                => $sample_props->{qc_status},
+                    qc_by                    => $sample_props->{qc_by},
+                    qc_time                  => $sample_props->{qc_time} ? (DateTime->from_epoch(epoch => $sample_props->{qc_time})->ymd) : undef,
+                    qc_failed_reason         => $sample_props->{qc_failed_reason}
                 }
             );
             

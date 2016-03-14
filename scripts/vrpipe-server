@@ -2098,7 +2098,8 @@ sub qc {
     elsif ($method eq 'donor_qc') {
         my $donor = $args->{donor};
         if ($donor) {
-            $data = $vrtrack->donor_qc($donor, $auth_user, [$args->{new_qc_sample}, $args->{new_qc_status}, $args->{new_qc_reason}]);
+            my $studies = $args->{studies} || '';
+            $data = $vrtrack->donor_qc($donor, $studies, $auth_user, [$args->{new_qc_sample}, $args->{new_qc_status}, $args->{new_qc_reason}]);
             
             # remove loh calls since they're not looked at any more, and if there
             # are lots of them they can cause the javascript on the webpage to

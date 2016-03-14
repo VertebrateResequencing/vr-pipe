@@ -1780,7 +1780,7 @@
                     var nodeLabel = node.node_label;
                     
                     if (nodeLabel === 'Donor') {
-                        window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID, '_blank', '', false);
+                        window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID + '&studies=' + self.selectedStudies(), '_blank', '', false);
                     }
                     
                     return true;
