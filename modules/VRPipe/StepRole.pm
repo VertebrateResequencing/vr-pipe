@@ -400,9 +400,10 @@ role VRPipe::StepRole {
                         
                         unless ($wanted_type eq 'any') {
                             my $resolved = $result->resolve;
+                            my $db_type  = $resolved->type;
                             
                             my $has_size = 0;
-                            if ($resolved->s) {
+                            if ($resolved->s || (($db_type eq 'aln' || $db_type eq 'cram' || $db_type eq 'bam') && $resolved->protocol eq 'irods:')) {
                                 $has_size = 1;
                                 $type->file($resolved->path);
                                 unless ($type->check_type) {
@@ -421,8 +422,6 @@ role VRPipe::StepRole {
                                 }
                             }
                             unless ($has_size) {
-                                my $db_type = $resolved->type;
-                                
                                 if ($db_type) {
                                     # if that's an auto-generated type then it
                                     # should be treated as an 'any' for this
