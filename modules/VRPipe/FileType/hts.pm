@@ -19,7 +19,7 @@ Shane McCarthy <sm15@sanger.ac.uk>. Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2015 Genome Research Limited.
+Copyright (c) 2015-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -42,12 +42,12 @@ use VRPipe::Base;
 class VRPipe::FileType::hts with VRPipe::FileTypeRole {
     my $htsfile_exe = file($ENV{HTSLIB}, 'bin', 'htsfile');
     
-    use Inline C => Config => FILTERS => 'Strip_POD' => INC => "-I$ENV{HTSLIB}/include" => LIBS => "-L$ENV{HTSLIB}/lib -lhts -lz" => CCFLAGS => '';
+    use Inline C => Config => INC => "-I$ENV{HTSLIB}/include" => LIBS => "-L$ENV{HTSLIB}/lib -lhts -lz" => GLOBAL_LOAD => 1;
     
     method hts_file_type {
         my $format = $self->_c_hts_file_type($self->file->stringify);
-        if ($format =~ /^Failed/) {
-            $self->throw($format . $self->file->stringify);
+        unless ($format) {
+            $self->throw("Failed to cope with " . $self->file->stringify);
         }
         return $format;
     }
@@ -106,6 +106,8 @@ class VRPipe::FileType::hts with VRPipe::FileTypeRole {
 
 #include "htslib/hfile.h"
 #include "htslib/hts.h"
+#include <errno.h>
+#include <stdio.h>
 
 // code lifted from htslib htsfile.c authored by John Marshall
 
@@ -113,12 +115,14 @@ char* _c_hts_file_type(SV* self, char* path) {
     htsFormat fmt;
     hFILE *fp = hopen(path, "r");
     if (fp == NULL) {
-        return "Failed to open ";
+        fprintf(stderr, "htsfile: can't open \"%s\": %s\n", path, strerror(errno));
+        return 0;
     }
     
     if (hts_detect_format(fp, &fmt) < 0) {
         hclose_abruptly(fp);
-        return "Failed to detect a format in ";
+        fprintf(stderr, "htsfile: detecting \"%s\" format failed: %s\n", path, strerror(errno));
+        return 0;
     }
     
     char *description = hts_format_description(&fmt);
