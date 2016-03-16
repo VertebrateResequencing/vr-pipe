@@ -65,6 +65,11 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                 optional      => 0,
                 default_value => '/nfs/users/nfs_p/pd3/sandbox/svn/impute2/ALL_1000G_phase1interim_jun2011_impute/genetic_map_chr{CHROM}_combined_b37.txt'
             ),
+            impute_untyped_genotypes => VRPipe::StepOption->create(
+                description   => 'by default shapeit imputes untyped genotypes. Unset this option to leave the untyped genotypes as missing in the output.',
+                optional      => 1,
+                default_value => 1
+            ),
             bcftools_exe => VRPipe::StepOption->create(
                 description   => 'path to your bcftools exe',
                 optional      => 1,
@@ -95,10 +100,11 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $shapeit_exe  = $options->{shapeit_exe};
-            my $shapeit_opts = $options->{shapeit_options};
-            my $tabix_exe    = $options->{tabix_exe};
-            my $bcftools_exe = $options->{bcftools_exe};
+            my $shapeit_exe    = $options->{shapeit_exe};
+            my $shapeit_opts   = $options->{shapeit_options};
+            my $tabix_exe      = $options->{tabix_exe};
+            my $bcftools_exe   = $options->{bcftools_exe};
+            my $impute_untyped = $options->{impute_untyped_genotypes};
             
             if ($shapeit_opts =~ /\s--(input-|output-|include-|thread)\s/) {
                 $self->throw("shapeit_options should not include --input-* or --output-* or --include-* or --thread");
@@ -157,7 +163,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
                     my @outfiles = ($log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
-                    my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map]);";
+                    my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map], impute_untyped => q[$impute_untyped]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 
                 }
@@ -210,7 +216,7 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
         return $path;
     }
     
-    method run_shapeit (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$shapeit!, Str :$shapeit_opts!, Str :$bcftools!, Str :$tabix!, Str :$gen_map!) {
+    method run_shapeit (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$shapeit!, Str :$shapeit_opts!, Str :$bcftools!, Str :$tabix!, Str :$gen_map!, Str :$impute_untyped!) {
         my @region = @{$chunk};
         my $chr    = $region[0];
         my $from   = $region[1];
@@ -254,7 +260,14 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
-        $cmd_line = "$bcftools annotate -r $chr:$from-$to -c -FMT/GT -a $out.bcf $in_vcf -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
+        my $annot_cols;
+        if ($impute_untyped) {
+            $annot_cols = "-c FMT/GT";
+        }
+        else {
+            $annot_cols = "-c -FMT/GT";
+        }
+        $cmd_line = "$bcftools annotate -r $chr:$from-$to $annot_cols -a $out.bcf $in_vcf -Oz -o $out_vcf && $tabix -p vcf $out_vcf";
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
