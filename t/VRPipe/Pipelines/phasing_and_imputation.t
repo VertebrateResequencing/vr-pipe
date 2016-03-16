@@ -53,12 +53,12 @@ SKIP: {
             source => $fofn->absolute,
         ),
         options => {
-            chunk_nsites         => 1000,
-            buffer_nsites        => 200,
+            chunk_nsites         => 500,
+            buffer_nsites        => 100,
             shapeit_options      => '--seed 123456789',
             merge_by_chromosome  => 1,
-            regions              => '20:797450-1000000,1:61284739-249250621,20:128473-192506',
-            bcftools_concat_opts => '--ligate --allow-overlaps'
+            regions              => '20',
+            bcftools_concat_opts => '--ligate --allow-overlaps',
         },
         output_root => $output_dir
     );
@@ -90,14 +90,17 @@ SKIP: {
         name       => 'impute2 setup',
         pipeline   => $impute2_pipeline,
         datasource => VRPipe::DataSource->create(
-            type   => 'fofn',
+            type   => 'vrpipe',
             method => 'all',
-            source => $fofn->absolute,
+            source => 'shapeit setup[4:concat_vcf]',
         ),
         options => {
             ref_vcf              => $ref_vcf,
             bcftools_concat_opts => '--allow-overlaps',
-            user_supplied_chunks => file(qw(t data 20.1000_200.bed))->absolute
+            input_vcf_prephased  => 1,
+            regions              => '20',
+            chunk_nsites         => 500,
+            buffer_nsites        => 100,
         },
         output_root => $output_dir
     );

@@ -56,8 +56,13 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 'bcftools'
             ),
+            input_vcf_prephased => VRPipe::StepOption->create(
+                description   => 'set this option to speed up imputation if your study genotypes are already phased (activates -use_prephased_g and -known_haps_g options)',
+                optional      => 1,
+                default_value => 0
+            ),
             vcf_GL_tag => VRPipe::StepOption->create(
-                description   => 'genotype likelihood tag in the VCF (e.g. PL, GL or GT) to be used for imputation',
+                description   => 'genotype likelihood tag in input vcf file (e.g. PL, GL or GT) to be used for imputation (not used in prephased mode)',
                 optional      => 1,
                 default_value => 'GT'
             ),
@@ -105,13 +110,14 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             my $self    = shift;
             my $options = $self->options;
             
-            my $impute2_exe  = $options->{impute2_exe};
-            my $impute2_opts = $options->{impute2_options};
-            my $tabix_exe    = $options->{tabix_exe};
-            my $bgzip_exe    = $options->{bgzip_exe};
-            my $bcftools_exe = $options->{bcftools_exe};
-            my $ref_vcf      = $options->{ref_vcf};
-            my $vcf_GL_tag   = $options->{vcf_GL_tag};
+            my $impute2_exe   = $options->{impute2_exe};
+            my $impute2_opts  = $options->{impute2_options};
+            my $tabix_exe     = $options->{tabix_exe};
+            my $bgzip_exe     = $options->{bgzip_exe};
+            my $bcftools_exe  = $options->{bcftools_exe};
+            my $ref_vcf       = $options->{ref_vcf};
+            my $vcf_GL_tag    = $options->{vcf_GL_tag};
+            my $vcf_prephased = $options->{input_vcf_prephased};
             
             if ($impute2_opts =~ /\s-(buffer|m|int|h|l|g|sample_g|o)\s/) {
                 $self->throw("impute2_options should not include --buffer, -m, -h, -l, -g, -int, -o or -sample_g");
@@ -150,8 +156,14 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     
                     my @outfiles = ();
                     
-                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.gen.gz",     type => 'bin', temporary => 1);
-                    $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.samples",    type => 'txt', temporary => 1);
+                    if ($vcf_prephased) {
+                        $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.hap.gz", type => 'bin', temporary => 1);
+                        $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.sample", type => 'txt', temporary => 1);
+                    }
+                    else {
+                        $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.gen.gz",  type => 'bin', temporary => 1);
+                        $self->output_file(sub_dir => $sub_dir, basename => "01.vcf_to_impute2.$from-$to.samples", type => 'txt', temporary => 1);
+                    }
                     $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.gz",                type => 'bin', temporary => 1);
                     $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-${to}_samples",         type => 'txt', temporary => 1);
                     $self->output_file(sub_dir => $sub_dir, basename => "02.impute2.$from-$to.bcf",               type => 'bin', temporary => 1);
@@ -185,7 +197,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
                     my $time = int(500 * (1 + ($N_haps - 80) / 80) * (1 + ($Markers - 5000) / 5000)); #seconds
                     
                     my $req = $self->new_requirements(memory => 1000, time => $time);
-                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], bgzip => q[$bgzip_exe], gen_map => q[$gen_map], vcf_GL_tag => q[$vcf_GL_tag], header_file => q[$header_path]);";
+                    my $this_cmd = "use VRPipe::Steps::impute2; VRPipe::Steps::impute2->run_impute2(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], impute2 => q[$impute2_exe], impute2_opts => q[$impute2_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], bgzip => q[$bgzip_exe], gen_map => q[$gen_map], vcf_prephased => q[$vcf_prephased], vcf_GL_tag => q[$vcf_GL_tag], header_file => q[$header_path]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
                 close($fh);
@@ -237,7 +249,7 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
         return $path;
     }
     
-    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$bcftools!, Str :$tabix!, Str :$bgzip!, Str :$gen_map!, Str :$vcf_GL_tag!, Str :$header_file!) {
+    method run_impute2 (ClassName|Object $self: Str|File :$in_vcf!, ArrayRef[Str] :$chunk!, Str|File :$out_vcf!, Str|File :$ref_vcf!, Str :$impute2!, Str :$impute2_opts!, Str :$bcftools!, Str :$tabix!, Str :$bgzip!, Str :$gen_map!, Str :$vcf_prephased!, Str :$vcf_GL_tag!, Str :$header_file!) {
         my @region = @{$chunk};
         my $chr    = $region[0];
         my $from   = $region[1];
@@ -259,12 +271,21 @@ class VRPipe::Steps::impute2 with VRPipe::StepRole {
             $ref .= " -merge_ref_panels" unless @ref_vcfs == 1;
         }
         
-        my $cmd_line = "$bcftools convert --tag $vcf_GL_tag -r $chr:$from-$to --gensample $outdir/01.vcf_to_impute2.$from-$to $in_vcf";
+        my $cmd_line;
+        my $study;
+        if ($vcf_prephased) {
+            $cmd_line = "$bcftools convert -r $chr:$from-$to --hapsample $outdir/01.vcf_to_impute2.$from-$to $in_vcf";
+            $study    = "-use_prephased_g -known_haps_g $outdir/01.vcf_to_impute2.$from-$to.hap.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.sample";
+        }
+        else {
+            $cmd_line = "$bcftools convert --tag $vcf_GL_tag -r $chr:$from-$to --gensample $outdir/01.vcf_to_impute2.$from-$to $in_vcf";
+            $study    = "-g $outdir/01.vcf_to_impute2.$from-$to.gen.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.samples";
+        }
         $out_file->disconnect;
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         my $out         = "$outdir/02.impute2.$from-$to";
-        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref -g $outdir/01.vcf_to_impute2.$from-$to.gen.gz -sample_g $outdir/01.vcf_to_impute2.$from-$to.samples -o $out > $out.log";
+        my $impute2_cmd = "$impute2 $impute2_opts -buffer 0 -include_buffer_in_output -o_gz -m $gen_map -int $from $to $ref $study -o $out > $out.log";
         $out_file->disconnect;
         system($impute2_cmd) && $self->throw("failed to run [$impute2_cmd]");
         
