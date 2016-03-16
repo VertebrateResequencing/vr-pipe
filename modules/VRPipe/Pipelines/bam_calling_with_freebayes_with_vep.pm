@@ -1,7 +1,7 @@
 
 =head1 NAME
 
-VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf_with_vep - a pipeline
+VRPipe::Pipelines::bam_calling_with_freebayes_with_vep - a pipeline
 
 =head1 DESCRIPTION
 
@@ -9,11 +9,11 @@ VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf_with_vep - a pipeline
 
 =head1 AUTHOR
 
-Yasin Memari <ym3@sanger.ac.uk>.
+Shane McCarthy <sm15@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2015 Genome Research Limited.
+Copyright (c) 2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -33,21 +33,20 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf_with_vep with VRPipe::PipelineRole {
+class VRPipe::Pipelines::bam_calling_with_freebayes_with_vep with VRPipe::PipelineRole {
     method name {
-        return 'bam_calling_with_mpileup_via_bcf_with_vep';
+        return 'bam_calling_with_freebayes_with_vep';
     }
     
     method description {
-        return 'Run mpileup and bcftools call in two steps split over the genome and concatenates the results; BAM/CRAM and BAI/CRAI files required as input. Also run Variant Effect Predictor (VEP).';
+        return 'Run freebayes split over the genome and concatenate the results. Also run Variant Effect Predictor (VEP).';
     }
     
     method step_names {
         (
-            'mpileup_bcf_with_genome_chunking', #1
-            'bcf_to_vcf',                       #2
-            'vep_annotate',                     #3
-            'bcftools_concat',                  #4
+            'freebayes_with_genome_chunking', #1
+            'vep_annotate',                   #2
+            'bcf_concat',                     #3
         );
     }
     
@@ -55,9 +54,8 @@ class VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf_with_vep with VRPipe::
         (
             { from_step => 0, to_step => 1, to_key   => 'bam_files' },
             { from_step => 0, to_step => 1, to_key   => 'bam_index_files' },
-            { from_step => 1, to_step => 2, from_key => 'mpileup_bcf_files', to_key => 'bcf_files' },
-            { from_step => 2, to_step => 3, from_key => 'vcf_files', to_key => 'vcf_files' },
-            { from_step => 3, to_step => 4, from_key => 'vep_annot_vcf_files', to_key => 'vcf_files' },
+            { from_step => 1, to_step => 2, from_key => 'freebayes_variant_files', to_key => 'vcf_files' },
+            { from_step => 2, to_step => 3, from_key => 'vep_annot_vcf_files', to_key => 'vcf_files' },
         );
     }
     
@@ -66,7 +64,6 @@ class VRPipe::Pipelines::bam_calling_with_mpileup_via_bcf_with_vep with VRPipe::
             { after_step => 1, behaviour => 'delete_inputs',  act_on_steps => [0], regulated_by => 'delete_input_bams', default_regulation => 0 },
             { after_step => 2, behaviour => 'delete_outputs', act_on_steps => [1], regulated_by => 'cleanup',           default_regulation => 1 },
             { after_step => 3, behaviour => 'delete_outputs', act_on_steps => [2], regulated_by => 'cleanup',           default_regulation => 1 },
-            { after_step => 4, behaviour => 'delete_outputs', act_on_steps => [3], regulated_by => 'cleanup',           default_regulation => 1 },
         );
     }
 }

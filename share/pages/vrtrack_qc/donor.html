@@ -93,8 +93,8 @@
                                             <!-- /ko -->
                                             <!-- ko case: 'pending' -->
                                                 <!-- ko switch -->
-                                                    <!-- ko case: qc_passed_genotyping == "1" -->
-                                                        <span class="glyphicon glyphicon-hourglass" data-bind="popover: { options: { content: 'passed genotyping & microarray by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
+                                                    <!-- ko case: qc_exclude_from_analysis == "1" -->
+                                                        <span class="glyphicon glyphicon-remove-circle" data-bind="popover: { options: { content: 'excluded from analysis by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
                                                     <!-- /ko -->
                                                     <!-- ko case: qc_passed_fluidigm == "1" -->
                                                         <span class="glyphicon glyphicon-hourglass" data-bind="popover: { options: { content: 'passed fluidigm by ' + qc_by + ' on ' + qc_time, trigger: 'hover' } }"></span>
@@ -114,7 +114,7 @@
                                                         <input type="checkbox" data-bind="checked: new_qc_passed_fluidigm, click: $parent.changeQCPassFluidigm"> Passed fluidigm
                                                     </label>
                                                     <label>
-                                                        <input type="checkbox" data-bind="checked: new_qc_passed_genotyping, enable: new_qc_passed_fluidigm, click: $parent.changeQCPassGenotyping"> <span data-bind="css: { 'text-muted': new_qc_passed_fluidigm() == false }">Passed genotyping & microarray</span>
+                                                        <input type="checkbox" data-bind="checked: new_qc_exclude_from_analysis, enable: new_qc_passed_fluidigm, click: $parent.changeQCExcludeFromAnalysis"> <span data-bind="css: { 'text-muted': new_qc_passed_fluidigm() == false }">Exclude from analysis</span>
                                                     </label>
                                                 </div>
                                             </form>
@@ -437,6 +437,7 @@
                 self.donorLOHCalls = ko.observableArray();
                 self.donorPluritestSummary = ko.observableArray();
                 self.donorPluritestPlots = ko.observableArray();
+                self.studyNodeIDs = getQueryStringParameterByName('studies');
                 
                 // get the donor node because we need to know the example_sample for it
                 getQCGraphData('node_by_id', { node_id: +self.donorNodeID, label: 'Donor' }, { result: self.donorNode }, self.loading, self.errors);
@@ -452,20 +453,20 @@
                             document.title = sample + ' [VRTrack Donor QC]';
                         }
                         
-                        getQCGraphData('donor_qc', { donor: +newValue['id'] }, self.donorqcArgs, self.loading, self.errors);
+                        getQCGraphData('donor_qc', { donor: +newValue['id'], studies: self.studyNodeIDs }, self.donorqcArgs, self.loading, self.errors);
                     }
                 });
                 
                 // when a sample status is changed, set in db and update
                 // everything on the page
                 self.changeQCStatus = function(sampleStatus) {
-                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: sampleStatus['new_qc_status'](), new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, studies: self.studyNodeIDs, new_qc_sample: sampleStatus['sample_name'], new_qc_status: sampleStatus['new_qc_status'](), new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
                 }
                 self.showFailReasons = function(sampleStatus) {
                     sampleStatus['new_qc_status']("show_failed_reasons");
                 }
                 self.setFailedQCStatus = function(sampleStatus) {
-                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: 'failed', new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, studies: self.studyNodeIDs, new_qc_sample: sampleStatus['sample_name'], new_qc_status: 'failed', new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
                 }
                 self.changeQCPassFluidigm = function(sampleStatus) {
                     var newStatus;
@@ -475,17 +476,17 @@
                     else {
                         newStatus = "unset_passed";
                     }
-                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, studies: self.studyNodeIDs, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
                 }
-                self.changeQCPassGenotyping = function(sampleStatus) {
+                self.changeQCExcludeFromAnalysis = function(sampleStatus) {
                     var newStatus;
-                    if (sampleStatus['new_qc_passed_genotyping']()) {
-                        newStatus = "set_passed_genotyping";
+                    if (sampleStatus['new_qc_exclude_from_analysis']()) {
+                        newStatus = "set_excluded";
                     }
                     else {
-                        newStatus = "unset_passed_genotyping";
+                        newStatus = "unset_excluded";
                     }
-                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
+                    getQCGraphData('donor_qc', { donor: +self.donorNodeID, studies: self.studyNodeIDs, new_qc_sample: sampleStatus['sample_name'], new_qc_status: newStatus, new_qc_reason: sampleStatus['new_qc_failed_reason']() }, self.donorqcArgs, self.loading, self.errors);
                 }
                 
                 // when a sample in the gender table is clicked on, open a

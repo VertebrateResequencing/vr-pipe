@@ -126,7 +126,7 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
             my $has_hla = 0;
             my $do_alt  = 0;
             if ($postalt && -f "$ref.alt") {
-                my $do_alt = 1;
+                $do_alt = 1;
                 my $fh;
                 open($fh, "$ref.alt") || die;
                 while (<$fh>) {

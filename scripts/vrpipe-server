@@ -1812,17 +1812,17 @@ sub qc {
                     # alignment stats
                     my $total_length = $props->{'alignmentstats:total length'};
                     if ($total_length) {
-                        $new_props->{'Raw Gb'} = &$rounder($total_length / 1000000000);
+                        $new_props->{lanelet_stats}->{'Raw Gb'} = &$rounder($total_length / 1000000000);
                     }
                     else {
-                        $new_props->{'Raw Gb'} = 0;
+                        $new_props->{lanelet_stats}->{'Raw Gb'} = 0;
                     }
                     my $bases_mapped_cigar = $props->{'alignmentstats:bases mapped (cigar)'};
                     if ($bases_mapped_cigar) {
-                        $new_props->{'Mapped Gb'} = &$rounder($bases_mapped_cigar / 1000000000);
+                        $new_props->{lanelet_stats}->{'Mapped Gb'} = &$rounder($bases_mapped_cigar / 1000000000);
                     }
                     else {
-                        $new_props->{'Mapped Gb'} = 0;
+                        $new_props->{lanelet_stats}->{'Mapped Gb'} = 0;
                     }
                     my $reads_mapped = $props->{'alignmentstats:reads mapped'};
                     
@@ -1835,71 +1835,71 @@ sub qc {
                     my $total_mapped_bases       = $props->{'alignmentstats:total mapped bases'};
                     
                     if ($reads_mapped && $reads_mapped_after_rmdp) {
-                        $new_props->{'Dup%'} = &$rounder((100 / $reads_mapped) * ($reads_mapped - $reads_mapped_after_rmdp));
+                        $new_props->{lanelet_stats}->{'Dup%'} = &$rounder((100 / $reads_mapped) * ($reads_mapped - $reads_mapped_after_rmdp));
                     }
                     else {
-                        $new_props->{'Dup%'} = 'n/a';
+                        $new_props->{lanelet_stats}->{'Dup%'} = -1;
                     }
                     
                     if ($bases_mapped_after_rmdup) {
-                        $new_props->{'Mapped-dups Gb'} = &$rounder($bases_mapped_after_rmdup / 1000000000);
-                        $new_props->{'Depth'}          = &$rounder($bases_mapped_after_rmdup / 3000000000); # human hard-coding
+                        $new_props->{lanelet_stats}->{'Mapped-dups Gb'} = &$rounder($bases_mapped_after_rmdup / 1000000000);
+                        $new_props->{lanelet_stats}->{'Depth'}          = &$rounder($bases_mapped_after_rmdup / 3000000000); # human hard-coding
                     }
                     else {
-                        $new_props->{'Mapped-dups Gb'} = 'n/a';
-                        $new_props->{'Depth'}          = 'n/a';
+                        $new_props->{lanelet_stats}->{'Mapped-dups Gb'} = -1;
+                        $new_props->{lanelet_stats}->{'Depth'}          = -1;
                     }
                     
                     if ($dupl_mapped_bases && $total_mapped_bases) {
                         my $overlap_dup_percent = ($dupl_mapped_bases * 100) / $total_mapped_bases;
-                        $new_props->{'Overlap dup%'} = &$rounder($overlap_dup_percent);
+                        $new_props->{lanelet_stats}->{'Overlap dup%'} = &$rounder($overlap_dup_percent);
                         
                         if ($bases_mapped_after_rmdup) {
-                            $new_props->{'Net Gb'} = &$rounder(($bases_mapped_after_rmdup - (($bases_mapped_after_rmdup / 100) * $overlap_dup_percent)) / 1000000000);
+                            $new_props->{lanelet_stats}->{'Net Gb'} = &$rounder(($bases_mapped_after_rmdup - (($bases_mapped_after_rmdup / 100) * $overlap_dup_percent)) / 1000000000);
                         }
                     }
                     else {
-                        $new_props->{'Overlap dup%'} = 'n/a';
-                        $new_props->{'Net Gb'}       = 'n/a';
+                        $new_props->{lanelet_stats}->{'Overlap dup%'} = -1;
+                        $new_props->{lanelet_stats}->{'Net Gb'}       = -1;
                     }
                     
                     # stats for the detailed stats table
                     my $reads = $props->{'alignmentstats:sequences'};
                     if ($reads) {
-                        $new_props->{'reads'}              = &$commify($reads);
-                        $new_props->{'reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
-                        $new_props->{'reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
-                        $new_props->{'reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
-                        $new_props->{'bases'}              = &$commify($total_length);
+                        $new_props->{stats_table}->{'reads'}              = &$commify($reads);
+                        $new_props->{stats_table}->{'reads_mapped'}       = &$commify($reads_mapped) . ' (' . &$rounder((100 / $reads) * $reads_mapped) . '%)';
+                        $new_props->{stats_table}->{'reads_paired'}       = &$commify($props->{'alignmentstats:reads paired'}) . ' (' . &$rounder((100 / $reads) * $props->{'alignmentstats:reads paired'}) . '%)';
+                        $new_props->{stats_table}->{'reads_mapped_rmdup'} = &$commify($reads_mapped_after_rmdp) . ' (' . &$rounder((100 / $reads) * $reads_mapped_after_rmdp) . '%)';
+                        $new_props->{stats_table}->{'bases'}              = &$commify($total_length);
                         my $bases_postclip = $total_length - $props->{'alignmentstats:bases trimmed'};
-                        $new_props->{'bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
-                        $new_props->{'bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
-                        $new_props->{'bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
-                        $new_props->{'cycles'}             = $props->{'alignmentstats:average length'};
+                        $new_props->{stats_table}->{'bases_postclip'}     = &$commify($bases_postclip) . ' (' . &$rounder((100 / $total_length) * $bases_postclip) . '%)';
+                        $new_props->{stats_table}->{'bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
+                        $new_props->{stats_table}->{'bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
+                        $new_props->{stats_table}->{'cycles'}             = $props->{'alignmentstats:average length'};
                         my $error_rate = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'});
-                        $new_props->{'error_rate'}       = $error_rate . '%';
-                        $new_props->{'Error Rate'}       = $error_rate;
-                        $new_props->{'duplication_rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
+                        $new_props->{stats_table}->{'error_rate'}       = $error_rate . '%';
+                        $new_props->{lanelet_stats}->{'Error Rate'}     = $error_rate;
+                        $new_props->{stats_table}->{'duplication_rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
                     }
                     else {
-                        $new_props->{'reads'}              = 0;
-                        $new_props->{'reads_mapped'}       = 0;
-                        $new_props->{'reads_paired'}       = 0;
-                        $new_props->{'reads_mapped_rmdup'} = 0;
-                        $new_props->{'bases'}              = 0;
-                        $new_props->{'bases_postclip'}     = 0;
-                        $new_props->{'bases_mapped'}       = 0;
-                        $new_props->{'bases_mapped_rmdup'} = 0;
-                        $new_props->{'cycles'}             = 0;
-                        $new_props->{'error_rate'}         = 0;
-                        $new_props->{'Error Rate'}         = 0;
-                        $new_props->{'duplication_rate'}   = 0;
+                        $new_props->{stats_table}->{'reads'}              = 0;
+                        $new_props->{stats_table}->{'reads_mapped'}       = 0;
+                        $new_props->{stats_table}->{'reads_paired'}       = 0;
+                        $new_props->{stats_table}->{'reads_mapped_rmdup'} = 0;
+                        $new_props->{stats_table}->{'bases'}              = 0;
+                        $new_props->{stats_table}->{'bases_postclip'}     = 0;
+                        $new_props->{stats_table}->{'bases_mapped'}       = 0;
+                        $new_props->{stats_table}->{'bases_mapped_rmdup'} = 0;
+                        $new_props->{stats_table}->{'cycles'}             = 0;
+                        $new_props->{stats_table}->{'error_rate'}         = 0;
+                        $new_props->{lanelet_stats}->{'Error Rate'}       = 0;
+                        $new_props->{stats_table}->{'duplication_rate'}   = 0;
                     }
                     
                     # for calculating auto qc, copy over a number of
                     # alignementstats values as-is
                     foreach my $key (@autoqc_keys) {
-                        $new_props->{$key} = $props->{$key};
+                        $new_props->{lanelet_stats}->{$key} = $props->{$key};
                     }
                     
                     # put the graphs in to an array for easy display, since
@@ -2011,9 +2011,10 @@ sub qc {
                     
                     # add extra things for Sample mode
                     if ($label eq 'Sample') {
-                        $new_props->{sample_node_id}                            = $props->{sample_node_id};
-                        $new_props->{'alignmentstats:bases mapped after rmdup'} = $bases_mapped_after_rmdup;
-                        $new_props->{'alignmentstats:reads mapped after rmdup'} = $reads_mapped_after_rmdp;
+                        $new_props->{sample_node_id}                                             = $props->{sample_node_id};
+                        $new_props->{lanelet_stats}->{'alignmentstats:bases mapped after rmdup'} = $bases_mapped_after_rmdup;
+                        $new_props->{lanelet_stats}->{'alignmentstats:reads mapped after rmdup'} = $reads_mapped_after_rmdp;
+                        $new_props->{lanelet_stats}->{'alignmentstats:mismatches'}               = $props->{'alignmentstats:mismatches'};
                     }
                     
                     $node->{properties} = $new_props;
@@ -2044,73 +2045,17 @@ sub qc {
                         }
                         
                         $sample->{libraries}->{ $props->{Library} }++;
-                        $sample->{lanelets}->{ $props->{Lanelet} } = $lanelet;
-                        
-                        $sample->{'Raw Gb'}         += $props->{'Raw Gb'};
-                        $sample->{'Mapped Gb'}      += $props->{'Mapped Gb'};
-                        $sample->{'Mapped-dups Gb'} += $props->{'Mapped-dups Gb'};
-                        $sample->{'Net Gb'}         += $props->{'Net Gb'};
-                        
-                        # to calculate Dup%, Overlap dup%, Depth and error rate
-                        # later, we need the following:
-                        $sample->{'alignmentstats:reads mapped'}             += $props->{'alignmentstats:reads mapped'};
-                        $sample->{'alignmentstats:reads mapped after rmdup'} += $props->{'alignmentstats:reads mapped after rmdup'};
-                        $sample->{'alignmentstats:dupl mapped bases'}        += $props->{'alignmentstats:dupl mapped bases'};
-                        $sample->{'alignmentstats:total mapped bases'}       += $props->{'alignmentstats:total mapped bases'};
-                        $sample->{'alignmentstats:bases mapped (cigar)'}     += $props->{'alignmentstats:bases mapped (cigar)'};
-                        $sample->{'alignmentstats:mismatches'}               += $props->{'alignmentstats:mismatches'};
-                        $sample->{'alignmentstats:bases mapped after rmdup'} += $props->{'alignmentstats:bases mapped after rmdup'};
-                        
-                        while (my ($col, $val) = each %qc_col_to_status) {
-                            $sample->{$col} += $props->{$col};
-                        }
+                        $sample->{lanelet_nodes}->{ $props->{Lanelet} } = $lanelet;
                     }
                     
-                    # finalise the samples by calculating things we can only
-                    # do after grouping has completed, and replace $data with
-                    # them
+                    # finalise the samples now that grouping has completed, and
+                    # replace $data with them
                     $data = [];
                     foreach my $sample_name (sort keys %samples) {
                         my $props = $samples{$sample_name};
                         
-                        my $reads_mapped             = $props->{'alignmentstats:reads mapped'};
-                        my $reads_mapped_after_rmdp  = $props->{'alignmentstats:reads mapped after rmdup'};
-                        my $bases_mapped_after_rmdup = $props->{'alignmentstats:bases mapped after rmdup'};
-                        my $dupl_mapped_bases        = $props->{'alignmentstats:dupl mapped bases'};
-                        my $total_mapped_bases       = $props->{'alignmentstats:total mapped bases'};
-                        my $bases_mapped_cigar       = $props->{'alignmentstats:bases mapped (cigar)'};
-                        if ($reads_mapped && $reads_mapped_after_rmdp) {
-                            $props->{'Dup%'} = &$rounder((100 / $reads_mapped) * ($reads_mapped - $reads_mapped_after_rmdp));
-                        }
-                        else {
-                            $props->{'Dup%'} = 'n/a';
-                        }
-                        if ($dupl_mapped_bases && $total_mapped_bases) {
-                            my $overlap_dup_percent = ($dupl_mapped_bases * 100) / $total_mapped_bases;
-                            $props->{'Overlap dup%'} = &$rounder($overlap_dup_percent);
-                        }
-                        else {
-                            $props->{'Overlap dup%'} = 'n/a';
-                        }
-                        if ($bases_mapped_cigar) {
-                            $props->{'Error Rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'});
-                        }
-                        else {
-                            $props->{'Error Rate'} = 'n/a';
-                        }
-                        if ($bases_mapped_after_rmdup) {
-                            # *** qcgrind sample_view.pl does something odd
-                            # where the mapping raw_bases is expected to be
-                            # different from the lane raw_bases; is this an
-                            # exome thing??
-                            $props->{'Depth'} = &$rounder($bases_mapped_after_rmdup / 3000000000); # human hard-coding
-                        }
-                        else {
-                            $props->{'Depth'} = 'n/a';
-                        }
-                        
                         my $libs = delete $props->{libraries};
-                        my $lans = delete $props->{lanelets};
+                        my $lans = $props->{lanelet_nodes};
                         $props->{Libraries} = scalar(keys %{$libs});
                         $props->{Lanelets}  = scalar(keys %{$lans});
                         
@@ -2153,7 +2098,8 @@ sub qc {
     elsif ($method eq 'donor_qc') {
         my $donor = $args->{donor};
         if ($donor) {
-            $data = $vrtrack->donor_qc($donor, $auth_user, [$args->{new_qc_sample}, $args->{new_qc_status}, $args->{new_qc_reason}]);
+            my $studies = $args->{studies} || '';
+            $data = $vrtrack->donor_qc($donor, $studies, $auth_user, [$args->{new_qc_sample}, $args->{new_qc_status}, $args->{new_qc_reason}]);
             
             # remove loh calls since they're not looked at any more, and if there
             # are lots of them they can cause the javascript on the webpage to

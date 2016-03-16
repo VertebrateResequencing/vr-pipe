@@ -44,8 +44,8 @@
         <div id="nav" class="navbar navbar-default" role="navigation">
             <div class="container">
                 <div class="navbar-header">
-                    <span class="navbar-brand" style="cursor: pointer"  onclick="window.location = '/'">&laquo;</span>
-                    <span class="navbar-brand" style="cursor: pointer" onclick="window.location = '/pages/vrtrack_qc'">VRTrack QC</span>
+                    <a class="navbar-brand" href="/">&laquo;</a>
+                    <a class="navbar-brand" href="/pages/vrtrack_qc">VRTrack QC</a>
                 </div>
                 
                 <script type="text/html" src="/login_template.html" id="login-template"></script>
@@ -223,27 +223,27 @@
                             </div>
                         </form>
                         
-                        <!-- ko if: selectedViewLabel() == 'Lanelet' && columns()['Auto QC'].display -->
+                        <!-- ko if: columns() && columns()['Auto QC'] && columns()['Auto QC'].display -->
                             <form role="form" class="btn-group top-margin form-inline" style="width: 100%">
-                            <div>
-                                <button id="autoQCSettingsMenuButton" class="btn btn-default btn-sm dropdown-toggle" type="button">
-                                    <span>Auto QC settings</span> <span class="caret"></span>
-                                </button>
-                                <ul id="autoQCSettingsMenu" role="menu" class="dropdown-menu list-inline" data-bind="foreach: autoQCConfigKeys" style="padding: 0 0 5px 0;">
-                                    <li class="autoQCSettingsMenuItem" style="padding: 0; margin: 0;">
-                                        <div class="input-group input-group-sm autoQCSettingsMenuItem" style="float: left; padding: 0; margin: 5px -5px -5px 5px;">
-                                            <div class="input-group-addon autoQCSettingsMenuItem"><abbr class="autoQCSettingsMenuItem" data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
-                                            <input type="text" class="form-control autoQCSettingsMenuItem" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
-                                        </div>
-                                    </li>
-                                </ul>
-                                
-                                <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, false), css: aqcSelectionButtonClass"><span>save for this selection</span></button>
-                                <button id="aqc_study_button" class="btn btn-default btn-sm" type="button" data-bind="click: setStudyAutoQCSettings, css: aqcStudyButtonClass"><span>save for <span data-bind="text: selectedStudies().length > 1 ? 'these studies' : 'this study'"></span></span></button>
-                                <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, true), css: aqcDefaultButtonClass"><span>save as my default</span></button>
-                                <button class="btn btn-default btn-sm" type="button" data-bind="click: revertAutoQCSettings"><span>revert</span></button>
-                            </div>
-                        </form>
+                                <div>
+                                    <button id="autoQCSettingsMenuButton" class="btn btn-default btn-sm dropdown-toggle" type="button">
+                                        <span>Auto QC settings</span> <span class="caret"></span>
+                                    </button>
+                                    <ul id="autoQCSettingsMenu" role="menu" class="dropdown-menu list-inline" data-bind="foreach: autoQCConfigKeys" style="padding: 0 0 5px 0;">
+                                        <li class="autoQCSettingsMenuItem" style="padding: 0; margin: 0;">
+                                            <div class="input-group input-group-sm autoQCSettingsMenuItem" style="float: left; padding: 0; margin: 5px -5px -5px 5px;">
+                                                <div class="input-group-addon autoQCSettingsMenuItem"><abbr class="autoQCSettingsMenuItem" data-bind="text: $data, attr: { title: $parent.autoQCSettings[$data].desc }"></abbr></div>
+                                                <input type="text" class="form-control autoQCSettingsMenuItem" data-bind="value: $parent.autoQCSettings[$data].value, attr: { size: $parent.autoQCSettings[$data].size }">
+                                            </div>
+                                        </li>
+                                    </ul>
+                                    
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, false), css: aqcSelectionButtonClass"><span>save for this selection</span></button>
+                                    <button id="aqc_study_button" class="btn btn-default btn-sm" type="button" data-bind="click: setStudyAutoQCSettings, css: aqcStudyButtonClass"><span>save for <span data-bind="text: selectedStudies().length > 1 ? 'these studies' : 'this study'"></span></span></button>
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: setUserAutoQCSettings.bind($data, true), css: aqcDefaultButtonClass"><span>save as my default</span></button>
+                                    <button class="btn btn-default btn-sm" type="button" data-bind="click: revertAutoQCSettings"><span>revert</span></button>
+                                </div>
+                            </form>
                         <!-- /ko -->
                         
                         <form role="form" class="top-margin bottom-margin">
@@ -269,9 +269,9 @@
                         <div class="table-responsive">
                             <table class="table table-striped table-hover table-condensed small">
                                 <thead>
-                                    <tr data-bind="foreach: viewColumns">
+                                    <tr data-bind="foreach: selectedViewLabel() == 'Sample' ? viewSampleColumns : viewColumns">
                                         <!-- ko if: display -->
-                                            <th data-bind="sort: { arr: $parent.viewNodes, prop: sortOn, postFunc: $parent.updateFilter }">
+                                            <th data-bind="sort: { arr: $parent.viewNodes, prop: sortOn, postFunc: $parent.updateFilter, last: $parent.lastSort }">
                                                 <!-- ko if: desc -->
                                                     <abbr data-bind="text: header, attr: { title: desc }"></abbr>
                                                 <!-- /ko -->
@@ -367,12 +367,12 @@
                                                 <!-- /ko -->
                                             <!-- /ko -->
                                             <!-- ko if: selectedViewLabel() == 'Sample' -->
-                                                <!-- ko if: columns()['Libraries'].display -->
+                                                <!-- ko if: columns()['Library'].display -->
                                                     <td>
                                                         <input type="text" size="2" data-bind="textInput: laneletFilters['libraries']" />
                                                     </td>
                                                 <!-- /ko -->
-                                                <!-- ko if: columns()['Lanelets'].display -->
+                                                <!-- ko if: columns()['Lanelet'].display -->
                                                     <td>
                                                         <input type="text" size="2" data-bind="textInput: laneletFilters['lanelets']" />
                                                     </td>
@@ -468,7 +468,7 @@
                                                     <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
                                                 </td>
                                             <!-- /ko -->
-                                            <!-- ko if: selectedViewLabel() == 'Lanelet' --><td></td><!-- /ko -->
+                                            <td></td>
                                         </tr>
                                     <!-- /ko -->
                                 </thead>
@@ -476,7 +476,7 @@
                                     <!-- for speed we must explicitly specify every column -->
                                     <tbody data-bind="if:  columns() && columns()['Pass']">
                                         <!-- ko foreach: filteredNodes -->
-                                            <tr data-bind="css: { success: $parent.selectedViewLabel() == 'Sample' && Pass == Lanelets, danger: $parent.selectedViewLabel() == 'Sample' && Fail == Lanelets, warning: (Pass && Fail && (Pass + Fail == Lanelets)), info: Invst }">
+                                            <tr data-bind="css: { success: $parent.selectedViewLabel() == 'Sample' && Pass() == Lanelets, danger: $parent.selectedViewLabel() == 'Sample' && Fail() == Lanelets, warning: $parent.selectedViewLabel() == 'Sample' && (Pass() && Fail() && (Pass() + Fail() == Lanelets)), info: $parent.selectedViewLabel() == 'Sample' && Invst() }">
                                                 <!-- ko if: $parent.columns()['Pass'].display -->
                                                     <td>
                                                         <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
@@ -549,8 +549,8 @@
                                                     <!-- ko if: $parent.columns()['Lanelet'].display --><td style="cursor: pointer" data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }, click: $parent.setFilter.bind($data, 'lanelet', run_and_lane)"></td><!-- /ko -->
                                                 <!-- /ko -->
                                                 <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
-                                                    <!-- ko if: $parent.columns()['Libraries'].display --><td data-bind="text: Libraries"></td><!-- /ko -->
-                                                    <!-- ko if: $parent.columns()['Lanelets'].display --><td style="cursor: pointer"  data-bind="text: Lanelets, click: $parent.openLanelets"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Library'].display --><td data-bind="text: Libraries"></td><!-- /ko -->
+                                                    <!-- ko if: $parent.columns()['Lanelet'].display --><td style="cursor: pointer"  data-bind="text: Lanelets, click: $parent.openLanelets"></td><!-- /ko -->
                                                 <!-- /ko -->
                                                 <!-- ko if: $parent.columns()['Gender'].display --><td data-bind="text: Gender, click: $parent.setFilter.bind($data, 'Gender', Gender)"></td><!-- /ko -->
                                                 <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
@@ -582,18 +582,23 @@
                                                         </td>
                                                     <!-- /ko -->
                                                 <!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Raw Gb'].display --><td data-bind="text: $data['Raw Gb']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Mapped Gb'].display --><td data-bind="text: $data['Mapped Gb']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Dup%'].display --><td data-bind="text: $data['Dup%']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Mapped-dups Gb'].display --><td data-bind="text: $data['Mapped-dups Gb']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Overlap dup%'].display --><td data-bind="text: $data['Overlap dup%']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: $data['Net Gb']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Depth'].display --><td data-bind="text: $data['Depth']"></td><!-- /ko -->
-                                                <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: $data['Error Rate']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Raw Gb'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Raw Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Mapped Gb'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Mapped Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Dup%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Dup%']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Mapped-dups Gb'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Mapped-dups Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Overlap dup%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Overlap dup%']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Net Gb']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Depth'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Depth']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Error Rate']"></td><!-- /ko -->
                                                 <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
                                                     <td>
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletStats">&laquo;stats&raquo;</span>
+                                                    </td>
+                                                <!-- /ko -->
+                                                <!-- ko if: $parent.selectedViewLabel() == 'Sample' -->
+                                                    <td>
+                                                        <span style="cursor: pointer" data-bind="click: $parent.toggleLanelets">&laquo;lanelets&raquo;</span>
                                                     </td>
                                                 <!-- /ko -->
                                             </tr>
@@ -615,23 +620,23 @@
                                                             <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
                                                                 <tbody>
                                                                     <tr>
-                                                                        <th>Total Reads</th><td data-bind="text: $data['reads']"></td>
-                                                                        <th>Total Bases</th><td data-bind="text: $data['bases']"></td>
-                                                                        <th>Cycles</th><td data-bind="text: $data['cycles']"></td>
+                                                                        <th>Total Reads</th><td data-bind="text: $data.stats_table.reads"></td>
+                                                                        <th>Total Bases</th><td data-bind="text: $data.stats_table.bases"></td>
+                                                                        <th>Cycles</th><td data-bind="text: $data.stats_table.cycles"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads paired</th><td data-bind="text: $data['reads_paired']"></td>
-                                                                        <th>Bases postclip</th><td data-bind="text: $data['bases_postclip']"></td>
-                                                                        <th>Duplication rate</th><td data-bind="text: $data['duplication_rate']"></td>
+                                                                        <th>Reads paired</th><td data-bind="text: $data.stats_table.reads_paired"></td>
+                                                                        <th>Bases postclip</th><td data-bind="text: $data.stats_table.bases_postclip"></td>
+                                                                        <th>Duplication rate</th><td data-bind="text: $data.stats_table.duplication_rate"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads mapped</th><td data-bind="text: $data['reads_mapped']"></td>
-                                                                        <th>Bases mapped</th><td data-bind="text: $data['bases_mapped']"></td>
-                                                                        <th>Error rate</th><td data-bind="text: $data['error_rate']"></td>
+                                                                        <th>Reads mapped</th><td data-bind="text: $data.stats_table.reads_mapped"></td>
+                                                                        <th>Bases mapped</th><td data-bind="text: $data.stats_table.bases_mapped"></td>
+                                                                        <th>Error rate</th><td data-bind="text: $data.stats_table.error_rate"></td>
                                                                     </tr>
                                                                     <tr>
-                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data['reads_mapped_rmdup']"></td>
-                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data['bases_mapped_rmdup']"></td>
+                                                                        <th>Reads mapped (rmdup)</th><td data-bind="text: $data.stats_table.reads_mapped_rmdup"></td>
+                                                                        <th>Bases mapped (rmdup)</th><td data-bind="text: $data.stats_table.bases_mapped_rmdup"></td>
                                                                         <th></th><td></td>
                                                                     </tr>
                                                                 </tbody>
@@ -639,6 +644,200 @@
                                                         </td>
                                                     </tr>
                                                 <!-- /ko -->
+                                            <!-- /ko -->
+                                            <!-- ko if:  $parent.selectedViewLabel() == 'Sample' && display_lanelets -->
+                                                <tr>
+                                                    <td data-bind="attr: { colspan: $parent.numColumns() + 1 + (4 - $parent.numLaneletSpecificColumns()) }">
+                                                        <div class="panel panel-default" style="margin-bottom: 0">
+                                                            <div class="panel-heading">
+                                                                <span data-bind="text: lanelet_nodes().length"></span> <span data-bind="text: Sample"></span> Lanelets
+                                                            </div>
+                                                            <div class="table-responsive">
+                                                                <table class="table table-striped table-hover table-condensed small">
+                                                                    <thead>
+                                                                        <tr data-bind="foreach: $parent.viewColumns">
+                                                                            <!-- ko if: display() && !header.startsWith('Study') && !header.startsWith('Sample') && header != 'Individual' && header != 'Gender' -->
+                                                                                <th data-bind="sort: { arr: $parent.lanelet_nodes, prop: sortOn }">
+                                                                                    <!-- ko if: desc -->
+                                                                                        <abbr data-bind="text: header, attr: { title: desc }"></abbr>
+                                                                                    <!-- /ko -->
+                                                                                    <!-- ko ifnot: desc -->
+                                                                                        <span data-bind="text: header"></span>
+                                                                                    <!-- /ko -->
+                                                                                </th>
+                                                                            <!-- /ko -->
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        <!-- ko foreach: lanelet_nodes -->
+                                                                            <tr>
+                                                                                <!-- ko if: $root.columns()['Pass'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_passed'}">
+                                                                                            <input type="radio" value="passed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $root.changeQCStatus.bind($data, 'passed')" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Fail'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_failed'}">
+                                                                                            <input type="radio" value="failed" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $root.changeQCStatus.bind($data, 'failed')" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Invst'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_investigate'}">
+                                                                                            <input type="radio" value="investigate" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $root.changeQCStatus.bind($data, 'investigate')" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['GTPend'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_gt_pending'}">
+                                                                                            <input type="radio" value="gt_pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $root.changeQCStatus.bind($data, 'gt_pending')" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Pend'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable" data-bind="attr: {'id': Lanelet + '_pending'}">
+                                                                                            <input type="radio" value="pending" data-bind="checked: new_qcgrind_qc_status, enable: is_admin, click: $root.changeQCStatus.bind($data, 'pending')" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Library'].display --><td style="cursor: pointer" data-bind="text: Library"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Lanelet'].display --><td style="cursor: pointer" data-bind="text: Lanelet, css: { success: new_qcgrind_qc_status() == 'passed', danger: new_qcgrind_qc_status() == 'failed', info: new_qcgrind_qc_status() == 'investigate' }"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Genotype'].display -->
+                                                                                    <td data-bind="css: { warning: Genotype.startsWith('unconfirmed'), danger: Genotype.startsWith('wrong'), success: Genotype.startsWith('confirmed') }">
+                                                                                        <span style="cursor: pointer" data-bind="text: Genotype, popover: { content: $root.genotypePopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Verify Bam ID'].display -->
+                                                                                    <td data-bind="css: { success: $data['Verify Bam ID'].startsWith('pass'), danger: $data['Verify Bam ID'].startsWith('fail'), warning: $data['Verify Bam ID'].startsWith('unsure') }">
+                                                                                        <span style="cursor: pointer" data-bind="text: $data['Verify Bam ID'], popover: { content: $root.verifyPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['NPG Status'].display -->
+                                                                                    <td data-bind="css: { success: $data['NPG Status'] == 'pass', danger: $data['NPG Status'] == 'fail' }">
+                                                                                        <a data-bind="text: $data['NPG Status'], attr: { href: 'http://npg.sanger.ac.uk/perl/npg/run/' + run }" target="_blank" class="text-default"></a>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Auto QC'].display -->
+                                                                                    <td data-bind="css: { success: auto_qc()[0] == 'pass', danger: auto_qc()[0] == 'fail' }">
+                                                                                        <!-- ko switch: auto_qc()[0] -->
+                                                                                            <!-- ko case: 'fail' -->
+                                                                                                <span style="cursor: pointer" data-bind="text: auto_qc()[0], popover: { content: $root.autoQCPopover($data), container: 'body', html: true, placement: 'top' }"></span>
+                                                                                            <!-- /ko -->
+                                                                                            <!-- ko case: $default -->
+                                                                                                <span data-bind="text: auto_qc()[0]"></span>
+                                                                                            <!-- /ko -->
+                                                                                        <!-- /ko -->
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Raw Gb'].display --><td data-bind="text: $data.lanelet_stats['Raw Gb']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Mapped Gb'].display --><td data-bind="text: $data.lanelet_stats['Mapped Gb']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Dup%'].display --><td data-bind="text: $data.lanelet_stats['Dup%']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Mapped-dups Gb'].display --><td data-bind="text: $data.lanelet_stats['Mapped-dups Gb']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Overlap dup%'].display --><td data-bind="text: $data.lanelet_stats['Overlap dup%']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Net Gb'].display --><td data-bind="text: $data.lanelet_stats['Net Gb']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Depth'].display --><td data-bind="text: $data.lanelet_stats['Depth']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Error Rate%'].display --><td data-bind="text: $data.lanelet_stats['Error Rate']"></td><!-- /ko -->
+                                                                                <td>
+                                                                                    <span style="cursor: pointer" data-bind="click: $root.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
+                                                                                    <span style="cursor: pointer" data-bind="click: $root.toggleLaneletStats">&laquo;stats&raquo;</span>
+                                                                                </td>
+                                                                            </tr>
+                                                                            <!-- ko if: display_graphs -->
+                                                                                <tr>
+                                                                                    <td data-bind="attr: { colspan: $root.numColumns() + 5 - $root.numSampleSpecificColumns() }">
+                                                                                        <div class="img-row" data-bind="foreach: qc_plots">
+                                                                                            <div>
+                                                                                                <img class="img-thumbnail img-row-img" tabindex="1" data-bind="attr: { src: src, alt: alt, title: alt }">
+                                                                                            </div>
+                                                                                        </div>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            <!-- /ko -->
+                                                                            <!-- ko if: display_stats -->
+                                                                                <tr>
+                                                                                    <td data-bind="attr: { colspan: $root.numColumns() + 5 - $root.numSampleSpecificColumns() }">
+                                                                                        <table class="table table-bordered table-striped table-hover table-condensed small" style="margin-bottom: 0">
+                                                                                            <tbody>
+                                                                                                <tr>
+                                                                                                    <th>Total Reads</th><td data-bind="text: $data.stats_table.reads"></td>
+                                                                                                    <th>Total Bases</th><td data-bind="text: $data.stats_table.bases"></td>
+                                                                                                    <th>Cycles</th><td data-bind="text: $data.stats_table.cycles"></td>
+                                                                                                </tr>
+                                                                                                <tr>
+                                                                                                    <th>Reads paired</th><td data-bind="text: $data.stats_table.reads_paired"></td>
+                                                                                                    <th>Bases postclip</th><td data-bind="text: $data.stats_table.bases_postclip"></td>
+                                                                                                    <th>Duplication rate</th><td data-bind="text: $data.stats_table.duplication_rate"></td>
+                                                                                                </tr>
+                                                                                                <tr>
+                                                                                                    <th>Reads mapped</th><td data-bind="text: $data.stats_table.reads_mapped"></td>
+                                                                                                    <th>Bases mapped</th><td data-bind="text: $data.stats_table.bases_mapped"></td>
+                                                                                                    <th>Error rate</th><td data-bind="text: $data.stats_table.error_rate"></td>
+                                                                                                </tr>
+                                                                                                <tr>
+                                                                                                    <th>Reads mapped (rmdup)</th><td data-bind="text: $data.stats_table.reads_mapped_rmdup"></td>
+                                                                                                    <th>Bases mapped (rmdup)</th><td data-bind="text: $data.stats_table.bases_mapped_rmdup"></td>
+                                                                                                    <th></th><td></td>
+                                                                                                </tr>
+                                                                                            </tbody>
+                                                                                        </table>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            <!-- /ko -->
+                                                                        <!-- /ko -->
+                                                                        <!-- ko if: $parent.isGroupAdmin && lanelet_nodes().length > 1 && $parent.numQCColumns() > 0 -->
+                                                                            <tr>
+                                                                                <!-- ko if: $parent.columns()['Pass'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable">
+                                                                                            <input type="radio" value="passed" data-bind="checked: $parent.setAllQCGrindQCStatus" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $parent.columns()['Fail'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable">
+                                                                                            <input type="radio" value="failed" data-bind="checked: $parent.setAllQCGrindQCStatus" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $parent.columns()['Invst'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable">
+                                                                                            <input type="radio" value="investigate" data-bind="checked: $parent.setAllQCGrindQCStatus" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $parent.columns()['GTPend'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable">
+                                                                                            <input type="radio" value="gt_pending" data-bind="checked: $parent.setAllQCGrindQCStatus" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <!-- ko if: $parent.columns()['Pend'].display -->
+                                                                                    <td>
+                                                                                        <div class="radio-highlightable">
+                                                                                            <input type="radio" value="pending" data-bind="checked: $parent.setAllQCGrindQCStatus" />
+                                                                                        </div>
+                                                                                    </td>
+                                                                                <!-- /ko -->
+                                                                                <td data-bind="attr: { colspan: $parent.numColumns() - $parent.numQCColumns() + 5 - $parent.numSampleSpecificColumns() }">
+                                                                                    <button class="btn btn-info btn-sm" type="submit" data-bind="click: $parent.setSampleQCGrindQC, disable: $parent.setAllQCGrindQCStatus() == 'unset'">Set sample lanelets to: <span data-bind="text: $parent.setAllQCGrindQCStatus"></span></button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        <!-- /ko -->
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    </td>
+                                                </tr>
                                             <!-- /ko -->
                                         <!-- /ko -->
                                         <!-- ko if: selectedViewLabel() == 'Lanelet' && isGroupAdmin && filteredNodes().length > 1 && numQCColumns() > 0 -->
@@ -688,7 +887,7 @@
                                 <!-- ko if: selectedViewLabel() == 'Donor' -->
                                     <tbody data-bind="foreach: viewNodes">
                                         <tr style="cursor: pointer" data-bind="foreach: $parent.viewColumns, click: $parent.showQCForNode">
-                                            <td data-bind="text: $parent[text]"></td>
+                                            <td data-bind="text: $parent[header]"></td>
                                         </tr>
                                     </tbody>
                                 <!-- /ko -->
@@ -871,11 +1070,11 @@
                         maxRows: self.maxRows,
                         filterFunction: function isItemFiltered(l) {
                             var pass = 
-                                (self.laneletFilters.passed() ? 1 : !l.Pass) &&
-                                (self.laneletFilters.failed() ? 1 : !l.Fail) &&
-                                (self.laneletFilters.investigate() ? 1 : !l.Invst) &&
-                                (self.laneletFilters.gt_pending() ? 1 : !l.GTPend) &&
-                                (self.laneletFilters.pending() ? 1 : !l.Pend) &&
+                                (self.laneletFilters.passed() ? 1 : ! (self.selectedViewLabel() == 'Sample' ? l.Pass() == l.Lanelets : l.Pass)) &&
+                                (self.laneletFilters.failed() ? 1 : ! (self.selectedViewLabel() == 'Sample' ? l.Fail() == l.Lanelets : l.Fail)) &&
+                                (self.laneletFilters.investigate() ? 1 : ! (self.selectedViewLabel() == 'Sample' ? l.Invst() == l.Lanelets : l.Invst)) &&
+                                (self.laneletFilters.gt_pending() ? 1 : ! (self.selectedViewLabel() == 'Sample' ? l.GTPend() == l.Lanelets : l.GTPend)) &&
+                                (self.laneletFilters.pending() ? 1 : ! (self.selectedViewLabel() == 'Sample' ? l.Pend() == l.Lanelets : l.Pend)) &&
                                 (self.laneletFilters.study_id() ? l.study_id.indexOf(self.laneletFilters.study_id()) !== -1 : 1) &&
                                 (self.laneletFilters.study_name() ? l.study_name.toLowerCase().indexOf(self.laneletFilters.study_name().toLowerCase()) !== -1 : 1) &&
                                 (self.laneletFilters.study_acc() ? l.study_acc.toLowerCase().indexOf(self.laneletFilters.study_acc().toLowerCase()) !== -1 : 1) &&
@@ -892,14 +1091,14 @@
                                 (self.laneletFilters.verify_bam_id() === 'all' ? 1 : l['Verify Bam ID'].startsWith(self.laneletFilters.verify_bam_id())) &&
                                 (self.laneletFilters.npg_status() === 'all' ? 1 : l['NPG Status'] === self.laneletFilters.npg_status()) &&
                                 (self.laneletFilters.auto_qc() === 'all' ? 1 : l.auto_qc()[0] === self.laneletFilters.auto_qc()) &&
-                                (self.laneletFilters.raw_gb() ? parseFloat(l['Raw Gb']) >= parseFloat(self.laneletFilters.raw_gb()) : 1) &&
-                                (self.laneletFilters.mapped_gb() ? parseFloat(l['Mapped Gb']) >= parseFloat(self.laneletFilters.mapped_gb()) : 1) &&
-                                (self.laneletFilters.dup_percent() ? parseFloat(l['Dup%']) <= parseFloat(self.laneletFilters.dup_percent()) : 1) &&
-                                (self.laneletFilters.mapped_dups_gb() ? parseFloat(l['Mapped-dups Gb']) >= parseFloat(self.laneletFilters.mapped_dups_gb()) : 1) &&
-                                (self.laneletFilters.overlap_dup_percent() ? parseFloat(l['Overlap dup%']) <= parseFloat(self.laneletFilters.overlap_dup_percent()) : 1) &&
-                                (self.laneletFilters.net_gb() ? parseFloat(l['Net Gb']) >= parseFloat(self.laneletFilters.net_gb()) : 1) &&
-                                (self.laneletFilters.depth() ? parseFloat(l['Depth']) >= parseFloat(self.laneletFilters.depth()) : 1) &&
-                                (self.laneletFilters.error_rate() ? parseFloat(l['Error Rate']) >= parseFloat(self.laneletFilters.error_rate()) : 1);
+                                (self.laneletFilters.raw_gb() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Raw Gb']) >= parseFloat(self.laneletFilters.raw_gb()) : 1) &&
+                                (self.laneletFilters.mapped_gb() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Mapped Gb']) >= parseFloat(self.laneletFilters.mapped_gb()) : 1) &&
+                                (self.laneletFilters.dup_percent() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Dup%']) <= parseFloat(self.laneletFilters.dup_percent()) : 1) &&
+                                (self.laneletFilters.mapped_dups_gb() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Mapped-dups Gb']) >= parseFloat(self.laneletFilters.mapped_dups_gb()) : 1) &&
+                                (self.laneletFilters.overlap_dup_percent() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Overlap dup%']) <= parseFloat(self.laneletFilters.overlap_dup_percent()) : 1) &&
+                                (self.laneletFilters.net_gb() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Net Gb']) >= parseFloat(self.laneletFilters.net_gb()) : 1) &&
+                                (self.laneletFilters.depth() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Depth']) >= parseFloat(self.laneletFilters.depth()) : 1) &&
+                                (self.laneletFilters.error_rate() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Error Rate']) >= parseFloat(self.laneletFilters.error_rate()) : 1);
                             return pass;
                         } 
                     }
@@ -913,11 +1112,33 @@
                 self.viewNodes.subscribe(function () {
                     self.updateFilter();
                 });
+                
+                // for samples, we need to calculate various summary stats
+                // depending on what lanelets the user has filtered out
+                // according to these settings:
+                self.sampleLaneletsFilter = { passed: ko.observable(false), failed: ko.observable(false), investigate: ko.observable(false), gt_pending: ko.observable(false), pending: ko.observable(false) };
+                self.lastSort = [];
+                self.filterAffectedSorts = { 'lanelet_stats.Raw Gb': 1, 'lanelet_stats.Mapped Gb': 1, 'lanelet_stats.Dup%': 1, 'lanelet_stats.Mapped-dups Gb': 1, 'lanelet_stats.Overlap dup%': 1, 'lanelet_stats.Net Gb': 1, 'lanelet_stats.Depth': 1, 'lanelet_stats.Error Rate': 1 };
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
-                    filter.subscribe(function () {
-                        self.updateFilter();
-                    });
+                    
+                    if (self.sampleLaneletsFilter.hasOwnProperty(key)) {
+                        // some filters change property values, which could
+                        // affect the sort order, in which case we trigger a
+                        // re-sort after filtering
+                        filter.subscribe(function () {
+                            self.sampleLaneletsFilter[key](!self.sampleLaneletsFilter[key]());
+                            if (self.lastSort[0] && self.filterAffectedSorts.hasOwnProperty(self.lastSort[0])) {
+                                dataSort(self.viewNodes, self.lastSort[0], self.lastSort[1]);
+                            }
+                            self.updateFilter();
+                        });
+                    }
+                    else {
+                        filter.subscribe(function () {
+                            self.updateFilter();
+                        });
+                    }
                 });
                 self.setFilter = function(filter, value) {
                     self.laneletFilters[filter](value);
@@ -1172,7 +1393,7 @@
                             loc = loc + '/samples:all';
                         }
                         
-                        if (newValue == 'Lanelet') {
+                        if (newValue != 'Donor') {
                             // set autoQCSettings values based on what user has
                             // saved in their cookie, on the study or the
                             // default. cookie selection > study > cookie
@@ -1220,7 +1441,7 @@
                         }
                         
                         self.maxRows(500);
-                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, autoQCSettings: self.autoQCSettings, flatten: true }, self.loading, self.errors);
+                        getQCGraphData('nodes_of_label', opts, { resultStore: self.viewNodes, isGroupAdmin: self.isGroupAdmin, autoQCSettings: self.autoQCSettings, sampleLaneletsFilter: self.sampleLaneletsFilter, flatten: true }, self.loading, self.errors);
                         
                         // and set the browser url to make this selection
                         // bookmarkable and included in the history
@@ -1300,7 +1521,40 @@
                 self.columns = ko.observable({});
                 self.numColumns = ko.observable(0);
                 self.numQCColumns = ko.observable(0);
+                self.numLaneletSpecificColumns = ko.observable(0);
+                self.numSampleSpecificColumns = ko.observable(0);
+                self.viewSampleColumns = ko.observableArray([]);
                 self.previousViewLabel = null;
+                self.cols = [
+                    ["Pass", "Pass", [true, true], '', true],
+                    ["Fail", "Fail", [true, true], '', true],
+                    ["Invst", "Invst", [true, true], '', true],
+                    ["GTPend", "GTPend", [false, false], '', true],
+                    ["Pend", "Pend", [true, true], '', true],
+                    ["Study ID", "study_id", [false, false]],
+                    ["Study Name", "study_name", [false, false]],
+                    ["Study Acc", "study_acc", [false, false]],
+                    ["Individual", "Individual", [false, false]],
+                    ["Sample", "Sample", [true, true]],
+                    ["Sample Acc", "sample_acc", [false, false]],
+                    ["Sample Suppl", "sample_sn", [false, false], "sample supplier name"],
+                    ["Library", "Library", [true, true]],
+                    ["Lanelet", "Lanelet", [true, true]],
+                    ["Gender", "Gender", [false, true]],
+                    ["Genotype", "gtcheckdata:concordance", [true, true]],
+                    ["Verify Bam ID", "verifybamiddata:freemix", [true, true]],
+                    ["NPG Status", "NPG Status", [true, true]],
+                    ["Auto QC", "auto_qc", [true, true]],
+                    ["Raw Gb", "lanelet_stats.Raw Gb", [true, true]],
+                    ["Mapped Gb", "lanelet_stats.Mapped Gb", [true, true], "mapped Gb (cigar)"],
+                    ["Dup%", "lanelet_stats.Dup%", [true, true], "percent of mapped reads which were duplicates"],
+                    ["Mapped-dups Gb", "lanelet_stats.Mapped-dups Gb", [true, true], "Gb mapped ignoring duplicate reads"],
+                    ["Overlap dup%", "lanelet_stats.Overlap dup%", [true, true], "the percent of bases duplicated due to reads of a pair overlapping"],
+                    ["Net Gb", "lanelet_stats.Net Gb", [true, true], "Gb excluding overlapping base duplicates"],
+                    ["Depth", "lanelet_stats.Depth", [false, true], "bases mapped ignoring duplicate reads / 3000000000"],
+                    ["Error Rate%", "lanelet_stats.Error Rate", [true, false], "percent of mismatches in bases mapped (cigar)"]
+                ];
+                self.colsLen = self.cols.length;
                 self.viewColumns = ko.computed(function () {
                     var columns = [];
                     
@@ -1308,6 +1562,8 @@
                         var details = {};
                         var n = 0;
                         var nqc = 0;
+                        var lsc = 0;
+                        var ssc = 0;
                         var i;
                         var col;
                         var len;
@@ -1330,58 +1586,29 @@
                             var colNames = ["ID", "Example Sample", "Sample Creation Date", "QCToDo(Fluidigm)", "QCToDo(Genotyping)", "QCToDo(All)"];
                             len = colNames.length;
                             for (i = 0; i < len; i += 1) {
-                                col = { header: colNames[i], text: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '', isqc: false };
+                                col = { header: colNames[i], sortOn: colNames[i], display: ko.observable(true), desc: '', isqc: false };
                                 details[colNames[i]] = col;
                                 columns.push(col);
                                 n += 1;
                             }
                         }
                         else if (self.selectedViewLabel() == 'Lanelet') {
-                            var cols = [
-                                ["Pass", "Pass", "Pass", true, '', true],
-                                ["Fail", "Fail", "Fail", true, '', true],
-                                ["Invst", "Invst", "Invst", true, '', true],
-                                ["GTPend", "GTPend", "GTPend", false, '', true],
-                                ["Pend", "Pend", "Pend", true, '', true],
-                                ["Study ID", "study_id", "study_id", false],
-                                ["Study Name", "study_name", "study_name", false],
-                                ["Study Acc", "study_acc", "study_acc", false],
-                                ["Individual", "Individual", "Individual", false],
-                                ["Sample", "Sample", "Sample", true],
-                                ["Sample Acc", "sample_acc", "sample_acc", false],
-                                ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
-                                ["Library", "Library", "Library", true],
-                                ["Lanelet", "Lanelet", "Lanelet", true],
-                                ["Gender", "Gender", "Gender", false],
-                                ["Genotype", "Genotype", "gtcheckdata:concordance", true],
-                                ["Verify Bam ID", "Verify Bam ID", "verifybamiddata:freemix", true],
-                                ["NPG Status", "NPG Status", "NPG Status", true],
-                                ["Auto QC", "auto_qc", "auto_qc()", true],
-                                ["Raw Gb", "Raw Gb", "Raw Gb", true],
-                                ["Mapped Gb", "Mapped Gb", "Mapped Gb", true, "mapped Gb (cigar)"],
-                                ["Dup%", "Dup%", "Dup%", true, "percent of mapped reads which were duplicates"],
-                                ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
-                                ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
-                                ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
-                                ["Depth", "Depth", "Depth", false, "bases mapped ignoring duplicate reads / 3000000000"],
-                                ["Error Rate%", "Error Rate", "Error Rate", true, "percent of mismatches in bases mapped (cigar)"]
-                            ];
-                            len = cols.length;
+                            len = self.colsLen;
                             
                             var display;
                             for (i = 0; i < len; i += 1) {
                                 display = false;
                                 if (userCols) {
-                                    if (desiredCols.hasOwnProperty(cols[i][0])) {
+                                    if (desiredCols.hasOwnProperty(self.cols[i][0])) {
                                         display = true;
                                     }
                                 }
                                 else {
-                                    display = cols[i][3];
+                                    display = self.cols[i][2][0];
                                 }
                                 
-                                col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
-                                details[cols[i][0]] = col;
+                                col = { header: self.cols[i][0], sortOn: self.cols[i][1], display: ko.observable(display), desc: self.cols[i][3], isqc: self.cols[i][4] };
+                                details[self.cols[i][0]] = col;
                                 columns.push(col);
                                 
                                 if (display) {
@@ -1393,48 +1620,54 @@
                             }
                         }
                         else if (self.selectedViewLabel() == 'Sample') {
-                            var cols = [
-                                ["Pass", "Pass", "Pass", true, '', true],
-                                ["Fail", "Fail", "Fail", true, '', true],
-                                ["Invst", "Invst", "Invst", true, '', true],
-                                ["GTPend", "GTPend", "GTPend", false, '', true],
-                                ["Pend", "Pend", "Pend", true, '', true],
-                                ["Study ID", "study_id", "study_id", false],
-                                ["Study Name", "study_name", "study_name", false],
-                                ["Study Acc", "study_acc", "study_acc", false],
-                                ["Individual", "Individual", "Individual", false],
-                                ["Sample", "Sample", "Sample", true],
-                                ["Sample Acc", "sample_acc", "sample_acc", false],
-                                ["Sample Suppl", "sample_sn", "sample_sn", false, "sample supplier name"],
-                                ["Libraries", "Libraries", "Libraries", true],
-                                ["Lanelets", "Lanelets", "Lanelets", true],
-                                ["Gender", "Gender", "Gender", true],
-                                ["Raw Gb", "Raw Gb", "Raw Gb", true],
-                                ["Mapped Gb", "Mapped Gb", "Mapped Gb", true, "mapped Gb (cigar)"],
-                                ["Dup%", "Dup%", "Dup%", true, "percent of mapped reads which were duplicates"],
-                                ["Mapped-dups Gb", "Mapped-dups Gb", "Mapped-dups Gb", true, "Gb mapped ignoring duplicate reads"],
-                                ["Overlap dup%", "Overlap dup%", "Overlap dup%", true, "the percent of bases duplicated due to reads of a pair overlapping"],
-                                ["Net Gb", "Net Gb", "Net Gb", true, "Gb excluding overlapping base duplicates"],
-                                ["Depth", "Depth", "Depth", true, "bases mapped ignoring duplicate reads / 3000000000"],
-                                ["Error Rate%", "Error Rate", "Error Rate", false, "percent of mismatches in bases mapped (cigar)"]
-                            ];
-                            len = cols.length;
+                            len = self.colsLen;
                             
                             var display;
+                            var displayObs;
+                            var sampleCols = [];
                             for (i = 0; i < len; i += 1) {
                                 display = false;
                                 if (userCols) {
-                                    if (desiredCols.hasOwnProperty(cols[i][0])) {
+                                    if (desiredCols.hasOwnProperty(self.cols[i][0])) {
                                         display = true;
                                     }
                                 }
                                 else {
-                                    display = cols[i][3];
+                                    display = self.cols[i][2][1];
+                                }
+                                displayObs = ko.observable(display);
+                                
+                                col = { header: self.cols[i][0], sortOn: self.cols[i][1], display: displayObs, desc: self.cols[i][3], isqc: self.cols[i][4], isls: false, isss: false };
+                                details[self.cols[i][0]] = col;
+                                columns.push(col);
+                                
+                                if (i >= 15 && i <=18) {
+                                    col.isls = true;
+                                    if (display) {
+                                        lsc += 1;
+                                    }
+                                    continue;
+                                }
+                                else if ((i >= 5 && i <= 11) || i == 14) {
+                                    col.isss = true;
+                                    if (display) {
+                                        ssc += 1;
+                                    }
                                 }
                                 
-                                col = { header: cols[i][0], text: cols[i][1], sortOn: cols[i][2], display: ko.observable(display), desc: cols[i][4], isqc: cols[i][5] };
-                                details[cols[i][0]] = col;
-                                columns.push(col);
+                                if (i <= 4) {
+                                    col = { header: self.cols[i][0], sortOn: self.cols[i][1] + '()', display: displayObs, desc: self.cols[i][3], isqc: self.cols[i][4], isls: false, isss: false };
+                                }
+                                else if (self.cols[i][0] == 'Library') {
+                                    col = { header: 'Libraries', text: 'Libraries', sortOn: 'Libraries', display: displayObs, desc: self.cols[i][4], isqc: self.cols[i][5] };
+                                    details['Libraries'] = col;
+                                }
+                                else if (self.cols[i][0] == 'Lanelet') {
+                                    col = { header: 'Lanelets', text: 'Lanelets', sortOn: 'Lanelets', display: displayObs, desc: self.cols[i][4], isqc: self.cols[i][5] };
+                                    details['Lanelets'] = col;
+                                }
+                                
+                                sampleCols.push(col);
                                 
                                 if (display) {
                                     n += 1;
@@ -1443,18 +1676,10 @@
                                     }
                                 }
                             }
-                        }
-                        else {
-                            var obj = self.viewNodes()[0];
-                            Object.keys(obj).forEach(function (name) {
-                                if (name === 'node_id' || name === 'node_label') {
-                                    return;
-                                }
-                                col = { header: name, text: name, sortOn: name, display: ko.observable(true), desc: '', isqc: false };
-                                details[name] = col;
-                                columns.push(col);
-                                n += 1;
-                            });
+                            
+                            self.viewSampleColumns(sampleCols);
+                            self.numLaneletSpecificColumns(lsc);
+                            self.numSampleSpecificColumns(ssc);
                         }
                         
                         self.columns(details);
@@ -1472,11 +1697,23 @@
                             if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() + 1);
                             }
+                            else if (column.isls) {
+                                self.numLaneletSpecificColumns(self.numLaneletSpecificColumns() + 1);
+                            }
+                            else if (column.isss) {
+                                self.numSampleSpecificColumns(self.numSampleSpecificColumns() + 1);
+                            }
                         }
                         else {
                             self.numColumns(self.numColumns() - 1);
                             if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() - 1);
+                            }
+                            else if (column.isls) {
+                                self.numLaneletSpecificColumns(self.numLaneletSpecificColumns() - 1);
+                            }
+                            else if (column.isss) {
+                                self.numSampleSpecificColumns(self.numSampleSpecificColumns() - 1);
                             }
                         }
                         return true;
@@ -1488,11 +1725,23 @@
                             if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() + 1);
                             }
+                            else if (column.isls) {
+                                self.numLaneletSpecificColumns(self.numLaneletSpecificColumns() + 1);
+                            }
+                            else if (column.isss) {
+                                self.numSampleSpecificColumns(self.numSampleSpecificColumns() + 1);
+                            }
                         }
                         else {
                             self.numColumns(self.numColumns() - 1);
                             if (column.isqc) {
                                 self.numQCColumns(self.numQCColumns() - 1);
+                            }
+                            else if (column.isls) {
+                                self.numLaneletSpecificColumns(self.numLaneletSpecificColumns() - 1);
+                            }
+                            else if (column.isss) {
+                                self.numSampleSpecificColumns(self.numSampleSpecificColumns() - 1);
                             }
                         }
                     }
@@ -1531,7 +1780,7 @@
                     var nodeLabel = node.node_label;
                     
                     if (nodeLabel === 'Donor') {
-                        window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID, '_blank', '', false);
+                        window.open('/pages/vrtrack_qc/donor.html?id=' + nodeID + '&studies=' + self.selectedStudies(), '_blank', '', false);
                     }
                     
                     return true;
@@ -1568,12 +1817,19 @@
                 // all the filtered lanes in one go
                 self.setAllQCGrindQC = function() {
                     var newStatus = self.setAllQCGrindQCStatus();
+                    var isSample = self.selectedViewLabel() == 'Sample';
                     ko.utils.arrayForEach(self.filteredNodes(), function(lanelet) {
-                        if (lanelet.new_qcgrind_qc_status() != newStatus) {
-                            self.changeQCStatus(newStatus, lanelet);
-                            lanelet.new_qcgrind_qc_status(newStatus);
-                        }
+                        self.changeQCStatus(newStatus, lanelet);
+                        lanelet.new_qcgrind_qc_status(newStatus);
                     });
+                };
+                self.setSampleQCGrindQC = function(sample) {
+                    var newStatus = self.setAllQCGrindQCStatus();
+                    ko.utils.arrayForEach(sample.lanelet_nodes(), function(lanelet) {
+                        self.changeQCStatus(newStatus, lanelet);
+                        lanelet.new_qcgrind_qc_status(newStatus);
+                    });
+                    self.setAllQCGrindQCStatus('unset');
                 };
                 
                 // lanelet view has various popups for different columns
@@ -1680,15 +1936,34 @@
                     node.display_stats(!node.display_stats());
                 };
                 self.showAllGraphs.subscribe(function(newValue) {
+                    var isSample = self.selectedViewLabel() == 'Sample';
                     ko.utils.arrayForEach(self.viewNodes(), function(node) {
-                        node.display_graphs(newValue);
+                        if (isSample) {
+                            ko.utils.arrayForEach(node.lanelet_nodes(), function(lanelet) {
+                                lanelet.display_graphs(newValue);
+                            });
+                        }
+                        else {
+                            node.display_graphs(newValue);
+                        }
                     });
                 });
                 self.showAllStats.subscribe(function(newValue) {
+                    var isSample = self.selectedViewLabel() == 'Sample';
                     ko.utils.arrayForEach(self.viewNodes(), function(node) {
-                        node.display_stats(newValue);
+                        if (isSample) {
+                            ko.utils.arrayForEach(node.lanelet_nodes(), function(lanelet) {
+                                lanelet.display_stats(newValue);
+                            });
+                        }
+                        else {
+                            node.display_stats(newValue);
+                        }
                     });
                 });
+                self.toggleLanelets = function(node) {
+                    node.display_lanelets(!node.display_lanelets());
+                };
                 
                 // in Sample view, when lanelets column is clicked on, we'll
                 // open Lanelet view limited to the sample in a new tab

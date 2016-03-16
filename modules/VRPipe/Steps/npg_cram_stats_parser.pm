@@ -64,7 +64,7 @@ class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
     }
     
     method inputs_definition {
-        return { cram_files => VRPipe::StepIODefinition->create(type => 'cram', description => 'cram files', max_files => -1) };
+        return { cram_files => VRPipe::StepIODefinition->create(type => 'aln', description => 'BAM or CRAM files with associated NPG stats files', max_files => -1) };
     }
     
     method body_sub {
