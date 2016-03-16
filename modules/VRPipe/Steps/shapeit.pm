@@ -106,8 +106,8 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
             my $bcftools_exe   = $options->{bcftools_exe};
             my $impute_untyped = $options->{impute_untyped_genotypes};
             
-            if ($shapeit_opts =~ /\s--(input-|output-|include-|thread)\s/) {
-                $self->throw("shapeit_options should not include --input-* or --output-* or --include-* or --thread");
+            if ($shapeit_opts =~ /\s--(input-|output-|include)\s/) {
+                $self->throw("shapeit_options should not include --input-* or --output-* or --include-*");
             }
             
             $self->set_cmd_summary(
@@ -161,7 +161,8 @@ class VRPipe::Steps::shapeit with VRPipe::StepRole {
                     my $samples = scalar @samples;
                     my $time = int(200 * (1 + 0.5 * ($N_haps - 100) / 100) * (1 + 4 * ($samples - 100) / 100) * (1 + 0.5 * ($Markers - 5000) / 5000)); #seconds
                     
-                    my $req = $self->new_requirements(memory => 1000, time => $time);
+                    my ($cpus) = $shapeit_opts =~ m/--thread\s*(\d+)/;
+                    my $req = $self->new_requirements(memory => 1000, time => $time, $cpus ? (cpus => $cpus) : ());
                     my @outfiles = ($log_file, $snp_mm_file, $ind_mm_file, $strand_file, $exclusion_file, $out_vcf, $out_tbi);
                     my $this_cmd = "use VRPipe::Steps::shapeit; VRPipe::Steps::shapeit->run_shapeit(chunk => [qw(@chunk)], in_vcf => q[$in_path], out_vcf => q[$out_path], ref_vcf => q[$ref_path], shapeit => q[$shapeit_exe], shapeit_opts => q[$shapeit_opts], bcftools => q[$bcftools_exe], tabix => q[$tabix_exe], gen_map => q[$gen_map], impute_untyped => q[$impute_untyped]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
