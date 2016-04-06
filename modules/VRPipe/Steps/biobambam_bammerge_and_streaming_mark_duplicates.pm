@@ -36,6 +36,7 @@ use VRPipe::Base;
 class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPipe::StepRole {
     method options_definition {
         return {
+            samtools_exe                       => VRPipe::StepOption->create(description => 'path to samtools executable',                                                               optional => 1, default_value => 'samtools'),
             bammerge_exe                       => VRPipe::StepOption->create(description => 'path to bammerge executable',                                                               optional => 1, default_value => 'bammerge'),
             bammerge_options                   => VRPipe::StepOption->create(description => 'options for bammerge',                                                                      optional => 1, default_value => 'level=0'),
             bamstreamingmarkduplicates_exe     => VRPipe::StepOption->create(description => 'path to bamstreamingmarkduplicates executable',                                             optional => 1, default_value => 'bamstreamingmarkduplicates'),
@@ -63,10 +64,27 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
         return sub {
             my $self                            = shift;
             my $options                         = $self->options;
+            my $samtools                        = $options->{samtools_exe};
             my $bammerge                        = $options->{bammerge_exe};
             my $bammerge_opts                   = $options->{bammerge_options};
             my $bamstreamingmarkduplicates      = $options->{bamstreamingmarkduplicates_exe};
             my $bamstreamingmarkduplicates_opts = $options->{bamstreamingmarkduplicates_options};
+            
+            my $cram_out = $bamstreamingmarkduplicates_opts =~ m/outputformat=cram/;
+            if ($cram_out && !($bamstreamingmarkduplicates_opts =~ m/reference=\S+/)) {
+                $self->throw("The reference option is required when writing CRAM with bamstreamingmarkduplicates. Add 'reference=/path/to/your/reference' to 'bamstreamingmarkduplicates_options'");
+            }
+            my $samtools_legacy = 0;
+            if ($cram_out) {
+                my $version = VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$');
+                my ($major, $minor) = $version =~ /(\d+)\.(\d+)/;
+                if ($major == 0) {
+                    $self->throw("samtools does not support indexing CRAM files prior to version 1.0 [detected version: $version]");
+                }
+                if ($major == 1 && $minor < 3) {
+                    $samtools_legacy = 1;
+                }
+            }
             
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
@@ -79,7 +97,7 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
                 VRPipe::StepCmdSummary->create(
                     exe     => 'bamstreamingmarkduplicates',
                     version => VRPipe::StepCmdSummary->determine_version($bamstreamingmarkduplicates . ' --version', '^This is biobambam\d? version (.+)\.$'),
-                    summary => "bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts O=\$markdup_file index=1 indexfilename=\$markdup_index M=\$metrics_file"
+                    summary => "bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts M=\$metrics_file " . $cram_out ? "> \$markdup_file" : "O=\$markdup_file index=1 indexfilename=\$markdup_index",
                 )
             );
             
@@ -102,13 +120,13 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             my $markdup_file    = $self->output_file(
                 output_key => 'markdup_files',
                 basename   => $basename . '.bam',
-                type       => 'bam',
+                type       => $cram_out ? 'cram' : 'bam',
                 metadata   => $merged_metadata
             );
             my $markdup_index_file = $self->output_file(
                 output_key => 'markdup_index_files',
                 basename   => $basename . '.bam.bai',
-                type       => 'bai',
+                type       => $cram_out ? 'crai' : 'bai',
                 metadata   => $merged_metadata
             );
             my $markdup_metrics_file = $self->output_file(
@@ -119,16 +137,22 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             );
             my $markdup_path = $markdup_file->path;
             my $merge_cmd    = qq[$bammerge $bammerge_opts @input_paths];
-            my $markdup_cmd  = "$bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts O=$markdup_path index=1 indexfilename=" . $markdup_index_file->path . " M=" . $markdup_metrics_file->path;
-            my $this_cmd     = "use VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates; VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates->merge_markdup_and_check(q[$merge_cmd | $markdup_cmd], input_file_list => $file_list, out_file => q[$markdup_path]);";
+            my $markdup_cmd  = "$bamstreamingmarkduplicates $bamstreamingmarkduplicates_opts M=" . $markdup_metrics_file->path;
+            my $index_cmd    = "O=$markdup_path index=1 indexfilename=" . $markdup_index_file->path;
+            
+            if ($cram_out) {
+                # biobambam does not support on-the-fly cram indexing
+                $index_cmd = $samtools_legacy ? "> $markdup_path && $samtools index $markdup_path" : "tee $markdup_path | $samtools index - " . $markdup_index_file->path;
+            }
+            my $this_cmd = "use VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates; VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates->merge_markdup_and_check(q[$merge_cmd | $markdup_cmd $index_cmd], input_file_list => $file_list, out_file => q[$markdup_path]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$markdup_file, $markdup_index_file, $markdup_metrics_file] });
         };
     }
     
     method outputs_definition {
         return {
-            markdup_files         => VRPipe::StepIODefinition->create(type => 'aln', max_files => 1, description => 'a merged BAM file with duplicates marked'),
-            markdup_index_files   => VRPipe::StepIODefinition->create(type => 'bin', max_files => 1, description => ' index file for merged, markdup-ed BAM file'),
+            markdup_files         => VRPipe::StepIODefinition->create(type => 'aln', max_files => 1, description => 'a merged BAM or CRAM file with duplicates marked'),
+            markdup_index_files   => VRPipe::StepIODefinition->create(type => 'idx', max_files => 1, description => 'an index file for merged, markdup-ed BAM or CRAM file'),
             markdup_metrics_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => 1, description => 'a text file with metrics from biobambam duplicate marking'),
         };
     }
