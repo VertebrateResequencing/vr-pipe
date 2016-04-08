@@ -5,12 +5,12 @@ VRPipe::Steps::bcftools_cnv - a step
 
 =head1 DESCRIPTION
 
-This step runs bcftools cnv on a VCF file which should always contain a 
-control sample. For each sample in the VCF, the algorithm calls copy number 
-variants compared to the control samples and generates the corresponding  copy
-number difference plots by chromosome. If run after polysomy.pm, the  step
-generates extra plots for chromosomes with evidence of trisomy/tetrasomy  not
-picked up by bcftools cnv.
+This step runs bcftools cnv on a VCF file which should always contain a control
+sample. For each sample in the VCF, the algorithm calls copy number variants
+compared to the control samples and generates the corresponding  copy number
+difference plots by chromosome. If run after polysomy.pm, the  step generates
+extra plots for chromosomes with evidence of trisomy/tetrasomy  not picked up
+by bcftools cnv.
 
 *** more documentation to come
 
@@ -118,7 +118,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                 $self->throw($vcf->path . " lacks a sample value for the $cmk metadata key") unless $control;
                 
                 my $req = $self->new_requirements(memory => 1000, time => 5);
-                my $sample_count;
+                my $sample_count = 0;
                 foreach my $query (@samples) {
                     # if a sample name is duplicated, it will have a number
                     # prefix in the vcf header
@@ -158,6 +158,10 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
                     my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->call_and_plot(vcf => q[$vcf_path], summary => q[$summary_path], plot => q[$plot_path], bcftools => q[$bcftools_exe], python => q[$python_exe], bcftools_opts => q[$bcftools_opts], control => q[$control], query => q[$query], sample => q[$real_sample_name]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => \@outfiles });
                 }
+                if ($sample_count <= 1) {
+                    my $this_cmd = "use VRPipe::Steps::bcftools_cnv; VRPipe::Steps::bcftools_cnv->exit_without_query(vcf => q[$vcf_path]);";
+                    $self->dispatch_vrpipecode($this_cmd, $req);
+                }
             }
         };
     }
@@ -196,6 +200,10 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
     
     method max_simultaneous {
         return 0;          # meaning unlimited
+    }
+    
+    method exit_without_query (ClassName|Object $self: Str|File :$vcf!) {
+        die "There was no query sample in the input vcf file " . $vcf->path . "\n";
     }
     
     method call_and_plot (ClassName|Object $self: Str|File :$vcf!, Str|File :$summary!, Str|File :$plot!, Str :$bcftools!, Str :$python!, Str :$bcftools_opts!, Str :$control!, Str :$query!, Str :$sample!) {
