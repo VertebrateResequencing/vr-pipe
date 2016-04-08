@@ -79,6 +79,10 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
                 $donor_node->divorce_from($plot);
             }
             
+            my $fh = $conv_file->openr;
+            my @header = split(/\t/, <$fh>);
+            close($fh);
+            
             my %num_to_type = ('01' => 'intensity', '02a' => 'clustering', '02' => 'pluripotency', '03' => 'pluripotency_vs_novelty', '03c' => 'novelty');
             foreach my $num (qw(01 02a 02 03 03c)) {
                 my $basename = "pluritest_image$num.png";
@@ -89,9 +93,15 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
                 $donor_node->relate_to($plot_node, 'pluritest_plot');
             }
             
-            my $cmd    = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];
-            my $vr_cmd = "use VRPipe::Steps::pluritest_plot_gene_expression; VRPipe::Steps::pluritest_plot_gene_expression->plot(cmd_line => q[$cmd], csv_out_path => q[$csv_path]);";
-            $self->dispatch_vrpipecode($vr_cmd, $req);
+            if (scalar(@header) <= 5) {
+                my $this_cmd = "use VRPipe::Steps::pluritest_plot_gene_expression; VRPipe::Steps::pluritest_plot_gene_expression->exit_with_one_sample(file => q[$conv_path]);";
+                $self->dispatch_vrpipecode($this_cmd, $req);
+            }
+            else {
+                my $cmd    = $self->r_cmd_prefix . qq[ --slave --args $conv_path $pluritest_data < $pluritest_script];
+                my $vr_cmd = "use VRPipe::Steps::pluritest_plot_gene_expression; VRPipe::Steps::pluritest_plot_gene_expression->plot(cmd_line => q[$cmd], csv_out_path => q[$csv_path]);";
+                $self->dispatch_vrpipecode($vr_cmd, $req);
+            }
         };
     }
     
@@ -121,6 +131,10 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
     
     method max_simultaneous {
         return 0;
+    }
+    
+    method exit_with_one_sample (ClassName|Object $self: Str|File :$file!) {
+        die "pluritest cannot run with fewer than two samples in the input " . $file->path . "\n";
     }
     
     method plot (ClassName|Object $self: Str :$cmd_line, Str|File :$csv_out_path!) {
