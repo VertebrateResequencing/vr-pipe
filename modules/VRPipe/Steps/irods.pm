@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012,2014,2015 Genome Research Limited.
+Copyright (c) 2012,2014-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -231,7 +231,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         if ($source_graph_node) {
             $self->relate_input_to_output($source_graph_node, 'imported', $dest_file->path->stringify);
             
-            if ($dest =~ /\.(?!:bam|cram)$/) {
+            if ($dest =~ /\.(?:bam|cram)$/) {
                 # if there's a bamstats associated with the source file, add the
                 # metadata that many bam/cram-related steps rely on to the dest file
                 $schema_vrtrack ||= VRPipe::Schema->create('VRTrack');
@@ -253,7 +253,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                     
                     while (my ($key, $val) = each %$graph_meta) {
                         if (defined $val) {
-                            $meta->{key} = $val;
+                            $meta->{$key} = $val;
                         }
                     }
                     
