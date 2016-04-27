@@ -235,6 +235,20 @@ while (my $estates = $estates_pager->next) {
         my @output_files;
         my $filtered_files = 0;
         my $total_files    = 0;
+        my (@subdir_keys, @basename_keys, %needed_meta_keys, %ofile_needed_meta, %ofile_needed_meta_by_order, %ofile_missing_needed_meta);
+        if ($basename_from_metadata) {
+            @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
+            foreach my $key (@basename_keys) {
+                $needed_meta_keys{$key} = 1;
+            }
+        }
+        if ($output_by_metadata) {
+            @subdir_keys = split('\/', $output_by_metadata);
+            foreach my $key (@subdir_keys) {
+                $needed_meta_keys{$key} = 1;
+            }
+        }
+        my @needed_meta_keys = keys %needed_meta_keys;
         foreach my $stepm (@allowed_step_members) {
             my ($stepstate) = VRPipe::StepState->search({ stepmember => $stepm, dataelement => $element, pipelinesetup => $setup, complete => 1 });
             $stepstate || next;
@@ -269,10 +283,24 @@ while (my $estates = $estates_pager->next) {
                     $done_outputs{ $file->id } = 1;
                     
                     my %hash;
-                    $hash{path} = $file->path->stringify;
+                    my $path = $file->path->stringify;
+                    $hash{path} = $path;
                     $hash{metadata} = $meta if keys %$meta;
                     push(@file_data,    \%hash);
                     push(@output_files, $file);
+                    
+                    if (!$list && @needed_meta_keys && keys %$meta) {
+                        foreach my $key (@needed_meta_keys) {
+                            if (defined $meta->{$key}) {
+                                $ofile_needed_meta{$path}->{$key}                = $meta->{$key};
+                                $ofile_needed_meta_by_order{$#file_data}->{$key} = $meta->{$key};
+                                $ofile_needed_meta_by_order{-1}->{$key}          = $meta->{$key};
+                            }
+                            else {
+                                $ofile_missing_needed_meta{$#file_data}->{$path} = $key;
+                            }
+                        }
+                    }
                 }
                 $filtered_files += @files - @file_data;
                 $total_files += @files;
@@ -312,6 +340,20 @@ while (my $estates = $estates_pager->next) {
             }
         }
         else {
+            # if any files are missing needed metadata, try and copy that across
+            # from the corresponding file from a different step/kind (or failing
+            # that, from a random file in the same step+kind)
+            while (my ($order, $phash) = each %ofile_missing_needed_meta) {
+                while (my ($path, $key) = each %{$phash}) {
+                    if (defined $ofile_needed_meta_by_order{$order} && defined $ofile_needed_meta_by_order{$order}->{$key}) {
+                        $ofile_needed_meta{$path}->{$key} = $ofile_needed_meta_by_order{$order}->{$key};
+                    }
+                    elsif (defined $ofile_needed_meta_by_order{-1} && defined $ofile_needed_meta_by_order{-1}->{$key}) {
+                        $ofile_needed_meta{$path}->{$key} = $ofile_needed_meta_by_order{$order}->{$key};
+                    }
+                }
+            }
+            
             # work out the output dir
             my $this_output_dir;
             if ($output_with_input) {
@@ -323,16 +365,13 @@ while (my $estates = $estates_pager->next) {
             }
             else {
                 if ($output_by_metadata) {
-                    my @subdir_keys = split('\/', $output_by_metadata);
-                    
-                    # find the first output file metadata that has all these keys
+                    # find an output file that has all these keys
                     my @subdirs;
-                    foreach my $file (@output_files) {
-                        my $metadata = $file->metadata;
+                    while (my ($path, $khash) = each %ofile_needed_meta) {
                         my @these_dirs;
                         foreach my $key (@subdir_keys) {
-                            if (defined $metadata->{$key}) {
-                                my $sub_dir = $metadata->{$key};
+                            if (defined $khash->{$key}) {
+                                my $sub_dir = $khash->{$key};
                                 $sub_dir =~ s/[^\w#-]/_/g;
                                 push(@these_dirs, $sub_dir);
                             }
@@ -372,34 +411,6 @@ while (my $estates = $estates_pager->next) {
                 $this_output_dir->mkpath unless $pretend;
             }
             
-            # figure out basename_from_metadata
-            my $metadata_basename;
-            if ($basename_from_metadata) {
-                my @basename_keys = $basename_from_metadata =~ m/%([^%]+)%/g;
-                
-                # find the first output file metadata that has all these keys
-                OFILE: foreach my $file (@output_files) {
-                    my $metadata      = $file->metadata;
-                    my $this_basename = $basename_from_metadata;
-                    foreach my $key (@basename_keys) {
-                        if (defined $metadata->{$key}) {
-                            my $val = $metadata->{$key};
-                            $val =~ s/[^\w#-]+/_/g;
-                            $this_basename =~ s/%$key%/$val/;
-                        }
-                        else {
-                            next OFILE;
-                        }
-                    }
-                    $metadata_basename = $this_basename;
-                }
-                
-                unless ($metadata_basename) {
-                    $frontend->error("$eident resulted in output files, none of which had metadata keys @basename_keys; skipping");
-                    next;
-                }
-            }
-            
             # create a symlink for each output file.
             foreach my $output_file (@output_files) {
                 # work out the basename
@@ -413,8 +424,16 @@ while (my $estates = $estates_pager->next) {
                     $this_basename = $input_basename . '.' . $suffix;
                 }
                 elsif ($basename_from_metadata) {
-                    my $suffix = file_suffix($obase);
-                    $this_basename = $metadata_basename . '.' . $suffix;
+                    $this_basename = $basename_from_metadata;
+                    my $metadata = $ofile_needed_meta{ $output_file->path->stringify };
+                    foreach my $key (@basename_keys) {
+                        if (defined $metadata->{$key}) {
+                            my $val = $metadata->{$key};
+                            $val =~ s/[^\w#-]+/_/g;
+                            $this_basename =~ s/%$key%/$val/;
+                        }
+                    }
+                    $this_basename .= file_suffix($obase);
                 }
                 
                 if (@basename_regex) {
