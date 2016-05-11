@@ -433,7 +433,7 @@ while (my $estates = $estates_pager->next) {
                             $this_basename =~ s/%$key%/$val/;
                         }
                     }
-                    $this_basename .= file_suffix($obase);
+                    $this_basename .= '.' . file_suffix($obase);
                 }
                 
                 if (@basename_regex) {
