@@ -134,7 +134,7 @@ class VRPipe::Steps::pluritest_plot_gene_expression extends VRPipe::Steps::r {
     }
     
     method exit_with_one_sample (ClassName|Object $self: Str|File :$file!) {
-        die "pluritest cannot run with fewer than two samples in the input " . $file->path . "\n";
+        die "pluritest cannot run with fewer than two samples in the input $file\n";
     }
     
     method plot (ClassName|Object $self: Str :$cmd_line, Str|File :$csv_out_path!) {
