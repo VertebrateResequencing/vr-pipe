@@ -205,7 +205,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
         }
         
-        if (defined $meta->{reads} && defined $meta->{total_reads} && $meta->{reads} != $meta->{total_reads}) {
+        if (defined $meta->{total_reads}) {
             if (!$add_metadata) {
                 $dest_file->add_metadata({ reads => $meta->{total_reads} }, replace_data => 1);
             }
