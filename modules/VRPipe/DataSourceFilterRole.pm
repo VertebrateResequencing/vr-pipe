@@ -127,6 +127,22 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
             my $passes = 0;
             foreach my $gf (@$gfs) {
                 my ($namespace, $label, $prop, $value) = @$gf;
+                
+                # we have a special-case hack for VRTrack#Sample#qc_failed#0
+                # where we allow the value 0 to be followed by ["reason1"|"reason 2"]
+                # to allow fails for those reasons through the filter
+                my %allowed_reasons;
+                my $check_reasons = 1;
+                if ($namespace eq "VRTrack" && $label eq "Sample" && $prop eq "qc_failed" && $value =~ /^0\[([^\]]+)\]$/) {
+                    my $reasons = $1;
+                    my @allowed_reasons = split(/"\|"/, $reasons);
+                    $allowed_reasons[0] =~ s/^"//;
+                    $allowed_reasons[-1] =~ s/"$//;
+                    $value           = 0;
+                    %allowed_reasons = map { $_ => 1 } @allowed_reasons;
+                    $check_reasons   = 1;
+                }
+                
                 my $node = $file_node->closest($namespace, $label, direction => 'incoming', all => 0, $value ? (properties => [[$prop, $value]]) : ());
                 #*** this could be optimised by grouping on $label and passing multiple properties at once...
                 
@@ -139,8 +155,24 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                             $passes++;
                         }
                         else {
-                            $file_filter_cache{$file_id} = undef;
-                            return unless $filter_after_grouping;
+                            my $ok = 0;
+                            if ($check_reasons) {
+                                my ($rel) = @{ $graph->related($node, undef, undef, { type => "failed_by" })->{relationships} };
+                                if ($rel) {
+                                    my $reason = $rel->{properties}->{reason};
+                                    if (defined $reason && exists $allowed_reasons{$reason}) {
+                                        $ok = 1;
+                                    }
+                                }
+                            }
+                            
+                            if ($ok) {
+                                $passes++;
+                            }
+                            else {
+                                $file_filter_cache{$file_id} = undef;
+                                return unless $filter_after_grouping;
+                            }
                         }
                     }
                     else {

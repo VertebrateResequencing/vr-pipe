@@ -258,7 +258,7 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                                 }
                                 $hla_pre = ' -p ' . file($output_dir, $chunk ? "$lane.$ended.$chunk.hla" : "$lane.$ended.hla");
                             }
-                            $these_post_pipes .= " | $k8 $postalt$hla_pre $ref.alt";
+                            $these_post_pipes = " | $k8 $postalt$hla_pre $ref.alt$these_post_pipes";
                         }
                         
                         my $this_cmd = "cd $output_dir; $cmd -R '$rg_line' $ref @fqs$these_post_pipes > " . $bam_file->path;

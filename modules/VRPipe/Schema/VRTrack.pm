@@ -746,10 +746,10 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         my (%name_to_basic_props, $control_sample_name, %study_counts);
         while (my ($node_id, $sample_props) = each %$sample_details) {
             my %in_studies = map { $_ => 1 } split(/,/, $sample_props->{study_ids});
-            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}, \%in_studies];
+            $name_to_basic_props{ $sample_props->{name} } = [$sample_props->{public_name}, $sample_props->{control}, $sample_props->{study_ids}, $node_id, $sample_props->{qc_status}, \%in_studies, $sample_props->{qc_exclude_from_analysis}];
             
             if ($sample_props->{control} == 1) {
-                if (!$control_sample_name || $sample_props->{qc_status} ne 'failed') {
+                if (!$control_sample_name || ($sample_props->{qc_status} ne 'failed' && !$sample_props->{qc_exclude_from_analysis})) {
                     $control_sample_name = $sample_props->{public_name} . '_' . $sample_props->{name};
                 }
             }
@@ -786,6 +786,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             );
             
             next if $sample_props->{qc_status} eq 'failed';
+            next if $sample_props->{qc_exclude_from_analysis};
             
             # gender
             push(@results, { type => 'gender', %common_results, expected_gender => $sample_props->{expected_gender}, actual_gender => $sample_props->{actual_gender}, result_file => $sample_props->{actual_gender_result_file} });
@@ -802,6 +803,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
                     next if $this_name eq $other_sample;
                     my $other_sample_props = $name_to_basic_props{$other_sample};
                     next if $other_sample_props->[4] eq 'failed';
+                    next if $other_sample_props->[6];
                     
                     my $other_study_ids  = $other_sample_props->[5];
                     my $other_in_biggest = exists $other_study_ids->{$biggest_study};
@@ -872,6 +874,7 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
             my $s_hash = $cnv_plot_paths{$chr};
             foreach my $sample (keys %name_to_basic_props) {
                 next if $name_to_basic_props{$sample}->[4] eq 'failed';
+                next if $name_to_basic_props{$sample}->[6];
                 push(@results, { type => 'aberrant_polysomy', chr => $chr, graph => $s_hash->{$sample}, sample => $name_to_basic_props{$sample}->[0] . '_' . $sample }) if $s_hash->{$sample};
             }
         }

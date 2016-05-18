@@ -13,7 +13,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2012,2014,2015 Genome Research Limited.
+Copyright (c) 2012,2014-2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -37,6 +37,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
     use VRPipe::Schema;
     
     our $schema;
+    our $schema_vrtrack;
     
     has 'irods_exes' => (
         is      => 'ro',
@@ -229,6 +230,36 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         my $source_graph_node = $schema->get('File', { path => $source, protocol => 'irods:' }) || $schema->get('File', { path => $source });
         if ($source_graph_node) {
             $self->relate_input_to_output($source_graph_node, 'imported', $dest_file->path->stringify);
+            
+            if ($dest =~ /\.(?:bam|cram)$/) {
+                # if there's a bamstats associated with the source file, add the
+                # metadata that many bam/cram-related steps rely on to the dest file
+                $schema_vrtrack ||= VRPipe::Schema->create('VRTrack');
+                my $qc_meta = $schema_vrtrack->vrtrack_metadata(node => $source_graph_node);
+                
+                if ($qc_meta && defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
+                    my $graph_meta = {};
+                    $graph_meta->{bases} = $qc_meta->{'vrtrack_bam_stats_total length'};
+                    #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
+                    $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
+                    $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                    $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
+                    $graph_meta->{npg_qc_status}   = $qc_meta->{'manual_qc'} ? 1 : 0;
+                    $graph_meta->{lane}            = $qc_meta->{'vrtrack_lane_unique'};
+                    $graph_meta->{library}         = $qc_meta->{'vrtrack_library_id'};
+                    $graph_meta->{sample}          = $qc_meta->{'vrtrack_sample_name'};
+                    $graph_meta->{study}           = $qc_meta->{'vrtrack_study_id'};
+                    $graph_meta->{study_id}        = $qc_meta->{'vrtrack_study_name'};
+                    
+                    while (my ($key, $val) = each %$graph_meta) {
+                        if (defined $val) {
+                            $meta->{$key} = $val;
+                        }
+                    }
+                    
+                    $dest_file->add_metadata($meta, replace_data => 1);
+                }
+            }
         }
     }
     

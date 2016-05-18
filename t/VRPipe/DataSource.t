@@ -5,7 +5,7 @@ use Path::Class;
 use Parallel::ForkManager;
 
 BEGIN {
-    use Test::Most tests => 183;
+    use Test::Most tests => 185;
     use VRPipeTest;
     use TestPipelines;
     
@@ -850,6 +850,9 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     my @ps1_nodes = map { $schema->add_file($_) } @ps1_file_paths;
     my $vrsample1 = $schema->add("Sample", { name => "sample1", qc_failed => 0 }, outgoing => { node => $ps1_nodes[0], type => 'has' });
     my $vrsample2 = $schema->add("Sample", { name => "sample2", qc_failed => 1 }, outgoing => { node => $ps1_nodes[1], type => 'has' });
+    $schema->add("User", { username => "joe" }, incoming => { node => $vrsample2, type => 'failed_by' });
+    my ($rel) = @{ $schema->graph->related($vrsample2, undef, undef, { type => "failed_by" })->{relationships} };
+    $schema->graph->relationship_set_properties($rel, { reason => 'Other (copy no CNV etc)' });
     my $vrsample3 = $schema->add("Sample", { name => "sample3" }, outgoing => { node => $ps1_nodes[2], type => 'has' });
     my @ps1_files = map { VRPipe::File->get(path => $_) } @ps1_file_paths;
     $ps1_files[1]->add_metadata({ filtkey => 'filtvalue' });
@@ -867,6 +870,25 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     $ps1_files[0]->add_metadata({ filtkey => 'filtvalue' });
     @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 2, 'graph_filter with a 0 value can get both 0 value and unset properties';
+    
+    # test the special hack for graph_filter qc_failed that allows certain reasons of failure through
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0["Pluritest"|"Other (copy no CNV etc)"]' }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 3, 'graph_filter with a 0["reasons"] value can allow failures with the right reason';
+    
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0["Swap"]' }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 2, 'graph_filter with a 0["reasons"] value does not allow failures with an unspecified reason';
 }
 
 # author-only tests for the irods and graph_vrtrack datasources
