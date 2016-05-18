@@ -56,11 +56,11 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
     
     method inputs_definition {
         return {
-            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files to call variants'),
+            bam_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files to call variants'),
             bai_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
+                type        => 'idx',
                 max_files   => -1,
-                description => 'index files for the input bam files'
+                description => 'BAI/CRAI index files for the input BAM/CRAM files'
             ),
             sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
         };
