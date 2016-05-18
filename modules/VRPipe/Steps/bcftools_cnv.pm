@@ -203,7 +203,7 @@ class VRPipe::Steps::bcftools_cnv with VRPipe::StepRole {
     }
     
     method exit_without_query (ClassName|Object $self: Str|File :$vcf!) {
-        die "There was no query sample in the input vcf file " . $vcf->path . "\n";
+        die "There was no query sample in the input vcf file $vcf\n";
     }
     
     method call_and_plot (ClassName|Object $self: Str|File :$vcf!, Str|File :$summary!, Str|File :$plot!, Str :$bcftools!, Str :$python!, Str :$bcftools_opts!, Str :$control!, Str :$query!, Str :$sample!) {
