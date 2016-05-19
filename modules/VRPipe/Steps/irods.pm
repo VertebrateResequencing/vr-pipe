@@ -206,6 +206,12 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
         }
         
+        # for compatability with most vrpipe steps, cram/bam files need a reads
+        # metadata that is the 0x900 sequences count. We hope that the
+        # total_reads metadata in irods for the file is this count, and force
+        # set it here. If irods didn't have this, or it wasn't the 0x900 number,
+        # we still have hope of getting the correct value below, when we check
+        # the bam stats file
         if (defined $meta->{total_reads}) {
             if (!$add_metadata) {
                 $dest_file->add_metadata({ reads => $meta->{total_reads} }, replace_data => 1);
@@ -233,23 +239,36 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             
             if ($dest =~ /\.(?:bam|cram)$/) {
                 # if there's a bamstats associated with the source file, add the
-                # metadata that many bam/cram-related steps rely on to the dest file
+                # metadata that many bam/cram-related steps rely on to the dest
+                # file
                 $schema_vrtrack ||= VRPipe::Schema->create('VRTrack');
                 my $qc_meta = $schema_vrtrack->vrtrack_metadata(node => $source_graph_node);
                 
-                if ($qc_meta && defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
+                if ($qc_meta) {
                     my $graph_meta = {};
-                    $graph_meta->{bases} = $qc_meta->{'vrtrack_bam_stats_total length'};
-                    #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
-                    $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
-                    $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
-                    $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
-                    $graph_meta->{npg_qc_status}   = $qc_meta->{'manual_qc'} ? 1 : 0;
-                    $graph_meta->{lane}            = $qc_meta->{'vrtrack_lane_unique'};
-                    $graph_meta->{library}         = $qc_meta->{'vrtrack_library_id'};
-                    $graph_meta->{sample}          = $qc_meta->{'vrtrack_sample_name'};
-                    $graph_meta->{study}           = $qc_meta->{'vrtrack_study_id'};
-                    $graph_meta->{study_id}        = $qc_meta->{'vrtrack_study_name'};
+                    if (defined $qc_meta->{'manual_qc'}) {
+                        $graph_meta->{npg_qc_status} = $qc_meta->{'manual_qc'} ? 1 : 0;
+                    }
+                    $graph_meta->{lane}     = $qc_meta->{'vrtrack_lane_unique'};
+                    $graph_meta->{library}  = $qc_meta->{'vrtrack_library_id'};
+                    $graph_meta->{sample}   = $qc_meta->{'vrtrack_sample_name'};
+                    $graph_meta->{study}    = $qc_meta->{'vrtrack_study_id'};
+                    $graph_meta->{study_id} = $qc_meta->{'vrtrack_study_name'};
+                    
+                    if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
+                        $graph_meta->{paired} = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                        $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
+                        
+                        # again, we require the 0x900 stats, but the user may be
+                        # tracking a 0xB00 bam stats file, or something else;
+                        # only override bases and reads metadata if it's
+                        # definitely an 0x900 count
+                        if (defined $qc_meta->{'vrtrack_bam_stats_options'} && $qc_meta->{'vrtrack_bam_stats_options'} =~ /0x900\b/) {
+                            $graph_meta->{bases} = $qc_meta->{'vrtrack_bam_stats_total length'};
+                            #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
+                            $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
+                        }
+                    }
                     
                     while (my ($key, $val) = each %$graph_meta) {
                         if (defined $val) {
