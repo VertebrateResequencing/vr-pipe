@@ -256,15 +256,15 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                     $graph_meta->{study_id} = $qc_meta->{'vrtrack_study_name'};
                     
                     if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
-                        $graph_meta->{paired} = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                        $graph_meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};
+                        $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
                         $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
                         
                         # again, we require the 0x900 stats, but the user may be
                         # tracking a 0xB00 bam stats file, or something else;
-                        # only override bases and reads metadata if it's
-                        # definitely an 0x900 count
+                        # only override reads metadata if it's definitely an
+                        # 0x900 count
                         if (defined $qc_meta->{'vrtrack_bam_stats_options'} && $qc_meta->{'vrtrack_bam_stats_options'} =~ /0x900\b/) {
-                            $graph_meta->{bases} = $qc_meta->{'vrtrack_bam_stats_total length'};
                             #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
                             $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
                         }
