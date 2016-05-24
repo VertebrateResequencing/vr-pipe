@@ -155,13 +155,76 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             $self->throw("expected md5 checksum in metadata did not match md5 of $source in IRODS; aborted");
         }
         
+        # before we start to fetch the file, populate its metadata, so that if
+        # another setup imports the file and sees the existing file it can
+        # create a symlink with the correct metadata; for compatability with
+        # most vrpipe steps, cram/bam files need a reads metadata that is the
+        # 0x900 sequences count. We hope that the total_reads metadata in irods
+        # for the file is this count, and force set it here. If irods didn't
+        # have this, or it wasn't the 0x900 number, we still have hope of
+        # getting the correct value below, when we check the bam stats file
+        my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
+        if (defined $meta->{total_reads}) {
+            if (!$add_metadata) {
+                $dest_file->add_metadata({ reads => $meta->{total_reads} }, replace_data => 1);
+            }
+            else {
+                $meta->{reads} = $meta->{total_reads};
+                $dest_file->add_metadata($meta, replace_data => 1);
+            }
+        }
+        $schema ||= VRPipe::Schema->create('VRPipe');
+        my $source_graph_node = $schema->get('File', { path => $source, protocol => 'irods:' }) || $schema->get('File', { path => $source });
+        if ($source_graph_node && $dest =~ /\.(?:bam|cram)$/) {
+            # if there's a bamstats associated with the source file, add the
+            # metadata that many bam/cram-related steps rely on to the dest
+            # file
+            $schema_vrtrack ||= VRPipe::Schema->create('VRTrack');
+            my $qc_meta = $schema_vrtrack->vrtrack_metadata(node => $source_graph_node);
+            
+            if ($qc_meta) {
+                my $graph_meta = {};
+                if (defined $qc_meta->{'manual_qc'}) {
+                    $graph_meta->{npg_qc_status} = $qc_meta->{'manual_qc'} ? 1 : 0;
+                }
+                $graph_meta->{lane}     = $qc_meta->{'vrtrack_lane_unique'};
+                $graph_meta->{library}  = $qc_meta->{'vrtrack_library_id'};
+                $graph_meta->{sample}   = $qc_meta->{'vrtrack_sample_name'};
+                $graph_meta->{study}    = $qc_meta->{'vrtrack_study_id'};
+                $graph_meta->{study_id} = $qc_meta->{'vrtrack_study_name'};
+                
+                if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
+                    $graph_meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};
+                    $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                    $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
+                    
+                    # again, we require the 0x900 stats, but the user may be
+                    # tracking a 0xB00 bam stats file, or something else;
+                    # only override reads metadata if it's definitely an
+                    # 0x900 count
+                    if (defined $qc_meta->{'vrtrack_bam_stats_options'} && $qc_meta->{'vrtrack_bam_stats_options'} =~ /0x900\b/) {
+                        #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
+                        $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
+                    }
+                }
+                
+                while (my ($key, $val) = each %$graph_meta) {
+                    if (defined $val) {
+                        $meta->{$key} = $val;
+                    }
+                }
+                
+                $dest_file->add_metadata($meta, replace_data => 1);
+            }
+        }
+        
         my $failed;
         my $converted_cram_to_bam = 0;
         my $source_path           = $self->_path_escape($source);
         my $dest_path             = $self->_path_escape("$dest");
         if ($samtools_for_cram_to_bam && $source =~ /\.cram$/ && $dest =~ /\.bam$/) {
             $samtools_for_cram_to_bam = $self->_path_escape("$samtools_for_cram_to_bam");
-            $iget_args =~ s/-?[Kf]//g;                                           #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
+            $iget_args =~ s/-?[Kf]//g; #*** doesn't support options that take alphanumeric args... hopefully this doesn't come up...
             $iget_args =~ s/^\s+//;
             $iget_args =~ s/\s+$//;
             $failed                = $self->run_irods_command("$iget $iget_args $source_path - | $samtools_for_cram_to_bam view -b - > $dest_path");
@@ -183,7 +246,6 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         # correct permissions, just in case
         chmod 0664, $dest;
         
-        my $meta = $self->get_file_metadata($source, $imeta ? (imeta => $imeta) : ());
         if ($converted_cram_to_bam) {
             # we can't confirm based on md5, so check based on num records
             # (this number may not exist outside Sanger, and within Sanger it
@@ -206,21 +268,6 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
             }
         }
         
-        # for compatability with most vrpipe steps, cram/bam files need a reads
-        # metadata that is the 0x900 sequences count. We hope that the
-        # total_reads metadata in irods for the file is this count, and force
-        # set it here. If irods didn't have this, or it wasn't the 0x900 number,
-        # we still have hope of getting the correct value below, when we check
-        # the bam stats file
-        if (defined $meta->{total_reads}) {
-            if (!$add_metadata) {
-                $dest_file->add_metadata({ reads => $meta->{total_reads} }, replace_data => 1);
-            }
-            else {
-                $meta->{reads} = $meta->{total_reads};
-            }
-        }
-        
         if ($add_metadata) {
             # correct the md5 if we converted the file
             if ($converted_cram_to_bam && defined $meta->{md5}) {
@@ -232,53 +279,8 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
         }
         
         # relate source file to dest file in the graph database
-        $schema ||= VRPipe::Schema->create('VRPipe');
-        my $source_graph_node = $schema->get('File', { path => $source, protocol => 'irods:' }) || $schema->get('File', { path => $source });
         if ($source_graph_node) {
             $self->relate_input_to_output($source_graph_node, 'imported', $dest_file->path->stringify);
-            
-            if ($dest =~ /\.(?:bam|cram)$/) {
-                # if there's a bamstats associated with the source file, add the
-                # metadata that many bam/cram-related steps rely on to the dest
-                # file
-                $schema_vrtrack ||= VRPipe::Schema->create('VRTrack');
-                my $qc_meta = $schema_vrtrack->vrtrack_metadata(node => $source_graph_node);
-                
-                if ($qc_meta) {
-                    my $graph_meta = {};
-                    if (defined $qc_meta->{'manual_qc'}) {
-                        $graph_meta->{npg_qc_status} = $qc_meta->{'manual_qc'} ? 1 : 0;
-                    }
-                    $graph_meta->{lane}     = $qc_meta->{'vrtrack_lane_unique'};
-                    $graph_meta->{library}  = $qc_meta->{'vrtrack_library_id'};
-                    $graph_meta->{sample}   = $qc_meta->{'vrtrack_sample_name'};
-                    $graph_meta->{study}    = $qc_meta->{'vrtrack_study_id'};
-                    $graph_meta->{study_id} = $qc_meta->{'vrtrack_study_name'};
-                    
-                    if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
-                        $graph_meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};
-                        $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
-                        $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
-                        
-                        # again, we require the 0x900 stats, but the user may be
-                        # tracking a 0xB00 bam stats file, or something else;
-                        # only override reads metadata if it's definitely an
-                        # 0x900 count
-                        if (defined $qc_meta->{'vrtrack_bam_stats_options'} && $qc_meta->{'vrtrack_bam_stats_options'} =~ /0x900\b/) {
-                            #*** 'raw total sequences' is total records, 'sequences' is the 0x900 count, but will this be true in samtools 1.3+?
-                            $graph_meta->{reads} = $qc_meta->{'vrtrack_bam_stats_sequences'} || $qc_meta->{'vrtrack_bam_stats_raw total sequences'};
-                        }
-                    }
-                    
-                    while (my ($key, $val) = each %$graph_meta) {
-                        if (defined $val) {
-                            $meta->{$key} = $val;
-                        }
-                    }
-                    
-                    $dest_file->add_metadata($meta, replace_data => 1);
-                }
-            }
         }
     }
     

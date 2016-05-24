@@ -729,6 +729,7 @@ class VRPipe::File extends VRPipe::Persistent {
             if (-e $dp && -l $dp && abs_path($dp) eq $sp) {
                 my $parent = $dest->parent;
                 if ($parent && $parent->id == $self->id) {
+                    $dest->add_metadata($self->metadata); # update the metadata everytime we try to re-create the symlink
                     return;
                 }
                 $success = 1;
