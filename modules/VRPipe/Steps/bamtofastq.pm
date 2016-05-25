@@ -14,7 +14,7 @@ Yasin Memari <ym3@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2014 Genome Research Limited.
+Copyright (c) 2014,2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -37,6 +37,21 @@ use VRPipe::Base;
 class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
     use VRPipe::Parser;
     use POSIX;
+    
+    our %flags = (
+        PAIRED        => 1,
+        PROPER_PAIR   => 2,
+        UNMAP         => 4,
+        MUNMAP        => 8,
+        REVERSE       => 16,
+        MREVERSE      => 32,
+        READ1         => 64,
+        READ2         => 128,
+        SECONDARY     => 256,
+        QCFAIL        => 512,
+        DUP           => 1024,
+        SUPPLEMENTARY => 2048
+    );
     
     method options_definition {
         return {
@@ -271,11 +286,37 @@ class VRPipe::Steps::bamtofastq with VRPipe::StepRole {
             }
             $self->throw("Failed to get sequence count from $logfile, or count is zero");
         }
-        unless ($total_reads_parsed == $bam_meta->{reads}) {
+        
+        # $bam_meta->{reads} ought to the 0x900 count, but that might not
+        # correspond to what we excluded, so check the args
+        my $flag = '';
+        if ($bamtofastq_opts =~ /exclude=(\S+)/) {
+            foreach my $name (split(/,/, $1)) {
+                if ($flag) {
+                    $flag |= $flags{$name};
+                }
+                else {
+                    $flag = $flags{$name};
+                }
+            }
+            $flag = sprintf("0x%X", $flag);
+        }
+        my $expected_reads;
+        if ("$flag" eq "0x900") {
+            $expected_reads = $bam_meta->{reads};
+        }
+        else {
+            my $samtools_exe = file($ENV{SAMTOOLS}, 'samtools');
+            $flag &&= "-F $flag ";
+            $expected_reads = `$samtools_exe view -c $flag$bam`;
+            ($expected_reads) = $expected_reads =~ /^(\d+)/m;
+        }
+        
+        unless ($total_reads_parsed == $expected_reads) {
             foreach my $out_file (@out_files) {
                 $out_file->unlink;
             }
-            $self->throw("$logfile says we parsed $total_reads_parsed instead of bam meta $bam_meta->{reads} reads");
+            $self->throw("$logfile says we parsed $total_reads_parsed instead of expected $bam_meta->{reads} reads");
         }
         
         # check the fastq files are as expected
