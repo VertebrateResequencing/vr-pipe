@@ -239,7 +239,7 @@ class VRPipe::Steps::vrtrack_populate_from_vrpipe_metadata extends VRPipe::Steps
                 # get/create the library
                 my ($library_name, $library_ssid, $library_tag_sequence);
                 if ($type eq 'bam' || $type eq 'cram') {
-                    $library_name = $meta->{library};
+                    $library_name = $meta->{library} || $meta->{library_id}; # library has now been dropped from irods metadata; fallback to setting $library_name to the library_id
                     $library_ssid = $meta->{library_id};
                 }
                 else {
