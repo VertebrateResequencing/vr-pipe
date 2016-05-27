@@ -42,7 +42,10 @@ class VRPipe::FileType::aln extends VRPipe::FileType::bam {
         my $type = $self->hts_file_type;
         return ($type =~ /^BAM/ || $type =~ /^CRAM/) ? 1 : 0;
     }
-
+    
+    method non_existant_type_regex {
+        return qr/^(?:bam|cram)$/;
+    }
 }
 
 1;

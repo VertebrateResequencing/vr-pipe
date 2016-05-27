@@ -58,7 +58,10 @@ class VRPipe::FileType::idx extends VRPipe::FileType::hts {
             return 0;
         }
     }
-
+    
+    method non_existant_type_regex {
+        return qr/^(?:bai|crai|csi|tbi)$/;
+    }
 }
 
 1;

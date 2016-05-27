@@ -101,6 +101,11 @@ role VRPipe::FileTypeRole {
         return 0;
     }
     
+    method non_existant_type_regex {
+        my $type = $self->type;
+        return qr/^$type$/;
+    }
+    
     method num_lines {
         return $self->num_header_lines + $self->num_records;
     }

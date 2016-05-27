@@ -42,7 +42,10 @@ class VRPipe::FileType::var extends VRPipe::FileType::vcf {
         my $type = $self->hts_file_type;
         return ($type =~ /^VCF/ || $type =~ /^BCF/) ? 1 : 0;
     }
-
+    
+    method non_existant_type_regex {
+        return qr/^(?:vcf|bcf)$/;
+    }
 }
 
 1;

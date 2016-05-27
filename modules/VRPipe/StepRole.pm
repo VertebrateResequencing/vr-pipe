@@ -422,19 +422,29 @@ role VRPipe::StepRole {
                                 }
                             }
                             unless ($has_size) {
+                                my $type_regex;
                                 if ($db_type) {
                                     # if that's an auto-generated type then it
                                     # should be treated as an 'any' for this
                                     # purpose
                                     eval "require VRPipe::FileType::$db_type;";
                                     if ($@) {
-                                        $db_type = 'any';
+                                        $type_regex = qr/.*/;
+                                    }
+                                    else {
+                                        $type_regex = $type->non_existant_type_regex();
                                     }
                                 }
                                 
-                                if ($db_type && $wanted_type ne $db_type && $db_type ne 'any') {
-                                    push(@skip_reasons, "file " . $result->path . " does not exist so its type can't be checked properly, but it doesn't seem to be correct: expected type $wanted_type and got type $db_type");
+                                if ($db_type !~ $type_regex) {
+                                    push(@skip_reasons, "file " . $result->path . " does not exist so its type can't be checked properly, but it doesn't seem to be correct: file is type $db_type which did not match /$type_regex/");
                                     next;
+                                }
+                                elsif ($resolved->id != $result->id) {
+                                    # $result->s must be 0, which it may not be
+                                    # if it's a symlink to $resolved which we
+                                    # already know has s 0
+                                    $result->update_stats_from_disc;
                                 }
                             }
                         }
