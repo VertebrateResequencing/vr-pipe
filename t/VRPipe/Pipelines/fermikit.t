@@ -38,6 +38,7 @@ VRPipe::PipelineSetup->create(
     options     => {
         samtools_exe                            => 'samtools',
         samtools_bam2fq_options                 => '',
+        trimadap_exe                            => 'trimadap-mt',
         bfc_exe                                 => 'bfc',
         bfc_error_correction_options            => '-s 12m -t 4',
         bfc_filter_options                      => '-1s 12m -k 61 -t 4',
