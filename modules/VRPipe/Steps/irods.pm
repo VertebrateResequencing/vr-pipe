@@ -187,11 +187,13 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                 if (defined $qc_meta->{'manual_qc'}) {
                     $graph_meta->{npg_qc_status} = $qc_meta->{'manual_qc'} ? 1 : 0;
                 }
-                $graph_meta->{lane}     = $qc_meta->{'vrtrack_lane_unique'};
-                $graph_meta->{library}  = $qc_meta->{'vrtrack_library_id'};
-                $graph_meta->{sample}   = $qc_meta->{'vrtrack_sample_name'};
-                $graph_meta->{study}    = $qc_meta->{'vrtrack_study_id'};
-                $graph_meta->{study_id} = $qc_meta->{'vrtrack_study_name'};
+                $graph_meta->{lane}        = $qc_meta->{'vrtrack_lane_unique'};
+                $graph_meta->{library}     = $qc_meta->{'vrtrack_library_name'};
+                $graph_meta->{library_id}  = $qc_meta->{'vrtrack_library_id'};
+                $graph_meta->{sample}      = $qc_meta->{'vrtrack_sample_name'};
+                $graph_meta->{study}       = $qc_meta->{'vrtrack_study_name'};
+                $graph_meta->{study_title} = $qc_meta->{'vrtrack_study_name'};
+                $graph_meta->{study_id}    = $qc_meta->{'vrtrack_study_id'};
                 
                 if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
                     $graph_meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};

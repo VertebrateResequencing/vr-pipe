@@ -1284,6 +1284,18 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                 next unless defined $val;
                 next unless defined $new_metadata->{$key};
                 if (my $diff = $self->_vals_different($val, $new_metadata->{$key})) {
+                    if ($key eq 'lane' && $local_root_dir) {
+                        # we change lane from eg. '1' to the Lane Unique value
+                        # in the output file metadata, so we won't consider it
+                        # a change if $val eq Unique
+                        my $lane = Path::Class->file($path)->basename;
+                        $lane =~ s/\.gz$//;
+                        $lane =~ s/\.[^\.]+$//;
+                        if ($lane eq $val) {
+                            $new_metadata->{lane} = $lane;
+                            next;
+                        }
+                    }
                     push(@changed, [$key, $val, $new_metadata->{$key}, $diff]);
                 }
             }
