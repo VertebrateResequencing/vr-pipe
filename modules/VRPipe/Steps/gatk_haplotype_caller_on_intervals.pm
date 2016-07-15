@@ -51,6 +51,7 @@ class VRPipe::Steps::gatk_haplotype_caller_on_intervals extends VRPipe::Steps::g
             
             my $reference_fasta = $options->{reference_fasta};
             my $haplotyper_opts = $options->{haplotype_caller_options};
+            my $contam_key      = $options->{contamination_metadata_key};
             my $minimum_records = $options->{minimum_records};
             my $tabix           = $options->{tabix_exe};
             my $avx             = $options->{avx_lsf_requirement_string};
@@ -60,10 +61,15 @@ class VRPipe::Steps::gatk_haplotype_caller_on_intervals extends VRPipe::Steps::g
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
             }
             
-            my $bqsr;
+            my $summary_opts = qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region];
             if ($self->inputs->{bam_recalibration_files}) {
                 my $bqsr_file = $self->inputs->{bam_recalibration_files}[0];
-                $bqsr = " --BQSR " . $bqsr_file->path;
+                $summary_opts .= ' -BQSR $recal_file';
+                $haplotyper_opts .= ' --BQSR ' . $bqsr_file->path;
+            }
+            if ($contam_key && exists $$vcf_meta{$contam_key}) {
+                $summary_opts    .= qq[ -contamination $contam_key];
+                $haplotyper_opts .= qq[ -contamination $$vcf_meta{$contam_key}];
             }
             
             my $file_list_id;
@@ -71,8 +77,6 @@ class VRPipe::Steps::gatk_haplotype_caller_on_intervals extends VRPipe::Steps::g
                 $file_list_id = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
             }
             
-            my $summary_opts = qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region];
-            if ($bqsr) { $summary_opts .= ' -BQSR $recal_file'; }
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'GenomeAnalysisTK',

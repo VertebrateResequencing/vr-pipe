@@ -54,12 +54,24 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
             
             my $reference_fasta = $options->{reference_fasta};
             my $haplotyper_opts = $options->{haplotype_caller_options};
+            my $contam_key      = $options->{contamination_metadata_key};
             my $minimum_records = $options->{minimum_records};
             my $tabix           = $options->{tabix_exe};
             my $avx             = $options->{avx_lsf_requirement_string};
             
             if ($haplotyper_opts =~ /$reference_fasta|-I |--input_file|-o | --output|HaplotypeCaller/) {
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
+            }
+            
+            my $summary_opts = $haplotyper_opts;
+            if ($self->inputs->{bam_recalibration_files}) {
+                my $bqsr_file = $self->inputs->{bam_recalibration_files}[0];
+                $summary_opts .= ' -BQSR $recal_file';
+                $haplotyper_opts .= ' --BQSR ' . $bqsr_file->path;
+            }
+            if ($contam_key && exists $$vcf_meta{$contam_key}) {
+                $summary_opts    .= qq[ -contamination $contam_key];
+                $haplotyper_opts .= qq[ -contamination $$vcf_meta{$contam_key}];
             }
             
             my $file_list_id;
@@ -71,7 +83,7 @@ class VRPipe::Steps::gatk_haplotype_caller_with_genome_chunking extends VRPipe::
                 VRPipe::StepCmdSummary->create(
                     exe     => 'GenomeAnalysisTK',
                     version => $self->gatk_version(),
-                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region]
+                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $summary_opts -L \$region]
                 )
             );
             

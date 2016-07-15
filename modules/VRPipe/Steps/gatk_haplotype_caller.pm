@@ -48,6 +48,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
         return {
             %{ $self->$orig }, # gatk options
             haplotype_caller_options   => VRPipe::StepOption->create(description => 'Options for GATK HaplotypeCaller, excluding -R,-I,-o'),
+            contamination_metadata_key => VRPipe::StepOption->create(description => 'Run with a contamination estimate (-contamination $value) using the value of given metadata key if it exists for the input BAM or CRAM'),
             minimum_records            => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0),
             tabix_exe                  => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
             avx_lsf_requirement_string => VRPipe::StepOption->create(description => 'job submission requirement string for LSF to select AVX machines for haplotype caller speedup', optional => 1, default_value => '-R "avx"'),
@@ -82,6 +83,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             
             my $reference_fasta = $options->{reference_fasta};
             my $haplotyper_opts = $options->{haplotype_caller_options};
+            my $contam_key      = $options->{contamination_metadata_key};
             my $minimum_records = $options->{minimum_records};
             my $tabix           = $options->{tabix_exe};
             my $avx             = $options->{avx_lsf_requirement_string};
@@ -120,10 +122,15 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 }
             }
             
-            my $bqsr;
+            my $summary_opts = $haplotyper_opts;
             if ($self->inputs->{bam_recalibration_files}) {
                 my $bqsr_file = $self->inputs->{bam_recalibration_files}[0];
-                $bqsr = " --BQSR " . $bqsr_file->path;
+                $summary_opts .= ' -BQSR $recal_file';
+                $haplotyper_opts .= ' --BQSR ' . $bqsr_file->path;
+            }
+            if ($contam_key && exists $$vcf_meta{$contam_key}) {
+                $summary_opts    .= qq[ -contamination $contam_key];
+                $haplotyper_opts .= qq[ -contamination $$vcf_meta{$contam_key}];
             }
             
             my ($bams_list_path, $file_list_id);
@@ -135,12 +142,10 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 $bams_list_path = $self->inputs->{bam_files}->[0]->path;
             }
             
-            my $summary_opts = $haplotyper_opts;
-            my $basename     = 'gatk_haplotype.vcf.gz';
+            my $basename = 'gatk_haplotype.vcf.gz';
             if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
                 my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
-                $summary_opts .= ' -L $region';
-                if ($bqsr) { $summary_opts .= ' -BQSR $recal_file'; }
+                $summary_opts    .= ' -L $region';
                 $haplotyper_opts .= " -L $chrom:$from-$to";
                 $basename = "${chrom}_${from}-${to}.$basename";
             }
