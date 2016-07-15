@@ -48,11 +48,11 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
     
     method inputs_definition {
         return {
-            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more coordinate-sorted bam files'),
+            bam_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more coordinate-sorted BAM or CRAM files'),
             bai_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
+                type        => 'idx',
                 max_files   => -1,
-                description => 'index files for the input bam files'
+                description => 'index files for the input BAM or CRAM files'
             )
         };
     }
@@ -78,11 +78,15 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 4500, time => 2);
+            my ($cpus) = $print_opts =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $print_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 4500, time => 2, $cpus ? (cpus => $cpus) : ());
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $bam_meta     = $bam->metadata;
                 my $printed_base = $bam->basename;
-                $printed_base =~ s/bam$/print.bam/;
+                $printed_base =~ s/(cr|b)am$/print.bam/;
                 my @outfiles;
                 my $printed_bam_file = $self->output_file(
                     output_key => 'printed_bam_files',
@@ -98,7 +102,7 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
                       $self->output_file(
                         output_key => 'printed_bam_index_files',
                         basename   => $index_base,
-                        type       => 'bin',
+                        type       => 'bai',
                         metadata   => $bam_meta
                       );
                 }
@@ -120,7 +124,7 @@ class VRPipe::Steps::gatk_print_reads extends VRPipe::Steps::gatk {
                 metadata    => { reads => 'Number of reads in the output BAM file' }
             ),
             printed_bam_index_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
+                type        => 'bai',
                 min_files   => 0,
                 max_files   => -1,
                 description => 'index file for the indel recalibrated bam file',

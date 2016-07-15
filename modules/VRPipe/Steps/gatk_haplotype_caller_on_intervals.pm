@@ -60,16 +60,24 @@ class VRPipe::Steps::gatk_haplotype_caller_on_intervals extends VRPipe::Steps::g
                 $self->throw("haplotype_caller_options should not include the reference, input or output options or HaplotypeCaller task command");
             }
             
+            my $bqsr;
+            if ($self->inputs->{bam_recalibration_files}) {
+                my $bqsr_file = $self->inputs->{bam_recalibration_files}[0];
+                $bqsr = " --BQSR " . $bqsr_file->path;
+            }
+            
             my $file_list_id;
             if (@{ $self->inputs->{bam_files} } > 1) {
                 $file_list_id = VRPipe::FileList->create(files => $self->inputs->{bam_files})->id;
             }
             
+            my $summary_opts = qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region];
+            if ($bqsr) { $summary_opts .= ' -BQSR $recal_file'; }
             $self->set_cmd_summary(
                 VRPipe::StepCmdSummary->create(
                     exe     => 'GenomeAnalysisTK',
                     version => $self->gatk_version(),
-                    summary => qq[java \$jvm_args -jar GenomeAnalysisTK.jar -T HaplotypeCaller -R \$reference_fasta -I \$bams_list -o \$vcf_file $haplotyper_opts -L \$region]
+                    summary => $summary_opts
                 )
             );
             

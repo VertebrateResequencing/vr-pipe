@@ -33,12 +33,15 @@ my @expected_step_names = qw(
 is_deeply \@s_names, \@expected_step_names, 'the pipelines have the correct steps';
 
 my $ref_fa_source   = file(qw(t data S_suis_P17.fa));
+my $ref_fai_source  = file(qw(t data S_suis_P17.fa.fai));
 my $ref_dict_source = file(qw(t data S_suis_P17.fa.dict));
 my $ref_dir         = dir($output_dir, 'ref');
 $bqsr_pipeline->make_path($ref_dir);
 my $ref_fa   = file($ref_dir, 'S_suis_P17.fa')->stringify;
+my $ref_fai  = file($ref_dir, 'S_suis_P17.fa.fai')->stringify;
 my $ref_dict = file($ref_dir, 'S_suis_P17.dict')->stringify;
 copy($ref_fa_source,   $ref_fa);
+copy($ref_fai_source,  $ref_fai);
 copy($ref_dict_source, $ref_dict);
 
 my $res_dir = dir($output_dir, 'resources');

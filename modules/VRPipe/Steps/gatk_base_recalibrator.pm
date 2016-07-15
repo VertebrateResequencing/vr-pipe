@@ -51,8 +51,8 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
     
     method inputs_definition {
         return {
-            bam_files => VRPipe::StepIODefinition->create(type => 'bam', max_files => -1, description => '1 or more bam files'),
-            bai_files => VRPipe::StepIODefinition->create(type => 'bin', max_files => -1, description => 'index files for the input bam files')
+            bam_files => VRPipe::StepIODefinition->create(type => 'aln', max_files => -1, description => '1 or more BAM or CRAM files'),
+            bai_files => VRPipe::StepIODefinition->create(type => 'idx', max_files => -1, description => 'index files for the input BAM or CRAM files')
         };
     }
     
@@ -68,8 +68,8 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
             if ($recal_options =~ /$ref|-I |--input_file|-o | --output|BaseRecalibrator/) {
                 $self->throw("base_recalibrator_options should not include the reference, input files, output files option or BaseRecalibrator task command");
             }
-            unless ($recal_options =~ /-cov/ && $recal_options =~ /-knownSites/) {
-                $self->throw("base_recalibrator_options must include -cov and -knownSites options");
+            unless ($recal_options =~ /-knownSites/) {
+                $self->throw("base_recalibrator_options must include -knownSites options");
             }
             
             $self->set_cmd_summary(
@@ -80,15 +80,19 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
                 )
             );
             
-            my $req = $self->new_requirements(memory => 6000, time => 2);
+            my ($cpus) = $recal_options =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $recal_options =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 6000, time => 2, $cpus ? (cpus => $cpus) : ());
             
             foreach my $bam (@{ $self->inputs->{bam_files} }) {
                 my $recal_base = $bam->basename;
-                $recal_base =~ s/bam$/recal_data.grp/;
+                $recal_base =~ s/(cr|b)am$/recal_data.grp/;
                 my $recal_file = $self->output_file(
                     output_key => 'bam_recalibration_files',
                     basename   => $recal_base,
-                    type       => 'txt',
+                    type       => 'grp',
                     metadata   => { source_bam => $bam->path->stringify }
                 );
                 
@@ -103,7 +107,7 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
     method outputs_definition {
         return {
             bam_recalibration_files => VRPipe::StepIODefinition->create(
-                type        => 'txt',
+                type        => 'grp',
                 max_files   => -1,
                 description => 'recalibration file from GATK BaseRecalibrator',
                 metadata    => { source_bam => 'the bam file used to generate this recal file' }
@@ -116,7 +120,7 @@ class VRPipe::Steps::gatk_base_recalibrator extends VRPipe::Steps::gatk_v2 {
     }
     
     method description {
-        return "Run Base Quality Score Recalibration (BQSR) on a bam file creating a file to be used to recalibrate quality scores";
+        return "Run Base Quality Score Recalibration (BQSR) on a BAM or CRAM file creating a file to be used to recalibrate quality scores";
     }
     
     method max_simultaneous {

@@ -49,7 +49,7 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
     }
     
     around inputs_definition {
-        return { %{ $self->$orig }, bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'txt', max_files => -1, description => '1 or more bam recal files from gatk_base_recalibrator step', metadata => { source_bam => 'path to the bam used to create this recalibration file' }) };
+        return { %{ $self->$orig }, bam_recalibration_files => VRPipe::StepIODefinition->create(type => 'grp', max_files => -1, description => '1 or more bam recal files from gatk_base_recalibrator step', metadata => { source_bam => 'path to the bam used to create this recalibration file' }) };
     }
     
     method body_sub {
@@ -73,13 +73,17 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 )
             );
             
-            my $req = $self->new_requirements(memory => 4500, time => 2);
+            my ($cpus) = $recal_opts =~ m/-nct\s*(\d+)/;
+            unless ($cpus) {
+                ($cpus) = $recal_opts =~ m/--num_cpu_threads_per_data_thread\s*(\d+)/;
+            }
+            my $req = $self->new_requirements(memory => 4500, time => 2, $cpus ? (cpus => $cpus) : ());
             foreach my $recal_file (@{ $self->inputs->{bam_recalibration_files} }) {
                 my $bam_path   = $recal_file->metadata->{source_bam};
                 my $bam        = VRPipe::File->get(path => $bam_path);
                 my $bam_meta   = $bam->metadata;
                 my $recal_base = $bam->basename;
-                $recal_base =~ s/bam$/recal.bam/;
+                $recal_base =~ s/(cr|b)am$/recal.bam/;
                 my @outfiles;
                 my $recal_bam_file = $self->output_file(
                     output_key => 'recalibrated_bam_files',
@@ -96,7 +100,7 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                       $self->output_file(
                         output_key => 'recalibrated_bam_index_files',
                         basename   => $index_base,
-                        type       => 'bin',
+                        type       => 'bai',
                         metadata   => $bam_meta
                       );
                 }
@@ -117,7 +121,7 @@ class VRPipe::Steps::gatk_print_reads_with_bqsr extends VRPipe::Steps::gatk_prin
                 description => 'a bam file with recalibrated quality scores; OQ tag holds the original quality scores',
             ),
             recalibrated_bam_index_files => VRPipe::StepIODefinition->create(
-                type        => 'bin',
+                type        => 'bai',
                 min_files   => 0,
                 max_files   => -1,
                 description => 'index file for the indel recalibrated bam file',

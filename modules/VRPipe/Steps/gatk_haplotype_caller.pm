@@ -62,6 +62,12 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 max_files   => -1,
                 description => 'BAI/CRAI index files for the input BAM/CRAM files'
             ),
+            bam_recalibration_files => VRPipe::StepIODefinition->create(
+                type        => 'grp',
+                min_files   => 0,
+                max_files   => 1,
+                description => 'recalibration file from GATK BaseRecalibrator; if included, will add --BQSR $recal_file to the HaplotypeCaller commmand; requires only a single input BAM or CRAM file'
+            ),
             sites_file => VRPipe::StepIODefinition->create(type => 'vcf', min_files => 0, max_files => 1, description => 'Optional sites file for calling only at the given sites'),
         };
     }
@@ -114,6 +120,12 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
                 }
             }
             
+            my $bqsr;
+            if ($self->inputs->{bam_recalibration_files}) {
+                my $bqsr_file = $self->inputs->{bam_recalibration_files}[0];
+                $bqsr = " --BQSR " . $bqsr_file->path;
+            }
+            
             my ($bams_list_path, $file_list_id);
             if (@{ $self->inputs->{bam_files} } > 1) {
                 $bams_list_path = $self->output_file(basename => "bams.list", type => 'txt', temporary => 1)->path;
@@ -127,7 +139,8 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
             my $basename     = 'gatk_haplotype.vcf.gz';
             if (defined $$vcf_meta{chrom} && defined $$vcf_meta{from} && defined $$vcf_meta{to}) {
                 my ($chrom, $from, $to) = ($$vcf_meta{chrom}, $$vcf_meta{from}, $$vcf_meta{to});
-                $summary_opts    .= ' -L $region';
+                $summary_opts .= ' -L $region';
+                if ($bqsr) { $summary_opts .= ' -BQSR $recal_file'; }
                 $haplotyper_opts .= " -L $chrom:$from-$to";
                 $basename = "${chrom}_${from}-${to}.$basename";
             }
