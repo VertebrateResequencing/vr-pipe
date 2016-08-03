@@ -36,7 +36,7 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 
 use VRPipe::Base;
 
-class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
+class VRPipe::Steps::npg_cram_stats_parser extends VRPipe::Steps::irods {
     use VRPipe::Schema;
     use VRPipe::FileProtocol;
     use VRPipe::Parser;
@@ -141,7 +141,7 @@ class VRPipe::Steps::npg_cram_stats_parser  extends VRPipe::Steps::irods {
     }
     
     method max_simultaneous {
-        return 50;
+        return 100;
     }
     
     method parse_stats (ClassName|Object $self: Int $cram_file_id, Str $suffixes, Str $sample_id_type, Str $user_snp_file, Str $manifest_dir, Str $imeta, Str $iget, Str $ichksum, Str $zone) {
