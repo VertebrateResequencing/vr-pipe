@@ -35,6 +35,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
+    use VRPipe::Schema;
+    
+    our $schema;
+    
     around options_definition {
         return {
             %{ $self->$orig },
@@ -119,6 +123,15 @@ class VRPipe::Steps::bcftools_gtcheck extends VRPipe::Steps::bcftools {
                 my $gtypex_path = $gtypex_file->path;
                 my $cmd         = qq[$bcftools_exe gtcheck -g $genotypes_file_path $gtcheck_opts $vcf_path > $gtypex_path];
                 $self->dispatch_wrapped_cmd('VRPipe::Steps::bcftools_gtcheck', 'run_bcftools_gtcheck', [$cmd, $req, { output_files => [$gtypex_file] }]);
+                
+                # relate our gtypex file to the bam/cram file associated with
+                # this bam's lane that already has qc files associated with it:
+                # that is where the qc website looks for genotype info
+                $schema ||= VRPipe::Schema->create('VRTrack');
+                my $fwqc = $schema->file_with_qc(path => $source_bam, protocol => 'file:/');
+                if ($fwqc) {
+                    $self->relate_input_to_output($fwqc, 'qc_file', $gtypex_path->stringify);
+                }
             }
         };
     }

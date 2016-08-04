@@ -35,6 +35,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::htscmd_gtcheck with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
+    our $schema;
+    
     method options_definition {
         return {
             expected_sample_from_metadata_key => VRPipe::StepOption->create(
@@ -90,6 +94,15 @@ class VRPipe::Steps::htscmd_gtcheck with VRPipe::StepRole {
                 my $gtypex_path = $gtypex_file->path;
                 my $cmd         = qq[$htscmd_exe gtcheck -g $genotypes_vcf $vcf_path > $gtypex_path];
                 $self->dispatch([$cmd, $req, { output_files => [$gtypex_file] }]);
+                
+                # relate our gtypex file to the bam/cram file associated with
+                # this bam's lane that already has qc files associated with it:
+                # that is where the qc website looks for genotype info
+                $schema ||= VRPipe::Schema->create('VRTrack');
+                my $fwqc = $schema->file_with_qc(path => $source_bam, protocol => 'file:/');
+                if ($fwqc) {
+                    $self->relate_input_to_output($fwqc, 'qc_file', $gtypex_path->stringify);
+                }
             }
         };
     }

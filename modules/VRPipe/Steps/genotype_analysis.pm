@@ -36,6 +36,10 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
+    use VRPipe::Schema;
+    
+    our $schema;
+    
     method options_definition {
         return {
             min_concordance => VRPipe::StepOption->create(
@@ -198,6 +202,26 @@ class VRPipe::Steps::genotype_analysis with VRPipe::StepRole {
         foreach my $bam_path (@bam_files) {
             my $bam_file = VRPipe::File->get(path => $bam_path);
             $bam_file->add_metadata($new_meta, replace_data => 1);
+        }
+        
+        # also store results in the graph db if this gt file is in there
+        $schema ||= VRPipe::Schema->create('VRTrack');
+        my $graph_gt_file = $schema->get_file($gt_file->protocolless_path, $gt_file->protocol);
+        if ($graph_gt_file) {
+            $schema->add(
+                'Genotype',
+                {
+                    date                            => time(),
+                    expected_sample_name            => $exp,
+                    pass                            => $status eq 'confirmed' ? 1 : 0,
+                    matched_sample_name             => $gtype1,
+                    concordance                     => $con,
+                    ratio                           => $ratio,
+                    multiple_samples_per_individual => $multiple_samples_per_individual ? 1 : 0,
+                    status                          => $gt_status
+                },
+                incoming => { type => 'genotype_data', node => $graph_gt_file }
+            );
         }
     }
 }

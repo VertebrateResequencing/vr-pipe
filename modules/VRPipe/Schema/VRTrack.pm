@@ -357,6 +357,14 @@ class VRPipe::Schema::VRTrack with VRPipe::SchemaRole {
         return $qc_nodes;
     }
     
+    # given a bam/cram node/path, returns the FSE node that belongs to the
+    # input's lane and has qc_file relationships. (So the return value could
+    # be the same node as the input, or it might be different.)
+    method file_with_qc (Object :$node?, File|Str :$path, Str :$protocol) {
+        my $nodes = $self->_call_plugin_file_qc($node, $path, $protocol);
+        return $nodes->{filesystemelement};
+    }
+    
     # to make vrtrack_metadata fast, our plugin takes a file path and returns
     # all file qc nodes along with the node for the file itself and all the
     # hierarchy nodes; file_qc_nodes() will take a subset of these, while
