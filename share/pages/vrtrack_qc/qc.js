@@ -59,11 +59,17 @@ var massageLaneProperties = function(lane, isGroupAdmin, aqs) {
                 if (parseInt(gtype_common_snp_count) < gtype_min_s) {
                     fails.push(['Genotype check', 'The number of common sites called (' + gtype_common_snp_count + ') is less than ' + gtype_min_s + '.']);
                 }
-                
-                var gtype_min_c = parseFloat(aqs['GType min concordance'].value());
-                var gtype_concordance = parseFloat(lane['gtcheckdata:concordance']);
-                if (gtype_concordance < gtype_min_c) {
-                    fails.push(['Genotype check', 'The concordance (' + gtype_concordance + ') is less than ' + gtype_min_c + '.']);
+            }
+            var gtype_ratio_str = lane['gtcheckdata:ratio'];
+            //*** should we have an auto qc setting for min ratio?
+            if (gtype_common_snp_count || gtype_ratio_str) {
+                var gtype_concordance_str = lane['gtcheckdata:concordance'];
+                if (gtype_concordance_str) {
+                    var gtype_min_c = parseFloat(aqs['GType min concordance'].value());
+                    var gtype_concordance = parseFloat(gtype_concordance_str);
+                    if (gtype_concordance < gtype_min_c) {
+                        fails.push(['Genotype check', 'The concordance (' + gtype_concordance + ') is less than ' + gtype_min_c + '.']);
+                    }
                 }
             }
             

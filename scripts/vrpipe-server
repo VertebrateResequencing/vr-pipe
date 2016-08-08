@@ -1947,12 +1947,20 @@ sub qc {
                     if ($gtcheck) {
                         # save column space by getting rid of the matching sample name
                         $gtcheck =~ s/\(.+:(\d.*)\)/($1)/; #unconfirmed (vbseqx106041576:1)
-                        $new_props->{'gtcheckdata:concordance'} = $1;
+                        my $parsed_concordance = $1;
                         $new_props->{Genotype} = $gtcheck;
                         $gtcheck =~ s/\s+.+//;
-                        $new_props->{genotype_status}                   = $gtcheck;
+                        $new_props->{genotype_status} = $gtcheck;
                         $new_props->{'gtcheckdata:matched_sample_name'} = $props->{'gtcheckdata:matched_sample_name'};
-                        $new_props->{'gtcheckdata:common_snp_count'}    = $props->{'gtcheckdata:common_snp_count'};
+                        
+                        if (exists $props->{'gtcheckdata:common_snp_count'}) {
+                            $new_props->{'gtcheckdata:common_snp_count'} = $props->{'gtcheckdata:common_snp_count'};
+                            $new_props->{'gtcheckdata:concordance'}      = $parsed_concordance;
+                        }
+                        elsif (exists $props->{'gtcheckdata:ratio'}) {
+                            $new_props->{'gtcheckdata:ratio'}       = $props->{'gtcheckdata:ratio'};
+                            $new_props->{'gtcheckdata:concordance'} = $props->{'gtcheckdata:concordance'};
+                        }
                     }
                     else {
                         $new_props->{Genotype}                       = 'unknown';

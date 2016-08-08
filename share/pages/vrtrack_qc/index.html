@@ -1897,6 +1897,9 @@
                         html += '</tbody></table>';
                         return html;
                     }
+                    else if (lane.hasOwnProperty('gtcheckdata:ratio')) {
+                        return '<p>matched to ' + lane['gtcheckdata:matched_sample_name'] + '; ratio ' + lane['gtcheckdata:ratio'] + '</p>';
+                    }
                     else {
                         return '<p>no genotype result details available</p>';
                     }
