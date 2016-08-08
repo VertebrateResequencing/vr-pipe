@@ -124,8 +124,13 @@ class VRPipe::Steps::vcf_to_irods with VRPipe::StepRole {
         system("imkdir", "-p", "$idir") && $self->throw("failed to imkdir $idir");
         
         my $iput_cmd = "iput";
-        $iput_cmd .= " -f"           if $update;
-        $iput_cmd .= " -R $resource" if $resource;
+        $iput_cmd .= " -f" if $update;
+        if ($resource) {
+            $iput_cmd .= " -R $resource";
+        }
+        else {
+            $iput_cmd .= " -K";
+        }
         
         system("$iput_cmd $input_vcf_path $idir") && $self->throw("failed to $iput_cmd $input_vcf_path $idir");
         if ($has_index) {

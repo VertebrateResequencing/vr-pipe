@@ -896,9 +896,8 @@ SKIP: {
     my $num_tests = 60;
     skip "author-only tests for an iRods datasource", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
     
-    my $output_root    = get_output_dir('datasource_irods_import_dir');
-    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
-    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    my $output_root = get_output_dir('datasource_irods_import_dir');
+    my $irods_root  = $ENV{VRPIPE_IRODS_TEST_ROOT};
     my (undef, $irods_zone) = split('/', $irods_root);
     my $schema = VRPipe::Schema->create("VRTrack");
     
@@ -1037,8 +1036,8 @@ SKIP: {
     # more complete test with our own freshly-added files and metadata
     system("irm -fr $irods_root > /dev/null 2> /dev/null");
     system("imkdir -p $irods_root");
-    system("iput -R $irods_resource t/data/file.txt $irods_root");
-    system("iput -R $irods_resource t/data/file2.txt $irods_root");
+    system("iput -K t/data/file.txt $irods_root");
+    system("iput -K t/data/file2.txt $irods_root");
     system("imeta -z $irods_zone add -d $irods_root/file.txt study_id 2623");
     system("imeta -z $irods_zone add -d $irods_root/file2.txt study_id 2623");
     system("imeta -z $irods_zone add -d $irods_root/file.txt foo bar");
@@ -1077,7 +1076,7 @@ SKIP: {
     is_deeply $file->metadata, { study_id => 2623, foo => 'car', irods_path => "$irods_root/file.txt" }, 'metadata in VRPipe updated correctly after waiting 10 seconds';
     
     # add a new file to make sure we pick that up as well
-    system("iput -R $irods_resource t/data/file3.txt $irods_root");
+    system("iput -K t/data/file3.txt $irods_root");
     system("imeta -z $irods_zone add -d $irods_root/file3.txt study_id 2623");
     system("imeta -z $irods_zone add -d $irods_root/file3.txt simple simon");
     sleep(11);

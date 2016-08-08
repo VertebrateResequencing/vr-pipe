@@ -307,11 +307,10 @@ ok $real_local_file->close, 'close() worked on a local file';
 SKIP: {
     my $num_tests = 4;
     skip "author-only tests for reading a file from irods", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
-    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
-    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    my $irods_root = $ENV{VRPIPE_IRODS_TEST_ROOT};
     system("irm -fr $irods_root > /dev/null 2> /dev/null");
     system("imkdir -p $irods_root");
-    system("iput -R $irods_resource $real_local_path $irods_root");
+    system("iput -K $real_local_path $irods_root");
     
     my $real_irods_path = "$irods_root/file.txt";
     my $real_irods_file = $vrpipe->add('File', { path => $real_irods_path, protocol => 'irods:' });

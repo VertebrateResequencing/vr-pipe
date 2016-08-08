@@ -415,11 +415,10 @@ is $lfile->cat_cmd, 'zcat /local/file.txt.gz', 'cat_cmd() works correctly on a c
 SKIP: {
     my $num_tests = 4;
     skip "author-only tests for reading a file from irods", $num_tests unless ($ENV{VRPIPE_AUTHOR_TESTS} && $ENV{VRPIPE_IRODS_TEST_ROOT} && $ENV{VRPIPE_IRODS_TEST_RESOURCE});
-    my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
-    my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+    my $irods_root = $ENV{VRPIPE_IRODS_TEST_ROOT};
     system("irm -fr $irods_root > /dev/null 2> /dev/null");
     system("imkdir -p $irods_root");
-    system("iput -R $irods_resource t/data/file.txt $irods_root");
+    system("iput -K t/data/file.txt $irods_root");
     
     my $real_irods_path = "$irods_root/file.txt";
     my $real_irods_file = VRPipe::File->create(path => $real_irods_path, protocol => 'irods:');

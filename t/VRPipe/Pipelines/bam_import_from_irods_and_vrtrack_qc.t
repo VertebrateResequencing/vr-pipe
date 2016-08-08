@@ -34,13 +34,12 @@ close($mysqlfh);
 
 # copy truncated versions of the 2 active lanes to irods test area, and add
 # their metadata
-my $irods_root     = $ENV{VRPIPE_IRODS_TEST_ROOT};
-my $irods_resource = $ENV{VRPIPE_IRODS_TEST_RESOURCE};
+my $irods_root = $ENV{VRPIPE_IRODS_TEST_ROOT};
 my (undef, $irods_zone) = split('/', $irods_root);
 system("irm -fr $irods_root > /dev/null 2> /dev/null");
 system("imkdir -p $irods_root");
-system("iput -R $irods_resource t/data/7369_5#30.bam $irods_root");
-system("iput -R $irods_resource t/data/7369_5#31.bam $irods_root");
+system("iput -K t/data/7369_5#30.bam $irods_root");
+system("iput -K t/data/7369_5#31.bam $irods_root");
 
 my $common_metadata = {
     id_run                 => 7369,
