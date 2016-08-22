@@ -52,6 +52,7 @@ class VRPipe::Pipelines::gatk_genotype_gvcfs with VRPipe::PipelineRole {
     method adaptor_definitions {
         (
             { from_step => 0, to_step => 1, to_key   => 'gvcf_files' },
+            { from_step => 0, to_step => 1, to_key   => 'gvcf_index_files' },
             { from_step => 1, to_step => 2, from_key => 'combine_gvcf_files', to_key => 'gvcf_files' },
             { from_step => 1, to_step => 2, from_key => 'combine_gvcf_index_files', to_key => 'gvcf_index_files' },
         );
