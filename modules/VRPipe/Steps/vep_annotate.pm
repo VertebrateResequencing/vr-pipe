@@ -88,7 +88,7 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
                 $post_vep =~ s/\$output_(b|v)cf/$output_path/g;
                 $post_vep =~ s/\$bcftools/$bcftools_exe/g;
                 my $req = $self->new_requirements(memory => 5000, time => 1);
-                my $this_cmd = "use VRPipe::Steps::vep_annotate; VRPipe::Steps::vep_annotate->vep_annotate_and_check(input => q[$input_path], chunk => [], output => q[$output_path], bcftools => q[$bcftools_exe], vep => q[$vep_exe], vep_opts => q[$vep_opts], api_paths => q[$ensembl_api_paths] , post_vep => q[$post_vep]);";
+                my $this_cmd = "use VRPipe::Steps::vep_annotate; VRPipe::Steps::vep_annotate->vep_annotate_and_check(input => q[$input_path], output => q[$output_path], bcftools => q[$bcftools_exe], vep => q[$vep_exe], vep_opts => q[$vep_opts], api_paths => q[$ensembl_api_paths] , post_vep => q[$post_vep]);";
                 $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$output_file, $output_index] });
             }
         };
