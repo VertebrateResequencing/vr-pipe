@@ -70,6 +70,11 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 optional      => 1,
                 default_value => 0
             ),
+            cpus => VRPipe::StepOption->create(
+                description   => 'integer number of CPUs to reserve',
+                optional      => 1,
+                default_value => 0
+            ),
         };
     }
     
@@ -91,6 +96,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
             my $samtools      = $options->{samtools_exe};
             my $idx_output    = $options->{index_output};
             my $check_records = $options->{check_records_vs_input};
+            my $cpus          = $options->{cpus};
             my @metadata_keys = split(',', $options->{input_metadata_to_keep});
             
             if ($cmd_line !~ /\$input_bam/ && $cmd_line !~ /\$input_cram/ && $cmd_line !~ /\$input_aln/) {
@@ -104,7 +110,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                     VRPipe::StepCmdSummary->create(
                         exe     => 'samtools',
                         version => VRPipe::StepCmdSummary->determine_version($samtools, '^Version: (.+)$'),
-                        summary => '$cmd_line'
+                        summary => qq[$cmd_line]
                     )
                 );
                 $cmd_line =~ s/\$samtools/$samtools/g;
@@ -114,7 +120,7 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
             }
             
             my $sub_dir = 'a';
-            my $req = $self->new_requirements(memory => 500, time => 1);
+            my $req = $self->new_requirements(memory => 500, time => 1, $cpus ? (cpus => $cpus) : ());
             foreach my $in_bam (@{ $self->inputs->{bam_files} }) {
                 my $out_meta = {};
                 my $in_meta  = $in_bam->metadata;
@@ -139,6 +145,13 @@ class VRPipe::Steps::bam_processing with VRPipe::StepRole {
                 my $this_cmd    = $cmd_line;
                 $this_cmd =~ s/\$input_(cr|b)am/$input_path/g;
                 $this_cmd =~ s/\$output_(cr|b)am/$output_path/g;
+                
+                my @keys = $this_cmd =~ m/\$\{([^}]+)\}/g;
+                foreach my $key (@keys) {
+                    if (exists $$in_meta{$key}) {
+                        $this_cmd =~ s/\${$key}/$$in_meta{$key}/g;
+                    }
+                }
                 
                 if ($idx_output) {
                     my $suffix_idx = $cmd_line =~ /\$output_bam/ ? 'bai' : 'crai';
