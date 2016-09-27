@@ -35,6 +35,8 @@ this program. If not, see L<http://www.gnu.org/licenses/>.
 use VRPipe::Base;
 
 class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
+    my @extra_metadata_to_copy = qw(analysis_group population sample_id sample_accession_number sample_cohort sample_supplier_name study_accession_number study_id);
+    
     method options_definition {
         return {
             reference_fasta => VRPipe::StepOption->create(description => 'absolute path to genome reference file to map against'),
@@ -221,14 +223,11 @@ class VRPipe::Steps::bwa_mem_to_bam with VRPipe::StepRole {
                             $sam_meta->{study} = $ds;
                             $rg_line .= '\tDS:' . $ds;
                         }
-                        if (defined $fq_meta->{analysis_group}) {
-                            $sam_meta->{analysis_group} = $fq_meta->{analysis_group};
-                        }
-                        if (defined $fq_meta->{population}) {
-                            $sam_meta->{population} = $fq_meta->{population};
-                        }
-                        if (defined $fq_meta->{sample_id}) {
-                            $sam_meta->{sample_id} = $fq_meta->{sample_id};
+                        
+                        foreach my $key (@extra_metadata_to_copy) {
+                            if (defined $fq_meta->{$key}) {
+                                $sam_meta->{$key} = $fq_meta->{$key};
+                            }
                         }
                         
                         my $ended = $paired ? 'pe' : 'se';
