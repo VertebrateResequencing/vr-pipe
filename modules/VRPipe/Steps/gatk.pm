@@ -80,10 +80,10 @@ class VRPipe::Steps::gatk extends VRPipe::Steps::java {
         # in v1.5+ if we have a gatk_key
         my $version = $self->gatk_version;
         $version =~ s/^(\d+\.\d+).+/$1/;
-        if ($version < 1.5) {
+        if ($version && $version < 1.5) {
             $prefix .= ' --phone_home NO_ET';
         }
-        elsif ($gatk_key && $version < 3.6) {
+        elsif ($version && $gatk_key && $version < 3.6) {
             $prefix .= qq[ --phone_home NO_ET --gatk_key $gatk_key];
         }
         
