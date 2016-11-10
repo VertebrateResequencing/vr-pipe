@@ -48,7 +48,7 @@ class VRPipe::Steps::gatk_haplotype_caller extends VRPipe::Steps::gatk_v2 {
         return {
             %{ $self->$orig }, # gatk options
             haplotype_caller_options   => VRPipe::StepOption->create(description => 'Options for GATK HaplotypeCaller, excluding -R,-I,-o'),
-            contamination_metadata_key => VRPipe::StepOption->create(description => 'Run with a contamination estimate (-contamination $value) using the value of given metadata key if it exists for the input BAM or CRAM'),
+            contamination_metadata_key => VRPipe::StepOption->create(description => 'Run with a contamination estimate (-contamination $value) using the value of given metadata key if it exists for the input BAM or CRAM', optional => 1),
             minimum_records            => VRPipe::StepOption->create(description => 'Minimum number of records expected in output VCF. Not recommended if using genome chunking', optional => 1, default_value => 0),
             tabix_exe                  => VRPipe::StepOption->create(description => 'path to tabix executable', optional => 1, default_value => 'tabix'),
             avx_lsf_requirement_string => VRPipe::StepOption->create(description => 'job submission requirement string for LSF to select AVX machines for haplotype caller speedup', optional => 1, default_value => '-R "avx"'),
