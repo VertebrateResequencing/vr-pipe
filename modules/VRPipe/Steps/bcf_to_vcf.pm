@@ -182,14 +182,14 @@ class VRPipe::Steps::bcf_to_vcf extends VRPipe::Steps::bcftools {
                 my $bcf_ft = VRPipe::FileType->create('bcf', { file => $file->path });
                 map { $source_samples{$_} = 1 } @{ $bcf_ft->samples };
             }
-            elsif ($file->type eq 'bam') {
-                my $bp = VRPipe::Parser->create('bam', { file => $file });
+            elsif ($file->type eq 'bam' || $file->type eq 'cram') {
+                my $bp = VRPipe::Parser->create($file->type, { file => $file });
                 map { $source_samples{$_} = 1 } $bp->samples;
                 $bp->close;
                 $bam_input = 1;
             }
             else {
-                $self->throw("Source file not of type bcf or bam, " . $file->path);
+                $self->throw("Source file not of type bcf, bam or cram, " . $file->path);
             }
         }
         $self->throw("No samples found") unless (keys %source_samples);
