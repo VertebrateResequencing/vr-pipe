@@ -99,8 +99,8 @@ class VRPipe::Steps::graph_auto_qc with VRPipe::StepRole {
     method inputs_definition {
         return {
             bam_files => VRPipe::StepIODefinition->create(
-                type        => 'bam',
-                description => 'bam files',
+                type        => 'aln',
+                description => 'bam or cram files',
                 max_files   => -1,
                 metadata    => { lane => 'lane name (a unique identifer for this sequencing run, aka read group)' }
             )
