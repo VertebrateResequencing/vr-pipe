@@ -889,6 +889,25 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
     );
     @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 2, 'graph_filter with a 0["reasons"] value does not allow failures with an unspecified reason';
+    
+    # test the 'AND' and 'OR' nature of things works correctly
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#name#sample1,VRTrack#Sample#name#sample2,VRTrack#Sample#name#sample3' }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 3, 'graph_filter with the same labels does OR correctly';
+    
+    $filt_ds = VRPipe::DataSource->create(
+        type    => 'vrpipe',
+        method  => 'all',
+        source  => 'ps1[1]',
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#qc_failed#0,VRTrack#Sample#name#sample1,VRTrack#Sample#name#sample2,VRTrack#Sample#name#sample3' }
+    );
+    @filt_elements = @{ get_elements($filt_ds) };
+    is scalar(@filt_elements), 2, 'graph_filter with the same and different labels does AND and OR correctly';
 }
 
 # author-only tests for the irods and graph_vrtrack datasources

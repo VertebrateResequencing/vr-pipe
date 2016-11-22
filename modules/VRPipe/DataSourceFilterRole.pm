@@ -17,7 +17,7 @@ Sendu Bala <sb10@sanger.ac.uk>.
 
 =head1 COPYRIGHT AND LICENSE
 
-Copyright (c) 2015 Genome Research Limited.
+Copyright (c) 2015, 2016 Genome Research Limited.
 
 This file is part of VRPipe.
 
@@ -124,9 +124,12 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                 return 0;
             }
             
-            my $passes = 0;
+            my %kinds;
+            my %passes_per_kind;
             foreach my $gf (@$gfs) {
                 my ($namespace, $label, $prop, $value) = @$gf;
+                my $kind = join(".", $namespace, $label, $prop);
+                $kinds{$kind} = 1;
                 
                 # we have a special-case hack for VRTrack#Sample#qc_failed#0
                 # where we allow the value 0 to be followed by ["reason1"|"reason 2"]
@@ -152,7 +155,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                         # set so that we can now test if it has $prop set to 0,
                         # or don't have $prop set at all
                         unless ($graph->node_property($node, $prop)) {
-                            $passes++;
+                            $passes_per_kind{$kind}++;
                         }
                         else {
                             my $ok = 0;
@@ -167,7 +170,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                             }
                             
                             if ($ok) {
-                                $passes++;
+                                $passes_per_kind{$kind}++;
                             }
                             else {
                                 $file_filter_cache{$file_id} = undef;
@@ -176,7 +179,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                         }
                     }
                     else {
-                        $passes++;
+                        $passes_per_kind{$kind}++;
                     }
                 }
                 else {
@@ -184,7 +187,7 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                     return unless $filter_after_grouping;
                 }
             }
-            $pass_filter = $passes == @$gfs ? 1 : 0;
+            $pass_filter = scalar(keys %passes_per_kind) == scalar(keys %kinds) ? 1 : 0;
         }
         
         $file_filter_cache{$file_id} = $pass_filter;
