@@ -895,7 +895,7 @@ is_deeply \@results, \@expected, 'got correct results for fofn_with_genome_chunk
         type    => 'vrpipe',
         method  => 'all',
         source  => 'ps1[1]',
-        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#name#sample1,VRTrack#Sample#name#sample2,VRTrack#Sample#name#sample3' }
+        options => { filter => 'filtkey#filtvalue', graph_filter => 'VRTrack#Sample#name#sample1,VRTrack#Sample#name#sample2,VRTrack#Sample#name#sample3,VRTrack#Sample#name#sampleX', filter_after_grouping => 0 }
     );
     @filt_elements = @{ get_elements($filt_ds) };
     is scalar(@filt_elements), 3, 'graph_filter with the same labels does OR correctly';

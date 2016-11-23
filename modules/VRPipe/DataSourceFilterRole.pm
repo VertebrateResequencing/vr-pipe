@@ -172,19 +172,11 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                             if ($ok) {
                                 $passes_per_kind{$kind}++;
                             }
-                            else {
-                                $file_filter_cache{$file_id} = undef;
-                                return unless $filter_after_grouping;
-                            }
                         }
                     }
                     else {
                         $passes_per_kind{$kind}++;
                     }
-                }
-                else {
-                    $file_filter_cache{$file_id} = undef;
-                    return unless $filter_after_grouping;
                 }
             }
             $pass_filter = scalar(keys %passes_per_kind) == scalar(keys %kinds) ? 1 : 0;
