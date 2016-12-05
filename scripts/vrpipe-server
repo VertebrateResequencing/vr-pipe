@@ -1876,7 +1876,7 @@ sub qc {
                         $new_props->{stats_table}->{'bases_mapped'}       = &$commify($bases_mapped_cigar) . ' (' . &$rounder((100 / $total_length) * $bases_mapped_cigar) . '%)';
                         $new_props->{stats_table}->{'bases_mapped_rmdup'} = &$commify($props->{'alignmentstats:bases mapped after rmdup'}) . ' (' . &$rounder((100 / $total_length) * $props->{'alignmentstats:bases mapped after rmdup'}) . '%)';
                         $new_props->{stats_table}->{'cycles'}             = $props->{'alignmentstats:average length'};
-                        my $error_rate = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'});
+                        my $error_rate = $bases_mapped_cigar ? &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:mismatches'}) : 0;
                         $new_props->{stats_table}->{'error_rate'}       = $error_rate . '%';
                         $new_props->{lanelet_stats}->{'Error Rate'}     = $error_rate;
                         $new_props->{stats_table}->{'duplication_rate'} = &$rounder((100 / $bases_mapped_cigar) * $props->{'alignmentstats:bases duplicated'}) . '%';
