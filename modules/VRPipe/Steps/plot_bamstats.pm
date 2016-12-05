@@ -103,17 +103,21 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-gc-content.png', type => 'bin');
                 push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'GC Content' });
                 
-                $self->output_file(temporary => 1, basename => $prefix . '-gc-depth.gp', type => 'txt');
-                $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-gc-depth.png', type => 'bin');
-                push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'GC Depth' });
+                if ($vr_stats->properties->{'reads mapped'} > 0) {
+                    $self->output_file(temporary => 1, basename => $prefix . '-gc-depth.gp', type => 'txt'); ###
+                    $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-gc-depth.png', type => 'bin');
+                    push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'GC Depth' });
+                }
                 
                 $self->output_file(temporary => 1, basename => $prefix . '-acgt-cycles.gp', type => 'txt');
                 $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-acgt-cycles.png', type => 'bin');
                 push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'ACGT Cycles' });
                 
-                $self->output_file(temporary => 1, basename => $prefix . '-coverage.gp', type => 'txt');
-                $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-coverage.png', type => 'bin');
-                push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Coverage' });
+                if ($vr_stats->properties->{'reads mapped'} > 0) {
+                    $self->output_file(temporary => 1, basename => $prefix . '-coverage.gp', type => 'txt'); ###
+                    $ofile = $self->output_file(output_key => 'bamstats_plots', basename => $prefix . '-coverage.png', type => 'bin');
+                    push(@vr_plot_params, { path => $ofile->path->stringify, type => 'png', caption => 'Coverage' });
+                }
                 
                 if ($vr_stats->properties->{'number of insertions'} > 0 && $vr_stats->properties->{'number of deletions'} > 0) {
                     $self->output_file(temporary => 1, basename => $prefix . '-indel-dist.gp', type => 'txt');
@@ -155,7 +159,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
             bamstats_plots => VRPipe::StepIODefinition->create(
                 type        => 'bin',
                 description => 'png files produced by plot-bamstats, with a caption in the metadata',
-                min_files   => 8,
+                min_files   => 6,
                 max_files   => -1
             )
         };
