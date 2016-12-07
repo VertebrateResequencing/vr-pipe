@@ -142,7 +142,7 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             
             if ($cram_out) {
                 # biobambam does not support on-the-fly cram indexing
-                $index_cmd = $samtools_legacy ? "> $markdup_path && $samtools index $markdup_path" : "tee $markdup_path | $samtools index - " . $markdup_index_file->path;
+                $index_cmd = $samtools_legacy ? "> $markdup_path && $samtools index $markdup_path" : "| tee $markdup_path | $samtools index - " . $markdup_index_file->path;
             }
             my $this_cmd = "use VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates; VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates->merge_markdup_and_check(q[$merge_cmd | $markdup_cmd $index_cmd], input_file_list => $file_list, out_file => q[$markdup_path]);";
             $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$markdup_file, $markdup_index_file, $markdup_metrics_file] });
