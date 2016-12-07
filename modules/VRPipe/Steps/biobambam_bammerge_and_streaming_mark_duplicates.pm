@@ -119,9 +119,9 @@ class VRPipe::Steps::biobambam_bammerge_and_streaming_mark_duplicates with VRPip
             my $basename        = $self->step_state->dataelement->id;
             my $markdup_file    = $self->output_file(
                 output_key => 'markdup_files',
-                basename   => $basename . '.bam',
-                type       => $cram_out ? 'cram' : 'bam',
-                metadata   => $merged_metadata
+                basename   => $basename . ($cram_out ? '.cram' : '.bam'),
+                type => $cram_out ? 'cram' : 'bam',
+                metadata => $merged_metadata
             );
             my $markdup_index_file = $self->output_file(
                 output_key => 'markdup_index_files',
