@@ -1803,7 +1803,7 @@ sub qc {
                 my @verifybamiddata_desired_types = qw(number_of_snps avg_depth freemix freeLK0 freeLK1);
                 my @gtcheckdata_desired_types     = qw(bam_call_string bam_gt_depths_string reception_call_string match_score common_snp_count match_count);
                 my @qcgraph_labels                = ('GC Content', 'GC Depth', 'ACGT Cycles', 'Coverage', 'Indels per cycle', 'Indel distribution', 'Insert Size', 'Mismatches per cycle', 'Qualities');
-                my @autoqc_keys                   = ('is_paired_read', 'alignmentstats:total length', 'alignmentstats:sequences', 'alignmentstats:bases trimmed', 'alignmentstats:bases mapped (cigar)', 'alignmentstats:reads mapped', 'alignmentstats:reads properly paired', 'alignmentstats:error rate', 'alignmentstats:number of insertions', 'alignmentstats:number of deletions', 'alignmentstats:reads paired', 'alignmentstats:insert size average', 'alignmentstats:dupl mapped bases', 'alignmentstats:total mapped bases', 'alignmentstats:median of indel cycle counts', 'alignmentstats:max of indel cycle counts');
+                my @autoqc_keys                   = ('is_paired_read', 'alignmentstats:total length', 'alignmentstats:sequences', 'alignmentstats:bases trimmed', 'alignmentstats:bases mapped (cigar)', 'alignmentstats:reads mapped', 'alignmentstats:reads properly paired', 'alignmentstats:error rate', 'alignmentstats:number of insertions', 'alignmentstats:number of deletions', 'alignmentstats:reads paired', 'alignmentstats:insert size average', 'alignmentstats:dupl mapped bases', 'alignmentstats:total mapped bases', 'alignmentstats:median of indel cycle counts', 'alignmentstats:max of indel cycle counts', 'alignmentstats:reads MQ0');
                 
                 foreach my $node (@$data) {
                     my $props     = $node->{properties};
@@ -1861,6 +1861,20 @@ sub qc {
                     else {
                         $new_props->{lanelet_stats}->{'Overlap dup%'} = -1;
                         $new_props->{lanelet_stats}->{'Net Gb'}       = -1;
+                    }
+                    
+                    my $reads_paired = $props->{'alignmentstats:reads paired'};
+                    if ($reads_paired) {
+                        $new_props->{lanelet_stats}->{'Paired%'} = &$rounder(100 * $props->{'alignmentstats:reads properly paired'} / $reads_paired);
+                    }
+                    else {
+                        $new_props->{lanelet_stats}->{'Paired%'} = -1;
+                    }
+                    if ($reads_mapped) {
+                        $new_props->{lanelet_stats}->{'MAPQ0%'} = &$rounder(100 * $props->{'alignmentstats:reads MQ0'} / $reads_mapped);
+                    }
+                    else {
+                        $new_props->{lanelet_stats}->{'MAPQ0%'} = -1;
                     }
                     
                     # stats for the detailed stats table

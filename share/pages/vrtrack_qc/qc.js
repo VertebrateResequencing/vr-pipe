@@ -355,7 +355,7 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                             // on which lanelets pass a new_qcgrind_qc_status
                             // filter
                             props.lanelet_stats = ko.pureComputed(function() {
-                                var stats = { 'Raw Gb': 0,  'Mapped Gb': 0, 'Mapped-dups Gb': 0, 'Net Gb': 0, 'alignmentstats:reads mapped': 0, 'alignmentstats:reads mapped after rmdup': 0, 'alignmentstats:bases mapped after rmdup': 0, 'alignmentstats:dupl mapped bases': 0, 'alignmentstats:total mapped bases': 0, 'alignmentstats:bases mapped (cigar)': 0, 'alignmentstats:mismatches': 0 };
+                                var stats = { 'Raw Gb': 0,  'Mapped Gb': 0, 'Mapped-dups Gb': 0, 'Net Gb': 0, 'alignmentstats:reads mapped': 0, 'alignmentstats:reads mapped after rmdup': 0, 'alignmentstats:bases mapped after rmdup': 0, 'alignmentstats:dupl mapped bases': 0, 'alignmentstats:total mapped bases': 0, 'alignmentstats:bases mapped (cigar)': 0, 'alignmentstats:mismatches': 0, 'alignmentstats:reads properly paired': 0, 'alignmentstats:reads paired': 0, 'alignmentstats:reads MQ0': 0 };
                                 var i;
                                 var laneletsLength = lanelets.length;
                                 var lanelet;
@@ -372,9 +372,9 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                                     stats['Mapped-dups Gb'] += ls['Mapped-dups Gb'] != -1 ? +ls['Mapped-dups Gb'] : 0;
                                     stats['Net Gb']         += ls['Net Gb'] != -1 ? +ls['Net Gb'] : 0;
                                     
-                                    // to calculate Dup%, Overlap dup%, Depth
-                                    // and error rate later, we need the
-                                    // following:
+                                    // to calculate Dup%, Overlap dup%, Depth,
+                                    // Paired%, MAPQ0% and error rate later, we
+                                    // need the following:
                                     stats['alignmentstats:reads mapped']             += +ls['alignmentstats:reads mapped'];
                                     stats['alignmentstats:reads mapped after rmdup'] += +ls['alignmentstats:reads mapped after rmdup'];
                                     stats['alignmentstats:bases mapped after rmdup'] += +ls['alignmentstats:bases mapped after rmdup'];
@@ -382,6 +382,9 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                                     stats['alignmentstats:total mapped bases']       += +ls['alignmentstats:total mapped bases'];
                                     stats['alignmentstats:bases mapped (cigar)']     += +ls['alignmentstats:bases mapped (cigar)'];
                                     stats['alignmentstats:mismatches']               += +ls['alignmentstats:mismatches'];
+                                    stats['alignmentstats:reads properly paired']    += +ls['alignmentstats:reads properly paired'];
+                                    stats['alignmentstats:reads paired']             += +ls['alignmentstats:reads paired'];
+                                    stats['alignmentstats:reads MQ0']                += +ls['alignmentstats:reads MQ0'];
                                 }
                                 
                                 // finalise the summary stats now that we have
@@ -424,6 +427,18 @@ var getQCGraphData = function(method, args, subargs, loading, errors) {
                                 }
                                 else {
                                     stats['Depth'] = -1;
+                                }
+                                if (stats['alignmentstats:reads paired']) {
+                                    stats['Paired%'] = rounder(100 * stats['alignmentstats:reads properly paired'] / stats['alignmentstats:reads paired']);
+                                }
+                                else {
+                                    stats['Paired%'] = -1;
+                                }
+                                if (reads_mapped) {
+                                    stats['MAPQ0%'] = rounder(100 * stats['alignmentstats:reads MQ0'] / reads_mapped);
+                                }
+                                else {
+                                    stats['MAPQ0%'] = -1;
                                 }
                                 
                                 return stats;

@@ -468,6 +468,16 @@
                                                     <input type="text" size="2" data-bind="textInput: laneletFilters['error_rate']" />
                                                 </td>
                                             <!-- /ko -->
+                                            <!-- ko if: columns()['Paired%'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['paired_percent']" />
+                                                </td>
+                                            <!-- /ko -->
+                                            <!-- ko if: columns()['MAPQ0%'].display -->
+                                                <td>
+                                                    <input type="text" size="2" data-bind="textInput: laneletFilters['mapq0_percent']" />
+                                                </td>
+                                            <!-- /ko -->
                                             <td></td>
                                         </tr>
                                     <!-- /ko -->
@@ -590,6 +600,8 @@
                                                 <!-- ko if: $parent.columns()['Net Gb'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Net Gb']"></td><!-- /ko -->
                                                 <!-- ko if: $parent.columns()['Depth'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Depth']"></td><!-- /ko -->
                                                 <!-- ko if: $parent.columns()['Error Rate%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Error Rate']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['Paired%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['Paired%']"></td><!-- /ko -->
+                                                <!-- ko if: $parent.columns()['MAPQ0%'].display --><td data-bind="text: ko.utils.unwrapObservable($data.lanelet_stats)['MAPQ0%']"></td><!-- /ko -->
                                                 <!-- ko if: $parent.selectedViewLabel() == 'Lanelet' -->
                                                     <td>
                                                         <span style="cursor: pointer" data-bind="click: $parent.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
@@ -743,6 +755,8 @@
                                                                                 <!-- ko if: $root.columns()['Net Gb'].display --><td data-bind="text: $data.lanelet_stats['Net Gb']"></td><!-- /ko -->
                                                                                 <!-- ko if: $root.columns()['Depth'].display --><td data-bind="text: $data.lanelet_stats['Depth']"></td><!-- /ko -->
                                                                                 <!-- ko if: $root.columns()['Error Rate%'].display --><td data-bind="text: $data.lanelet_stats['Error Rate']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['Paired%'].display --><td data-bind="text: $data.lanelet_stats['Paired%']"></td><!-- /ko -->
+                                                                                <!-- ko if: $root.columns()['MAPQ0%'].display --><td data-bind="text: $data.lanelet_stats['MAPQ0%']"></td><!-- /ko -->
                                                                                 <td>
                                                                                     <span style="cursor: pointer" data-bind="click: $root.toggleLaneletGraphs">&laquo;graphs&raquo;</span>
                                                                                     <span style="cursor: pointer" data-bind="click: $root.toggleLaneletStats">&laquo;stats&raquo;</span>
@@ -1060,7 +1074,9 @@
                     overlap_dup_percent: ko.observable(undefined),
                     net_gb: ko.observable(undefined),
                     depth: ko.observable(undefined),
-                    error_rate: ko.observable(undefined)
+                    error_rate: ko.observable(undefined),
+                    paired_percent: ko.observable(undefined),
+                    mapq0_percent: ko.observable(undefined)
                 };
                 self.filteredNodes = ko.observableArray();
                 self.maxRows = ko.observable(500);
@@ -1098,7 +1114,9 @@
                                 (self.laneletFilters.overlap_dup_percent() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Overlap dup%']) <= parseFloat(self.laneletFilters.overlap_dup_percent()) : 1) &&
                                 (self.laneletFilters.net_gb() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Net Gb']) >= parseFloat(self.laneletFilters.net_gb()) : 1) &&
                                 (self.laneletFilters.depth() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Depth']) >= parseFloat(self.laneletFilters.depth()) : 1) &&
-                                (self.laneletFilters.error_rate() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Error Rate']) >= parseFloat(self.laneletFilters.error_rate()) : 1);
+                                (self.laneletFilters.error_rate() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Error Rate']) >= parseFloat(self.laneletFilters.error_rate()) : 1) &&
+                                (self.laneletFilters.paired_percent() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['Paired%']) >= parseFloat(self.laneletFilters.paired_percent()) : 1) &&
+                                (self.laneletFilters.mapq0_percent() ? parseFloat(ko.utils.unwrapObservable(l.lanelet_stats)['MAPQ0%']) >= parseFloat(self.laneletFilters.mapq0_percent()) : 1);
                             return pass;
                         } 
                     }
@@ -1118,7 +1136,7 @@
                 // according to these settings:
                 self.sampleLaneletsFilter = { passed: ko.observable(false), failed: ko.observable(false), investigate: ko.observable(false), gt_pending: ko.observable(false), pending: ko.observable(false) };
                 self.lastSort = [];
-                self.filterAffectedSorts = { 'lanelet_stats.Raw Gb': 1, 'lanelet_stats.Mapped Gb': 1, 'lanelet_stats.Dup%': 1, 'lanelet_stats.Mapped-dups Gb': 1, 'lanelet_stats.Overlap dup%': 1, 'lanelet_stats.Net Gb': 1, 'lanelet_stats.Depth': 1, 'lanelet_stats.Error Rate': 1 };
+                self.filterAffectedSorts = { 'lanelet_stats.Raw Gb': 1, 'lanelet_stats.Mapped Gb': 1, 'lanelet_stats.Dup%': 1, 'lanelet_stats.Mapped-dups Gb': 1, 'lanelet_stats.Overlap dup%': 1, 'lanelet_stats.Net Gb': 1, 'lanelet_stats.Depth': 1, 'lanelet_stats.Error Rate': 1, 'lanelet_stats.Paired%': 1, 'lanelet_stats.MAPQ0%': 1 };
                 Object.keys(self.laneletFilters).forEach(function (key) { 
                     var filter = self.laneletFilters[key];
                     
@@ -1552,7 +1570,9 @@
                     ["Overlap dup%", "lanelet_stats.Overlap dup%", [true, true], "the percent of bases duplicated due to reads of a pair overlapping"],
                     ["Net Gb", "lanelet_stats.Net Gb", [true, true], "Gb excluding overlapping base duplicates"],
                     ["Depth", "lanelet_stats.Depth", [false, true], "bases mapped ignoring duplicate reads / 3000000000"],
-                    ["Error Rate%", "lanelet_stats.Error Rate", [true, false], "percent of mismatches in bases mapped (cigar)"]
+                    ["Error Rate%", "lanelet_stats.Error Rate", [true, false], "percent of mismatches in bases mapped (cigar)"],
+                    ["Paired%", "lanelet_stats.Paired%", [true, false], "percent of reads properly paired"],
+                    ["MAPQ0%", "lanelet_stats.MAPQ0%", [true, false], "percent of mapped reads with Q 0"]
                 ];
                 self.colsLen = self.cols.length;
                 self.viewColumns = ko.computed(function () {
