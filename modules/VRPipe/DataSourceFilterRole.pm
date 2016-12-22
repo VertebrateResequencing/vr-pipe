@@ -101,8 +101,13 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                     $passes += $this_passed;
                 }
                 else {
-                    $file_filter_cache{$file_id} = undef;
-                    return unless $filter_after_grouping;
+                    if ($regex eq '^$') {
+                        $passes++;
+                    }
+                    else {
+                        $file_filter_cache{$file_id} = undef;
+                        return unless $filter_after_grouping;
+                    }
                 }
             }
             $pass_filter = $passes == @$krs ? 1 : 0;
