@@ -126,13 +126,11 @@ class VRPipe::Steps::gatk_combine_gvcfs extends VRPipe::Steps::gatk_v2 {
                     my @files_list = splice @$region_input_files, 0, $maximum_gvcfs_to_combine;
                     my @file_inputs = map { "--variant " . $_->path } @files_list;
                     
-                    $this_combine_gvcfs_opts .= " @file_inputs";
-                    
                     my $vcf_file  = $self->output_file(output_key => 'combine_gvcf_files', basename => "batch_$count." . $this_basename, type => 'vcf', metadata => $vcf_meta);
                     my $vcf_path  = $vcf_file->path;
                     my $vcf_index = $self->output_file(output_key => 'combine_gvcf_index_files', basename => "batch_$count." . $this_basename . ".tbi", type => 'bin', metadata => $vcf_meta);
                     
-                    my $cmd      = $self->gatk_prefix($req->memory) . qq[ -T CombineGVCFs -R $reference_fasta $this_combine_gvcfs_opts -o $vcf_path];
+                    my $cmd      = $self->gatk_prefix($req->memory) . qq[ -T CombineGVCFs -R $reference_fasta $this_combine_gvcfs_opts @file_inputs -o $vcf_path];
                     my $this_cmd = "use VRPipe::Steps::gatk_combine_gvcfs; VRPipe::Steps::gatk_combine_gvcfs->combine_and_check(q[$cmd]);";
                     $self->dispatch_vrpipecode($this_cmd, $req, { output_files => [$vcf_file, $vcf_index] });
                     $count++;
