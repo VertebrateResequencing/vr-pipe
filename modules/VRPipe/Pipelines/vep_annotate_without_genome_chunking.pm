@@ -50,7 +50,7 @@ class VRPipe::Pipelines::vep_annotate_without_genome_chunking with VRPipe::Pipel
     
     method adaptor_definitions {
         (
-            { from_step => 0, to_step => 1, to_key => 'vcf_file' },
+            { from_step => 0, to_step => 1, to_key => 'vcf_files' },
         );
     }
     
