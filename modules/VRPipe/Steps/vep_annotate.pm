@@ -63,7 +63,7 @@ class VRPipe::Steps::vep_annotate with VRPipe::StepRole {
             if ($vep_opts =~ /-[i,o] /) {
                 $self->throw("vep_options should not include the -i or -o option");
             }
-            if (defined $post_vep_cmds && $post_vep_cmds !~ /\$output_vcf/ && $post_vep_cmds !~ /\$output_bcf/) {
+            if ($post_vep_cmds ne '' && $post_vep_cmds !~ /\$output_vcf/ && $post_vep_cmds !~ /\$output_bcf/) {
                 $self->throw("post_vep_options must contain one of the output strings \$output_vcf or \$output_bcf");
             }
             $self->set_cmd_summary(
