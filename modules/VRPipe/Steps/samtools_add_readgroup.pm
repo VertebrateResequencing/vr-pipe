@@ -215,7 +215,7 @@ class VRPipe::Steps::samtools_add_readgroup with VRPipe::StepRole {
         system($cmd_line) && $self->throw("failed to run [$cmd_line]");
         
         $out_file->update_stats_from_disc(retries => 3);
-        my $expected_reads = $in_file->metadata->{reads} || $in_file->num_records;
+        my $expected_reads = $in_file->metadata->{total_reads} || $in_file->num_records;
         my $actual_reads = $out_file->num_records;
         
         if ($actual_reads == $expected_reads) {
