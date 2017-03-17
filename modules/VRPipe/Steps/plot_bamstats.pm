@@ -53,7 +53,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
                 description => 'samtools stats output files',
                 max_files   => -1
             ),
-            fasta_gc_stats_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'plot-bamstats -s output file for the reference fasta')
+            fasta_gc_stats_file => VRPipe::StepIODefinition->create(type => 'txt', description => 'plot-bamstats -s output file for the reference fasta', optional => 1)
         };
     }
     
@@ -66,7 +66,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
             
             # we don't accept opts from user, since we handle them all ourselves
             # and they must not be overridden
-            my $plot_opts = '-r ' . $self->inputs->{fasta_gc_stats_file}->[0]->path;
+            my $plot_opts = $self->inputs->{fasta_gc_stats_file} ? '-r ' . $self->inputs->{fasta_gc_stats_file}->[0]->path : '';
             
             foreach my $s_file (@{ $self->inputs->{stats_files} }) {
                 # we need to know some related info on this stats file;
