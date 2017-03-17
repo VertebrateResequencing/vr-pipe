@@ -717,6 +717,7 @@ sub stepstate_chain {
             my $this_pipelinesetup = $link->pipelinesetup;
             my $setup_id           = $this_pipelinesetup->id;
             next unless exists $vrpipe_sources->{$setup_id};
+            next unless $vrpipe_sources->{$setup_id}->{final_smid};
             my $this_stepmember = VRPipe::StepMember->get(id => $vrpipe_sources->{$setup_id}->{final_smid});
             push @chain, stepstate_chain(VRPipe::StepState->get(pipelinesetup => $this_pipelinesetup, dataelement => $link->parent, stepmember => $this_stepmember));
         }
