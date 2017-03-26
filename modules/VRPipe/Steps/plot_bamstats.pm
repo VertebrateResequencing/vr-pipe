@@ -67,7 +67,7 @@ class VRPipe::Steps::plot_bamstats with VRPipe::StepRole {
             # we don't accept opts from user, since we handle them all ourselves
             # and they must not be overridden
             my $plot_opts = "";
-            if (scalar(@{ $self->inputs->{fasta_gc_stats_file} }) == 1) {
+            if (exists $self->inputs->{fasta_gc_stats_file} && scalar(@{ $self->inputs->{fasta_gc_stats_file} }) == 1) {
                 $plot_opts = '-r ' . $self->inputs->{fasta_gc_stats_file}->[0]->path;
             }
             
