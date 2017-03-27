@@ -1056,7 +1056,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                     elsif ($meta->{sample_gender} =~ /^m/i) {
                                         $sex = 'M';
                                     }
-                                    delete $meta->{sample_gender}; # this new thing we don't want on our VRPipe::File metadata
                                 }
                                 my $gender_md5 = md5_hex('sequencescape.' . $sex);
                                 my $gender;
@@ -1435,6 +1434,14 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             $type ||= 'any';
             
             my $vrfile = VRPipe::File->create(path => $file_abs_path, type => $type, $protocol ? (protocol => $protocol) : ())->original;
+            
+            # we'll only set sample_gender if it's already there
+            if (defined $new_metadata->{sample_gender} && !defined $vrfile->meta_value("sample_gender")) {
+                delete $new_metadata->{sample_gender};
+            }
+            else {
+                warn "updating sample $new_metadata->{sample} gender from ", $vrfile->meta_value("sample_gender"), " to $new_metadata->{sample_gender}\n";
+            }
             
             # add metadata to file, handling any changes
             my @changed_details;
