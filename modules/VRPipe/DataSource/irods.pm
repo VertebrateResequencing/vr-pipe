@@ -1439,9 +1439,6 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
             if (defined $new_metadata->{sample_gender} && !defined $vrfile->meta_value("sample_gender")) {
                 delete $new_metadata->{sample_gender};
             }
-            else {
-                warn "updating sample $new_metadata->{sample} gender from ", $vrfile->meta_value("sample_gender"), " to $new_metadata->{sample_gender}\n";
-            }
             
             # add metadata to file, handling any changes
             my @changed_details;
