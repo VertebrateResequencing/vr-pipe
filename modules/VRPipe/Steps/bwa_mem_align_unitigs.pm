@@ -54,6 +54,11 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
                 optional      => 1,
                 default_value => ''
             ),
+            skip_hla_typing => VRPipe::StepOption->create(
+                description   => 'do not perform HLA typing even when running bwa-postalt.js on a reference with HLA ALTs',
+                optional      => 1,
+                default_value => 0
+            ),
         };
     }
     
@@ -106,11 +111,13 @@ class VRPipe::Steps::bwa_mem_align_unitigs extends VRPipe::Steps::bwa_mem_fastq 
             my $do_alt  = 0;
             if ($postalt && -f "$ref.alt") {
                 $do_alt = 1;
-                open(my $fh, "$ref.alt") || die("Could not open $ref.alt");
-                while (<$fh>) {
-                    $has_hla = 1 if /^HLA-[^\s\*]+\*\d+/;
+                unless ($options->{skip_hla_typing}) {
+                    open(my $fh, "$ref.alt") || die("Could not open $ref.alt");
+                    while (<$fh>) {
+                        $has_hla = 1 if /^HLA-[^\s\*]+\*\d+/;
+                    }
+                    close($fh) || die("Could not close $ref.alt");
                 }
-                close($fh) || die("Could not close $ref.alt");
             }
             
             $self->set_cmd_summary(
