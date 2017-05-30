@@ -228,7 +228,11 @@ sub handle_datasources {
                                 # email user about the error once per setup
                                 unless ($mt->already_sent("not working")) {
                                     $s->log_event("vrpipe-handler for datasources found that DataSource $ds_id has problems: $err");
-                                    $im->log("There is a problem with datasource $ds_id for setup $sid", email_to => [$s->user], subject => "Setup $sid has problems with its DataSource", long_msg => $err);
+                                    # *** actually, temporarily(?) disable these
+                                    # since too many get sent out; would have to
+                                    # alter MessageTracker to do time-based
+                                    # limits as well...
+                                    # $im->log("There is a problem with datasource $ds_id for setup $sid", email_to => [$s->user], subject => "Setup $sid has problems with its DataSource", long_msg => $err);
                                 }
                             }
                             else {
