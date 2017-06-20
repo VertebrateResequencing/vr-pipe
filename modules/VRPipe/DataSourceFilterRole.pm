@@ -114,7 +114,6 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
         }
         
         if ($gfs && @$gfs && (($krs && @$krs) ? $pass_filter : 1)) {
-            my ($file_path, $protocol);
             my $file_node;
             if (ref($file) eq 'VRPipe::File') {
                 my $protocol = $file->protocol ne 'file:/' ? $file->protocol : undef;
@@ -185,6 +184,10 @@ role VRPipe::DataSourceFilterRole with VRPipe::DataSourceRole {
                 }
             }
             $pass_filter = scalar(keys %passes_per_kind) == scalar(keys %kinds) ? 1 : 0;
+            if (!$pass_filter && !$filter_after_grouping) {
+                $file_filter_cache{$file_id} = undef;
+                return;
+            }
         }
         
         $file_filter_cache{$file_id} = $pass_filter;
