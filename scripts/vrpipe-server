@@ -911,7 +911,7 @@ sub _get_steplimit {
         $step_limit = $step_limits->{$step_id};
     }
     else {
-        $step_limit = $step->current_step_limit($step_counts, $completed_setups);
+        ($step_limit) = $step->current_step_limit($step_counts, $completed_setups);
         $step_limits->{$step_id} = $step_limit;
     }
     

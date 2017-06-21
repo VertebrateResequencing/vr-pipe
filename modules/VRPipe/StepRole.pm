@@ -1295,6 +1295,7 @@ role VRPipe::StepRole {
         }
         $step_limit ||= 0;
         
+        my %running_setups;
         if ($step_limit && $step_counts) {
             # see how many of this step are currently
             # running, globally
@@ -1302,13 +1303,16 @@ role VRPipe::StepRole {
             my $count = 0;
             while (my $subs = $pager->next) {
                 foreach my $sub (@$subs) {
-                    $count++ if $sub->job->is_alive;
+                    if ($sub->job->is_alive) {
+                        $count++;
+                        $running_setups{ $sub->stepstate->pipelinesetup->id } = 1;
+                    }
                 }
             }
             $step_counts->{$step_id} = $count;
         }
         
-        return $step_limit;
+        return ($step_limit, [keys %running_setups]);
     }
 }
 

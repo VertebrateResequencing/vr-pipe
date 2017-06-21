@@ -190,19 +190,23 @@ foreach my $sub (@subs) {
         }
         else {
             # check for a step limit
-            my $step_limit;
+            my ($step_limit, $running_setups);
             if (exists $step_limits{$step_id}) {
-                $step_limit = $step_limits{$step_id};
+                ($step_limit, $running_setups) = @{ $step_limits{$step_id} };
             }
             else {
-                $step_limit = $step->current_step_limit($step_counts, $completed_setups);
-                $step_limits{$step_id} = $step_limit;
+                ($step_limit, $running_setups) = $step->current_step_limit($step_counts, $completed_setups);
+                $step_limits{$step_id} = [$step_limit, $running_setups];
             }
             
             my $explained = 0;
             if ($step_limit) {
-                my $count = $step_counts->{$step_id};
-                $frontend->output("This step is limited to $step_limit submissions running at once, globally, and there are currently $count running");
+                my $count     = $step_counts->{$step_id};
+                my $in_setups = "";
+                if ($running_setups && @$running_setups > 0) {
+                    $in_setups = " (in setups " . join(", ", @$running_setups) . ")";
+                }
+                $frontend->output("This step is limited to $step_limit submissions running at once, globally, and there are currently $count running$in_setups");
                 if ($count >= $step_limit) {
                     $explained = 1;
                 }
@@ -245,7 +249,7 @@ foreach my $sub (@subs) {
                                 $step_limit = $step_limits{$req_step_id};
                             }
                             else {
-                                $step_limit = $req_step->current_step_limit($step_counts, $completed_setups);
+                                ($step_limit) = $req_step->current_step_limit($step_counts, $completed_setups);
                                 $step_limits{$req_step_id} = $step_limit;
                             }
                             if ($step_limit) {
