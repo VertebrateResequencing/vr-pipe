@@ -36,7 +36,7 @@ use VRPipe::Base;
 class VRPipe::Steps::archive_vcf_index_files extends VRPipe::Steps::archive_index_files {
     method inputs_definition {
         return {
-            vcf_file       => VRPipe::StepIODefinition->create(type => 'aln', description => 'a VCF or BCF file that should be archived'),
+            vcf_file       => VRPipe::StepIODefinition->create(type => 'var', description => 'a VCF or BCF file that should be archived'),
             vcf_index_file => VRPipe::StepIODefinition->create(type => 'idx', description => 'a TBI or CSI index file that should be archived'),
         };
     }
