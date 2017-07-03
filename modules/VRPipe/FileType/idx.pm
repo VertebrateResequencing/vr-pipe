@@ -40,7 +40,7 @@ use VRPipe::Base;
 class VRPipe::FileType::idx extends VRPipe::FileType::hts {
     method check_type {
         my $type = $self->hts_file_type;
-        if ($type =~ /^BAI/ || $type =~ /^CRAI/ || $type =~ /^CSI/ || $type =~ /^TBI/) {
+        if ($type =~ /^BAI/ || $type =~ /^CRAI/ || $type =~ /^CSI/ || $type =~ /^(?!TBI:Tabix)/) {
             return 1;
         }
         elsif ($type =~ /^SAM/) {
