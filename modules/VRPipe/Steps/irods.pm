@@ -197,7 +197,7 @@ class VRPipe::Steps::irods with VRPipe::StepRole {
                 
                 if (defined $qc_meta->{'vrtrack_bam_stats_total length'}) {
                     $graph_meta->{bases}           = $qc_meta->{'vrtrack_bam_stats_total length'};
-                    $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads properly paired'} ? 1 : 0;
+                    $graph_meta->{paired}          = $qc_meta->{'vrtrack_bam_stats_reads paired'} ? 1 : 0;
                     $graph_meta->{avg_read_length} = $qc_meta->{'vrtrack_bam_stats_average length'};
                     
                     # again, we require the 0x900 stats, but the user may be
