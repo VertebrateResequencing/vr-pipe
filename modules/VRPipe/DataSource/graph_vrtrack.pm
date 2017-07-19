@@ -151,6 +151,9 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         if ($method =~ /cram/) {
             $ext = '.cram';
         }
+        elsif ($method =~ /bam/) {
+            $ext = '.bam';
+        }
         else {
             $self->throw("$method not implemented properly");
         }
@@ -280,6 +283,41 @@ class VRPipe::DataSource::graph_vrtrack with VRPipe::DataSourceFilterRole {
         
         my $e = time() - $t;
         warn "lanelet_crams called _all_files ($e seconds) and will now _create_elements for ", scalar(@element_args), " elements\n" if $self->debug;
+        
+        $self->_create_elements(\@element_args);
+    }
+    
+    method lanelet_bams (Defined :$handle!, Str :$group_by_metadata?, Str :$parent_filter?, Str :$qc_filter?) {
+        my $did = $self->_datasource_id;
+        my (@element_args, $group_hash, $group_order_i);
+        my $t = time();
+        foreach my $result ($self->_all_files()) {
+            my $protocol = $result->{protocol};
+            
+            if ($group_by_metadata) {
+                my $group_key = $result->{group};
+                defined $group_key || next;
+                push(@{ $group_hash->{$group_key}->{paths} }, @{ $result->{paths} });
+                $group_hash->{$group_key}->{protocol} = $protocol if defined $protocol;
+                unless (defined $group_hash->{$group_key}->{order}) {
+                    $group_hash->{$group_key}->{order} = ++$group_order_i;
+                }
+            }
+            else {
+                push(@element_args, { datasource => $did, result => { paths => $result->{paths}, $protocol ? (protocol => $protocol) : () } });
+            }
+        }
+        
+        if ($group_by_metadata) {
+            foreach my $group (sort { $group_hash->{$a}->{order} <=> $group_hash->{$b}->{order} } keys %$group_hash) {
+                my $data     = $group_hash->{$group};
+                my $protocol = $data->{protocol};
+                push(@element_args, { datasource => $did, result => { paths => $data->{paths}, group => $group, $protocol ? (protocol => $protocol) : () } });
+            }
+        }
+        
+        my $e = time() - $t;
+        warn "lanelet_bams called _all_files ($e seconds) and will now _create_elements for ", scalar(@element_args), " elements\n" if $self->debug;
         
         $self->_create_elements(\@element_args);
     }
