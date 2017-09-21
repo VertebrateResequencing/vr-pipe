@@ -1104,9 +1104,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                                 }
                             );
                             my $file_connected = 0;
-                            my $unique         = file($path)->basename;
-                            $unique =~ s/\.gz$//;
-                            $unique =~ s/\.[^\.]+$//;
+                            my $unique;
+                            if (defined $meta->{id_run} && defined $meta->{lane} && defined $meta->{tag_index}) {
+                                $unique = "$meta->{id_run}_$meta->{lane}#$meta->{tag_index}";
+                            }
+                            else {
+                                $unique = file($path)->basename;
+                                $unique =~ s/\.gz$//;
+                                $unique =~ s/\.[^\.]+$//;
+                            }
                             
                             if ($local_root_dir) {
                                 my $local_file = $vrtrack->add_file(file($local_root_dir, $path)->stringify);
@@ -1287,9 +1293,15 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         # we change lane from eg. '1' to the Lane Unique value
                         # in the output file metadata, so we won't consider it
                         # a change if $val eq Unique
-                        my $lane = Path::Class->file($path)->basename;
-                        $lane =~ s/\.gz$//;
-                        $lane =~ s/\.[^\.]+$//;
+                        my $lane;
+                        if (defined $new_metadata->{id_run} && defined $new_metadata->{lane} && defined $new_metadata->{tag_index}) {
+                            $lane = "$new_metadata->{id_run}_$new_metadata->{lane}#$new_metadata->{tag_index}";
+                        }
+                        else {
+                            $lane = file($path)->basename;
+                            $lane =~ s/\.gz$//;
+                            $lane =~ s/\.[^\.]+$//;
+                        }
                         if ($lane eq $val) {
                             $new_metadata->{lane} = $lane;
                             next;
