@@ -1107,6 +1107,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                             my $unique;
                             if (defined $meta->{id_run} && defined $meta->{lane} && defined $meta->{tag_index}) {
                                 $unique = "$meta->{id_run}_$meta->{lane}#$meta->{tag_index}";
+                                $unique .= "_" . $meta->{alignment_filter} if (defined $meta->{alignment_filter});
                             }
                             else {
                                 $unique = file($path)->basename;
@@ -1296,6 +1297,7 @@ class VRPipe::DataSource::irods with VRPipe::DataSourceFilterRole {
                         my $lane;
                         if (defined $new_metadata->{id_run} && defined $new_metadata->{lane} && defined $new_metadata->{tag_index}) {
                             $lane = "$new_metadata->{id_run}_$new_metadata->{lane}#$new_metadata->{tag_index}";
+                            $lane .= "_" . $new_metadata->{alignment_filter} if (defined $new_metadata->{alignment_filter});
                         }
                         else {
                             $lane = file($path)->basename;
