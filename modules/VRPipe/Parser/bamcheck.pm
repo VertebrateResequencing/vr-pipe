@@ -297,6 +297,48 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         writer => '_pairs_with_other_orientation'
     );
     
+    has 'total_first_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_total_first_fragment_length'
+    );
+    
+    has 'total_last_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_total_last_fragment_length'
+    );
+    
+    has 'average_first_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Num',
+        writer => '_average_first_fragment_length'
+    );
+    
+    has 'average_last_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Num',
+        writer => '_average_last_fragment_length'
+    );
+    
+    has 'maximum_first_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_maximum_first_fragment_length'
+    );
+    
+    has 'maximum_last_fragment_length' => (
+        is     => 'ro',
+        isa    => 'Int',
+        writer => '_maximum_last_fragment_length'
+    );
+    
+    has 'percentage_of_properly_paired_reads' => (
+        is     => 'ro',
+        isa    => 'Num',
+        writer => '_percentage_of_properly_paired_reads'
+    );
+    
     has '_coverage' => (
         traits  => ['Hash'],
         is      => 'ro',
@@ -333,7 +375,11 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         GCD => 'gc_depth',
         MPC => 'mismatches_per_cycle',
         GCC => 'gc_content_per_cycle',
-        RL  => 'read_lengths'
+        FBC => 'first_fragment_gc_content_per_cycle',
+        LBC => 'last_fragment_gc_content_per_cycle',
+        RL  => 'read_lengths',
+        FRL => 'first_fragment_read_lengths',
+        LRL => 'last_fragment_read_lengths'
     ); # we don't actually use this mapping except to confirm what sections we understand
     
     has 'first_fragment_qualities' => (
@@ -416,12 +462,44 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
         handles => { '_push_GCC' => 'push' }
     );
     
+    has 'first_fragment_gc_content_per_cycle' => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[ArrayRef[Str]]',
+        default => sub { [] },
+        handles => { '_push_FBC' => 'push' }
+    );
+    
+    has 'last_fragment_gc_content_per_cycle' => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[ArrayRef[Str]]',
+        default => sub { [] },
+        handles => { '_push_LBC' => 'push' }
+    );
+    
     has 'read_lengths' => (
         traits  => ['Array'],
         is      => 'ro',
         isa     => 'ArrayRef[ArrayRef[Str]]',
         default => sub { [] },
         handles => { '_push_RL' => 'push' }
+    );
+    
+    has 'first_fragment_read_lengths' => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[ArrayRef[Str]]',
+        default => sub { [] },
+        handles => { '_push_FRL' => 'push' }
+    );
+    
+    has 'last_fragment_read_lengths' => (
+        traits  => ['Array'],
+        is      => 'ro',
+        isa     => 'ArrayRef[ArrayRef[Str]]',
+        default => sub { [] },
+        handles => { '_push_LRL' => 'push' }
     );
 
 =head2 parsed_record
@@ -467,8 +545,9 @@ class VRPipe::Parser::bamcheck with VRPipe::ParserRole {
                 my $value       = $2;
                 my $orig_method = $method;
                 $method =~ s/[\s-]+/_/g;
-                $method = 'first_fragments'    if $method eq '1st_fragments';
-                $method = 'bases_mapped_cigar' if $method eq 'bases_mapped_(cigar)';
+                $method = 'first_fragments'                     if $method eq '1st_fragments';
+                $method = 'bases_mapped_cigar'                  if $method eq 'bases_mapped_(cigar)';
+                $method = 'percentage_of_properly_paired_reads' if $method eq 'percentage_of_properly_paired_reads_(%)';
                 $method = lc('_' . $method);
                 unless ($self->can($method)) {
                     $self->warn("unexpected SN line $orig_method");
